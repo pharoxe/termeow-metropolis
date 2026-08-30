@@ -1,0 +1,13 @@
+# live stores
+data/
+*.db
+*.db-wal
+*.db-shm
+.env
+.venv/
+__pycache__/
+*.pyc
+*.bak*
+*.bak-*
+.DS_Store
+terminal-v-source.tar.gz
