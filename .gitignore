@@ -1,5 +1,8 @@
 # live stores
 data/
+node_modules/
+dist/
+coverage/
 *.db
 *.db-wal
 *.db-shm
@@ -7,6 +10,7 @@ data/
 .venv/
 __pycache__/
 *.pyc
+*.log
 *.bak*
 *.bak-*
 .DS_Store

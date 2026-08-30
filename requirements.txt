@@ -1,4 +1,0 @@
-# Terminal V runs on the standard library plus this.
-websockets>=12.0
-# Linux/Windows: zoneinfo has no bundled tz database off macOS.
-tzdata; sys_platform != "darwin"
