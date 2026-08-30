@@ -1,0 +1,16 @@
+[Unit]
+Description=Terminal V market terminal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APPDIR__
+ExecStart=__PYTHON__ __APPDIR__/server.py --port 9300 --host 127.0.0.1
+Restart=always
+RestartSec=10
+EnvironmentFile=-__APPDIR__/.env
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
