@@ -3,7 +3,7 @@ import type { IndicatorSet } from "./MarketChart";
 export function IndicatorBar({ value, onChange }: { value: IndicatorSet; onChange: (next: IndicatorSet) => void }) {
   const groups: Array<[string, Array<keyof IndicatorSet>]> = [
     ["ON PRICE", ["ema", "bollinger", "vwap", "sr", "volume"]],
-    ["SUB-PANE", ["rsi", "macd", "obv"]]
+    ["SUB-PANE", ["cvd", "rsi", "macd", "obv"]]
   ];
   return (
     <div className="indicator-bar">

@@ -10,7 +10,9 @@ function decodeBase64(value: string) {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
-export function SpotTradeTicket({ config }: { config: PublicConfig }) {
+export function SpotTradeTicket({ config, mint, symbol }: { config: PublicConfig; mint?: string; symbol?: string }) {
+  const tokenMint = mint || config.ansemMint;
+  const tokenSymbol = (symbol || "TOKEN").toUpperCase();
   const { publicKey, sendTransaction, connected } = useWallet();
   const { connection } = useConnection();
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -22,9 +24,9 @@ export function SpotTradeTicket({ config }: { config: PublicConfig }) {
   const [loading, setLoading] = useState(false);
 
   const input = useMemo(() => side === "buy"
-    ? { inputMint: config.usdcMint, outputMint: config.ansemMint, amount: String(Math.round(Number(amount || 0) * 1_000_000)) }
-    : { inputMint: config.ansemMint, outputMint: config.usdcMint, amount: String(Math.round(Number(amount || 0) * 1_000_000)) },
-  [side, amount, config]);
+    ? { inputMint: config.usdcMint, outputMint: tokenMint, amount: String(Math.round(Number(amount || 0) * 1_000_000)) }
+    : { inputMint: tokenMint, outputMint: config.usdcMint, amount: String(Math.round(Number(amount || 0) * 1_000_000)) },
+  [side, amount, config, tokenMint]);
 
   const getQuote = async () => {
     setLoading(true); setStatus(""); setConfirmed(false);
@@ -55,8 +57,8 @@ export function SpotTradeTicket({ config }: { config: PublicConfig }) {
   return (
     <section className="panel trade-ticket">
       <div className="panel-title"><span>SPOT ORDER</span><span className="tag">CLAWPUMP ROUTER</span></div>
-      <div className="side-tabs"><button className={side === "buy" ? "buy active" : ""} onClick={() => { setSide("buy"); setQuote(null); }}>BUY ANSEM</button><button className={side === "sell" ? "sell active" : ""} onClick={() => { setSide("sell"); setQuote(null); }}>SELL ANSEM</button></div>
-      <label>NOTIONAL {side === "buy" ? "USDC" : "ANSEM"}<input type="number" min="0" value={amount} onChange={(event) => { setAmount(event.target.value); setQuote(null); }} /></label>
+      <div className="side-tabs"><button className={side === "buy" ? "buy active" : ""} onClick={() => { setSide("buy"); setQuote(null); }}>BUY {tokenSymbol}</button><button className={side === "sell" ? "sell active" : ""} onClick={() => { setSide("sell"); setQuote(null); }}>SELL {tokenSymbol}</button></div>
+      <label>NOTIONAL {side === "buy" ? "USDC" : tokenSymbol}<input type="number" min="0" value={amount} onChange={(event) => { setAmount(event.target.value); setQuote(null); }} /></label>
       <label>MAX SLIPPAGE <div className="input-suffix"><input type="number" min="1" max="500" value={slippage} onChange={(event) => setSlippage(Number(event.target.value))} /><span>BPS</span></div></label>
       <div className="wallet-line"><span>SIGNER</span><b>{shortAddress(publicKey?.toBase58())}</b></div>
       {!quote ? <button className="primary" disabled={loading || !Number(amount)} onClick={getQuote}>{loading ? "QUOTING…" : "PREVIEW ROUTE"}</button> : (

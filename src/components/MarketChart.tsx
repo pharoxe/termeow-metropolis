@@ -10,6 +10,8 @@ import {
 } from "lightweight-charts";
 import type { Candle } from "../types";
 import { bollinger, ema, macd, obv, rsi, vwap } from "../lib/indicators";
+import { axisUsd } from "../lib/format";
+import { alignFlowToCandles } from "../lib/cvdAlign";
 
 export type IndicatorSet = {
   ema: boolean;
@@ -17,22 +19,38 @@ export type IndicatorSet = {
   vwap: boolean;
   sr: boolean;
   volume: boolean;
+  cvd: boolean;
   rsi: boolean;
   macd: boolean;
   obv: boolean;
 };
 
+export type CvdSeriesPoint = { time: number; value: number };
+
 function lineData(candles: Candle[], values: Array<number | null>) {
-  return values.flatMap((value, index) => value == null ? [] : [{ time: Math.floor(candles[index].time / 1000) as UTCTimestamp, value }]);
+  return values.flatMap((value, index) => {
+    if (value == null) return [];
+    const raw = Number(candles[index].time);
+    return [{ time: Math.floor(raw > 1e12 ? raw / 1000 : raw) as UTCTimestamp, value }];
+  });
 }
 
-export function MarketChart({ candles, indicators }: { candles: Candle[]; indicators: IndicatorSet }) {
+const EMPTY_CVD: CvdSeriesPoint[] = [];
+
+const compactFormat = { type: "custom" as const, minMove: 1, formatter: (value: number) => axisUsd(value) };
+
+export function MarketChart({ candles, indicators, cvdSeries = EMPTY_CVD, compactAxis = false }: { candles: Candle[]; indicators: IndicatorSet; cvdSeries?: CvdSeriesPoint[]; compactAxis?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
   useEffect(() => {
     if (!host.current || !candles.length) return;
-    const chart = createChart(host.current, {
+    const node = host.current;
+    const width = Math.max(node.clientWidth || 0, 320);
+    const height = Math.max(node.clientHeight || 0, 280);
+    const chart = createChart(node, {
+      width,
+      height,
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: "#090c12" }, textColor: "#85909f", fontFamily: "IBM Plex Mono, monospace" },
       grid: { vertLines: { color: "#141922" }, horzLines: { color: "#141922" } },
@@ -43,12 +61,16 @@ export function MarketChart({ candles, indicators }: { candles: Candle[]; indica
     chartRef.current = chart;
     const price = chart.addSeries(CandlestickSeries, {
       upColor: "#9aff72", downColor: "#ff5b68", borderVisible: false,
-      wickUpColor: "#72c95b", wickDownColor: "#c44854", priceLineVisible: false
+      wickUpColor: "#72c95b", wickDownColor: "#c44854", priceLineVisible: false,
+      priceFormat: compactAxis ? compactFormat : { type: "price", precision: 5, minMove: 0.00001 }
     });
-    price.setData(candles.map((candle) => ({
-      time: Math.floor(candle.time / 1000) as UTCTimestamp,
-      open: candle.open, high: candle.high, low: candle.low, close: candle.close
-    })));
+    const bars = candles.map((candle) => {
+      const raw = Number(candle.time);
+      const time = Math.floor(raw > 1e12 ? raw / 1000 : raw) as UTCTimestamp;
+      return { time, open: candle.open, high: candle.high, low: candle.low, close: candle.close };
+    }).filter((bar, index, list) => index === 0 || bar.time > list[index - 1].time);
+    if (!bars.length) return;
+    price.setData(bars);
 
     const closes = candles.map((candle) => candle.close);
     if (indicators.ema) {
@@ -69,24 +91,47 @@ export function MarketChart({ candles, indicators }: { candles: Candle[]; indica
       }
     }
     if (indicators.volume) {
-      const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "volume", lastValueVisible: false, priceLineVisible: false });
+      const volume = chart.addSeries(HistogramSeries, { priceFormat: compactFormat, priceScaleId: "volume", lastValueVisible: false, priceLineVisible: false });
       volume.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
       volume.setData(candles.map((candle) => ({
-        time: Math.floor(candle.time / 1000) as UTCTimestamp,
+        time: Math.floor(Number(candle.time) > 1e12 ? Number(candle.time) / 1000 : Number(candle.time)) as UTCTimestamp,
         value: candle.volume,
         color: candle.close >= candle.open ? "#315b30aa" : "#64333aaa"
       })));
     }
     if (indicators.sr) {
-      const recent = candles.slice(-96);
-      const high = Math.max(...recent.map((candle) => candle.high));
-      const low = Math.min(...recent.map((candle) => candle.low));
-      const previousClose = recent[0]?.close;
-      for (const [priceValue, title, color] of [[high, "R96", "#ff4d5e"], [low, "S96", "#4df09b"], [previousClose, "OPEN96", "#28d7d0"]] as const) {
+      const high = Math.max(...candles.map((candle) => candle.high));
+      const low = Math.min(...candles.map((candle) => candle.low));
+      const windowOpen = candles[0]?.close ?? candles[0]?.open;
+      for (const [priceValue, title, color] of [[high, "RES", "#ff4d5e"], [low, "SUP", "#4df09b"], [windowOpen, "OPEN", "#28d7d0"]] as const) {
         if (Number.isFinite(priceValue)) price.createPriceLine({ price: priceValue, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title });
       }
     }
     let pane = 1;
+    if (indicators.cvd) {
+      const aligned = alignFlowToCandles(candles, cvdSeries);
+      if (aligned.delta.length) {
+        const delta = chart.addSeries(HistogramSeries, {
+          priceFormat: compactFormat,
+          lastValueVisible: true,
+          priceLineVisible: false,
+          title: "DELTA"
+        }, pane);
+        delta.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.08 } });
+        delta.setData(aligned.delta.map((bar) => ({ time: bar.time as UTCTimestamp, value: bar.value, color: bar.color })));
+        const cvd = chart.addSeries(LineSeries, {
+          color: "#28d7d0",
+          lineWidth: 1,
+          priceFormat: compactFormat,
+          lastValueVisible: true,
+          priceLineVisible: false,
+          title: "CVD",
+          priceScaleId: "cvd-line"
+        }, pane++);
+        cvd.priceScale().applyOptions({ scaleMargins: { top: 0.12, bottom: 0.08 } });
+        cvd.setData(aligned.cvd.map((bar) => ({ time: bar.time as UTCTimestamp, value: bar.value })));
+      }
+    }
     if (indicators.rsi) {
       const series = chart.addSeries(LineSeries, { color: "#28d7d0", lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: "RSI14" }, pane++);
       series.setData(lineData(candles, rsi(closes)));
@@ -103,9 +148,14 @@ export function MarketChart({ candles, indicators }: { candles: Candle[]; indica
       const series = chart.addSeries(LineSeries, { color: "#c084fc", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, title: "OBV" }, pane++);
       series.setData(lineData(candles, obv(candles)));
     }
+    const panes = chart.panes();
+    if (panes.length > 1) {
+      panes[0].setStretchFactor(3.4);
+      for (let index = 1; index < panes.length; index += 1) panes[index].setStretchFactor(1);
+    }
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, indicators]);
+  }, [candles, indicators, cvdSeries, compactAxis]);
 
   return <div className="chart-host" ref={host} />;
 }

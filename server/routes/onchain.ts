@@ -3,8 +3,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { config } from "../config.js";
 import { clawpumpMcp } from "../clawpump/mcp.js";
-import { getOnchainMarket } from "../clawpump/market.js";
-import { fetchJson } from "../lib/http.js";
+import { geckoCandles, geckoPoolTrades, getBoard, getHolders, getOnchainMarket, getTrenches, trenchSorts } from "../clawpump/market.js";
+import { errorMessage, fetchJson } from "../lib/http.js";
 
 const address = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
 const quoteSchema = z.object({
@@ -28,6 +28,59 @@ function findJupiterQuote(value: unknown): Record<string, unknown> | undefined {
   }
   return undefined;
 }
+
+
+onchainRouter.get("/candles/:pair", async (request, response, next) => {
+  try {
+    const pair = z.string().min(20).parse(request.params.pair);
+    const interval = z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]).default("5m").parse(request.query.interval);
+    const candles = await geckoCandles(pair, interval);
+    response.json({ pair, interval, source: "geckoterminal", candles });
+  } catch (error) { next(error); }
+});
+
+onchainRouter.get("/trades/:pair", async (request, response, next) => {
+  try {
+    const pair = z.string().min(20).parse(request.params.pair);
+    response.json(await geckoPoolTrades(pair));
+  } catch (error) { next(error); }
+});
+
+onchainRouter.get("/search", async (request, response, next) => {
+  try {
+    const query = z.string().min(1).max(80).parse(request.query.q);
+    const result = await clawpumpMcp.call("token_search", { query });
+    response.status(result.ok ? 200 : 502).json(result);
+  } catch (error) { next(error); }
+});
+
+
+onchainRouter.get("/board", async (_request, response) => {
+  try {
+    const board = await getBoard();
+    response.json({ observedAt: Date.now(), source: "clawpump-board", ttlMs: 30_000, ...board });
+  } catch (error) {
+    response.json({ observedAt: Date.now(), source: "clawpump-board", ttlMs: 30_000, error: errorMessage(error) });
+  }
+});
+
+onchainRouter.get("/trenches", async (request, response) => {
+  try {
+    const sort = trenchSorts.includes(String(request.query.sort) as typeof trenchSorts[number])
+      ? String(request.query.sort) as typeof trenchSorts[number]
+      : "hot";
+    response.json(await getTrenches(sort));
+  } catch (error) {
+    response.json({ sort: String(request.query.sort || "hot"), tokens: [], error: errorMessage(error) });
+  }
+});
+
+onchainRouter.get("/holders/:mint", async (request, response, next) => {
+  try {
+    const mint = address.parse(request.params.mint);
+    response.json(await getHolders(mint));
+  } catch (error) { next(error); }
+});
 
 onchainRouter.get("/market/:mint", async (request, response, next) => {
   try {

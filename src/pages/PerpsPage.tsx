@@ -7,7 +7,7 @@ import { IndicatorBar } from "../components/IndicatorBar";
 import { money, pct } from "../lib/format";
 
 type Row = Record<string, unknown>;
-const indicatorDefaults: IndicatorSet = { ema: true, bollinger: false, vwap: false, sr: true, volume: true, rsi: false, macd: false, obv: false };
+const indicatorDefaults: IndicatorSet = { ema: true, bollinger: false, vwap: false, sr: true, volume: true, cvd: false, rsi: false, macd: false, obv: false };
 function object(value: unknown): Row { return value && typeof value === "object" && !Array.isArray(value) ? value as Row : {}; }
 function array(value: unknown): Row[] { return Array.isArray(value) ? value.filter((item): item is Row => Boolean(item && typeof item === "object")) : []; }
 

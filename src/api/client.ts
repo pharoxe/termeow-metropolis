@@ -15,6 +15,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   config: () => request<PublicConfig>("/api/config"),
   market: (mint: string, interval = "5m") => request<OnchainMarket>(`/api/onchain/market/${mint}?interval=${interval}`),
+  candles: (pair: string, interval = "5m") => request<{ pair: string; interval: string; source: string; candles: import("../types").Candle[] }>(`/api/onchain/candles/${pair}?interval=${interval}`),
+  trades: (pair: string) => request<import("../types").PoolCvd>(`/api/onchain/trades/${pair}`),
+  search: (q: string) => request<Record<string, unknown>>(`/api/onchain/search?q=${encodeURIComponent(q)}`),
+  trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
+  board: () => request<Record<string, unknown>>("/api/onchain/board"),
+  holders: (mint: string) => request<Record<string, unknown>>(`/api/onchain/holders/${mint}`),
   quote: (body: object) => request<Record<string, unknown>>("/api/onchain/quote", {
     method: "POST", body: JSON.stringify(body)
   }),

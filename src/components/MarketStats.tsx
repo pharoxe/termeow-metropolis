@@ -3,11 +3,11 @@ import { money, pct } from "../lib/format";
 
 export function MarketStats({ market }: { market: OnchainMarket }) {
   const stats = [
-    ["PRICE", money(market.priceUsd)],
+    ["MCAP", money(market.marketCapUsd ?? market.fdvUsd, true)],
     ["24H", pct(market.change24hPct)],
     ["VOLUME", money(market.volume24hUsd, true)],
     ["LIQUIDITY", money(market.liquidityUsd, true)],
-    ["MARKET CAP", money(market.marketCapUsd, true)],
+    ["TOKEN", money(market.priceUsd)],
     ["FDV", money(market.fdvUsd, true)]
   ];
   return (
