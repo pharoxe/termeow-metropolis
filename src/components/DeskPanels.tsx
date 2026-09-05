@@ -66,15 +66,6 @@ function tokenAmt(value: unknown) {
   return number.toLocaleString(undefined, { maximumFractionDigits: number >= 1 ? 2 : 4 });
 }
 
-const MACRO_LABELS: Record<string, string> = {
-  So11111111111111111111111111111111111111112: "SOL",
-  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC",
-  Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: "USDT",
-  SOL: "SOL",
-  USDC: "USDC",
-  USDT: "USDT"
-};
-
 export function AuditChips({ market }: { market: OnchainMarket }) {
   const provider = record(market.provider);
   const token = rows(provider.token_search, ["tokens"])[0] || {};
@@ -97,42 +88,14 @@ export function AuditChips({ market }: { market: OnchainMarket }) {
 
 export function MarketStrips({ market, onPick }: { market: OnchainMarket; onPick?: (mint: string, symbol?: string) => void }) {
   const provider = record(market.provider);
-  const indicators = record(provider.get_indicators);
-  const intelligence = record(provider.intelligence_market);
-  const pools = rows(intelligence, ["top_pools"]);
   const movers = rows(provider.top_movers, ["signals", "movers"]).slice(0, 8);
-  const sentiment = String(indicators.sentiment || "unknown").toUpperCase();
-  const macroAssets = rows(provider.macro, ["assets"]);
-  const seen = new Set<string>();
-  const labeledMacro = macroAssets.flatMap((asset) => {
-    const raw = String(asset.symbol || "");
-    const label = MACRO_LABELS[raw] || (raw.length <= 6 ? raw.toUpperCase() : "");
-    if (!label || seen.has(label)) return [];
-    seen.add(label);
-    return [{ label, change: Number(asset.change_24h), price: Number(asset.price_usd) }];
-  });
   return (
-    <>
-      <div className="ticker-tape">
-        <div className="ticker-inner">
-          <span><b>{market.symbol}</b> {money(mcapScale(market).mcap ?? market.priceUsd, true)} <i className={changeClass(market.change24hPct)}>{pct(market.change24hPct)}</i></span>
-          {movers.map((item) => <span key={String(item.contract || item.symbol)} role="button" onClick={() => { const mint = String(item.contract || ""); if (mint) onPick?.(mint, clean(item.symbol)); }}><b>{clean(item.symbol)}</b> {rowMarketCap(item) != null ? compact(rowMarketCap(item)) : money(Number(item.price_usd))} <i className={changeClass(asChangePct(item.change_24h))}>{pct(asChangePct(item.change_24h))}</i></span>)}
-        </div>
+    <div className="ticker-tape">
+      <div className="ticker-inner">
+        <span><b>{market.symbol}</b> {money(mcapScale(market).mcap ?? market.priceUsd, true)} <i className={changeClass(market.change24hPct)}>{pct(market.change24hPct)}</i></span>
+        {movers.map((item) => <span key={String(item.contract || item.symbol)} role="button" onClick={() => { const mint = String(item.contract || ""); if (mint) onPick?.(mint, clean(item.symbol)); }}><b>{clean(item.symbol)}</b> {rowMarketCap(item) != null ? compact(rowMarketCap(item)) : money(Number(item.price_usd))} <i className={changeClass(asChangePct(item.change_24h))}>{pct(asChangePct(item.change_24h))}</i></span>)}
       </div>
-      <div className="desk-strip">
-        <b>REGIME</b><span className={sentiment === "BULLISH" ? "up" : sentiment === "BEARISH" ? "dn" : "amber"}>{sentiment}</span>
-        {labeledMacro.map((asset) => <span key={asset.label}>{asset.label} <i className={changeClass(asset.change)}>{pct(asset.change)}</i></span>)}
-        {!seen.has("SOL") && <span>SOL <i className={changeClass(record(indicators.sol).change_24h)}>{pct(Number(record(indicators.sol).change_24h))}</i></span>}
-        <span>{market.symbol} 5M <i className={changeClass(record(intelligence.price_changes)["5m"])}>{pct(Number(record(intelligence.price_changes)["5m"]) * 100)}</i></span>
-        <span>1H <i className={changeClass(record(intelligence.price_changes)["1h"])}>{pct(Number(record(intelligence.price_changes)["1h"]) * 100)}</i></span>
-        <span>4H <i className={changeClass(record(intelligence.price_changes)["4h"])}>{pct(Number(record(intelligence.price_changes)["4h"]) * 100)}</i></span>
-        <span>TURNOVER/LIQ <i>{market.liquidityUsd ? ((market.volume24hUsd || 0) / market.liquidityUsd).toFixed(2) : "—"}×</i></span>
-      </div>
-      <div className="desk-strip venue-strip">
-        <b>VENUES</b><span>{Number(intelligence.total_pools) || pools.length} POOLS</span>
-        {pools.slice(0, 5).map((pool) => <span key={String(pool.pool_address)}>{clean(pool.protocol)} <i>{compact(pool.liquidity_usd)}</i></span>)}
-      </div>
-    </>
+    </div>
   );
 }
 

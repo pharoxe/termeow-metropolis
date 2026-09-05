@@ -21,6 +21,15 @@ export const api = {
   trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
   board: () => request<Record<string, unknown>>("/api/onchain/board"),
   holders: (mint: string) => request<Record<string, unknown>>(`/api/onchain/holders/${mint}`),
+  portfolio: (wallet: string) => request<Record<string, unknown>>(`/api/onchain/portfolio/${wallet}`),
+  rpc: async <T>(method: string, params: unknown[]) => {
+    const body = await request<{ result?: T; error?: { message?: string } }>("/api/rpc", {
+      method: "POST",
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
+    });
+    if (body.error) throw new Error(body.error.message || "Solana RPC request failed");
+    return body.result as T;
+  },
   quote: (body: object) => request<Record<string, unknown>>("/api/onchain/quote", {
     method: "POST", body: JSON.stringify(body)
   }),

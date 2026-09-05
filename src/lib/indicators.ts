@@ -36,6 +36,30 @@ export function rsi(values: number[], period = 14): Array<number | null> {
   return out;
 }
 
+export function stochRsi(values: number[], rsiPeriod = 14, stochasticPeriod = 14, smoothK = 3, smoothD = 3) {
+  const rsiLine = rsi(values, rsiPeriod);
+  const raw: Array<number | null> = Array(values.length).fill(null);
+  const smooth = (input: Array<number | null>, period: number) => input.map((value, index) => {
+    if (value == null || index < period - 1) return null;
+    const window = input.slice(index - period + 1, index + 1);
+    if (window.some((item) => item == null)) return null;
+    return window.reduce<number>((sum, item) => sum + (item ?? 0), 0) / period;
+  });
+
+  for (let index = 0; index < rsiLine.length; index += 1) {
+    const window = rsiLine.slice(index - stochasticPeriod + 1, index + 1);
+    if (window.length !== stochasticPeriod || window.some((value) => value == null)) continue;
+    const valid = window as number[];
+    const low = Math.min(...valid);
+    const high = Math.max(...valid);
+    raw[index] = high === low ? 50 : ((rsiLine[index]! - low) / (high - low)) * 100;
+  }
+
+  const k = smooth(raw, smoothK);
+  const d = smooth(k, smoothD);
+  return { raw, k, d };
+}
+
 export function bollinger(values: number[], period = 20, deviations = 2) {
   return values.map((_, index) => {
     if (index < period - 1) return { mid: null, upper: null, lower: null };

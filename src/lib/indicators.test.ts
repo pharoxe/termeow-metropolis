@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { atr, bollinger, ema, macd, obv, rsi, vwap } from "./indicators";
+import { atr, bollinger, ema, macd, obv, rsi, stochRsi, vwap } from "./indicators";
 
 const values = Array.from({ length: 80 }, (_, index) => 10 + index * 0.2 + Math.sin(index / 3));
 
@@ -21,6 +21,16 @@ describe("indicators", () => {
     const last = bollinger(values).at(-1)!;
     expect(last.upper!).toBeGreaterThan(last.mid!);
     expect(last.lower!).toBeLessThan(last.mid!);
+  });
+
+  it("produces bounded smoothed stochastic RSI lines", () => {
+    const result = stochRsi(values);
+    expect(result.k.some((value) => value != null)).toBe(true);
+    expect(result.d.some((value) => value != null)).toBe(true);
+    for (const value of [...result.raw, ...result.k, ...result.d].filter((item): item is number => item != null)) {
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(100);
+    }
   });
 
   it("produces MACD and VWAP", () => {

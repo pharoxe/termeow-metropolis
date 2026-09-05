@@ -16,6 +16,8 @@ import { ThemeToggle, useTheme } from "../components/ThemeToggle";
 import { FeatureSection } from "../features/WorkspaceFeatures";
 import SpecularButton from "../components/effects/SpecularButton";
 import Grainient from "../components/effects/Grainient";
+import { AccountScreen } from "../components/AccountScreens";
+import { AgenticAnalysisPanel } from "../components/AgenticAnalysis";
 
 type Mode = "spot" | "perp";
 type ChartUnit = "price" | "mcap";
@@ -78,6 +80,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
   const [query, setQuery] = useState(initialMode === "perp" ? "SOL-PERP" : "");
   const [interval, setIntervalValue] = useState("15M");
   const [chartExpanded, setChartExpanded] = useState(false);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   const chartRef = useRef<MarketChartHandle>(null);
   const [indicators, setIndicators] = useState(initialIndicators);
   const [board, setBoard] = useState<Row>({});
@@ -244,6 +247,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
   const focusedTrench = trenchRows.find((item) => String(item.mintAddress) === mint) || null;
   const healthMarket = feed ? { ...feed, provider: { ...object(feed.provider), trenches, holders } } : feed;
   const mergedProvider = { ...board, ...object(feed?.provider) };
+  const analysisProvider = { ...mergedProvider, holders, trenches };
   const clawSentiment = String(object(mergedProvider.get_indicators).sentiment || "").trim();
   const regimeLabel = clawSentiment ? clawSentiment.toUpperCase() : "—";
   const liveCvd = cvdState && !cvdState.failed ? cvdState : null;
@@ -370,7 +374,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
         <AuthControls />
       </header>
       {feed && <MarketStrips market={feed} onPick={focusSpot} />}
-      {section !== "Trade" && <section className="navigation-page"><span className="eyebrow">termeow / {section.toLowerCase()}</span><h1>{section}</h1><p>{section === "Portfolio" ? "Connect your wallet to view your holdings. Agent account information remains available in the perps execution panel." : section === "Referrals" ? "Your referral link and rewards will appear here when the referral program is available." : "Trader rankings will appear here when leaderboard data is available."}</p><button onClick={() => setSection("Trade")}>Back to trading →</button></section>}
+      {section !== "Trade" && <AccountScreen section={section as "Portfolio" | "Referrals" | "Leaderboard"} onBack={() => setSection("Trade")} />}
       <div className="desk-grid" style={section !== "Trade" ? {display:"none"} : undefined}>
         <WatchPanel
           search={scannerSearch}
@@ -427,6 +431,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
             <button type="button" title="Zoom out" aria-label="Zoom chart out" onClick={() => chartRef.current?.zoomOut()}>−</button>
             <button type="button" title="Restore the close candle view" onClick={() => chartRef.current?.resetView()}>RESET</button>
             <button type="button" title="Jump to the latest candle" onClick={() => chartRef.current?.goToRealtime()}>LIVE</button>
+            {mode === "spot" && <button type="button" className="analyze-trigger" title="Synthesize token data into executable trade setups" disabled={!feed || !feed.candles.length} onClick={() => setAnalysisOpen(true)}>✦ ANALYZE</button>}
             <button type="button" title={chartExpanded ? "Exit expanded chart" : "Expand chart"} aria-pressed={chartExpanded} onClick={() => setChartExpanded((expanded) => !expanded)}>{chartExpanded ? "CLOSE" : "EXPAND"}</button>
           </div>
           {spotLoading ? (
@@ -537,6 +542,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
         )}
         </FeatureSection>
       </div>
+      {feed && <AgenticAnalysisPanel open={analysisOpen} market={feed} candles={feed.candles} cvd={liveCvd} provider={analysisProvider} onClose={() => setAnalysisOpen(false)} />}
       {error && <div className="toast-inline">REFRESH DEGRADED · {error}</div>}
     </main>
   );
