@@ -15,9 +15,9 @@ export function AppHeader() {
       <header className="app-header">
         <div className="brand">
           <svg className="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="tv-v-sol" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffd98a"/><stop offset="1" stopColor="#e08a1e"/></linearGradient></defs><rect className="lm-chip" x=".9" y=".9" width="26.2" height="26.2" rx="6.2"/><path className="lm-path" d="M8.2 6.4 L14 18.9 L19.8 6.4"/><line className="lm-limit" x1="6" y1="22.6" x2="22" y2="22.6"/><path className="lm-ghost" d="M11.4 25.6 L14 23.4 L16.6 25.6"/><circle className="lm-tip" cx="14" cy="18.9" r="1.9"/></svg>
-          <span>TERMINAL</span><strong>V</strong><b>SOL</b>
+          <span className="brand-mark" aria-hidden="true">▦</span><strong>termeow</strong><b>sol</b>
         </div>
-        <input className="command-input" value="ANSEM" readOnly aria-label="Selected instrument" />
+        <input className="command-input" value="" readOnly aria-label="Solana contract address" placeholder="PASTE SOLANA CONTRACT ADDRESS" />
         <nav className="mode-switch" aria-label="Trading product">
           <NavLink to="/onchain">ONCHAIN</NavLink>
           <NavLink to="/perps">PERPS</NavLink>

@@ -9,7 +9,7 @@ export default function App() {
   const [error, setError] = useState("");
   useEffect(() => { api.config().then(setConfig).catch((reason) => setError(String(reason))); }, []);
   if (error) return <main className="loading-state"><h1>BACKEND UNAVAILABLE</h1><p>{error}</p></main>;
-  if (!config) return <main className="loading-state"><span className="loader" /><p>Booting Solana terminal…</p></main>;
+  if (!config) return <main className="loading-state"><span className="loader" /><p>Opening termeow…</p></main>;
   return (
     <div className="app-shell">
       <Routes>
@@ -17,7 +17,7 @@ export default function App() {
         <Route path="/onchain" element={<DeskPage config={config} />} />
         <Route path="*" element={<Navigate to="/onchain" replace />} />
       </Routes>
-      <footer>UNVALIDATED RESEARCH · MAINNET EXECUTION REQUIRES EXPLICIT WALLET OR AGENT APPROVAL · DATA SOURCES ARE LABELLED</footer>
+      <footer>RESEARCH SIGNALS ARE INFORMATIVE · VERIFY MINTS AND ROUTES · TRADES REQUIRE EXPLICIT APPROVAL</footer>
     </div>
   );
 }

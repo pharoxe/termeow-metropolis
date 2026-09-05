@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, deepFind } from "../api/client";
 import type { PublicConfig } from "../types";
+import { PixelLoader } from "./PixelLoader";
 
 export function PerpTradeTicket({ config, symbol = "SOL-PERP" }: { config: PublicConfig; symbol?: string }) {
   const [side, setSide] = useState<"bid" | "ask">("bid");
@@ -39,13 +40,13 @@ export function PerpTradeTicket({ config, symbol = "SOL-PERP" }: { config: Publi
       <div className="side-tabs"><button className={side === "bid" ? "buy active" : ""} onClick={() => { setSide("bid"); setPreview(null); }}>LONG</button><button className={side === "ask" ? "sell active" : ""} onClick={() => { setSide("ask"); setPreview(null); }}>SHORT</button></div>
       <label>BASE QUANTITY<input type="number" min="0.0001" step="0.01" value={quantity} onChange={(event) => { setQuantity(Number(event.target.value)); setPreview(null); }} /></label>
       <label>ISOLATED COLLATERAL<div className="input-suffix"><input type="number" min="1" value={collateral} onChange={(event) => { setCollateral(Number(event.target.value)); setPreview(null); }} /><span>USDC</span></div></label>
-      {!preview ? <button className="primary" onClick={previewOrder} disabled={loading}>{loading ? "PREVIEWING…" : "PREVIEW PHOENIX ORDER"}</button> : (
+      {!preview ? <button className="primary" onClick={previewOrder} disabled={loading}>{loading ? <PixelLoader label="PREVIEWING" /> : "PREVIEW PHOENIX ORDER"}</button> : (
         <div className="quote-box">
           <div><span>EST. ENTRY</span><b>{String(deepFind(preview, ["entryPrice", "price", "markPrice"]) || "See preview")}</b></div>
           <div><span>LIQUIDATION</span><b>{String(deepFind(preview, ["liquidationPrice", "liqPrice"]) || "—")}</b></div>
           <label className="confirm-row"><input type="checkbox" checked={confirm} onChange={(event) => setConfirm(event.target.checked)} /> I understand leverage, funding, liquidation, and agent-wallet execution.</label>
           <button className="primary execute" disabled={!confirm || loading || !config.executionEnabled} onClick={execute}>
-            {!config.executionEnabled ? "EXECUTION DISABLED IN ENV" : loading ? "SUBMITTING…" : "EXECUTE VIA CLAWPUMP"}
+            {!config.executionEnabled ? "TRADING UNAVAILABLE" : loading ? "SUBMITTING…" : "EXECUTE VIA CLAWPUMP"}
           </button>
         </div>
       )}

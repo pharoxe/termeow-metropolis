@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWorkspaceFeatures } from "../features/WorkspaceFeatures";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets } from "@privy-io/react-auth/solana";
@@ -7,6 +9,8 @@ import { shortAddress } from "../lib/format";
 
 function LivePrivyControl() {
   const { authenticated, login, logout, ready } = usePrivy();
+  const { onboard } = useWorkspaceFeatures();
+  useEffect(() => { if (authenticated) onboard(); }, [authenticated]);
   const { wallets } = useWallets();
   const wallet = wallets[0];
   return (
@@ -17,25 +21,26 @@ function LivePrivyControl() {
   );
 }
 
-function MockPrivyControl() {
-  const [active, setActive] = useState(() => localStorage.getItem("tv_mock_privy") === "1");
-  const toggle = () => {
-    const next = !active;
-    setActive(next);
-    localStorage.setItem("tv_mock_privy", next ? "1" : "0");
-  };
+function PrivyPreviewControl() {
+  const [active, setActive] = useState(false);
   return (
-    <button className="auth-button embedded" onClick={toggle} title="Add VITE_PRIVY_APP_ID for live Privy authentication">
-      <span className={`status-dot ${active ? "live" : ""}`} />
-      {active ? "PRIVY MOCK ACTIVE" : "PRIVY MOCK"}
-    </button>
+    <div className="embedded-control">
+      <button className="auth-button embedded" onClick={() => setActive(!active)} aria-expanded={active} title="Embedded wallet">
+        <span className="status-dot" />PRIVY
+      </button>
+      {active && <div className="wallet-popover" role="status"><b>Embedded wallet</b><p>Email sign-in is currently unavailable. Connect a Solana wallet to continue.</p><button onClick={() => setActive(false)}>CLOSE</button></div>}
+    </div>
   );
 }
 
 export function AuthControls() {
+  const { connected } = useWallet();
+  const { customize, onboard } = useWorkspaceFeatures();
+  useEffect(() => { if (connected) onboard(); }, [connected]);
   return (
     <div className="auth-controls">
-      {hasPrivy ? <LivePrivyControl /> : <MockPrivyControl />}
+      <button className="auth-button" onClick={customize}>CUSTOMIZE</button>
+      {hasPrivy ? <LivePrivyControl /> : <PrivyPreviewControl />}
       <WalletMultiButton />
     </div>
   );

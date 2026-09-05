@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { FeatureSection } from "../features/WorkspaceFeatures";
 import type { OnchainMarket, PoolTrade } from "../types";
 import { money, pct, shortAddress } from "../lib/format";
 import { mcapScale, rowMarketCap, rowTokenPrice } from "../lib/mcap";
@@ -137,7 +138,7 @@ export function MarketStrips({ market, onPick }: { market: OnchainMarket; onPick
 
 export function WatchPanel({
   market, perps = [], mode = "spot", selected, onSpot, onPerp,
-  trenches = [], trenchSort = "hot", onTrenchSort, holders
+  trenches = [], trenchSort = "hot", onTrenchSort, holders, search
 }: {
   market?: OnchainMarket | null;
   perps?: Row[];
@@ -149,6 +150,7 @@ export function WatchPanel({
   trenchSort?: TrenchSort;
   onTrenchSort?: (sort: TrenchSort) => void;
   holders?: Row;
+  search?: ReactNode;
 }) {
   const [tab, setTab] = useState<WatchTab>(mode === "perp" ? "PERPS" : "TRENCHES");
   useEffect(() => { setTab(mode === "perp" ? "PERPS" : "TRENCHES"); }, [mode]);
@@ -171,6 +173,7 @@ export function WatchPanel({
   };
   return (
     <section className="panel watch-panel">
+      {search}
       <div className="ph">
         <div className="tabs">{(["TRENCHES", "KOL", "MOVERS", "WHALES", "HOLDERS", "PERPS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
         <span className="pm">CLICK TO LOAD</span>
@@ -306,7 +309,7 @@ export function BothSidesPanel({
     <section className="panel sides-panel flow-panel">
       <div className="ph"><span className="pt">FLOW</span><span className="sd-sym">{market.symbol}</span><span className="pm">TAPE · POOLS · SENT</span></div>
       <div className="flow-columns">
-        <div className="tape-col">
+        <FeatureSection id="flow" className="tape-col">
           <h3>TAPE</h3>
           {tape.length
             ? tape.map((trade) => (
@@ -317,8 +320,8 @@ export function BothSidesPanel({
               </p>
             ))
             : <p className="empty-copy">No pool prints in this window.</p>}
-        </div>
-        <div className="pools-col">
+        </FeatureSection>
+        <FeatureSection id="pools" className="pools-col">
           <h3>POOLS</h3>
           {pools.length
             ? pools.map((pool, index) => {
@@ -333,7 +336,7 @@ export function BothSidesPanel({
               );
             })
             : <p className="empty-copy">No pool breakdown.</p>}
-        </div>
+        </FeatureSection>
       </div>
       <p className="flow-footer">
         FLOW <b className={flowTone(flow)}>{String(flow || "flat").toUpperCase()}</b>

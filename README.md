@@ -1,11 +1,11 @@
-# Terminal V — Solana
+# termeow
 
 Voice-ready Solana trading terminal built around ClawPump. This branch (`solana-dex-fork`) replaces the Hyperliquid/Python runtime with a single TypeScript service:
 
 - **`/onchain`** — ANSEM/USD desk with multi-timeframe candles, EMA / Bollinger / VWAP / S-R / volume / RSI / MACD / OBV, ClawPump movers, anomalies, smart-flow signals, pool liquidity, narrative research, swap quotes, and user-wallet-signed execution.
 - **`/perps`** — Phoenix screener, live chart and book, contract / funding / risk data, agent account state, and guarded ClawPump execution.
 
-Both pages keep Terminal V’s Bloomberg-dense amber/cyan desk theme. Helius is the primary Solana RPC; Alchemy is the automatic backup.
+Both pages use termeow's dense neon-green pixel desk theme with light and dark modes. Helius is the primary Solana RPC; Alchemy is the automatic backup.
 
 ANSEM mint: `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump`.
 
@@ -52,7 +52,7 @@ Do not copy `.env` into the image. Set secrets on the host. Typical platform var
 - Mainnet execution is opt-in through `ENABLE_MAINNET_EXECUTION=true`.
 - Spot transactions are returned unsigned and signed by the connected Phantom/Solflare wallet. Private keys never enter this app.
 - Privy is the embedded-wallet path when `VITE_PRIVY_APP_ID` is set.
-- The session-permission card is a UX mock. MagicBlock Session Keys stay out until program/delegation scopes are finalized.
+- Session permissions are stored locally until MagicBlock delegation scopes are finalized; wallet signatures remain mandatory.
 - Phoenix writes are isolated from spot routes and use the configured ClawPump agent.
 - ElevenLabs is intentionally not installed yet.
 

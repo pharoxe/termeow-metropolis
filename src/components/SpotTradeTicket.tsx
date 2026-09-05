@@ -4,6 +4,7 @@ import { VersionedTransaction } from "@solana/web3.js";
 import { api, deepFind } from "../api/client";
 import type { PublicConfig } from "../types";
 import { shortAddress } from "../lib/format";
+import { PixelLoader } from "./PixelLoader";
 
 function decodeBase64(value: string) {
   const binary = atob(value);
@@ -61,18 +62,18 @@ export function SpotTradeTicket({ config, mint, symbol }: { config: PublicConfig
       <label>NOTIONAL {side === "buy" ? "USDC" : tokenSymbol}<input type="number" min="0" value={amount} onChange={(event) => { setAmount(event.target.value); setQuote(null); }} /></label>
       <label>MAX SLIPPAGE <div className="input-suffix"><input type="number" min="1" max="500" value={slippage} onChange={(event) => setSlippage(Number(event.target.value))} /><span>BPS</span></div></label>
       <div className="wallet-line"><span>SIGNER</span><b>{shortAddress(publicKey?.toBase58())}</b></div>
-      {!quote ? <button className="primary" disabled={loading || !Number(amount)} onClick={getQuote}>{loading ? "QUOTING…" : "PREVIEW ROUTE"}</button> : (
+      {!quote ? <button className="primary" disabled={loading || !Number(amount)} onClick={getQuote}>{loading ? <PixelLoader label="QUOTING" /> : "PREVIEW ROUTE"}</button> : (
         <div className="quote-box">
           <div><span>EXPECTED OUTPUT</span><b>{outAmount == null ? "See route payload" : String(outAmount)}</b></div>
           <div><span>PRICE IMPACT</span><b>{impact == null ? "—" : `${impact}%`}</b></div>
           <label className="confirm-row"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> I verified the mint, route, amount, and mainnet risk.</label>
           <button className="primary execute" disabled={!connected || !confirmed || loading || !config.executionEnabled} onClick={execute}>
-            {!config.executionEnabled ? "EXECUTION DISABLED IN ENV" : !connected ? "CONNECT DIRECT WALLET" : loading ? "WORKING…" : "SIGN & SUBMIT"}
+            {!config.executionEnabled ? "TRADING UNAVAILABLE" : !connected ? "CONNECT DIRECT WALLET" : loading ? "WORKING…" : "SIGN & SUBMIT"}
           </button>
         </div>
       )}
       {status && <p className="ticket-status">{status}</p>}
-      <small className="disclaimer">Privy authentication is supported for onboarding. This vertical slice signs swaps with the directly connected Solana wallet.</small>
+      <small className="disclaimer">Swaps are signed by the directly connected Solana wallet. Review the route and slippage before submitting.</small>
     </section>
   );
 }

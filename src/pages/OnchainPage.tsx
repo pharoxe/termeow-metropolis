@@ -124,8 +124,8 @@ export function OnchainPage({ config }: { config: PublicConfig }) {
           <SpotTradeTicket config={config} />
           <SessionPermission />
           <section className="panel agent-placeholder">
-            <div className="ph"><span className="pt">THESIS AGENT</span><span className="pm">VOICE-READY BOUNDARY</span></div>
-            <p>ClawPump evidence and order-preview tools are live. ElevenLabs transport remains intentionally deferred.</p>
+            <div className="ph"><span className="pt">THESIS AGENT</span><span className="pm">MARKET CONTEXT</span></div>
+            <p>ClawPump evidence and order-preview tools are available in the workspace.</p>
           </section>
         </aside>
         <SignalRadar market={market} />
