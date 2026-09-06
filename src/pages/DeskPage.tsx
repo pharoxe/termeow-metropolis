@@ -446,6 +446,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           buyCountRecent={liveCvd?.buyCountRecent || 0}
           sellCountRecent={liveCvd?.sellCountRecent || 0}
           spanLabel={spanLabel}
+          coverage={flowState?.coverage}
         /> : (
           <section className="panel sides-panel flow-panel research-panel">
             <div className="ph"><span className="pt">LIQUIDITY &amp; ORDER FLOW</span><span className="pm">LOADING {mintLabel}</span></div>
