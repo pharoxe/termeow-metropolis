@@ -67,11 +67,12 @@ describe("resolveFlowParams", () => {
     expect(resolved).toMatchObject({ interval: "1h", anchor: "session", fromMs: 100, toMs: 200 });
   });
 
-  it("rejects robinhood with the not-enabled hint", () => {
-    const attempt = () => resolveFlowParams({ chain: "robinhood", address: "0xabc" }, {}, NOW);
-    expect(attempt).toThrow(ZodError);
-    expect(attempt).toThrow(/chain not enabled yet/);
+  it("accepts robinhood with a lowercased EVM address and rejects anything else on that chain", () => {
+    const resolved = resolveFlowParams({ chain: "robinhood", address: "0x12D5ee7917cA430073C3A638ee1e6f0648A98a01" }, {}, NOW);
+    expect(resolved).toMatchObject({ chain: "robinhood", address: "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01" });
+    expect(() => resolveFlowParams({ chain: "robinhood", address: "0xabc" }, {}, NOW)).toThrow(ZodError);
     expect(flowParamsSchema.safeParse({ chain: "robinhood", address: MINT }).success).toBe(false);
+    expect(flowParamsSchema.safeParse({ chain: "solana", address: "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01" }).success).toBe(false);
   });
 
   it("rejects non-base58 addresses, unknown intervals and inverted windows", () => {

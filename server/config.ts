@@ -21,6 +21,7 @@ const envSchema = z.object({
   HELIUS_SOLANA_RPC_URL: optionalUrl,
   ALCHEMY_API_KEY: optionalString,
   ALCHEMY_SOLANA_RPC_URL: optionalUrl,
+  ROBINHOOD_RPC_URL: urlWithDefault("https://rpc.mainnet.chain.robinhood.com"),
   PRIVY_APP_ID: optionalString,
   PRIVY_APP_SECRET: optionalString,
   ENABLE_MAINNET_EXECUTION: z.preprocess(emptyAsUndefined, z.string().default("false")),
@@ -66,6 +67,9 @@ export const config = {
   rpc: {
     primary: rpcUrl("helius") || "https://api.mainnet-beta.solana.com",
     fallback: rpcUrl("alchemy")
+  },
+  robinhood: {
+    rpcUrl: env.ROBINHOOD_RPC_URL
   },
   privy: {
     appId: env.PRIVY_APP_ID,

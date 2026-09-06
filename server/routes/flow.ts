@@ -15,12 +15,14 @@ export const FLOW_SOURCE = "pumpfun+geckoterminal→ledger";
 export const DEFAULT_BAR_COUNT = 300;
 export const SESSION_START_MS = Date.now();
 const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
 const FLOW_ANCHORS = ["window", "session", "launch"] as const;
 
-export const flowParamsSchema = z.object({
-  chain: z.literal("solana", { error: "chain not enabled yet" }),
-  address: z.string().regex(SOLANA_ADDRESS)
-});
+/** Robinhood addresses are lowercased here, matching how the registry and DexScreener caches key them. */
+export const flowParamsSchema = z.discriminatedUnion("chain", [
+  z.object({ chain: z.literal("solana"), address: z.string().regex(SOLANA_ADDRESS) }),
+  z.object({ chain: z.literal("robinhood"), address: z.string().regex(EVM_ADDRESS).transform((address) => address.toLowerCase()) })
+]);
 
 export const flowQuerySchema = z.object({
   interval: z.enum(FLOW_INTERVALS).default("5m"),

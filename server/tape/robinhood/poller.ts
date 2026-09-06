@@ -1,0 +1,367 @@
+import { UpstreamError, errorMessage } from "../../lib/http.js";
+
+/** Uniswap Swap event signatures observed on Robinhood Chain (chain id 4663) via eth_getLogs, 2026-09-06. */
+export const V2_SWAP_TOPIC = "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822";
+export const V3_SWAP_TOPIC = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67";
+export const V4_SWAP_TOPIC = "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f";
+export const SWAP_TOPICS = [V2_SWAP_TOPIC, V3_SWAP_TOPIC, V4_SWAP_TOPIC];
+/** Uniswap v4 PoolManager; its Swap logs carry the poolId as topic1, so v4 pools are filtered client-side. */
+export const V4_POOL_MANAGER = "0x8366a39cc670b4001a1121b8f6a443a643e40951";
+
+export const DEFAULT_INTERVAL_MS = 2_000;
+export const DEFAULT_MAX_RANGE = 400;
+export const DEFAULT_REORG_DEPTH = 5;
+export const FIRST_RUN_LOOKBACK = 20;
+/** Delay between ticks while the cursor is still behind the head (chunked catch-up). */
+export const CATCHUP_DELAY_MS = 250;
+export const BACKOFF_MIN_MS = 2_000;
+export const BACKOFF_MAX_MS = 30_000;
+export const SEEN_RING = 5_000;
+export const REQUEST_TIMEOUT_MS = 15_000;
+
+/** One eth_getLogs entry as the node returns it; `blockTimestamp` is 0x0 on this chain and deliberately not modelled. */
+export type RawLog = {
+  address: string;
+  topics: string[];
+  data: string;
+  blockNumber: string;
+  blockHash: string;
+  transactionHash: string;
+  transactionIndex: string;
+  logIndex: string;
+  removed?: boolean;
+};
+
+export type LogsHandler = (logs: RawLog[], headBlock: number) => void;
+
+export type PollerOptions = {
+  rpcUrl: string;
+  intervalMs?: number;
+  maxRange?: number;
+  reorgDepth?: number;
+  poolManager?: string;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+  log?: (m: string) => void;
+};
+
+export type PollerStats = {
+  cursor: number | null;
+  head: number | null;
+  polls: number;
+  /** Logs handed to the handler. */
+  logs: number;
+  /** Logs discarded: reorg-overlap duplicates, `removed`, malformed, or v4 logs for poolIds outside the filter. */
+  dropped: number;
+  errors: number;
+  lastError: string | null;
+  lastOkAt: number | null;
+  /** HTTP requests made (a JSON-RPC batch counts once). */
+  rpcCalls: number;
+  blockedUntil: number | null;
+};
+
+type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params: unknown[] };
+type RpcReply = { id?: unknown; result?: unknown; error?: { message?: string; code?: number } };
+type BlockWindow = { from: number; to: number };
+type Filter = { addresses: string[]; poolIds: Set<string> };
+type BatchMode = "try" | "on" | "off";
+type PollResult = { head: number; window: BlockWindow; logs: unknown[] };
+
+function hex(n: number): string {
+  return `0x${n.toString(16)}`;
+}
+
+function parseHex(value: unknown): number | null {
+  if (typeof value !== "string" || !/^0x[0-9a-fA-F]+$/.test(value)) return null;
+  const parsed = Number.parseInt(value, 16);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function isRawLog(value: unknown): value is RawLog {
+  const row = value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  if (!row) return false;
+  return (
+    typeof row.address === "string" &&
+    Array.isArray(row.topics) &&
+    typeof row.data === "string" &&
+    typeof row.blockNumber === "string" &&
+    typeof row.transactionHash === "string" &&
+    typeof row.logIndex === "string"
+  );
+}
+
+function logKey(log: RawLog): string {
+  return `${log.transactionHash.toLowerCase()}:${log.logIndex.toLowerCase()}`;
+}
+
+function replyResult(reply: RpcReply, method: string): unknown {
+  if (reply.error) throw new Error(`${method}: ${reply.error.message ?? "rpc error"}`);
+  return reply.result;
+}
+
+function isRateLimit(error: unknown): boolean {
+  return error instanceof UpstreamError && error.status === 429;
+}
+
+/**
+ * HTTP-only eth_getLogs poller for Robinhood Chain (no public websocket). One timer loop, never overlapping:
+ * eth_blockNumber then eth_getLogs over [cursor - reorgDepth, min(head, cursor + maxRange)], batched into one
+ * JSON-RPC array once the RPC is known to accept batches. The reorg overlap is collapsed by a tx:logIndex ring, so a
+ * log is delivered at most once. Every failure lands in stats() and backs the loop off 2s -> 30s; nothing throws.
+ */
+export class RobinhoodLogPoller {
+  private readonly rpcUrl: string;
+  private readonly intervalMs: number;
+  private readonly maxRange: number;
+  private readonly reorgDepth: number;
+  private readonly poolManager: string;
+  private readonly fetchImpl: typeof fetch;
+  private readonly now: () => number;
+  private readonly log: (m: string) => void;
+  private filter: Filter = { addresses: [], poolIds: new Set() };
+  private handler: LogsHandler | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private controller: AbortController | null = null;
+  private running = false;
+  private inFlight = false;
+  private batchMode: BatchMode = "try";
+  private delayMs = 0;
+  private nextId = 1;
+  /** Insertion-ordered tx:logIndex ring; oldest keys drop once SEEN_RING is exceeded. */
+  private readonly seen = new Set<string>();
+  private cursor: number | null = null;
+  private head: number | null = null;
+  private counters = { polls: 0, logs: 0, dropped: 0, errors: 0, rpcCalls: 0 };
+  private lastError: string | null = null;
+  private lastOkAt: number | null = null;
+  private blockedUntil: number | null = null;
+
+  constructor(opts: PollerOptions) {
+    this.rpcUrl = opts.rpcUrl;
+    this.intervalMs = opts.intervalMs ?? DEFAULT_INTERVAL_MS;
+    this.maxRange = opts.maxRange ?? DEFAULT_MAX_RANGE;
+    this.reorgDepth = opts.reorgDepth ?? DEFAULT_REORG_DEPTH;
+    this.poolManager = (opts.poolManager ?? V4_POOL_MANAGER).toLowerCase();
+    this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.now = opts.now ?? (() => Date.now());
+    this.log = opts.log ?? ((m) => console.warn(m));
+  }
+
+  /** v2/v3 pool contracts plus the PoolManager when any v4 poolId is tracked. Leaves the cursor untouched. */
+  setFilter(addresses: string[], poolIds: string[]): void {
+    const pools = new Set(poolIds.map((id) => id.toLowerCase()));
+    const contracts = new Set(addresses.map((address) => address.toLowerCase()));
+    if (pools.size > 0) contracts.add(this.poolManager);
+    this.filter = { addresses: [...contracts], poolIds: pools };
+  }
+
+  start(onLogs: LogsHandler): void {
+    this.handler = onLogs;
+    if (this.running) return;
+    this.running = true;
+    this.schedule(0);
+  }
+
+  stop(): void {
+    this.running = false;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.controller?.abort();
+  }
+
+  stats(): PollerStats {
+    return {
+      cursor: this.cursor,
+      head: this.head,
+      ...this.counters,
+      lastError: this.lastError,
+      lastOkAt: this.lastOkAt,
+      blockedUntil: this.blockedUntil
+    };
+  }
+
+  private schedule(ms: number): void {
+    if (!this.running || this.timer) return;
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      void this.tick();
+    }, ms);
+    this.timer.unref?.();
+  }
+
+  private async tick(): Promise<void> {
+    if (!this.running || this.inFlight) return;
+    this.inFlight = true;
+    let ok = false;
+    try {
+      await this.poll();
+      ok = true;
+    } catch (error) {
+      if (this.running) this.fail(error);
+    } finally {
+      this.inFlight = false;
+    }
+    this.schedule(this.nextDelay(ok));
+  }
+
+  private nextDelay(ok: boolean): number {
+    if (!ok) return this.delayMs;
+    const behind = this.cursor !== null && this.head !== null && this.cursor < this.head;
+    return behind ? CATCHUP_DELAY_MS : this.intervalMs;
+  }
+
+  private async poll(): Promise<void> {
+    this.counters.polls += 1;
+    const useBatch = this.cursor !== null && this.batchMode !== "off" && this.filter.addresses.length > 0;
+    const result = useBatch ? await this.pollBatched(this.cursor as number) : await this.pollSequential();
+    this.settle(result);
+  }
+
+  private async pollSequential(): Promise<PollResult> {
+    const head = this.parseHead(await this.call("eth_blockNumber", []));
+    const window = this.window(head);
+    if (this.filter.addresses.length === 0) return { head, window, logs: [] };
+    const logs = this.parseLogs(await this.call("eth_getLogs", [this.logsParams(window)]));
+    return { head, window, logs };
+  }
+
+  /** The head is unknown before the batch returns, so toBlock is cursor + maxRange; the node clamps it to its head. */
+  private async pollBatched(cursor: number): Promise<PollResult> {
+    const requested = { from: Math.max(cursor - this.reorgDepth, 0), to: cursor + this.maxRange };
+    const requests = [this.request("eth_blockNumber", []), this.request("eth_getLogs", [this.logsParams(requested)])];
+    let results: unknown[];
+    try {
+      results = this.batchResults(await this.post(requests), requests);
+    } catch (error) {
+      if (this.batchMode === "on" || isRateLimit(error)) throw error;
+      this.batchMode = "off";
+      this.log(`robinhood log poller: batch unsupported, falling back to sequential (${errorMessage(error)})`);
+      return this.pollSequential();
+    }
+    this.batchMode = "on";
+    const head = this.parseHead(results[0]);
+    return { head, window: this.window(head), logs: this.parseLogs(results[1]) };
+  }
+
+  private settle(result: PollResult): void {
+    this.head = result.head;
+    this.cursor = result.window.to;
+    this.lastOkAt = this.now();
+    this.blockedUntil = null;
+    this.delayMs = 0;
+    const fresh = this.accept(result.logs);
+    this.counters.logs += fresh.length;
+    if (fresh.length === 0 || !this.handler) return;
+    try {
+      this.handler(fresh, result.head);
+    } catch (error) {
+      this.lastError = `handler: ${errorMessage(error)}`;
+      this.log(`robinhood log poller: ${this.lastError}`);
+    }
+  }
+
+  private window(head: number): BlockWindow {
+    const cursor = this.cursor ?? Math.max(head - FIRST_RUN_LOOKBACK, 0);
+    const to = Math.min(head, cursor + this.maxRange);
+    const from = Math.max(Math.min(cursor, to) - this.reorgDepth, 0);
+    return { from, to };
+  }
+
+  private logsParams(window: BlockWindow): Record<string, unknown> {
+    return { fromBlock: hex(window.from), toBlock: hex(window.to), address: this.filter.addresses, topics: [SWAP_TOPICS] };
+  }
+
+  private accept(raw: unknown[]): RawLog[] {
+    const fresh: RawLog[] = [];
+    for (const item of raw) {
+      if (!isRawLog(item) || item.removed === true || !this.matches(item) || this.seen.has(logKey(item))) {
+        this.counters.dropped += 1;
+        continue;
+      }
+      this.remember(logKey(item));
+      fresh.push(item);
+    }
+    return fresh;
+  }
+
+  private matches(log: RawLog): boolean {
+    const topic0 = log.topics[0]?.toLowerCase();
+    if (topic0 === V4_SWAP_TOPIC) return this.filter.poolIds.has((log.topics[1] ?? "").toLowerCase());
+    return topic0 === V2_SWAP_TOPIC || topic0 === V3_SWAP_TOPIC;
+  }
+
+  private remember(key: string): void {
+    this.seen.add(key);
+    while (this.seen.size > SEEN_RING) {
+      const oldest = this.seen.values().next().value;
+      if (oldest === undefined) break;
+      this.seen.delete(oldest);
+    }
+  }
+
+  private parseHead(value: unknown): number {
+    const head = parseHex(value);
+    if (head === null) throw new Error("eth_blockNumber: malformed result");
+    return head;
+  }
+
+  private parseLogs(value: unknown): unknown[] {
+    if (!Array.isArray(value)) throw new Error("eth_getLogs: malformed result");
+    return value;
+  }
+
+  private request(method: string, params: unknown[]): RpcRequest {
+    return { jsonrpc: "2.0", id: this.nextId++, method, params };
+  }
+
+  private async call(method: string, params: unknown[]): Promise<unknown> {
+    const body = await this.post(this.request(method, params));
+    const reply = body && typeof body === "object" && !Array.isArray(body) ? (body as RpcReply) : null;
+    if (!reply) throw new Error(`${method}: malformed response body`);
+    return replyResult(reply, method);
+  }
+
+  /** Matches replies to requests by id (batch replies may arrive in any order); any missing or errored item throws. */
+  private batchResults(body: unknown, requests: RpcRequest[]): unknown[] {
+    if (!Array.isArray(body)) throw new Error("batch: response is not an array");
+    const replies = new Map<number, RpcReply>();
+    for (const item of body) {
+      if (item && typeof item === "object" && typeof (item as RpcReply).id === "number") replies.set((item as RpcReply).id as number, item as RpcReply);
+    }
+    return requests.map((req) => {
+      const reply = replies.get(req.id);
+      if (!reply) throw new Error(`batch: no reply for ${req.method}`);
+      return replyResult(reply, req.method);
+    });
+  }
+
+  private async post(body: RpcRequest | RpcRequest[]): Promise<unknown> {
+    this.counters.rpcCalls += 1;
+    const controller = new AbortController();
+    this.controller = controller;
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await this.fetchImpl(this.rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      if (response.status === 429) throw new UpstreamError("rpc 429 rate limited", 429);
+      if (!response.ok) throw new UpstreamError(`rpc returned ${response.status}`, response.status);
+      return await response.json();
+    } finally {
+      clearTimeout(timeout);
+      if (this.controller === controller) this.controller = null;
+    }
+  }
+
+  private fail(error: unknown): void {
+    this.counters.errors += 1;
+    this.lastError = errorMessage(error);
+    this.delayMs = this.delayMs === 0 ? BACKOFF_MIN_MS : Math.min(this.delayMs * 2, BACKOFF_MAX_MS);
+    this.blockedUntil = this.now() + this.delayMs;
+    this.log(`robinhood log poller: ${this.lastError}`);
+  }
+}

@@ -2,6 +2,7 @@ import type { Chain, PairRow } from "../../shared/wire.js";
 import { errorMessage } from "../lib/http.js";
 import { geckoPoolTrades } from "../sources/gecko.js";
 import { fetchPumpTradesPage, walkPumpTradesBack, type WalkPumpResult } from "../sources/pumpfun.js";
+import { createRobinhoodOwnTapeFromConfig, type RobinhoodOwnTapeStats } from "../tape/robinhood/ownTape.js";
 import { createOwnTapeFromConfig, type OwnTapeStats } from "../tape/solana/ownTape.js";
 import { poolRefsFromRegistry, type PoolRef } from "../tape/solana/parseSwap.js";
 import { FlowLedger, HOUR_MS, pairKey } from "./ledger.js";
@@ -19,14 +20,25 @@ const PUMP_PREFIX = "pumpfun:";
 
 export type SourceName = "pumpfun" | "geckoterminal";
 export type SourceHealth = { lastOkAt: number | null; lastError: string | null; lastErrorAt: number | null };
-/** Own-tape health: `tape` is null until the token is tracked (or when the tape is broken). */
-export type OwnSourceHealth = SourceHealth & { tape: OwnTapeStats | null };
+/** Own-tape health: `tape` is null until the token is tracked (or when the tape is broken); shape follows the chain. */
+export type OwnHealthStats = OwnTapeStats | RobinhoodOwnTapeStats;
+export type OwnSourceHealth = SourceHealth & { tape: OwnHealthStats | null };
 export type OwnTapeLike = {
   track(mint: string, pools: PoolRef[]): void;
   untrack(mint: string): void;
   stats(mint?: string): OwnTapeStats;
   stop(): void;
 };
+/** The Robinhood tape resolves its own pool refs from registry rows, so it takes PairRow[] rather than PoolRef[]. */
+export type RobinhoodOwnTapeLike = {
+  track(address: string, pairs: PairRow[]): void;
+  untrack(address: string): void;
+  stats(address?: string): RobinhoodOwnTapeStats;
+  stop(): void;
+};
+/** Chain-neutral view of a tape as the collector drives it: registry rows in, chain-shaped stats out. */
+type ChainTape = Omit<RobinhoodOwnTapeLike, "stats"> & { stats(address: string): OwnHealthStats };
+type OwnFault = { message: string; at: number };
 export type BackfillState = {
   pair: string;
   startedAt: number;
@@ -52,6 +64,8 @@ export type CollectorDeps = {
   walkPumpTradesBack?: typeof walkPumpTradesBack;
   /** Factory for the own tape, invoked lazily on the first solana subscribe; defaults to config.rpc.primary. */
   ownTape?: (ledger: FlowLedger, log: (message: string) => void) => OwnTapeLike;
+  /** Factory for the Robinhood own tape, invoked lazily on the first robinhood subscribe; defaults to config.robinhood.rpcUrl. */
+  ownTapeRobinhood?: (ledger: FlowLedger, log: (message: string) => void) => RobinhoodOwnTapeLike;
 };
 
 type Subscription = {
@@ -84,6 +98,21 @@ function tierA(pairs: PairRow[]): PairRow[] {
   return pairs.filter((pair) => pair.tier === "A");
 }
 
+function solanaChainTape(tape: OwnTapeLike): ChainTape {
+  return {
+    track: (address, pairs) => tape.track(address, poolRefsFromRegistry(pairs, address)),
+    untrack: (address) => tape.untrack(address),
+    stats: (address) => tape.stats(address),
+    stop: () => tape.stop()
+  };
+}
+
+/** First error across the tape's transports, whichever chain shape it reports. */
+function tapeError(tape: OwnHealthStats): string | null {
+  if ("subscriber" in tape) return tape.lastError ?? tape.subscriber.lastError ?? tape.reader.lastError ?? tape.price.lastError;
+  return tape.lastError ?? tape.poller.lastError ?? tape.blocks.lastError ?? tape.resolve.lastError ?? tape.price.lastError;
+}
+
 /** A backfill runs once per token; a walk that failed is retried BACKFILL_RETRY_MS after it stopped. */
 function backfillDue(state: BackfillState | undefined, now: number): boolean {
   if (!state) return true;
@@ -102,9 +131,10 @@ export class FlowCollector {
   private readonly fetchPump: typeof fetchPumpTradesPage;
   private readonly walkPump: typeof walkPumpTradesBack;
   private readonly makeOwnTape: (ledger: FlowLedger, log: (message: string) => void) => OwnTapeLike;
-  private ownTape: OwnTapeLike | null = null;
+  private readonly makeOwnTapeRobinhood: (ledger: FlowLedger, log: (message: string) => void) => RobinhoodOwnTapeLike;
+  private ownTapes = new Map<Chain, ChainTape>();
   private ownTracked = new Set<string>();
-  private ownFault: { message: string; at: number } | null = null;
+  private ownFaults = new Map<Chain, OwnFault>();
   private ownLoggedAt = 0;
   private subs = new Map<string, Subscription>();
   private backfills = new Map<string, BackfillState>();
@@ -119,6 +149,7 @@ export class FlowCollector {
     this.fetchPump = deps.fetchPumpTradesPage ?? fetchPumpTradesPage;
     this.walkPump = deps.walkPumpTradesBack ?? walkPumpTradesBack;
     this.makeOwnTape = deps.ownTape ?? createOwnTapeFromConfig;
+    this.makeOwnTapeRobinhood = deps.ownTapeRobinhood ?? createRobinhoodOwnTapeFromConfig;
   }
 
   /** Marks interest; pairs replace the previous registry snapshot. Starts the tick loop on first call. */
@@ -129,7 +160,7 @@ export class FlowCollector {
     if (!existing) this.makeRoom(now);
     this.subs.set(key, existing ? { ...existing, pairs, lastRequestedAt: now } : newSubscription(chain, address, pairs, now));
     this.maybeBackfill(key, chain, pairs, now);
-    if (chain === "solana") this.trackOwn(key, address, pairs);
+    this.trackOwn(key, chain, address, pairs);
     this.start();
   }
 
@@ -194,7 +225,7 @@ export class FlowCollector {
       const victim = [...this.subs.entries()].sort((a, b) => a[1].lastRequestedAt - b[1].lastRequestedAt)[0];
       if (!victim) return;
       this.subs.delete(victim[0]);
-      this.untrackOwn(victim[0], victim[1].address);
+      this.untrackOwn(victim[0], victim[1].chain, victim[1].address);
       this.log(`flow collector: dropping ${victim[0]} (idle ${Math.round((now - victim[1].lastRequestedAt) / 1000)}s, cap ${MAX_SUBSCRIPTIONS})`);
     }
   }
@@ -287,55 +318,65 @@ export class FlowCollector {
     if (sub) this.subs.set(key, update(sub));
   }
 
+  /** One lazily created tape per chain; the factory may throw, which withOwnTape reports as a fault. */
+  private ownTapeFor(chain: Chain): ChainTape {
+    const existing = this.ownTapes.get(chain);
+    if (existing) return existing;
+    const tape = chain === "robinhood" ? this.makeOwnTapeRobinhood(this.ledger, this.log) : solanaChainTape(this.makeOwnTape(this.ledger, this.log));
+    this.ownTapes.set(chain, tape);
+    return tape;
+  }
+
   /** Runs one own-tape call; a throw is recorded and logged (throttled) and never reaches the caller. */
-  private withOwnTape(action: (tape: OwnTapeLike) => void): void {
+  private withOwnTape(chain: Chain, action: (tape: ChainTape) => void): void {
     try {
-      this.ownTape ??= this.makeOwnTape(this.ledger, this.log);
-      action(this.ownTape);
-      this.ownFault = null;
+      action(this.ownTapeFor(chain));
+      this.ownFaults.delete(chain);
     } catch (error) {
       const now = this.now();
-      this.ownFault = { message: errorMessage(error), at: now };
+      const fault = { message: errorMessage(error), at: now };
+      this.ownFaults.set(chain, fault);
       if (now - this.ownLoggedAt < LOG_THROTTLE_MS) return;
       this.ownLoggedAt = now;
-      this.log(`flow collector: own tape: ${this.ownFault.message}`);
+      this.log(`flow collector: own tape: ${fault.message}`);
     }
   }
 
-  private trackOwn(key: string, address: string, pairs: PairRow[]): void {
-    this.withOwnTape((tape) => {
-      tape.track(address, poolRefsFromRegistry(pairs, address));
+  private trackOwn(key: string, chain: Chain, address: string, pairs: PairRow[]): void {
+    this.withOwnTape(chain, (tape) => {
+      tape.track(address, pairs);
       this.ownTracked.add(key);
     });
   }
 
-  private untrackOwn(key: string, address: string): void {
+  private untrackOwn(key: string, chain: Chain, address: string): void {
     if (!this.ownTracked.delete(key)) return;
-    this.withOwnTape((tape) => tape.untrack(address));
+    this.withOwnTape(chain, (tape) => tape.untrack(address));
   }
 
   /** Subscriptions past the TTL keep their ledger data but stop costing RPC budget on the own tape. */
   private reapOwn(now: number): void {
     for (const [key, sub] of this.subs) {
-      if (now - sub.lastRequestedAt > SUBSCRIPTION_TTL_MS) this.untrackOwn(key, sub.address);
+      if (now - sub.lastRequestedAt > SUBSCRIPTION_TTL_MS) this.untrackOwn(key, sub.chain, sub.address);
     }
   }
 
   private stopOwn(): void {
-    const tape = this.ownTape;
-    this.ownTape = null;
+    const tapes = [...this.ownTapes.values()];
+    this.ownTapes.clear();
     this.ownTracked.clear();
-    if (!tape) return;
-    try {
-      tape.stop();
-    } catch (error) {
-      this.log(`flow collector: own tape stop: ${errorMessage(error)}`);
+    for (const tape of tapes) {
+      try {
+        tape.stop();
+      } catch (error) {
+        this.log(`flow collector: own tape stop: ${errorMessage(error)}`);
+      }
     }
   }
 
-  private ownStats(address: string): OwnTapeStats | null {
-    let stats: OwnTapeStats | null = null;
-    this.withOwnTape((tape) => {
+  private ownStats(chain: Chain, address: string): OwnHealthStats | null {
+    let stats: OwnHealthStats | null = null;
+    this.withOwnTape(chain, (tape) => {
       stats = tape.stats(address);
     });
     return stats;
@@ -343,12 +384,12 @@ export class FlowCollector {
 
   private ownHealth(sub: Subscription | undefined): OwnSourceHealth {
     const tracked = sub !== undefined && this.ownTracked.has(pairKey(sub.chain, sub.address));
-    const tape = tracked ? this.ownStats(sub.address) : null;
-    const tapeError = tape?.lastError ?? tape?.subscriber.lastError ?? tape?.reader.lastError ?? tape?.price.lastError ?? null;
+    const tape = sub && tracked ? this.ownStats(sub.chain, sub.address) : null;
+    const fault = sub ? this.ownFaults.get(sub.chain) : undefined;
     return {
       lastOkAt: tape?.lastPrintAt ?? null,
-      lastError: this.ownFault?.message ?? tapeError,
-      lastErrorAt: this.ownFault?.at ?? null,
+      lastError: fault?.message ?? (tape ? tapeError(tape) : null),
+      lastErrorAt: fault?.at ?? null,
       tape
     };
   }

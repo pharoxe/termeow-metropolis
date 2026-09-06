@@ -2,8 +2,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FlowPrint, PairRow } from "../../shared/wire.js";
 import { UpstreamError } from "../lib/http.js";
 import type { PumpTradesPage, WalkPumpOptions, WalkPumpResult } from "../sources/pumpfun.js";
+import type { RobinhoodOwnTapeStats } from "../tape/robinhood/ownTape.js";
 import type { OwnTapeStats } from "../tape/solana/ownTape.js";
-import { BACKFILL_RETRY_MS, FlowCollector, GECKO_POLL_MS, MAX_SUBSCRIPTIONS, SUBSCRIPTION_TTL_MS, type CollectorDeps, type OwnTapeLike } from "./collector.js";
+import {
+  BACKFILL_RETRY_MS,
+  FlowCollector,
+  GECKO_POLL_MS,
+  MAX_SUBSCRIPTIONS,
+  SUBSCRIPTION_TTL_MS,
+  type CollectorDeps,
+  type OwnTapeLike,
+  type RobinhoodOwnTapeLike
+} from "./collector.js";
 import { FlowLedger } from "./ledger.js";
 
 const MINT = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
@@ -21,6 +31,21 @@ const OWN_STATS: OwnTapeStats = {
   subscriber: { connected: true, mints: 1, reconnects: 0, lastFrameAt: START - 500, lastError: null },
   reader: { queued: 0, inFlight: false, read: 3, dropped: 0, missing: 0, rateLimited: 0, maxQueueSeen: 1, lastError: null },
   price: { cached: 1, lastOkAt: START - 2000, lastError: null }
+};
+const EVM_TOKEN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
+const EVM_POOL = "0x353F2BD390D8db7BFC9B3dD389F8B71e8DF524fa";
+const RH_STATS: RobinhoodOwnTapeStats = {
+  prints: 2,
+  undecoded: 0,
+  untimed: 0,
+  lastPrintAt: START - 500,
+  tokens: 1,
+  pools: 1,
+  lastError: null,
+  poller: { cursor: 10, head: 10, polls: 1, logs: 2, dropped: 0, errors: 0, lastError: "rpc 429 rate limited", lastOkAt: START, rpcCalls: 1, blockedUntil: null },
+  blocks: { cached: 1, inFlight: 0, hits: 1, misses: 1, failures: 0, lastError: null },
+  price: { cached: 1, lastOkAt: START, lastError: null },
+  resolve: { lastError: null, decimalsCached: 2 }
 };
 
 function row(pairAddress: string, tier: PairRow["tier"]): PairRow {
@@ -58,8 +83,11 @@ function harness(overrides: Partial<CollectorDeps> = {}) {
     return { pages: 1, prints: 1, oldestMs: START - 3_600_000, nextCursor: null, stoppedBy: "end" };
   });
   const tape: { [K in keyof OwnTapeLike]: ReturnType<typeof vi.fn> } = { track: vi.fn(), untrack: vi.fn(), stats: vi.fn(() => OWN_STATS), stop: vi.fn() };
-  const collector = new FlowCollector({ ledger, now: () => now, log, geckoPoolTrades, fetchPumpTradesPage, walkPumpTradesBack, ownTape: () => tape, ...overrides });
-  return { collector, ledger, log, geckoPoolTrades, fetchPumpTradesPage, walkPumpTradesBack, tape, advance: (ms: number) => { now += ms; } };
+  const rhTape: { [K in keyof RobinhoodOwnTapeLike]: ReturnType<typeof vi.fn> } = { track: vi.fn(), untrack: vi.fn(), stats: vi.fn(() => RH_STATS), stop: vi.fn() };
+  const collector = new FlowCollector({
+    ledger, now: () => now, log, geckoPoolTrades, fetchPumpTradesPage, walkPumpTradesBack, ownTape: () => tape, ownTapeRobinhood: () => rhTape, ...overrides
+  });
+  return { collector, ledger, log, geckoPoolTrades, fetchPumpTradesPage, walkPumpTradesBack, tape, rhTape, advance: (ms: number) => { now += ms; } };
 }
 
 const active: FlowCollector[] = [];
@@ -247,5 +275,47 @@ describe("FlowCollector own tape", () => {
     await expect(broken.collector.tick()).resolves.toBeUndefined();
     expect(broken.fetchPumpTradesPage).toHaveBeenCalledTimes(1);
     expect(broken.collector.status("solana", MINT).sources.own).toMatchObject({ lastError: "no rpc", tape: null });
+  });
+});
+
+describe("FlowCollector robinhood", () => {
+  const evmRow = (): PairRow => ({ ...row(EVM_POOL, "A"), chain: "robinhood", baseMint: EVM_TOKEN, quoteMint: "0x5fc5360d0400a0fd4f2af552add042d716f1d168" });
+
+  it("tracks registry rows on the robinhood tape, polls gecko with the robinhood network, and leaves solana alone", async () => {
+    const h = track(harness());
+    h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
+    expect(h.rhTape.track).toHaveBeenCalledWith(EVM_TOKEN, [evmRow()]);
+    expect(h.tape.track).not.toHaveBeenCalled();
+    await h.collector.tick();
+    expect(h.geckoPoolTrades).toHaveBeenCalledWith("robinhood", EVM_POOL, { priority: "low" });
+    expect(h.fetchPumpTradesPage).not.toHaveBeenCalled();
+    expect(h.walkPumpTradesBack).not.toHaveBeenCalled();
+    const own = h.collector.status("robinhood", EVM_TOKEN).sources.own;
+    expect(own).toEqual({ lastOkAt: START - 500, lastError: "rpc 429 rate limited", lastErrorAt: null, tape: RH_STATS });
+    expect(h.rhTape.stats).toHaveBeenCalledWith(EVM_TOKEN);
+    h.collector.subscribe("solana", MINT, [row(POOL, "A")]);
+    expect(h.tape.track).toHaveBeenCalledTimes(1);
+    expect(h.rhTape.track).toHaveBeenCalledTimes(1);
+  });
+
+  it("untracks expired robinhood subscriptions and stops both tapes with the collector", async () => {
+    const h = track(harness());
+    h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
+    h.collector.subscribe("solana", MINT, [row(POOL, "A")]);
+    h.advance(SUBSCRIPTION_TTL_MS + 1);
+    await h.collector.tick();
+    expect(h.rhTape.untrack).toHaveBeenCalledWith(EVM_TOKEN);
+    expect(h.tape.untrack).toHaveBeenCalledWith(MINT);
+    h.collector.stop();
+    expect(h.rhTape.stop).toHaveBeenCalledTimes(1);
+    expect(h.tape.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a robinhood tape fault out of solana's own health", () => {
+    const h = track(harness({ ownTapeRobinhood: () => { throw new Error("no evm rpc"); } }));
+    h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
+    h.collector.subscribe("solana", MINT, [row(POOL, "A")]);
+    expect(h.collector.status("robinhood", EVM_TOKEN).sources.own).toMatchObject({ lastError: "no evm rpc", lastErrorAt: START, tape: null });
+    expect(h.collector.status("solana", MINT).sources.own).toEqual({ lastOkAt: START - 1000, lastError: null, lastErrorAt: null, tape: OWN_STATS });
   });
 });
