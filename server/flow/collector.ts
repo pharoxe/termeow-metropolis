@@ -2,6 +2,8 @@ import type { Chain, PairRow } from "../../shared/wire.js";
 import { errorMessage } from "../lib/http.js";
 import { geckoPoolTrades } from "../sources/gecko.js";
 import { fetchPumpTradesPage, walkPumpTradesBack, type WalkPumpResult } from "../sources/pumpfun.js";
+import { createOwnTapeFromConfig, type OwnTapeStats } from "../tape/solana/ownTape.js";
+import { poolRefsFromRegistry, type PoolRef } from "../tape/solana/parseSwap.js";
 import { FlowLedger, HOUR_MS, pairKey } from "./ledger.js";
 
 export const COLLECTOR_TICK_MS = 5_000;
@@ -17,6 +19,14 @@ const PUMP_PREFIX = "pumpfun:";
 
 export type SourceName = "pumpfun" | "geckoterminal";
 export type SourceHealth = { lastOkAt: number | null; lastError: string | null; lastErrorAt: number | null };
+/** Own-tape health: `tape` is null until the token is tracked (or when the tape is broken). */
+export type OwnSourceHealth = SourceHealth & { tape: OwnTapeStats | null };
+export type OwnTapeLike = {
+  track(mint: string, pools: PoolRef[]): void;
+  untrack(mint: string): void;
+  stats(mint?: string): OwnTapeStats;
+  stop(): void;
+};
 export type BackfillState = {
   pair: string;
   startedAt: number;
@@ -28,7 +38,7 @@ export type CollectorStatus = {
   subscribed: boolean;
   lastRequestedAt: number | null;
   tierAPairs: number;
-  sources: Record<SourceName, SourceHealth>;
+  sources: Record<SourceName, SourceHealth> & { own: OwnSourceHealth };
   backfill: BackfillState | null;
   launchMs: number | null;
 };
@@ -40,6 +50,8 @@ export type CollectorDeps = {
   geckoPoolTrades?: typeof geckoPoolTrades;
   fetchPumpTradesPage?: typeof fetchPumpTradesPage;
   walkPumpTradesBack?: typeof walkPumpTradesBack;
+  /** Factory for the own tape, invoked lazily on the first solana subscribe; defaults to config.rpc.primary. */
+  ownTape?: (ledger: FlowLedger, log: (message: string) => void) => OwnTapeLike;
 };
 
 type Subscription = {
@@ -89,6 +101,11 @@ export class FlowCollector {
   private readonly fetchGecko: typeof geckoPoolTrades;
   private readonly fetchPump: typeof fetchPumpTradesPage;
   private readonly walkPump: typeof walkPumpTradesBack;
+  private readonly makeOwnTape: (ledger: FlowLedger, log: (message: string) => void) => OwnTapeLike;
+  private ownTape: OwnTapeLike | null = null;
+  private ownTracked = new Set<string>();
+  private ownFault: { message: string; at: number } | null = null;
+  private ownLoggedAt = 0;
   private subs = new Map<string, Subscription>();
   private backfills = new Map<string, BackfillState>();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -101,6 +118,7 @@ export class FlowCollector {
     this.fetchGecko = deps.geckoPoolTrades ?? geckoPoolTrades;
     this.fetchPump = deps.fetchPumpTradesPage ?? fetchPumpTradesPage;
     this.walkPump = deps.walkPumpTradesBack ?? walkPumpTradesBack;
+    this.makeOwnTape = deps.ownTape ?? createOwnTapeFromConfig;
   }
 
   /** Marks interest; pairs replace the previous registry snapshot. Starts the tick loop on first call. */
@@ -111,6 +129,7 @@ export class FlowCollector {
     if (!existing) this.makeRoom(now);
     this.subs.set(key, existing ? { ...existing, pairs, lastRequestedAt: now } : newSubscription(chain, address, pairs, now));
     this.maybeBackfill(key, chain, pairs, now);
+    if (chain === "solana") this.trackOwn(key, address, pairs);
     this.start();
   }
 
@@ -120,7 +139,7 @@ export class FlowCollector {
       subscribed: sub !== undefined,
       lastRequestedAt: sub?.lastRequestedAt ?? null,
       tierAPairs: sub ? tierA(sub.pairs).length : 0,
-      sources: sub?.sources ?? emptySources(),
+      sources: { ...(sub?.sources ?? emptySources()), own: this.ownHealth(sub) },
       backfill: this.backfills.get(pairKey(chain, address)) ?? null,
       launchMs: this.launchMs(chain, address)
     };
@@ -144,6 +163,7 @@ export class FlowCollector {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.stopOwn();
   }
 
   /** One polling round over every subscription requested within SUBSCRIPTION_TTL_MS. Safe to call directly. */
@@ -152,6 +172,7 @@ export class FlowCollector {
     this.ticking = true;
     try {
       const now = this.now();
+      this.reapOwn(now);
       await Promise.all(this.active(now).map((sub) => this.pollSubscription(sub, now)));
     } finally {
       this.ticking = false;
@@ -173,6 +194,7 @@ export class FlowCollector {
       const victim = [...this.subs.entries()].sort((a, b) => a[1].lastRequestedAt - b[1].lastRequestedAt)[0];
       if (!victim) return;
       this.subs.delete(victim[0]);
+      this.untrackOwn(victim[0], victim[1].address);
       this.log(`flow collector: dropping ${victim[0]} (idle ${Math.round((now - victim[1].lastRequestedAt) / 1000)}s, cap ${MAX_SUBSCRIPTIONS})`);
     }
   }
@@ -263,6 +285,72 @@ export class FlowCollector {
   private patch(key: string, update: (sub: Subscription) => Subscription): void {
     const sub = this.subs.get(key);
     if (sub) this.subs.set(key, update(sub));
+  }
+
+  /** Runs one own-tape call; a throw is recorded and logged (throttled) and never reaches the caller. */
+  private withOwnTape(action: (tape: OwnTapeLike) => void): void {
+    try {
+      this.ownTape ??= this.makeOwnTape(this.ledger, this.log);
+      action(this.ownTape);
+      this.ownFault = null;
+    } catch (error) {
+      const now = this.now();
+      this.ownFault = { message: errorMessage(error), at: now };
+      if (now - this.ownLoggedAt < LOG_THROTTLE_MS) return;
+      this.ownLoggedAt = now;
+      this.log(`flow collector: own tape: ${this.ownFault.message}`);
+    }
+  }
+
+  private trackOwn(key: string, address: string, pairs: PairRow[]): void {
+    this.withOwnTape((tape) => {
+      tape.track(address, poolRefsFromRegistry(pairs, address));
+      this.ownTracked.add(key);
+    });
+  }
+
+  private untrackOwn(key: string, address: string): void {
+    if (!this.ownTracked.delete(key)) return;
+    this.withOwnTape((tape) => tape.untrack(address));
+  }
+
+  /** Subscriptions past the TTL keep their ledger data but stop costing RPC budget on the own tape. */
+  private reapOwn(now: number): void {
+    for (const [key, sub] of this.subs) {
+      if (now - sub.lastRequestedAt > SUBSCRIPTION_TTL_MS) this.untrackOwn(key, sub.address);
+    }
+  }
+
+  private stopOwn(): void {
+    const tape = this.ownTape;
+    this.ownTape = null;
+    this.ownTracked.clear();
+    if (!tape) return;
+    try {
+      tape.stop();
+    } catch (error) {
+      this.log(`flow collector: own tape stop: ${errorMessage(error)}`);
+    }
+  }
+
+  private ownStats(address: string): OwnTapeStats | null {
+    let stats: OwnTapeStats | null = null;
+    this.withOwnTape((tape) => {
+      stats = tape.stats(address);
+    });
+    return stats;
+  }
+
+  private ownHealth(sub: Subscription | undefined): OwnSourceHealth {
+    const tracked = sub !== undefined && this.ownTracked.has(pairKey(sub.chain, sub.address));
+    const tape = tracked ? this.ownStats(sub.address) : null;
+    const tapeError = tape?.lastError ?? tape?.subscriber.lastError ?? tape?.reader.lastError ?? tape?.price.lastError ?? null;
+    return {
+      lastOkAt: tape?.lastPrintAt ?? null,
+      lastError: this.ownFault?.message ?? tapeError,
+      lastErrorAt: this.ownFault?.at ?? null,
+      tape
+    };
   }
 }
 

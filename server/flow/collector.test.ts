@@ -2,13 +2,26 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FlowPrint, PairRow } from "../../shared/wire.js";
 import { UpstreamError } from "../lib/http.js";
 import type { PumpTradesPage, WalkPumpOptions, WalkPumpResult } from "../sources/pumpfun.js";
-import { BACKFILL_RETRY_MS, FlowCollector, GECKO_POLL_MS, MAX_SUBSCRIPTIONS, SUBSCRIPTION_TTL_MS, type CollectorDeps } from "./collector.js";
+import type { OwnTapeStats } from "../tape/solana/ownTape.js";
+import { BACKFILL_RETRY_MS, FlowCollector, GECKO_POLL_MS, MAX_SUBSCRIPTIONS, SUBSCRIPTION_TTL_MS, type CollectorDeps, type OwnTapeLike } from "./collector.js";
 import { FlowLedger } from "./ledger.js";
 
 const MINT = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 const PUMP = `pumpfun:${MINT}`;
 const POOL = "8sLbNZoA1cfnvMJLPfp98ZLAnFSYCFApfJKMbiXNLwxj";
+const PUMPSWAP_POOL = "FnzKY6x7entQ1eR3D225dQyT7ybfka4PskBMQhb8L3CC";
 const START = 1_800_000_000_000;
+const OWN_STATS: OwnTapeStats = {
+  prints: 3,
+  unattributed: 1,
+  skipped: 0,
+  lastPrintAt: START - 1000,
+  mints: 1,
+  lastError: null,
+  subscriber: { connected: true, mints: 1, reconnects: 0, lastFrameAt: START - 500, lastError: null },
+  reader: { queued: 0, inFlight: false, read: 3, dropped: 0, missing: 0, rateLimited: 0, maxQueueSeen: 1, lastError: null },
+  price: { cached: 1, lastOkAt: START - 2000, lastError: null }
+};
 
 function row(pairAddress: string, tier: PairRow["tier"]): PairRow {
   return {
@@ -44,8 +57,9 @@ function harness(overrides: Partial<CollectorDeps> = {}) {
     opts.onPage?.([print(`pumpfun:${mint}`, "backfill-1", START - 3_600_000, "pumpfun")]);
     return { pages: 1, prints: 1, oldestMs: START - 3_600_000, nextCursor: null, stoppedBy: "end" };
   });
-  const collector = new FlowCollector({ ledger, now: () => now, log, geckoPoolTrades, fetchPumpTradesPage, walkPumpTradesBack, ...overrides });
-  return { collector, ledger, log, geckoPoolTrades, fetchPumpTradesPage, walkPumpTradesBack, advance: (ms: number) => { now += ms; } };
+  const tape: { [K in keyof OwnTapeLike]: ReturnType<typeof vi.fn> } = { track: vi.fn(), untrack: vi.fn(), stats: vi.fn(() => OWN_STATS), stop: vi.fn() };
+  const collector = new FlowCollector({ ledger, now: () => now, log, geckoPoolTrades, fetchPumpTradesPage, walkPumpTradesBack, ownTape: () => tape, ...overrides });
+  return { collector, ledger, log, geckoPoolTrades, fetchPumpTradesPage, walkPumpTradesBack, tape, advance: (ms: number) => { now += ms; } };
 }
 
 const active: FlowCollector[] = [];
@@ -176,5 +190,62 @@ describe("FlowCollector", () => {
     expect(h.collector.subscriptions()).toContain("solana:mint0");
     expect(h.collector.subscriptions()).toContain("solana:fresh");
     expect(h.log).toHaveBeenCalledWith(expect.stringContaining("dropping solana:mint1"));
+  });
+});
+
+describe("FlowCollector own tape", () => {
+  const registry = () => [row(PUMP, "A"), { ...row(PUMPSWAP_POOL, "B"), dex: "pumpswap" }, row(POOL, "A"), row("tierB", "B")];
+
+  it("tracks Tier A pool refs on every solana subscribe and reports own-tape health under sources.own", () => {
+    const h = track(harness());
+    h.collector.subscribe("solana", MINT, registry());
+    expect(h.tape.track).toHaveBeenCalledWith(MINT, [
+      { pair: PUMPSWAP_POOL, pairAddress: PUMPSWAP_POOL, dex: "pumpswap", ledgerPair: PUMP },
+      { pair: POOL, pairAddress: POOL, dex: "raydium", ledgerPair: POOL }
+    ]);
+    h.collector.subscribe("solana", MINT, [row(POOL, "A")]);
+    expect(h.tape.track).toHaveBeenLastCalledWith(MINT, [{ pair: POOL, pairAddress: POOL, dex: "raydium", ledgerPair: POOL }]);
+    expect(h.collector.status("solana", MINT).sources.own).toEqual({ lastOkAt: START - 1000, lastError: null, lastErrorAt: null, tape: OWN_STATS });
+    expect(h.tape.stats).toHaveBeenCalledWith(MINT);
+    expect(h.collector.status("solana", "unknown").sources.own).toEqual({ lastOkAt: null, lastError: null, lastErrorAt: null, tape: null });
+  });
+
+  it("untracks when a subscription expires or is evicted, and stops the tape with the collector", async () => {
+    const h = track(harness());
+    h.collector.subscribe("solana", MINT, registry());
+    h.advance(SUBSCRIPTION_TTL_MS + 1);
+    await h.collector.tick();
+    expect(h.tape.untrack).toHaveBeenCalledWith(MINT);
+    await h.collector.tick();
+    expect(h.tape.untrack).toHaveBeenCalledTimes(1);
+    for (let i = 0; i < MAX_SUBSCRIPTIONS; i += 1) {
+      h.collector.subscribe("solana", `mint${i}`, [row(`pool${i}`, "A")]);
+      h.advance(1000);
+    }
+    h.collector.subscribe("solana", "fresh", [row("poolFresh", "A")]);
+    expect(h.tape.untrack).toHaveBeenCalledWith("mint0");
+    h.collector.stop();
+    expect(h.tape.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps polling when the tape or its factory throws, and surfaces the fault in sources.own", async () => {
+    const h = track(harness());
+    h.tape.track.mockImplementation(() => {
+      throw new Error("tape down");
+    });
+    expect(() => h.collector.subscribe("solana", MINT, registry())).not.toThrow();
+    await expect(h.collector.tick()).resolves.toBeUndefined();
+    expect(h.fetchPumpTradesPage).toHaveBeenCalledTimes(1);
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(1);
+    expect(h.collector.status("solana", MINT).sources.own).toEqual({ lastOkAt: null, lastError: "tape down", lastErrorAt: START, tape: null });
+    expect(h.log).toHaveBeenCalledWith("flow collector: own tape: tape down");
+    h.collector.subscribe("solana", MINT, registry());
+    expect(h.log).toHaveBeenCalledTimes(1);
+
+    const broken = track(harness({ ownTape: () => { throw new Error("no rpc"); } }));
+    broken.collector.subscribe("solana", MINT, registry());
+    await expect(broken.collector.tick()).resolves.toBeUndefined();
+    expect(broken.fetchPumpTradesPage).toHaveBeenCalledTimes(1);
+    expect(broken.collector.status("solana", MINT).sources.own).toMatchObject({ lastError: "no rpc", tape: null });
   });
 });
