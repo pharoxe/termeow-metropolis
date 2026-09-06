@@ -5,7 +5,8 @@ import type { OnchainMarket, PoolTrade } from "../types";
 import { money, pct } from "../lib/format";
 import { mcapScale, rowMarketCap, rowTokenPrice } from "../lib/mcap";
 import { coverageChipLabel } from "../lib/flowSeries";
-import type { FlowCoverage } from "../../shared/wire";
+import type { FlowCoverage, TokenFlowResponse } from "../../shared/wire";
+import { FlowSideOutputs } from "./FlowSideOutputs";
 import { useNotifications } from "./NotificationSystem";
 
 type Row = Record<string, unknown>;
@@ -254,7 +255,8 @@ export function BothSidesPanel({
   sellCount = 0,
   buyCountRecent,
   sellCountRecent,
-  coverage
+  coverage,
+  tokenFlow
 }: {
   market: OnchainMarket;
   trades?: PoolTrade[];
@@ -265,6 +267,7 @@ export function BothSidesPanel({
   sellCountRecent?: number;
   spanLabel?: string;
   coverage?: FlowCoverage;
+  tokenFlow?: TokenFlowResponse | null;
 }) {
   const provider = record(market.provider);
   const intelligence = record(provider.intelligence_market);
@@ -285,6 +288,7 @@ export function BothSidesPanel({
     <section className="panel sides-panel flow-panel research-panel">
       <div className="ph"><span className="pt">FLOW</span><span className="sd-sym">{market.symbol}</span><span className="pm">TAPE · POOLS · SENT</span></div>
       {coverage ? <p className="pm"><span className="chip">{coverageChipLabel(coverage)}</span></p> : null}
+      <FlowSideOutputs flow={tokenFlow ?? null} />
       <div className="flow-columns">
         <FeatureSection id="flow" className="tape-col">
           <h3>TYPE</h3>

@@ -204,6 +204,33 @@ describe("FlowLedger coverage", () => {
   });
 });
 
+describe("FlowLedger recentPrints", () => {
+  it("returns accepted prints newest first and an empty list for unknown pairs", () => {
+    const ledger = new FlowLedger({ now: () => T0 });
+    ledger.ingest([print({ tx: "a", time: T0 }), print({ tx: "b", time: T0 + 5000, side: "sell" }), print({ tx: "c", time: T0 + 2000, usd: null })]);
+    expect(ledger.recentPrints("solana", "pool-A").map((p) => p.tx)).toEqual(["b", "c", "a"]);
+    expect(ledger.recentPrints("solana", "pool-A", 2).map((p) => p.tx)).toEqual(["b", "c"]);
+    expect(ledger.recentPrints("solana", "pool-A", 0)).toEqual([]);
+    expect(ledger.recentPrints("solana", "nope")).toEqual([]);
+  });
+
+  it("keeps only the newest `recentRing` prints by time, whatever the ingest order", () => {
+    const ledger = new FlowLedger({ now: () => T0, recentRing: 3 });
+    ledger.ingest([print({ tx: "d", time: T0 + 4000 }), print({ tx: "b", time: T0 + 2000 }), print({ tx: "a", time: T0 + 1000 })]);
+    ledger.ingest([print({ tx: "c", time: T0 + 3000 }), print({ tx: "z", time: T0 - 9000 })]);
+    expect(ledger.recentPrints("solana", "pool-A").map((p) => p.tx)).toEqual(["d", "c", "b"]);
+    expect(ledger.recentPrints("solana", "pool-A", 99)).toHaveLength(3);
+  });
+
+  it("never admits a duplicate tx into the ring and does not change bucket sums", () => {
+    const ledger = new FlowLedger({ now: () => T0 });
+    ledger.ingest([print({ tx: "dup", time: T0, usd: 10 })]);
+    expect(ledger.ingest([print({ tx: "dup", time: T0 + 1000, usd: 999 })])).toEqual({ accepted: 0, duplicates: 1 });
+    expect(ledger.recentPrints("solana", "pool-A").map((p) => [p.tx, p.usd])).toEqual([["dup", 10]]);
+    expect(totals(ledger, MINUTE_MS, M0, M0)[0]).toMatchObject({ buyUsd: 10, buys: 1 });
+  });
+});
+
 describe("toBars", () => {
   it("computes delta and a running cvd from the anchor", () => {
     const bucket = { buys: 0, sells: 0, unpricedBuys: 0, unpricedSells: 0 };

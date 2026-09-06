@@ -11,6 +11,7 @@ import { atr, macd, rsi } from "../lib/indicators";
 import { extractSolanaMint, MINT_RE } from "../lib/mint";
 import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
 import type { TokenFlowResponse } from "../../shared/wire";
+import { buildChartFlowInput } from "../lib/flowPanel";
 import { AuditChips, BothSidesPanel, MarketStrips, ResearchPanel, SocialPanel, WatchPanel } from "../components/DeskPanels";
 import { ThemeToggle, useTheme } from "../components/ThemeToggle";
 import { FeatureSection } from "../features/WorkspaceFeatures";
@@ -252,6 +253,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const chartSub = hasMcap ? (useMcap ? money(feed?.priceUsd) : money(scale.mcap, true)) : null;
   const cvdValue = cvdState && !cvdState.failed ? cvdState.cvd : null;
   const cvdSeries = cvdState && !cvdState.failed ? cvdState.series : undefined;
+  const chartFlow = useMemo(() => (flowState ? buildChartFlowInput(flowState, candles) : undefined), [flowState, candles]);
   const sourceLabel = feed?.dex || feed?.source || "GECKO";
 
   const technicals = useMemo(() => {
@@ -388,7 +390,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           </div>
           {spotLoading ? (
             <div className="integration-empty chart-loading"><span className="notification-pixel chart-loader" aria-hidden="true"><i /><i /><i /><i /></span><h2>LOADING {mintLabel}</h2><p>{error || "Fetching chart, intel, holders, and social for this contract."}</p></div>
-          ) : candles.length ? <MarketChart ref={chartRef} candles={candles} indicators={indicators} cvdSeries={cvdSeries} compactAxis={useMcap} theme={theme} /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{error || "No OHLCV on Gecko for this mint's pools."}</p></div>}
+          ) : candles.length ? <MarketChart ref={chartRef} candles={candles} indicators={indicators} cvdSeries={cvdSeries} flow={chartFlow} compactAxis={useMcap} theme={theme} /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{error || "No OHLCV on Gecko for this mint's pools."}</p></div>}
           <div className="chart-readout">
             <span>RSI14 <b>{technicals?.rsi?.toFixed(2) || "—"}</b></span>
             <span>MACD <b>{technicals?.macd?.toPrecision(4) || "—"}</b></span>
@@ -447,6 +449,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           sellCountRecent={liveCvd?.sellCountRecent || 0}
           spanLabel={spanLabel}
           coverage={flowState?.coverage}
+          tokenFlow={flowState}
         /> : (
           <section className="panel sides-panel flow-panel research-panel">
             <div className="ph"><span className="pt">LIQUIDITY &amp; ORDER FLOW</span><span className="pm">LOADING {mintLabel}</span></div>

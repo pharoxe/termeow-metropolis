@@ -884,3 +884,14 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
   .header-network-picker { width:100%; }
   .chart-head-left .analyze-trigger { margin-left:0; }
 }
+
+/* flow side outputs (F4) */
+.flow-side { display:flex; flex-direction:column; gap:4px; padding:0 8px 6px; }
+.flow-sources { display:flex; align-items:center; gap:4px; }
+.chip.bad { color:var(--red); border-color:var(--red); }
+.chip.off { color:var(--meta); border-color:var(--line); }
+.flow-windows th:first-child { width:auto; }
+.flow-since,.flow-large-title { margin:0; }
+.flow-large { display:flex; flex-direction:column; gap:2px; }
+.flow-large .tape-row em { margin-left:auto; white-space:nowrap; }
+.flow-side .empty-copy { padding:4px 0; }

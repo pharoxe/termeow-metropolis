@@ -7,12 +7,14 @@ const DEFAULT_MAX_PAIRS = 64;
 const DEFAULT_MINUTE_RETENTION_MS = 48 * HOUR_MS;
 const DEFAULT_HOUR_RETENTION_MS = 30 * 24 * HOUR_MS;
 const DEFAULT_DEDUPE_RING = 2000;
+const DEFAULT_RECENT_RING = 200;
 
 export type FlowLedgerOptions = {
   maxPairs?: number;
   minuteRetentionMs?: number;
   hourRetentionMs?: number;
   dedupeRing?: number;
+  recentRing?: number;
   now?: () => number;
 };
 
@@ -25,6 +27,8 @@ type PairState = {
   hours: Map<number, FlowBucket>;
   /** Insertion-ordered tx ring; oldest entries drop once the ring is full. */
   seen: Set<string>;
+  /** Last `recentRing` accepted prints, ascending by time; oldest-by-time drops when full. */
+  recent: FlowPrint[];
   firstPrintAt: number | null;
 };
 
@@ -36,12 +40,20 @@ export function alignTo(time: number, bucketMs: number): number {
   return Math.floor(time / bucketMs) * bucketMs;
 }
 
-function emptyBucket(t: number): FlowBucket {
+export function emptyBucket(t: number): FlowBucket {
   return { t, buyUsd: 0, sellUsd: 0, buys: 0, sells: 0, unpricedBuys: 0, unpricedSells: 0 };
 }
 
 function emptyPair(): PairState {
-  return { minutes: new Map(), hours: new Map(), seen: new Set(), firstPrintAt: null };
+  return { minutes: new Map(), hours: new Map(), seen: new Set(), recent: [], firstPrintAt: null };
+}
+
+/** Inserts `print` keeping `ring` ascending by time, then trims the oldest entries down to `cap`. */
+function insertByTime(ring: FlowPrint[], print: FlowPrint, cap: number): void {
+  let i = ring.length;
+  while (i > 0 && ring[i - 1].time > print.time) i -= 1;
+  ring.splice(i, 0, print);
+  if (ring.length > cap) ring.splice(0, ring.length - cap);
 }
 
 /** Returns a new bucket with the print folded in. Counts every print; sums only priced ones. */
@@ -120,6 +132,7 @@ export class FlowLedger {
   private readonly minuteRetentionMs: number;
   private readonly hourRetentionMs: number;
   private readonly dedupeRing: number;
+  private readonly recentRing: number;
   private readonly now: () => number;
   /** Insertion order doubles as LRU order: most recently ingested pair is last. */
   private readonly store = new Map<string, PairState>();
@@ -129,6 +142,7 @@ export class FlowLedger {
     this.minuteRetentionMs = opts.minuteRetentionMs ?? DEFAULT_MINUTE_RETENTION_MS;
     this.hourRetentionMs = opts.hourRetentionMs ?? DEFAULT_HOUR_RETENTION_MS;
     this.dedupeRing = opts.dedupeRing ?? DEFAULT_DEDUPE_RING;
+    this.recentRing = opts.recentRing ?? DEFAULT_RECENT_RING;
     this.now = opts.now ?? (() => Date.now());
   }
 
@@ -172,6 +186,13 @@ export class FlowLedger {
     return { fraction, firstPrintAt };
   }
 
+  /** Accepted prints for one pair, newest first, at most `limit` (default: the whole ring). Duplicates never enter the ring. */
+  recentPrints(chain: string, pair: string, limit = this.recentRing): FlowPrint[] {
+    const recent = this.store.get(pairKey(chain, pair))?.recent;
+    if (!recent || !(limit > 0)) return [];
+    return recent.slice(-Math.floor(limit)).reverse();
+  }
+
   firstPrintAt(chain: string, pair: string): number | null {
     return this.store.get(pairKey(chain, pair))?.firstPrintAt ?? null;
   }
@@ -208,6 +229,7 @@ export class FlowLedger {
   private fold(state: PairState, print: FlowPrint): void {
     foldInto(state.minutes, alignTo(print.time, MINUTE_MS), print);
     foldInto(state.hours, alignTo(print.time, HOUR_MS), print);
+    insertByTime(state.recent, print, this.recentRing);
     if (state.firstPrintAt === null || print.time < state.firstPrintAt) state.firstPrintAt = print.time;
   }
 

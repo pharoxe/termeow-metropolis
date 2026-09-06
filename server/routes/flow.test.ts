@@ -128,6 +128,58 @@ describe("buildTokenFlowResponse", () => {
     expect(response.bars.at(-1)?.cvd).toBe(55);
   });
 
+  it("adds windows, large prints, sinceAnchor and source chips computed from the ledger and collector", async () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([print(POOL, "big", NOW - 2 * FIVE_MIN + 1000, "buy", 1500), print(POOL, "small", NOW - 30_000, "sell", 30)]);
+    const status = vi.fn(() => ({
+      sources: {
+        pumpfun: { lastOkAt: NOW - 5000, lastError: null, lastErrorAt: null },
+        geckoterminal: { lastOkAt: null, lastError: "geckoterminal: 429", lastErrorAt: NOW - 1000 },
+        own: { lastOkAt: NOW - 2000, lastError: null, lastErrorAt: null, tape: { prints: 7 } }
+      }
+    }));
+    const d = deps({}, ledger);
+    const response = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, status } });
+    expect(status).toHaveBeenCalledWith("solana", MINT);
+    expect(response.windows?.map((w) => [w.label, w.net, w.buys, w.sells, w.aggressor])).toEqual([
+      ["1m", -30, 0, 1, 0],
+      ["5m", -30, 0, 1, 0],
+      ["15m", 1470, 1, 1, 1500 / 1530],
+      ["1h", 1470, 1, 1, 1500 / 1530]
+    ]);
+    expect(response.largePrints).toEqual([{ pair: POOL, dex: "raydium", tx: "big", time: NOW - 2 * FIVE_MIN + 1000, side: "buy", usd: 1500, source: "geckoterminal" }]);
+    expect(response.sinceAnchor).toEqual({ startMs: NOW - 2 * FIVE_MIN, net: 1470, buyUsd: 1500, sellUsd: 30, prints: 2 });
+    expect(response.sources).toEqual([
+      { name: "pumpfun", lastOkAt: NOW - 5000, lastError: null },
+      { name: "geckoterminal", lastOkAt: null, lastError: "geckoterminal: 429" },
+      { name: "own", lastOkAt: NOW - 2000, lastError: null, prints: 7 }
+    ]);
+  });
+
+  it("omits sources when the collector has no status(), and nulls sinceAnchor.startMs for an unknown launch", async () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([print(POOL, "a", NOW - 1000, "buy", 10)]);
+    const d = deps({}, ledger);
+    const response = await buildTokenFlowResponse(params({ anchor: "launch" }), d);
+    expect(response.sources).toBeUndefined();
+    expect(response.sinceAnchor).toEqual({ startMs: null, net: 0, buyUsd: 0, sellUsd: 0, prints: 0 });
+    expect(response.windows).toHaveLength(4);
+    const session = await buildTokenFlowResponse(params({ anchor: "session" }), d);
+    expect(session.sinceAnchor).toMatchObject({ startMs: NOW - 60 * MINUTE_MS, net: 10, prints: 1 });
+  });
+
+  it("degrades to 200 + error (bars intact, side outputs omitted) when the collector status throws", async () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([print(POOL, "a", NOW - FIVE_MIN + 1000, "buy", 10)]);
+    const d = deps({}, ledger);
+    const status = vi.fn(() => { throw new Error("shape mismatch"); });
+    const response = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, status } });
+    expect(response.bars).toHaveLength(1);
+    expect(response.error).toBe("side outputs: shape mismatch");
+    expect(response.windows).toBeUndefined();
+    expect(response.sources).toBeUndefined();
+  });
+
   it("passes through stale registry results with their error", async () => {
     const d = deps({ registry: async () => ({ pairs: [row(POOL, "A", 1)], observedAt: NOW - 90_000, stale: true, error: "geckoterminal: 429" }) });
     const response = await buildTokenFlowResponse(params(), d);
@@ -152,6 +204,8 @@ describe("buildTokenFlowResponse", () => {
       source: FLOW_SOURCE,
       error: "dexscreener: down; geckoterminal: down; clawpump: down"
     });
+    expect(response.windows).toBeUndefined();
+    expect(response.sources).toBeUndefined();
     expect(d.subscribe).not.toHaveBeenCalled();
   });
 });

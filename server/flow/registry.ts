@@ -177,7 +177,22 @@ export function buildRegistry(input: RegistryInput): PairRow[] {
 
 type CacheEntry = { pairs: PairRow[]; observedAt: number };
 
+/** Rows from each source's last successful call for a key; absent = that source has never succeeded. */
+type LastGoodRows = { dexPairs?: PairRow[]; geckoPools?: RegistryPool[]; clawTopPools?: unknown };
+
+/** Per-source refresh outcome: `ok:false` means the call rejected or reported an error, and `rows` is only a fallback. */
+type SourceOutcome<T> = { rows: T; ok: boolean; error?: string };
+
+type GatherOutcomes = {
+  dex: SourceOutcome<PairRow[]>;
+  gecko: SourceOutcome<RegistryPool[]>;
+  claw: SourceOutcome<unknown>;
+  /** Every source rejected outright; nothing usable came back this refresh. */
+  allRejected: boolean;
+};
+
 const cache = new Map<string, CacheEntry>();
+const lastGood = new Map<string, LastGoodRows>();
 const inFlight = new Map<string, Promise<RegistryResult>>();
 
 function cacheKey(chain: Chain, address: string): string {
@@ -194,34 +209,75 @@ async function settle<T>(label: string, task: () => Promise<T>, fallback: T): Pr
   }
 }
 
-async function gather(chain: Chain, address: string, deps: RegistryDeps): Promise<{ pairs: PairRow[]; errors: string[] }> {
+function outcome<T>(settled: Settled<T>): SourceOutcome<T> {
+  return settled.error ? { rows: settled.value, ok: false, error: settled.error } : { rows: settled.value, ok: true };
+}
+
+/** DexScreener is a fetched source with its own last-good: a reported error still counts as a failed refresh. */
+function dexOutcome(settled: Settled<{ pairs: PairRow[]; stale: boolean; error?: string }>): SourceOutcome<PairRow[]> {
+  if (settled.error) return { rows: settled.value.pairs, ok: false, error: settled.error };
+  if (settled.value.error) return { rows: settled.value.pairs, ok: false, error: `dexscreener: ${settled.value.error}` };
+  return { rows: settled.value.pairs, ok: true };
+}
+
+/** Settle every source; per-source outcomes let the caller substitute last-good rows for failures. */
+async function gather(chain: Chain, address: string, deps: RegistryDeps): Promise<GatherOutcomes> {
   const [dex, gecko, claw] = await Promise.all([
     settle("dexscreener", () => deps.getTokenPairs(chain, address), { pairs: [] as PairRow[], stale: true }),
     settle("geckoterminal", () => deps.geckoTokenPools(chain, address), [] as RegistryPool[]),
     settle("clawpump", () => deps.clawTopPools(), null as unknown)
   ]);
-  const errors = [dex.error, dex.value.error && `dexscreener: ${dex.value.error}`, gecko.error, claw.error].filter(
-    (message): message is string => Boolean(message)
-  );
-  const pairs = buildRegistry({
-    chain,
-    address,
-    dexPairs: dex.value.pairs,
-    geckoPools: gecko.value,
-    clawTopPools: claw.value,
-    pumpPool: deps.pumpPool()
-  });
-  const allFailed = Boolean(dex.error && gecko.error && claw.error);
-  if (allFailed) throw new Error(errors.join("; "));
-  return { pairs, errors };
+  return {
+    dex: dexOutcome(dex),
+    gecko: outcome(gecko),
+    claw: outcome(claw),
+    allRejected: Boolean(dex.error && gecko.error && claw.error)
+  };
+}
+
+/** A failed source keeps its last-good rows; a source that succeeded with an empty list is taken at face value. */
+function pick<T>(source: SourceOutcome<T>, previous: T | undefined): T {
+  return source.ok || previous === undefined ? source.rows : previous;
+}
+
+function retainedRows(outcomes: GatherOutcomes, previous: LastGoodRows): Omit<RegistryInput, "chain" | "address" | "pumpPool"> {
+  return {
+    dexPairs: pick(outcomes.dex, previous.dexPairs),
+    geckoPools: pick(outcomes.gecko, previous.geckoPools),
+    clawTopPools: pick(outcomes.claw, previous.clawTopPools)
+  };
+}
+
+/** New last-good snapshot: only sources that succeeded this refresh overwrite their previous rows. */
+function rememberRows(outcomes: GatherOutcomes, previous: LastGoodRows): LastGoodRows {
+  return {
+    ...previous,
+    ...(outcomes.dex.ok ? { dexPairs: outcomes.dex.rows } : {}),
+    ...(outcomes.gecko.ok ? { geckoPools: outcomes.gecko.rows } : {}),
+    ...(outcomes.claw.ok ? { clawTopPools: outcomes.claw.rows } : {})
+  };
+}
+
+function gatherErrors(outcomes: GatherOutcomes): string[] {
+  return [outcomes.dex.error, outcomes.gecko.error, outcomes.claw.error].filter((message): message is string => Boolean(message));
+}
+
+/** Fresh registry from this refresh plus last-good rows for failed sources; throws when every source rejected. */
+async function fresh(key: string, chain: Chain, address: string, deps: RegistryDeps): Promise<RegistryResult> {
+  const outcomes = await gather(chain, address, deps);
+  const errors = gatherErrors(outcomes);
+  if (outcomes.allRejected) throw new Error(errors.join("; "));
+  const retained = lastGood.get(key) ?? {};
+  const pairs = buildRegistry({ chain, address, ...retainedRows(outcomes, retained), pumpPool: deps.pumpPool() });
+  lastGood.set(key, rememberRows(outcomes, retained));
+  const entry = { pairs, observedAt: Date.now() };
+  cache.set(key, entry);
+  return errors.length ? { ...entry, stale: false, error: errors.join("; ") } : { ...entry, stale: false };
 }
 
 async function refresh(key: string, chain: Chain, address: string, deps: RegistryDeps, previous?: CacheEntry): Promise<RegistryResult> {
   try {
-    const { pairs, errors } = await gather(chain, address, deps);
-    const entry = { pairs, observedAt: Date.now() };
-    cache.set(key, entry);
-    return errors.length ? { ...entry, stale: false, error: errors.join("; ") } : { ...entry, stale: false };
+    return await fresh(key, chain, address, deps);
   } catch (error) {
     if (!previous) throw error;
     return { pairs: previous.pairs, observedAt: previous.observedAt, stale: true, error: errorMessage(error) };
@@ -230,8 +286,9 @@ async function refresh(key: string, chain: Chain, address: string, deps: Registr
 
 /**
  * Cached registry: 60s TTL per (chain,address), in-flight dedupe, last-good retention.
- * Partial source failures still produce a fresh registry (with `error` listing them); throws only when
- * every source failed and nothing is cached.
+ * Partial source failures still produce a fresh registry (with `error` listing them) built from each failed
+ * source's last-good rows, so Tier A does not flap on a transient 429; throws only when every source failed
+ * and nothing is cached.
  */
 export async function getRegistry(chain: Chain, address: string, deps: RegistryDeps): Promise<RegistryResult> {
   const key = cacheKey(chain, address);
@@ -246,5 +303,6 @@ export async function getRegistry(chain: Chain, address: string, deps: RegistryD
 
 export function resetRegistryCache(): void {
   cache.clear();
+  lastGood.clear();
   inFlight.clear();
 }

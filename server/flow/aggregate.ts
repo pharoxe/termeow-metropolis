@@ -1,5 +1,5 @@
-import type { Chain, FlowBar, FlowBucket, FlowCoverage, PairRow } from "../../shared/wire.js";
-import { FlowLedger, HOUR_MS, MINUTE_MS, mergeBuckets, toBars } from "./ledger.js";
+import type { Chain, FlowBar, FlowBucket, FlowCoverage, FlowWindow, LargePrint, PairRow, SinceAnchor } from "../../shared/wire.js";
+import { FlowLedger, HOUR_MS, MINUTE_MS, alignTo, emptyBucket, mergeBuckets, toBars } from "./ledger.js";
 
 export type FlowInterval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
 export type FlowAnchor = "window" | "session" | "launch";
@@ -128,4 +128,65 @@ export function tokenFlow(input: TokenFlowInput): TokenFlowResult {
       totalPairs: pairs.length
     }
   };
+}
+
+const WINDOW_MS: Record<FlowWindow["label"], number> = {
+  "1m": MINUTE_MS,
+  "5m": 5 * MINUTE_MS,
+  "15m": 15 * MINUTE_MS,
+  "1h": HOUR_MS
+};
+
+export const FLOW_WINDOW_LABELS = Object.keys(WINDOW_MS) as FlowWindow["label"][];
+export const LARGE_PRINT_MIN_USD = 1000;
+export const LARGE_PRINT_LIMIT = 20;
+
+function tierAOf(pairs: PairRow[]): PairRow[] {
+  return pairs.filter((pair) => pair.tier === "A");
+}
+
+/**
+ * One bucket holding the Tier A minute-bucket totals covering [fromMs, toMs]; the query start is aligned down to the
+ * minute boundary so the bucket straddling fromMs is included. Minute retention (48h) bounds the reach.
+ */
+function minuteTotals(ledger: FlowLedger, chain: Chain, pairs: PairRow[], fromMs: number, toMs: number): FlowBucket {
+  const series = tierAOf(pairs).map((pair) => ledger.series(chain, pair.pairAddress, MINUTE_MS, alignTo(fromMs, MINUTE_MS), toMs));
+  return sumSeries(series).reduce((acc, bucket) => mergeBuckets(fromMs, acc, bucket), emptyBucket(fromMs));
+}
+
+/** Rolling Tier A totals for the four fixed windows ending at nowMs. Unpriced prints are counted, never priced. */
+export function flowWindows(ledger: FlowLedger, chain: Chain, pairs: PairRow[], nowMs: number): FlowWindow[] {
+  return FLOW_WINDOW_LABELS.map((label) => {
+    const total = minuteTotals(ledger, chain, pairs, nowMs - WINDOW_MS[label], nowMs);
+    const gross = total.buyUsd + total.sellUsd;
+    return {
+      label,
+      buyUsd: total.buyUsd,
+      sellUsd: total.sellUsd,
+      net: total.buyUsd - total.sellUsd,
+      buys: total.buys,
+      sells: total.sells,
+      unpriced: total.unpricedBuys + total.unpricedSells,
+      aggressor: gross === 0 ? null : total.buyUsd / gross
+    };
+  });
+}
+
+/** Priced Tier A prints at or above minUsd from each pair's recent ring, newest first, capped at limit. */
+export function largePrints(ledger: FlowLedger, chain: Chain, pairs: PairRow[], minUsd = LARGE_PRINT_MIN_USD, limit = LARGE_PRINT_LIMIT): LargePrint[] {
+  const out: LargePrint[] = [];
+  for (const pair of tierAOf(pairs)) {
+    for (const print of ledger.recentPrints(chain, pair.pairAddress)) {
+      if (print.usd === null || !Number.isFinite(print.usd) || print.usd < minUsd) continue;
+      out.push({ pair: print.pair, dex: pair.dex, tx: print.tx, time: print.time, side: print.side, usd: print.usd, source: print.source });
+    }
+  }
+  return out.sort((a, b) => b.time - a.time).slice(0, Math.max(0, limit));
+}
+
+/** Tier A totals from the anchor start to nowMs; an unknown start yields zeros with startMs null, never a guess. */
+export function sinceAnchor(ledger: FlowLedger, chain: Chain, pairs: PairRow[], startMs: number | null, nowMs: number): SinceAnchor {
+  if (startMs === null || !Number.isFinite(startMs)) return { startMs: null, net: 0, buyUsd: 0, sellUsd: 0, prints: 0 };
+  const total = minuteTotals(ledger, chain, pairs, startMs, nowMs);
+  return { startMs, net: total.buyUsd - total.sellUsd, buyUsd: total.buyUsd, sellUsd: total.sellUsd, prints: total.buys + total.sells };
 }

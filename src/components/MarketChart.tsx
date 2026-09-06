@@ -12,6 +12,8 @@ import type { Candle } from "../types";
 import { bollinger, ema, macd, obv, rsi, vwap } from "../lib/indicators";
 import { axisUsd } from "../lib/format";
 import { alignFlowToCandles } from "../lib/cvdAlign";
+import { buildFlowSeries, type FlowChartInput } from "../lib/flowChart";
+import { applyFlowSeries, createFlowSeries, SIDE_PANE_STRETCH } from "./flowChartSeries";
 import type { Theme } from "./ThemeToggle";
 
 export type IndicatorSet = {
@@ -48,7 +50,20 @@ const compactFormat = { type: "custom" as const, minMove: 1, formatter: (value: 
 
 const DEFAULT_VISIBLE_BARS = 88;
 
-export const MarketChart = forwardRef<MarketChartHandle, { candles: Candle[]; indicators: IndicatorSet; cvdSeries?: CvdSeriesPoint[]; compactAxis?: boolean; theme?: Theme }>(function MarketChart({ candles, indicators, cvdSeries = EMPTY_CVD, compactAxis = false, theme = "dark" }, ref) {
+type MarketChartProps = {
+  candles: Candle[];
+  indicators: IndicatorSet;
+  /** Legacy per-page CVD; used whenever `flow` is absent or has fewer than 2 bars. */
+  cvdSeries?: CvdSeriesPoint[];
+  /** F4 token flow (Δ/BAR, CVD, Tier A pair lines, BUY % ribbon); replaces the legacy CVD pane when it has enough bars. */
+  flow?: FlowChartInput;
+  compactAxis?: boolean;
+  theme?: Theme;
+};
+
+const MIN_FLOW_BARS = 2;
+
+export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(function MarketChart({ candles, indicators, cvdSeries = EMPTY_CVD, flow, compactAxis = false, theme = "dark" }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const barCountRef = useRef(0);
@@ -150,7 +165,14 @@ export const MarketChart = forwardRef<MarketChartHandle, { candles: Candle[]; in
       }
     }
     let pane = 1;
-    if (indicators.cvd) {
+    let sidePane: number | null = null;
+    const flowSeries = indicators.cvd && flow ? buildFlowSeries(flow, theme) : null;
+    if (flowSeries && !flowSeries.empty && flowSeries.buys.length >= MIN_FLOW_BARS) {
+      const built = createFlowSeries(chart, pane, theme);
+      applyFlowSeries(built.refs, flowSeries);
+      sidePane = built.refs.sidePane;
+      pane = built.nextPane;
+    } else if (indicators.cvd) {
       const aligned = alignFlowToCandles(candles, cvdSeries);
       if (aligned.delta.length) {
         const delta = chart.addSeries(HistogramSeries, {
@@ -194,6 +216,7 @@ export const MarketChart = forwardRef<MarketChartHandle, { candles: Candle[]; in
     if (panes.length > 1) {
       panes[0].setStretchFactor(3.4);
       for (let index = 1; index < panes.length; index += 1) panes[index].setStretchFactor(1);
+      if (sidePane !== null && panes[sidePane]) panes[sidePane].setStretchFactor(SIDE_PANE_STRETCH);
     }
     const range = visibleRangeRef.current || defaultRange();
     chart.timeScale().setVisibleLogicalRange(range);
@@ -208,7 +231,7 @@ export const MarketChart = forwardRef<MarketChartHandle, { candles: Candle[]; in
       if (chartRef.current === chart) chartRef.current = null;
       chart.remove();
     };
-  }, [candles, indicators, cvdSeries, compactAxis, theme]);
+  }, [candles, indicators, cvdSeries, flow, compactAxis, theme]);
 
   return <div className="chart-host" ref={host} />;
 });

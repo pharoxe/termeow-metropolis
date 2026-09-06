@@ -1,11 +1,21 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { Chain, PairRow, TokenFlowResponse } from "../../shared/wire.js";
+import type { Chain, FlowBar, PairRow, TokenFlowResponse } from "../../shared/wire.js";
 import { peekMarketProvider } from "../clawpump/market.js";
-import { FLOW_INTERVALS, intervalToMs, tokenFlow, type FlowAnchor, type FlowInterval } from "../flow/aggregate.js";
+import {
+  FLOW_INTERVALS,
+  flowWindows,
+  intervalToMs,
+  largePrints,
+  sinceAnchor,
+  tokenFlow,
+  type FlowAnchor,
+  type FlowInterval
+} from "../flow/aggregate.js";
 import { flowCollector } from "../flow/collector.js";
 import { FlowLedger } from "../flow/ledger.js";
 import { getRegistry, type RegistryResult } from "../flow/registry.js";
+import { sourceChips, type SourcesLike } from "../flow/sources.js";
 import { errorMessage } from "../lib/http.js";
 import { getTokenPairs, sumTxns } from "../sources/dexscreener.js";
 import { geckoTokenPools } from "../sources/gecko.js";
@@ -48,6 +58,8 @@ export type FlowCollectorLike = {
   ledger: FlowLedger;
   subscribe(chain: Chain, address: string, pairs: PairRow[]): void;
   launchMs(chain: Chain, address: string): number | null;
+  /** Optional: FlowCollector.status() narrowed to the source health the response condenses into chips. */
+  status?(chain: Chain, address: string): { sources: SourcesLike };
 };
 
 export type FlowRouteDeps = {
@@ -93,6 +105,36 @@ async function loadRegistry(params: FlowParams, deps: FlowRouteDeps): Promise<Re
   }
 }
 
+/** Anchor start the side outputs sum from: window → first bar, session → session start, launch → known launch or null. */
+function anchorStart(params: FlowParams, bars: FlowBar[], deps: FlowRouteDeps): number | null {
+  if (params.anchor === "session") return deps.sessionStartMs;
+  if (params.anchor === "launch") return deps.collector.launchMs(params.chain, params.address);
+  return bars[0]?.t ?? null;
+}
+
+type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources">;
+
+/** Windows and large prints are Tier A only; windows end at observedAt, sinceAnchor ends at params.toMs. */
+function sideOutputs(params: FlowParams, pairs: PairRow[], bars: FlowBar[], deps: FlowRouteDeps, observedAt: number): SideOutputs {
+  const { ledger } = deps.collector;
+  const status = deps.collector.status?.(params.chain, params.address);
+  return {
+    windows: flowWindows(ledger, params.chain, pairs, observedAt),
+    largePrints: largePrints(ledger, params.chain, pairs),
+    sinceAnchor: sinceAnchor(ledger, params.chain, pairs, anchorStart(params, bars, deps), params.toMs),
+    ...(status ? { sources: sourceChips(status.sources) } : {})
+  };
+}
+
+/** sideOutputs never throws today; this guard keeps the read-route contract (200 + error) if that ever changes. */
+function guardedSideOutputs(...args: Parameters<typeof sideOutputs>): { outputs: Partial<SideOutputs>; failure?: string } {
+  try {
+    return { outputs: sideOutputs(...args) };
+  } catch (error) {
+    return { outputs: {}, failure: `side outputs: ${errorMessage(error)}` };
+  }
+}
+
 /** Pure handler: registry -> subscribe -> ledger aggregation. Always resolves to a TokenFlowResponse. */
 export async function buildTokenFlowResponse(params: FlowParams, deps: FlowRouteDeps): Promise<TokenFlowResponse> {
   const observedAt = deps.now();
@@ -111,6 +153,8 @@ export async function buildTokenFlowResponse(params: FlowParams, deps: FlowRoute
     sessionStartMs: deps.sessionStartMs,
     launchMs: deps.collector.launchMs(params.chain, params.address)
   });
+  const side = guardedSideOutputs(params, registry.pairs, flow.bars, deps, observedAt);
+  const error = [registry.error, side.failure].filter((message): message is string => Boolean(message)).join("; ");
   return {
     chain: params.chain,
     address: params.address,
@@ -123,7 +167,8 @@ export async function buildTokenFlowResponse(params: FlowParams, deps: FlowRoute
     observedAt,
     source: FLOW_SOURCE,
     ...(registry.stale ? { stale: true } : {}),
-    ...(registry.error ? { error: registry.error } : {})
+    ...(error ? { error } : {}),
+    ...side.outputs
   };
 }
 

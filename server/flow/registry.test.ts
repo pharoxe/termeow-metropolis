@@ -260,3 +260,109 @@ describe("getRegistry", () => {
     expect(result.error).toContain("geckoterminal: gecko");
   });
 });
+
+describe("getRegistry last-good per source (registry flap)", () => {
+  const gecko429 = () => vi.fn(async (): Promise<RegistryPool[]> => { throw new Error("429"); });
+  const rejecting = (label: string) => vi.fn(async () => { throw new Error(label); });
+
+  function deps(overrides: Partial<RegistryDeps> = {}): RegistryDeps {
+    return {
+      getTokenPairs: vi.fn(async () => ({ pairs: [dexRow("a", 100)], stale: false })),
+      geckoTokenPools: vi.fn(async () => [pool("g", 80)]),
+      clawTopPools: vi.fn(async () => [{ pool_address: "c", volume_24h_usd: 2 }]),
+      pumpPool: vi.fn(() => null),
+      ...overrides
+    };
+  }
+
+  function tiers(pairs: PairRow[]): Array<[string, string]> {
+    return pairs.map((pair) => [pair.pairAddress, pair.tier]);
+  }
+
+  it("reuses Gecko's last-good rows when Gecko 429s, so pairs and tiers do not flap", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(7_000_000);
+    const good = await getRegistry("solana", MINT, deps());
+    expect(tiers(good.pairs)).toEqual([["a", "A"], ["g", "A"], ["c", "B"]]);
+
+    vi.setSystemTime(7_000_000 + 61_000);
+    const flapped = await getRegistry("solana", MINT, deps({ geckoTokenPools: gecko429() }));
+    expect(flapped.stale).toBe(false);
+    expect(flapped.error).toBe("geckoterminal: 429");
+    expect(flapped.observedAt).toBe(7_000_000 + 61_000);
+    expect(flapped.pairs).toEqual(good.pairs);
+  });
+
+  it("drops a pool when Gecko succeeds with a genuinely empty list", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(8_000_000);
+    await getRegistry("solana", MINT, deps());
+    vi.setSystemTime(8_000_000 + 61_000);
+    const emptied = await getRegistry("solana", MINT, deps({ geckoTokenPools: vi.fn(async () => []) }));
+    expect(emptied.stale).toBe(false);
+    expect(emptied.error).toBeUndefined();
+    expect(tiers(emptied.pairs)).toEqual([["a", "A"], ["c", "B"]]);
+
+    vi.setSystemTime(8_000_000 + 122_000);
+    const after = await getRegistry("solana", MINT, deps({ geckoTokenPools: gecko429() }));
+    expect(after.error).toBe("geckoterminal: 429");
+    expect(tiers(after.pairs)).toEqual([["a", "A"], ["c", "B"]]);
+  });
+
+  it("substitutes last-good rows for a DexScreener error and a rejected Claw independently", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(9_000_000);
+    const good = await getRegistry("solana", MINT, deps());
+    vi.setSystemTime(9_000_000 + 61_000);
+    const partial = await getRegistry(
+      "solana",
+      MINT,
+      deps({
+        getTokenPairs: vi.fn(async () => ({ pairs: [], stale: true, error: "429" })),
+        clawTopPools: rejecting("claw down")
+      })
+    );
+    expect(partial.stale).toBe(false);
+    expect(partial.error).toBe("dexscreener: 429; clawpump: claw down");
+    expect(partial.pairs).toEqual(good.pairs);
+  });
+
+  it("uses the rows a failed source returned when it has never succeeded for the key", async () => {
+    const result = await getRegistry(
+      "solana",
+      MINT,
+      deps({ getTokenPairs: vi.fn(async () => ({ pairs: [dexRow("own-stale", 5)], stale: true, error: "429" })), geckoTokenPools: gecko429() })
+    );
+    expect(result.stale).toBe(false);
+    expect(result.error).toBe("dexscreener: 429; geckoterminal: 429");
+    expect(result.pairs.map((pair) => pair.pairAddress)).toEqual(["own-stale", "c"]);
+  });
+
+  it("serves the previous result stale:true when every source rejects, keeping last-good for the next refresh", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000_000);
+    const good = await getRegistry("solana", MINT, deps());
+    vi.setSystemTime(10_000_000 + 61_000);
+    const down = deps({ getTokenPairs: rejecting("dex"), geckoTokenPools: rejecting("gecko"), clawTopPools: rejecting("claw") });
+    const stale = await getRegistry("solana", MINT, down);
+    expect(stale).toMatchObject({ stale: true, observedAt: 10_000_000, pairs: good.pairs });
+
+    vi.setSystemTime(10_000_000 + 122_000);
+    const recovered = await getRegistry("solana", MINT, deps({ geckoTokenPools: gecko429() }));
+    expect(recovered.stale).toBe(false);
+    expect(recovered.pairs).toEqual(good.pairs);
+  });
+
+  it("keeps last-good per key and forgets it on resetRegistryCache", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(11_000_000);
+    await getRegistry("solana", MINT, deps());
+    const other = await getRegistry("solana", "OtherMint", deps({ geckoTokenPools: gecko429() }));
+    expect(other.pairs.map((pair) => pair.pairAddress)).toEqual(["a", "c"]);
+
+    resetRegistryCache();
+    const reset = await getRegistry("solana", MINT, deps({ geckoTokenPools: gecko429() }));
+    expect(reset.error).toBe("geckoterminal: 429");
+    expect(reset.pairs.map((pair) => pair.pairAddress)).toEqual(["a", "c"]);
+  });
+});

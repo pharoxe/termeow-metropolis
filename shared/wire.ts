@@ -55,6 +55,27 @@ export type FlowCoverage = {
   totalPairs: number;
 };
 
+/** Rolling Tier A totals over the last w ms, summed from minute buckets. `aggressor` is buyUsd/(buyUsd+sellUsd), null when both are 0. */
+export type FlowWindow = {
+  label: "1m" | "5m" | "15m" | "1h";
+  buyUsd: number;
+  sellUsd: number;
+  net: number;
+  buys: number;
+  sells: number;
+  unpriced: number;
+  aggressor: number | null;
+};
+
+/** One priced Tier A print at or above the large-print threshold. */
+export type LargePrint = { pair: string; dex: string; tx: string; time: number; side: Side; usd: number; source: FlowPrint["source"] };
+
+/** Collector health per print source; `prints` is the own tape's counter when the token is tracked. */
+export type SourceChip = { name: "pumpfun" | "geckoterminal" | "own"; lastOkAt: number | null; lastError: string | null; prints?: number };
+
+/** Tier A totals from the resolved anchor start; `startMs` null means the anchor is unknown and the totals are zeros. */
+export type SinceAnchor = { startMs: number | null; net: number; buyUsd: number; sellUsd: number; prints: number };
+
 export type TokenFlowResponse = {
   chain: Chain;
   address: string;
@@ -69,4 +90,8 @@ export type TokenFlowResponse = {
   source: string;
   stale?: boolean;
   error?: string;
+  windows?: FlowWindow[];
+  largePrints?: LargePrint[];
+  sinceAnchor?: SinceAnchor;
+  sources?: SourceChip[];
 };
