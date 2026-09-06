@@ -35,15 +35,6 @@ export const api = {
   }),
   transaction: (body: object) => request<Record<string, unknown>>("/api/onchain/transaction", {
     method: "POST", body: JSON.stringify(body)
-  }),
-  perpsMarkets: () => request<Record<string, unknown>>("/api/perps/markets"),
-  perpMarket: (symbol: string) => request<Record<string, unknown>>(`/api/perps/market/${symbol}`),
-  perpAccount: () => request<Record<string, unknown>>("/api/perps/account"),
-  perpPreview: (body: object) => request<Record<string, unknown>>("/api/perps/preview", {
-    method: "POST", body: JSON.stringify(body)
-  }),
-  perpExecute: (body: object) => request<Record<string, unknown>>("/api/perps/execute", {
-    method: "POST", body: JSON.stringify(body)
   })
 };
 

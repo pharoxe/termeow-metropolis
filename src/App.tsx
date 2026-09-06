@@ -13,7 +13,6 @@ export default function App() {
   return (
     <div className="app-shell">
       <Routes>
-        <Route path="/perps" element={<DeskPage config={config} initialMode="perp" />} />
         <Route path="/onchain" element={<DeskPage config={config} />} />
         <Route path="*" element={<Navigate to="/onchain" replace />} />
       </Routes>

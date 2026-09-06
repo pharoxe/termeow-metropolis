@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Candle, OnchainMarket } from "../types";
 import { analyzeToken } from "./agenticAnalysis";
-import { magicBlockSessionAdapter } from "./agenticExecution";
 
 const candles: Candle[] = Array.from({ length: 120 }, (_, index) => {
   const close = 0.22 + Math.sin(index / 7) * 0.02 + index * 0.00005;
@@ -33,10 +32,5 @@ describe("agentic analysis", () => {
   it("detects whale distribution in ClawPump intelligence", () => {
     const result = analyzeToken({ market, candles, cvd: null, provider: { anomalies: [{ summary: "Whale sell distribution detected" }] } });
     expect(result.whaleSellRisk).toBe(true);
-  });
-
-  it("refuses execution while session authorization is unavailable", async () => {
-    await expect(magicBlockSessionAdapter.execute({ mint: market.mint, symbol: market.symbol, setup: analyzeToken({ market, candles, cvd: null, provider: {} }).setups[0], notionalUsd: 100, maxSlippageBps: 50 }))
-      .rejects.toThrow("No transaction was submitted");
   });
 });

@@ -1,35 +1,32 @@
-import { useMemo, type PropsWithChildren } from "react";
-import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
-import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
-import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
+import type { PropsWithChildren } from "react";
 import { PrivyProvider } from "@privy-io/react-auth";
+import { NetworkProvider, ROBINHOOD_CHAIN } from "../features/NetworkContext";
 
 const privyAppId = import.meta.env.VITE_PRIVY_APP_ID as string | undefined;
 
 export function WalletProviders({ children }: PropsWithChildren) {
-  const endpoint = useMemo(() => `${window.location.origin}/api/rpc`, []);
-  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter({ network: WalletAdapterNetwork.Mainnet })], []);
-  const walletTree = (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>{children}</WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
-  );
-
-  if (!privyAppId) return walletTree;
+  if (!privyAppId) return <NetworkProvider>{children}</NetworkProvider>;
   return (
     <PrivyProvider
       appId={privyAppId}
       config={{
-        appearance: { theme: "dark", accentColor: "#9aff72" },
-        loginMethods: ["email", "google", "wallet"],
-        embeddedWallets: { solana: { createOnLogin: "users-without-wallets" } }
+        appearance: {
+          theme: "#050705",
+          accentColor: "#39ff88",
+          landingHeader: "Log in to termeow",
+          loginMessage: "Create your private Solana and Robinhood Chain wallets.",
+          walletChainType: "ethereum-and-solana"
+        },
+        loginMethods: ["email", "google", "twitter", "discord"],
+        supportedChains: [ROBINHOOD_CHAIN],
+        defaultChain: ROBINHOOD_CHAIN,
+        embeddedWallets: {
+          ethereum: { createOnLogin: "users-without-wallets" },
+          solana: { createOnLogin: "users-without-wallets" }
+        }
       }}
     >
-      {walletTree}
+      <NetworkProvider>{children}</NetworkProvider>
     </PrivyProvider>
   );
 }

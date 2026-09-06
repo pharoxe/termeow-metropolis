@@ -37,7 +37,6 @@ export type PublicConfig = {
   ansemMint: string;
   usdcMint: string;
   privyEnabled: boolean;
-  phoenixBuilderEnabled: boolean;
   integrations: Record<string, string | boolean>;
 };
 

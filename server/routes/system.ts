@@ -21,7 +21,6 @@ systemRouter.get("/config", (_request, response) => {
     ansemMint: config.ansemMint,
     usdcMint: config.usdcMint,
     privyEnabled: Boolean(config.privy.appId),
-    phoenixBuilderEnabled: Boolean(config.phoenix.builderAuthority),
     integrations: integrationStatus()
   });
 });

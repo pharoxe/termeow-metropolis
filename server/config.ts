@@ -23,11 +23,6 @@ const envSchema = z.object({
   ALCHEMY_SOLANA_RPC_URL: optionalUrl,
   PRIVY_APP_ID: optionalString,
   PRIVY_APP_SECRET: optionalString,
-  PHOENIX_API_URL: urlWithDefault("https://perp-api.phoenix.trade"),
-  PHOENIX_ACCESS_CODE: optionalString,
-  PHOENIX_BUILDER_AUTHORITY: optionalString,
-  PHOENIX_BUILDER_PDA_INDEX: z.preprocess(emptyAsUndefined, z.coerce.number().int().nonnegative().default(0)),
-  PHOENIX_BUILDER_SUBACCOUNT_INDEX: z.preprocess(emptyAsUndefined, z.coerce.number().int().nonnegative().default(0)),
   ENABLE_MAINNET_EXECUTION: z.preprocess(emptyAsUndefined, z.string().default("false")),
   ANSEM_MINT: z.preprocess(emptyAsUndefined, z.string().default("9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump")),
   USDC_MINT: z.preprocess(emptyAsUndefined, z.string().default("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"))
@@ -75,13 +70,6 @@ export const config = {
   privy: {
     appId: env.PRIVY_APP_ID,
     appSecret: env.PRIVY_APP_SECRET
-  },
-  phoenix: {
-    apiUrl: env.PHOENIX_API_URL.replace(/\/$/, ""),
-    accessCode: env.PHOENIX_ACCESS_CODE,
-    builderAuthority: env.PHOENIX_BUILDER_AUTHORITY,
-    builderPdaIndex: env.PHOENIX_BUILDER_PDA_INDEX,
-    builderSubaccountIndex: env.PHOENIX_BUILDER_SUBACCOUNT_INDEX
   }
 };
 
@@ -92,7 +80,6 @@ export function integrationStatus() {
     primaryRpc: config.rpc.primary.includes("api.mainnet-beta.solana.com") ? "public" : "helius",
     fallbackRpc: Boolean(config.rpc.fallback),
     privy: Boolean(config.privy.appId && config.privy.appSecret),
-    phoenixBuilder: Boolean(config.phoenix.builderAuthority),
     executionEnabled: config.executionEnabled
   };
 }

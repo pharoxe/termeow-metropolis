@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { useWallets } from "@privy-io/react-auth/solana";
+import { useWallets as useEvmWallets } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { api } from "../api/client";
 import { money, shortAddress } from "../lib/format";
 import { hasPrivy } from "../auth/WalletProviders";
 import { PixelLoader } from "./PixelLoader";
 import { useNotifications } from "./NotificationSystem";
+import { type FundingNetwork, useFundingNetwork } from "../features/NetworkContext";
 
 type Section = "Automation" | "Portfolio" | "Referrals" | "Leaderboard";
 type Row = Record<string, unknown>;
@@ -87,23 +88,25 @@ function mergeAssets(assets: WalletAsset[], metadata: Map<string, Row>) {
   }).sort((a, b) => (b.valueUsd ?? -1) - (a.valueUsd ?? -1));
 }
 
-function PrivyAddress({ section, directAddress, onBack }: { section: Section; directAddress?: string; onBack: () => void }) {
-  const { wallets } = useWallets();
-  return <AccountSurface section={section} address={directAddress || wallets[0]?.address} onBack={onBack} />;
+function PrivyAddress({ section, onBack }: { section: Section; onBack: () => void }) {
+  const { wallets: evmWallets } = useEvmWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { network } = useFundingNetwork();
+  const evmWallet = evmWallets.find(wallet => ["privy", "privy-v2"].includes(wallet.walletClientType)) ?? evmWallets[0];
+  return <AccountSurface section={section} network={network} address={network === "solana" ? solanaWallets[0]?.address : evmWallet?.address} onBack={onBack} />;
 }
 
 export function AccountScreen({ section, onBack }: { section: Section; onBack: () => void }) {
-  const { publicKey } = useWallet();
-  const directAddress = publicKey?.toBase58();
+  const { network } = useFundingNetwork();
   return hasPrivy
-    ? <PrivyAddress section={section} directAddress={directAddress} onBack={onBack} />
-    : <AccountSurface section={section} address={directAddress} onBack={onBack} />;
+    ? <PrivyAddress section={section} onBack={onBack} />
+    : <AccountSurface section={section} network={network} onBack={onBack} />;
 }
 
-function AccountSurface({ section, address, onBack }: { section: Section; address?: string; onBack: () => void }) {
+function AccountSurface({ section, address, network, onBack }: { section: Section; address?: string; network: FundingNetwork; onBack: () => void }) {
   if (section === "Automation") return <Automation address={address} onBack={onBack} />;
   if (!address) return <Disconnected section={section} onBack={onBack} />;
-  if (section === "Portfolio") return <Portfolio address={address} onBack={onBack} />;
+  if (section === "Portfolio") return network === "solana" ? <Portfolio address={address} onBack={onBack} /> : <RobinhoodPortfolio address={address} onBack={onBack} />;
   if (section === "Referrals") return <Referrals address={address} onBack={onBack} />;
   return <Leaderboard address={address} onBack={onBack} />;
 }
@@ -113,7 +116,14 @@ function PageHead({ title, address, eyebrow, onBack }: { title: string; address?
 }
 
 function Disconnected({ section, onBack }: { section: Section; onBack: () => void }) {
-  return <section className="navigation-page account-page"><PageHead title={section} eyebrow="WALLET REQUIRED" onBack={onBack} /><div className="account-empty"><span className="account-pixel" aria-hidden="true">□</span><h2>Connect a wallet</h2><p>Select Wallet or sign in with Privy to unlock your {section.toLowerCase()} workspace.</p></div></section>;
+  return <section className="navigation-page account-page"><PageHead title={section} eyebrow="PRIVY LOGIN REQUIRED" onBack={onBack} /><div className="account-empty"><span className="account-pixel" aria-hidden="true">□</span><h2>Log in to continue</h2><p>Use Log In to create your embedded Solana and Robinhood wallets.</p></div></section>;
+}
+
+function RobinhoodPortfolio({ address, onBack }: { address: string; onBack: () => void }) {
+  return <section className="navigation-page account-page"><PageHead title="Portfolio" eyebrow="ROBINHOOD CHAIN ASSETS" address={address} onBack={onBack} />
+    <div className="account-summary"><article><span>PORTFOLIO VALUE</span><strong>—</strong><small>Connect a balance indexer to value assets</small></article><article><span>NATIVE ASSET</span><strong>ETH</strong><small>Robinhood Chain funding token</small></article><article><span>NETWORK</span><strong>MAINNET</strong><small>Chain ID 4663</small></article></div>
+    <div className="account-empty"><h2>Robinhood wallet ready</h2><p>Fund this Privy embedded wallet with ETH from Profile. Token balance indexing will appear here once the Robinhood portfolio feed is configured.</p></div>
+  </section>;
 }
 
 function Portfolio({ address, onBack }: { address: string; onBack: () => void }) {
@@ -213,7 +223,7 @@ function Automation({ address, onBack }: { address?: string; onBack: () => void 
   };
   return <section className="navigation-page account-page automation-page">
     <PageHead title="Automation" eyebrow="LIVE AGENT STRATEGIES" address={address} onBack={onBack} />
-    {!address && <div className="automation-wallet-note"><b>WALLET NOT CONNECTED</b><span>Strategy monitoring is visible. Connect a wallet to authorize edits and future Session Key execution.</span></div>}
+    {!address && <div className="automation-wallet-note"><b>PRIVY LOGIN REQUIRED</b><span>Strategy monitoring is visible. Log in to authorize edits with your embedded wallet.</span></div>}
     <div className="account-summary"><article><span>LIVE STRATEGIES</span><strong>{liveCount}</strong><small>Continuously evaluating signals</small></article><article><span>ALLOCATED</span><strong>{money(activeAllocation)}</strong><small>Maximum active strategy capital</small></article><article><span>EXECUTION</span><strong>{address ? "READY" : "LOCKED"}</strong><small>{address ? "Wallet connected" : "Wallet authorization required"}</small></article></div>
     <div className="automation-grid">
       {strategies.map((strategy) => <article key={strategy.id} className={`automation-card ${strategy.state.toLowerCase()}`}>

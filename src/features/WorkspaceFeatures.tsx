@@ -5,7 +5,7 @@ export const FEATURES = [
   { id: "flow", title: "Order flow", description: "Live trade tape and buy / sell activity." },
   { id: "pools", title: "LP pool info", description: "Pool liquidity, venues and distribution." },
   { id: "social", title: "Live Feed", description: "Live theses, smart-wallet signals, volume spikes and social links." },
-  { id: "execution", title: "Trade execution", description: "Wallet-signed spot orders and agentic perp execution. Every trade still requires approval." },
+  { id: "execution", title: "Trade execution", description: "Privy embedded-wallet spot orders. Every trade still requires approval." },
   { id: "research", title: "Project information", description: "Narrative, project context, sources and contract information." }
 ] as const;
 export type FeatureId = typeof FEATURES[number]["id"];
@@ -40,7 +40,7 @@ export function WorkspaceFeatures({ children }: PropsWithChildren) {
         <span><strong>{feature.title}</strong><small>{feature.description}</small></span>
       </label>)}</div>
       <div className="onboarding-actions"><button onClick={() => setDraft(FEATURES.map(f => f.id))}>Select all</button><button onClick={() => setDraft([])}>Clear all</button><button className="finish-onboarding" onClick={save}>Save workspace →</button></div>
-      <small>You can change these choices anytime with Customize.</small>
+      <small>You can change these choices anytime with Settings.</small>
     </dialog>
   </Context.Provider>;
 }
