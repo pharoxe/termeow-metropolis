@@ -1,0 +1,20 @@
+/* MarketChart-owned styles: the legend overlay rides inside .chart-host (sized by styles.css). */
+.chart-host { position: relative; }
+.chart-canvas { position: absolute; inset: 0; }
+.chart-legend {
+  position: absolute; top: 6px; left: 8px; z-index: 3; pointer-events: none;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  padding: 3px 7px; border: 1px solid var(--line); background: color-mix(in srgb, var(--chart-bg) 78%, transparent);
+  color: var(--muted); font-size: 9px; letter-spacing: .04em; line-height: 1.3; max-width: calc(100% - 72px);
+}
+.chart-legend b { margin-left: 3px; color: var(--text-strong); font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-legend b.up { color: var(--green); }
+.chart-legend b.down { color: var(--red); }
+.chart-legend-label { color: var(--text); font-weight: 600; }
+.chart-legend-tag { font-style: normal; color: var(--meta); font-size: 8px; }
+.chart-legend.is-hover .chart-legend-tag { color: var(--accent); }
+.chart-legend-time { color: var(--muted); }
+@media (max-width: 700px) {
+  .chart-legend { gap: 3px 7px; font-size: 8px; }
+  .chart-legend-label { display: none; }
+}

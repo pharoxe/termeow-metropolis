@@ -59,6 +59,7 @@ export function toBoardRow(traders: FomoTradersLike, row: TraderRow): FomoBoardR
     buyUsd: row.buyUsd,
     sellUsd: row.sellUsd,
     netUsd: row.netUsd,
+    unpriced: row.unpriced,
     closed: row.closed,
     wins: row.wins,
     wilsonLow: row.wilsonLow,
@@ -116,7 +117,7 @@ export function buildFomoStatusResponse(deps: FomoRouteDeps): FomoStatusResponse
 function liveDeps(): FomoRouteDeps {
   return {
     traders: getTraderService(),
-    symbolOf: (chain, token) => getLaunchService().index.get(chain, token)?.symbol ?? null,
+    symbolOf: (chain, token) => getLaunchService().index.get(chain, token)?.symbol ?? (chain === "robinhood" ? (getTraderService().erc20Meta.get(token)?.symbol ?? null) : null),
     now: () => Date.now()
   };
 }

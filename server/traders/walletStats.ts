@@ -14,6 +14,8 @@ export type TraderFill = Omit<FlowPrint, "trader"> & {
   handle?: string | null;
   followers?: number | null;
   kind?: TraderKind | null;
+  /** How usd was tied to a transfer-decoded fill (R4): the wallet's own quote leg or the custody hub's; absent when usd came with the print or is null. */
+  usdVia?: "wallet_leg" | "hub_leg";
 };
 
 /** Per (chain, wallet, token) totals. Priced counts gate round trips so unpriced fills never fake a loss. */
@@ -56,6 +58,8 @@ export type TraderRow = {
   buyUsd: number;
   sellUsd: number;
   netUsd: number;
+  /** Fills with usd null: counted in `fills`, absent from buyUsd/sellUsd/netUsd (never folded as $0 knowingly). */
+  unpriced: number;
   /** Realized-partial: counts tokens with both sides filled, ignoring any remaining position. */
   closed: number;
   wins: number;
@@ -177,11 +181,18 @@ export function toRow(state: WalletState): TraderRow {
     buyUsd: state.buyUsd,
     sellUsd: state.sellUsd,
     netUsd: state.buyUsd - state.sellUsd,
+    unpriced: unpricedFills(state.positions.values()),
     closed,
     wins,
     wilsonLow: wilsonLower(wins, closed),
     lastSeenAt: state.lastSeenAt
   };
+}
+
+function unpricedFills(positions: Iterable<Position>): number {
+  let unpriced = 0;
+  for (const position of positions) unpriced += position.buys + position.sells - position.pricedBuys - position.pricedSells;
+  return unpriced;
 }
 
 export function toStats(state: WalletState): TraderStats {

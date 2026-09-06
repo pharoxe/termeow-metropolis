@@ -214,6 +214,7 @@ footer { padding: 8px; border-top: 1px solid var(--line); color: #4f5968; text-a
 .chart-unit.warn { color:var(--amber); }
 .chart-sub { color:var(--muted); font-size:8px; }
 .chart-meta { color:var(--muted); font-size:8px; letter-spacing:.8px; white-space:nowrap; }
+.chart-meta.chart-note { color:var(--warning); }
 .indicator-bar { height:auto; min-height:35px; flex-wrap:wrap; }
 .indicator-group { display:inline-flex; align-items:center; gap:3px; padding-right:7px; border-right:1px dotted var(--line2); }
 .indicator-group small { color:var(--meta); font-size:7px; letter-spacing:.8px; }

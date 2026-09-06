@@ -4,7 +4,6 @@ import { fetchJson, errorMessage } from "../lib/http.js";
 import { isGeckoBlocked, noteGeckoError } from "../sources/gecko.js";
 import { mockAnsemMarket } from "../mock/market.js";
 import type { Candle, OnchainMarket, ToolResult } from "../types.js";
-import { computeCvd, type PoolTrade } from "./cvd.js";
 
 type DexPair = {
   chainId?: string;
@@ -327,41 +326,6 @@ function pairsFromMarket(market: OnchainMarket): DexPair[] {
     });
   }
   return reconstructed;
-}
-
-const tradesCache = new Map<string, { expiresAt: number; value: Record<string, unknown> }>();
-
-type GeckoTradeRow = { attributes?: Record<string, unknown> };
-
-export async function geckoPoolTrades(pairAddress: string) {
-  const cached = tradesCache.get(pairAddress);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  const url = `https://api.geckoterminal.com/api/v2/networks/solana/pools/${pairAddress}/trades`;
-  const result = await fetchJson<{ data?: GeckoTradeRow[] }>(url, { headers: GECKO_HEADERS });
-  const trades: PoolTrade[] = [];
-  for (const row of result.data || []) {
-    const attrs = row.attributes || {};
-    const kind = attrs.kind === "buy" || attrs.kind === "sell" ? attrs.kind : null;
-    const volumeUsd = Number(attrs.volume_in_usd);
-    const time = Date.parse(String(attrs.block_timestamp || ""));
-    if (!kind || !Number.isFinite(volumeUsd) || !Number.isFinite(time)) continue;
-    trades.push({
-      time,
-      kind,
-      volumeUsd,
-      txHash: String(attrs.tx_hash || "")
-    });
-  }
-  const window = computeCvd(trades);
-  const value = {
-    pair: pairAddress,
-    source: "geckoterminal",
-    observedAt: Date.now(),
-    windowCount: window.trades.length,
-    ...window
-  };
-  tradesCache.set(pairAddress, { expiresAt: Date.now() + 15_000, value });
-  return value;
 }
 
 function toolData(result: ToolResult) {

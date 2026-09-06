@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { MarketResponse, TapePrint } from "../../shared/wire";
-import type { PoolTrade } from "../types";
 import {
   brandSuffix, instrumentLabel, isEmptyMarket, isValidInstrument, legacyMarket, sameInstrument, tapeRows, tradeLinks
 } from "./instrument";
@@ -94,17 +93,15 @@ describe("isEmptyMarket", () => {
 
 describe("tapeRows", () => {
   const print: TapePrint = { pair: "p", dex: "uniswap", tx: "t1", time: 5, side: "sell", usd: null, source: "own" };
-  const trade: PoolTrade = { time: 3, kind: "buy", volumeUsd: 12, txHash: "h1" };
-  it("prefers the ledger tape and keeps unpriced prints null", () => {
-    expect(tapeRows([print], [trade])).toEqual([{ key: "p:t1", side: "sell", usd: null, time: 5 }]);
+  it("maps the ledger tape and keeps unpriced prints null", () => {
+    expect(tapeRows([print])).toEqual([{ key: "p:t1", side: "sell", usd: null, time: 5 }]);
   });
-  it("falls back to legacy trades newest first when the tape is empty or absent", () => {
-    const older: PoolTrade = { time: 1, kind: "sell", volumeUsd: 4, txHash: "h0" };
-    expect(tapeRows([], [older, trade]).map((row) => row.key)).toEqual(["h1", "h0"]);
-    expect(tapeRows(undefined, [trade])[0]).toEqual({ key: "h1", side: "buy", usd: 12, time: 3 });
+  it("is empty when the tape is empty or absent (no legacy fallback)", () => {
+    expect(tapeRows([])).toEqual([]);
+    expect(tapeRows(undefined)).toEqual([]);
   });
   it("caps at the limit", () => {
     const many = Array.from({ length: 20 }, (_, index) => ({ ...print, tx: `t${index}`, time: index }));
-    expect(tapeRows(many, [], 14)).toHaveLength(14);
+    expect(tapeRows(many, 14)).toHaveLength(14);
   });
 });

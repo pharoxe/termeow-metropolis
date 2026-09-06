@@ -120,7 +120,7 @@ describe("FlowCollector", () => {
     await h.collector.tick();
     expect(h.fetchPumpTradesPage).toHaveBeenCalledTimes(1);
     expect(h.geckoPoolTrades).toHaveBeenCalledTimes(1);
-    expect(h.geckoPoolTrades).toHaveBeenCalledWith("solana", POOL, { priority: "low" });
+    expect(h.geckoPoolTrades).toHaveBeenCalledWith("solana", POOL, { priority: "low", token: MINT });
     h.advance(5_000);
     await h.collector.tick();
     expect(h.fetchPumpTradesPage).toHaveBeenCalledTimes(2);
@@ -287,7 +287,7 @@ describe("FlowCollector robinhood", () => {
     expect(h.rhTape.track).toHaveBeenCalledWith(EVM_TOKEN, [evmRow()]);
     expect(h.tape.track).not.toHaveBeenCalled();
     await h.collector.tick();
-    expect(h.geckoPoolTrades).toHaveBeenCalledWith("robinhood", EVM_POOL, { priority: "low" });
+    expect(h.geckoPoolTrades).toHaveBeenCalledWith("robinhood", EVM_POOL, { priority: "low", token: EVM_TOKEN });
     expect(h.fetchPumpTradesPage).not.toHaveBeenCalled();
     expect(h.walkPumpTradesBack).not.toHaveBeenCalled();
     const own = h.collector.status("robinhood", EVM_TOKEN).sources.own;

@@ -1,15 +1,18 @@
 import type { Chain, FlowPrint, FomoFill, TraderKind, TraderRef } from "../../shared/wire.js";
 import { config } from "../config.js";
 import { FlowLedger, type LedgerStats } from "../flow/ledger.js";
+import type { StreamPollerLike } from "../launch/robinhood/stream.js";
 import { errorMessage } from "../lib/http.js";
 import { POOL_MANAGER } from "../tape/robinhood/pools.js";
 import { isAddress } from "../tape/robinhood/rpc.js";
 import { ZERO_ADDRESS, traderFromReceipt, type ReceiptLike } from "./attribute.js";
-import { TraderBook, type BookSize, type TraderFill, type TraderTapeRow } from "./book.js";
+import { TraderBook, type BookSize, type RecordResult, type TraderFill, type TraderTapeRow } from "./book.js";
+import { Erc20Meta, type Erc20MetaStats } from "./erc20Meta.js";
 import { HandleBook, type HandleBookStats, type HandleEntry } from "./handles.js";
 import { AccountClassifier } from "./identity.js";
 import { LruMap } from "./lru.js";
 import { ReceiptFetcher } from "./receipts.js";
+import type { TransferFeedStats } from "./transferFeed.js";
 
 /**
  * Receipt + eth_getCode lookups past this pass the batch through unannotated (the general ledger never waits); a lookup
@@ -40,6 +43,14 @@ export const KNOWN_RELAYS: readonly string[] = [
 ];
 /** Every count this service exposes is "seen by this server", never "all of fomo.family". */
 export const FOMO_POPULATION_LABEL = "FOMO wallets seen by this server";
+/** Seeded wallets are watched by the transfer legs at once but are not labelled FOMO until their own 7702 check passes. */
+export const SEEDED_POPULATION_LABEL = "wallets seeded from the robinhoodtrenches traders list; FOMO only after the 7702 check";
+export const SEED_PROVENANCE_TRENCHES = "robinhoodtrenches";
+/** Seeded wallets are classified a few at a time on the low lane: 147 wallets take about 5 min without touching per-print lookups. */
+export const SEED_DRAIN_MS = 10_000;
+export const SEED_DRAIN_BATCH = 5;
+export const SEED_MAX_ATTEMPTS = 3;
+const SEEDED_MAX = 5_000;
 const FOMO_LEDGER_PAIRS = 256;
 const DISCOVERED_MAX = 20_000;
 const PAIR_META_MAX = 4_096;
@@ -64,6 +75,8 @@ export type ClassifierLike = {
 };
 export type ReceiptsLike = { get(tx: string): Promise<(ReceiptLike & { to?: string | null }) | null>; stats(): unknown };
 export type HandlesLike = { get(address: string): HandleEntry | null; stats(): HandleBookStats };
+/** The R4 transfer feed as the service sees it: attached by launchHooks, read for status. */
+export type TransferFeedHandle = { wrapPoller(poller: StreamPollerLike): StreamPollerLike; stats(): TransferFeedStats };
 
 export type TraderServiceOptions = {
   rpcUrl?: string;
@@ -72,6 +85,7 @@ export type TraderServiceOptions = {
   handles?: HandlesLike;
   book?: TraderBook;
   fomoLedger?: FlowLedger;
+  erc20Meta?: Erc20Meta;
   now?: () => number;
   deadlineMs?: number;
   discoverCap?: number;
@@ -96,10 +110,25 @@ export type TraderServiceCounters = {
   classifyDeferred: number;
   discoverChecked: number;
   discoverDropped: number;
+  /** Seeded wallets whose 7702 check ran / passed / gave up after SEED_MAX_ATTEMPTS. */
+  seedChecked: number;
+  seedFomo: number;
+  seedFailed: number;
+  /** R4 transfer fills accepted by the book; `transferUnproven` were recorded with kind null (seeded wallet, check pending) and kept out of the FOMO ledger. */
+  transferFills: number;
+  transferUnproven: number;
+};
+
+/** classified = passed the 7702 check here (populationLabel); seeded = on the robinhoodtrenches list, watched by the transfer legs, check pending or passed. */
+export type PopulationStatus = {
+  classified: number;
+  seeded: number;
+  seedQueue: number;
+  seededLabel: typeof SEEDED_POPULATION_LABEL;
 };
 
 export type TraderServiceStatus = {
-  population: number;
+  population: PopulationStatus;
   populationLabel: typeof FOMO_POPULATION_LABEL;
   handles: HandleBookStats;
   classifier: unknown;
@@ -107,13 +136,17 @@ export type TraderServiceStatus = {
   book: BookSize;
   fomoLedger: LedgerStats;
   counters: TraderServiceCounters;
+  /** Null until launchHooks attaches the transfer feed (the launch service has not started). */
+  transfers: TransferFeedStats | null;
+  erc20Meta: Erc20MetaStats;
   lastError: string | null;
 };
 
 type PairMeta = { token: string; dex: string };
+type SeedEntry = { address: string; provenance: string; at: number; attempts: number };
 
 function emptyCounters(): TraderServiceCounters {
-  return { annotated: 0, fomo: 0, other: 0, noMeta: 0, noReceipt: 0, unattributed: 0, ambiguous: 0, deadlined: 0, late: 0, classifyFailed: 0, classifyDeferred: 0, discoverChecked: 0, discoverDropped: 0 };
+  return { annotated: 0, fomo: 0, other: 0, noMeta: 0, noReceipt: 0, unattributed: 0, ambiguous: 0, deadlined: 0, late: 0, classifyFailed: 0, classifyDeferred: 0, discoverChecked: 0, discoverDropped: 0, seedChecked: 0, seedFomo: 0, seedFailed: 0, transferFills: 0, transferUnproven: 0 };
 }
 
 function pairMetaKey(chain: Chain, pair: string): string {
@@ -167,8 +200,16 @@ export function toFomoFill(row: TraderTapeRow, dex: string, followers: number | 
     side: row.side,
     usd: row.usd,
     trader: { address: row.trader, kind: row.kind ?? "other", handle: row.handle, followers },
-    ...(symbol === undefined ? {} : { symbol })
+    ...(symbol === undefined ? {} : { symbol }),
+    ...(typeof row.price === "number" ? { price: row.price } : {}),
+    ...(row.usdVia ? { usdVia: row.usdVia } : {})
   };
+}
+
+/** A recorded transfer fill as a FlowPrint for the FOMO ledger; only called for kind "fomo". */
+function toFomoPrint(fill: TraderFill): FlowPrint {
+  const { trader, token: _token, handle, followers, kind: _kind, usdVia: _usdVia, ...print } = fill;
+  return { ...print, trader: { address: trader, kind: "fomo", handle: handle ?? null, followers: followers ?? null } };
 }
 
 /**
@@ -182,8 +223,13 @@ export class TraderService {
   readonly handles: HandlesLike;
   readonly book: TraderBook;
   readonly fomoLedger: FlowLedger;
-  /** Lowercase wallets that passed the designator check on this server (LRU-bounded). */
-  readonly population: LruMap<string, true>;
+  /** Lowercase wallets that passed the designator check on this server (LRU-bounded); the value is the address itself. */
+  readonly population: LruMap<string, string>;
+  /** Wallets taken from a trusted list (robinhoodtrenches traders) ahead of their own 7702 check; watched by the transfer legs. */
+  readonly seeded = new LruMap<string, SeedEntry>(SEEDED_MAX);
+  readonly erc20Meta: Erc20Meta;
+  /** The R4 transfer feed once launchHooks attached it. */
+  transfers: TransferFeedHandle | null = null;
   private readonly now: () => number;
   private readonly deadlineMs: number;
   private readonly discoverCap: number;
@@ -193,14 +239,21 @@ export class TraderService {
   private budget = { minute: -1, used: 0 };
   private counters = emptyCounters();
   private lastError: string | null = null;
+  /** Bumped whenever transferWallets() would answer differently; the feed rebuilds its legs on change. */
+  private version = 0;
+  private seedQueue: string[] = [];
+  private seedTimer: ReturnType<typeof setTimeout> | null = null;
+  /** True while a drain batch is classifying, so a seed() arriving mid-drain cannot start a second concurrent batch. */
+  private seedDraining = false;
 
   constructor(opts: TraderServiceOptions = {}) {
     const rpcUrl = opts.rpcUrl ?? config.robinhood.rpcUrl;
     this.classifier = opts.classifier ?? new AccountClassifier({ rpcUrl, now: opts.now });
     this.receipts = opts.receipts ?? new ReceiptFetcher({ rpcUrl, now: opts.now });
-    this.handles = opts.handles ?? new HandleBook({ now: opts.now });
+    this.handles = opts.handles ?? new HandleBook({ now: opts.now, onTraders: (wallets) => void this.seed(wallets, SEED_PROVENANCE_TRENCHES) });
     this.book = opts.book ?? new TraderBook({ now: opts.now });
     this.fomoLedger = opts.fomoLedger ?? new FlowLedger({ maxPairs: FOMO_LEDGER_PAIRS, now: opts.now });
+    this.erc20Meta = opts.erc20Meta ?? new Erc20Meta({ rpcUrl, now: opts.now });
     this.population = new LruMap(opts.populationMax ?? DEFAULT_POPULATION_MAX);
     this.now = opts.now ?? (() => Date.now());
     this.deadlineMs = opts.deadlineMs ?? ANNOTATE_DEADLINE_MS;
@@ -276,7 +329,7 @@ export class TraderService {
       checked.map(async (address) => {
         const kind = await this.classifier.classify(address, { priority: "low" }).catch(() => null);
         if (kind === "fomo") {
-          this.population.set(address, true);
+          this.admit(address);
           fomo += 1;
         } else if (kind === null) {
           this.discovered.delete(address);
@@ -293,7 +346,7 @@ export class TraderService {
 
   status(): TraderServiceStatus {
     return {
-      population: this.population.size,
+      population: { classified: this.population.size, seeded: this.seeded.size, seedQueue: this.seedQueue.length, seededLabel: SEEDED_POPULATION_LABEL },
       populationLabel: FOMO_POPULATION_LABEL,
       handles: this.handles.stats(),
       classifier: this.classifier.stats(),
@@ -301,8 +354,134 @@ export class TraderService {
       book: this.book.size(),
       fomoLedger: this.fomoLedger.stats(),
       counters: { ...this.counters },
+      transfers: this.transfers?.stats() ?? null,
+      erc20Meta: this.erc20Meta.stats(),
       lastError: this.lastError
     };
+  }
+
+  /**
+   * R4 seeding: wallets from a trusted list join the transfer-leg population at once (provenance kept) and are queued
+   * for a low-priority 7702 check; only a passed check makes them FOMO. Returns how many were new.
+   */
+  seed(wallets: string[], provenance: string): number {
+    let added = 0;
+    for (const raw of wallets) {
+      const address = raw.trim().toLowerCase();
+      if (!isAddress(address) || this.seeded.has(address)) continue;
+      this.seeded.set(address, { address, provenance, at: this.now(), attempts: 0 });
+      added += 1;
+      if (this.classifier.peek(address) === undefined) this.seedQueue = [...this.seedQueue, address];
+    }
+    if (added > 0) {
+      this.version += 1;
+      this.scheduleSeedDrain();
+    }
+    return added;
+  }
+
+  /** Wallets the transfer legs watch: classified FOMO (most recent first), then seeded ones not yet proven "other". */
+  transferWallets(): string[] {
+    const out = new Set<string>([...this.population.values()].reverse());
+    for (const entry of this.seeded.values()) {
+      if (this.classifier.peek(entry.address) !== "other") out.add(entry.address);
+    }
+    return [...out];
+  }
+
+  populationVersion(): number {
+    return this.version;
+  }
+
+  /** Kind already known for the wallet without any RPC; null when never classified here. */
+  peekKind(wallet: string): TraderKind | null {
+    return this.classifier.peek(wallet.toLowerCase()) ?? null;
+  }
+
+  attachTransfers<T extends TransferFeedHandle>(feed: T): T {
+    this.transfers = feed;
+    return feed;
+  }
+
+  /**
+   * R4 transfer fills (pair "fomo:<token>", dex ""): every accepted fill enters the book; only fills of a wallet whose
+   * 7702 check passed reach the FOMO ledger, the rest are counted as transferUnproven. The book's tx+trader+token+side
+   * key also rejects a fill R3 already attributed from a tracked pool.
+   */
+  recordTransferFills(fills: TraderFill[]): RecordResult {
+    const result = { accepted: 0, duplicates: 0, rejected: 0 };
+    const fomo: FlowPrint[] = [];
+    for (const fill of fills) {
+      const outcome = this.book.record(fill);
+      if (outcome === "duplicate") result.duplicates += 1;
+      else if (outcome === "rejected") result.rejected += 1;
+      if (outcome !== "accepted") continue;
+      result.accepted += 1;
+      this.pairMeta.set(pairMetaKey(fill.chain, fill.pair), { token: fill.token, dex: "" });
+      if (fill.kind === "fomo") fomo.push(toFomoPrint(fill));
+      else this.counters.transferUnproven += 1;
+    }
+    if (fomo.length) this.fomoLedger.ingest(fomo);
+    this.counters.transferFills += result.accepted;
+    return result;
+  }
+
+  /** Newest FOMO-kind fills of one token across every pair (pools and "fomo:<token>"), with erc20Meta symbol and known handles. */
+  fillsForToken(chain: Chain, token: string, limit: number): FomoFill[] {
+    const key = normalizeAddress(chain, token);
+    return this.book.tape(chain, limit, { kind: "fomo", token: key }).map((row) => {
+      const entry = this.handles.get(row.trader);
+      const symbol = chain === "robinhood" ? (this.erc20Meta.get(row.token)?.symbol ?? null) : null;
+      return toFomoFill({ ...row, handle: row.handle ?? entry?.handle ?? null }, this.dexOf(row.chain, row.pair), entry?.followers ?? null, symbol);
+    });
+  }
+
+  private admit(address: string): void {
+    if (!this.population.has(address)) this.version += 1;
+    this.population.set(address, address);
+  }
+
+  private scheduleSeedDrain(): void {
+    if (this.seedTimer || this.seedDraining || this.seedQueue.length === 0) return;
+    this.seedTimer = setTimeout(() => {
+      this.seedTimer = null;
+      void this.drainSeeds();
+    }, SEED_DRAIN_MS);
+    this.seedTimer.unref?.();
+  }
+
+  private async drainSeeds(): Promise<void> {
+    const batch = this.seedQueue.slice(0, SEED_DRAIN_BATCH);
+    this.seedQueue = this.seedQueue.slice(SEED_DRAIN_BATCH);
+    this.seedDraining = true;
+    try {
+      await Promise.all(batch.map((address) => this.classifySeed(address)));
+    } finally {
+      this.seedDraining = false;
+    }
+    this.scheduleSeedDrain();
+  }
+
+  /** One seeded wallet through the low lane: FOMO joins the population (and its book rows are relabelled), "other" leaves the legs, a failure retries. */
+  private async classifySeed(address: string): Promise<void> {
+    const entry = this.seeded.get(address);
+    if (!entry) return;
+    const kind = await this.classifier.classify(address, { priority: "low" }).catch(() => null);
+    this.counters.seedChecked += 1;
+    if (kind === "fomo") {
+      this.counters.seedFomo += 1;
+      this.admit(address);
+      this.book.classify("robinhood", address, "fomo");
+      return;
+    }
+    if (kind === "other") {
+      this.version += 1;
+      return;
+    }
+    const attempts = entry.attempts + 1;
+    this.seeded.set(address, { ...entry, attempts });
+    if (attempts < SEED_MAX_ATTEMPTS) this.seedQueue = [...this.seedQueue, address];
+    else this.counters.seedFailed += 1;
   }
 
   /**
@@ -377,7 +556,7 @@ export class TraderService {
   }
 
   private ref(address: string, kind: TraderKind): TraderRef {
-    if (kind === "fomo") this.population.set(address, true);
+    if (kind === "fomo") this.admit(address);
     const handle = this.handles.get(address);
     return { address, kind, handle: handle?.handle ?? null, followers: handle?.followers ?? null };
   }

@@ -130,7 +130,7 @@ export function tokenFlow(input: TokenFlowInput): TokenFlowResult {
   };
 }
 
-const WINDOW_MS: Record<FlowWindow["label"], number> = {
+export const WINDOW_MS: Record<FlowWindow["label"], number> = {
   "1m": MINUTE_MS,
   "5m": 5 * MINUTE_MS,
   "15m": 15 * MINUTE_MS,

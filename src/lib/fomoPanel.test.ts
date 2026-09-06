@@ -42,6 +42,7 @@ function boardRow(overrides: Partial<FomoBoardRow> = {}): FomoBoardRow {
     buyUsd: 5000,
     sellUsd: 1500,
     netUsd: 3500,
+    unpriced: 0,
     closed: 6,
     wins: 4,
     wilsonLow: 0.3,
@@ -112,6 +113,12 @@ describe("fomoBoardRowView", () => {
   it("shows an em-dash for Wilson under the minimum closed trades and for no round trips at all", () => {
     expect(fomoBoardRowView(boardRow({ closed: WILSON_MIN_CLOSED - 1, wins: 2, wilsonLow: null }), NOW).wilson).toBe("—");
     expect(fomoBoardRowView(boardRow({ closed: 0, wins: 0, wilsonLow: null }), NOW).record).toBe("—");
+  });
+
+  it("shows em-dashes, not $0, for a wallet whose fills are all unpriced and counts unpriced fills next to the total", () => {
+    const view = fomoBoardRowView(boardRow({ fills: 3, unpriced: 3, buyUsd: 0, sellUsd: 0, netUsd: 0 }), NOW);
+    expect(view).toMatchObject({ fills: "3 (3u)", buy: "—", sell: "—", net: "—", netTone: "" });
+    expect(fomoBoardRowView(boardRow({ fills: 4, unpriced: 1 }), NOW).fills).toBe("4 (1u)");
   });
 
   it("marks a negative net and keeps the server profile url when one is given", () => {

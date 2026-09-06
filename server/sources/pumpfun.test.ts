@@ -66,11 +66,14 @@ describe("parsePumpTradesResponse", () => {
       time: Date.parse("2026-09-06T08:15:42.000Z"),
       side: "buy",
       usd: 152.3,
-      source: "pumpfun"
+      source: "pumpfun",
+      price: 152.3 / 1233700.5
     });
     expect(result.prints[1].side).toBe("sell");
     expect(result.prints[1].usd).toBe(48.1);
+    expect(result.prints[1].price).toBe(48.1 / 391000);
     expect(result.prints[2].usd).toBeNull();
+    expect("price" in result.prints[2]).toBe(false);
     expect(result.nextCursor).toBe("367001225-1788950131000");
     expect(result.hasMore).toBe(true);
   });
@@ -84,6 +87,10 @@ describe("parsePumpTradesResponse", () => {
     const result = parsePumpTradesResponse(json, mint);
     expect(result.prints.map((p) => p.tx)).toEqual(["ok"]);
     expect(result.prints[0].usd).toBeNull();
+    expect("price" in result.prints[0]).toBe(false);
+    const noBase = parsePumpTradesResponse(page([trade("nobase", "buy", T0, "10")], null, false), mint);
+    expect(noBase.prints[0].usd).toBe(10);
+    expect("price" in noBase.prints[0]).toBe(false);
     expect(result.hasMore).toBe(false);
     expect(result.nextCursor).toBeNull();
   });

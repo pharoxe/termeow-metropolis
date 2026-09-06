@@ -1,5 +1,5 @@
 import type { PublicConfig } from "../types";
-import type { Chain, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, TokenFlowResponse } from "../../shared/wire";
+import type { Chain, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -16,9 +16,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   config: () => request<PublicConfig>("/api/config"),
   market: (chain: Chain, address: string, interval = "5m") => request<MarketResponse>(`/api/market/${chain}/${address}?interval=${encodeURIComponent(interval)}`),
-  trades: (pair: string) => request<import("../types").PoolCvd>(`/api/onchain/trades/${pair}`),
   flowToken: (chain: Chain, address: string, interval: string, anchor: TokenFlowResponse["anchor"] = "window") =>
     request<TokenFlowResponse>(`/api/flow/token/${chain}/${address}?interval=${encodeURIComponent(interval)}&anchor=${anchor}`),
+  /** Own-tape candles (priced ring prints only); 200 with `error` when the token is untracked. */
+  flowCandles: (chain: Chain, address: string, interval: FlowCandleInterval) =>
+    request<FlowCandlesResponse>(`/api/flow/candles/${chain}/${address}?interval=${interval}`),
   launches: (params: { chain?: "all" | Chain; window?: "1h" | "6h" | "24h"; stocks?: boolean; pad?: string } = {}) => {
     const search = new URLSearchParams({ chain: params.chain ?? "all", window: params.window ?? "24h", stocks: params.stocks ? "1" : "0" });
     if (params.pad) search.set("pad", params.pad);

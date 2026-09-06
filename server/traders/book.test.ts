@@ -74,6 +74,16 @@ describe("TraderBook aggregation", () => {
     expect(b.stats("robinhood", W1)?.fills).toBe(3);
   });
 
+  it("dedupes the same tx+trader+token+side across pair ids and keeps that memory for a full ring of accepted fills", () => {
+    const b = book({ fills: 3 });
+    expect(b.record(fill({ tx: "same", pair: "pool-A" }))).toBe("accepted");
+    expect(b.record(fill({ tx: "same", pair: "fomo:tok-a" }))).toBe("duplicate");
+    // Two keys per accepted fill: after `fills` more accepted fills the first one must still be remembered.
+    b.recordAll([fill(), fill()]);
+    expect(b.record(fill({ tx: "same", pair: "pool-B" }))).toBe("duplicate");
+    expect(b.size().fills).toBe(3);
+  });
+
   it("keeps the latest non-null handle/followers/kind and never lets null erase them", () => {
     const b = book();
     b.record(fill({ handle: "unipcs", followers: 10, kind: "fomo" }));

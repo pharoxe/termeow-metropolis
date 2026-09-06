@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
-import type { Candle, OnchainMarket, PoolCvd, PublicConfig } from "../types";
-import { analyzeToken, type AgentTradeSetup } from "../lib/agenticAnalysis";
+import type { Candle, OnchainMarket, PublicConfig } from "../types";
+import { analyzeToken, type AgentTradeSetup, type AnalysisFlow } from "../lib/agenticAnalysis";
 import { api, deepFind } from "../api/client";
 import { money, pct, signedMoney } from "../lib/format";
 import { useNotifications } from "./NotificationSystem";
@@ -12,7 +12,8 @@ type Props = {
   open: boolean;
   market: OnchainMarket;
   candles: Candle[];
-  cvd: Pick<PoolCvd, "buyUsdRecent" | "sellUsdRecent" | "flow"> | null;
+  /** One named Tier A flow window from /api/flow/token; null until the poll has windows. */
+  flow: AnalysisFlow | null;
   provider: unknown;
   config: PublicConfig;
   onClose(): void;
@@ -37,7 +38,7 @@ export function AgenticAnalysisPanel(props: Props) {
   return hasPrivy ? <PrivyAgenticAnalysisPanel {...props} /> : <AnalysisSurface {...props} />;
 }
 
-function AnalysisSurface({ open, market, candles, cvd, provider, config, onClose, walletAddress, send }: Props & { walletAddress?: string; send?: (transaction: Uint8Array) => Promise<string> }) {
+function AnalysisSurface({ open, market, candles, flow, provider, config, onClose, walletAddress, send }: Props & { walletAddress?: string; send?: (transaction: Uint8Array) => Promise<string> }) {
   const { notify } = useNotifications();
   const { network } = useFundingNetwork();
   const [selected, setSelected] = useState<AgentTradeSetup | null>(null);
@@ -45,7 +46,7 @@ function AnalysisSurface({ open, market, candles, cvd, provider, config, onClose
   const [slippage, setSlippage] = useState("0.5");
   const [reviewed, setReviewed] = useState(false);
   const [executionMessage, setExecutionMessage] = useState("");
-  const analysis = useMemo(() => analyzeToken({ market, candles, cvd, provider }), [market, candles, cvd, provider]);
+  const analysis = useMemo(() => analyzeToken({ market, candles, flow, provider }), [market, candles, flow, provider]);
 
   useEffect(() => {
     if (!open) return;
@@ -104,7 +105,7 @@ function AnalysisSurface({ open, market, candles, cvd, provider, config, onClose
         <div><dt>LIQUIDITY</dt><dd>{money(market.liquidityUsd, true)}</dd></div>
         <div><dt>24H VOLUME</dt><dd>{money(market.volume24hUsd, true)}</dd></div>
         <div><dt>STOCH RSI K / D</dt><dd>{analysis.stochK?.toFixed(1) ?? "—"} / {analysis.stochD?.toFixed(1) ?? "—"}</dd></div>
-        <div><dt>RECENT CVD DELTA</dt><dd className={(analysis.cvdDelta || 0) >= 0 ? "up" : "dn"}>{analysis.cvdDelta == null ? "—" : signedMoney(analysis.cvdDelta)}</dd></div>
+        <div><dt>NET FLOW {analysis.flowWindow ?? "—"}</dt><dd className={(analysis.netFlowUsd || 0) >= 0 ? "up" : "dn"}>{analysis.netFlowUsd == null ? "—" : signedMoney(analysis.netFlowUsd)}</dd></div>
         <div><dt>LOCAL SUPPORT</dt><dd>{money(analysis.support)}</dd></div>
         <div><dt>LOCAL RESISTANCE</dt><dd>{money(analysis.resistance)}</dd></div>
       </dl>

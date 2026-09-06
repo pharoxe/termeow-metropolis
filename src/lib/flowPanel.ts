@@ -15,13 +15,17 @@ export type SourceChipState = { label: SourceLabel; tone: SourceTone; title: str
 const SOURCE_LABELS: Record<SourceChip["name"], SourceLabel> = { own: "OWN", pumpfun: "PUMP", geckoterminal: "GECKO" };
 
 /** Age of `time` relative to `now` as 12s / 3m / 2h / 1d; em-dash when the time is unknown. */
-export function printAgeLabel(time: number | null | undefined, now: number): string {
-  if (time == null || !Number.isFinite(time) || !Number.isFinite(now)) return EM_DASH;
-  const ms = Math.max(0, now - time);
+/** Compact duration ("42s", "39m", "2h", "3d") for a non-negative span in ms; the single formatter for ages and spans. */
+export function durationLabel(ms: number): string {
   if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s`;
   if (ms < 3_600_000) return `${Math.max(1, Math.round(ms / 60_000))}m`;
   if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h`;
   return `${Math.round(ms / 86_400_000)}d`;
+}
+
+export function printAgeLabel(time: number | null | undefined, now: number): string {
+  if (time == null || !Number.isFinite(time) || !Number.isFinite(now)) return EM_DASH;
+  return durationLabel(Math.max(0, now - time));
 }
 
 function sourceTone(chip: SourceChip, now: number): SourceTone {

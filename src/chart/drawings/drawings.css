@@ -1,0 +1,8 @@
+/* Drawing toolbar — sits inside .chart-tools; colours come from the :root theme tokens in src/styles.css. */
+.drawing-toolbar { display:inline-flex; align-items:center; gap:3px; }
+.drawing-toolbar button { min-height:23px; padding:3px 8px; border:1px solid var(--line2); background:color-mix(in srgb,var(--panel-hi) 88%,transparent); color:var(--muted); font-size:9px; font-weight:700; letter-spacing:.7px; cursor:pointer; }
+.drawing-toolbar button:hover,.drawing-toolbar button:focus-visible { color:var(--amber); border-color:var(--accent); }
+.drawing-toolbar button.on { color:var(--accent-ink); background:var(--accent); border-color:var(--accent); }
+.drawing-toolbar button:disabled { opacity:.38; cursor:default; }
+.drawing-toolbar .drawing-clear b { margin-left:4px; color:inherit; font-weight:700; }
+@media (max-width:700px) { .drawing-toolbar { flex:none; } }

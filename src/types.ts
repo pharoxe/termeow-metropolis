@@ -39,31 +39,3 @@ export type PublicConfig = {
   privyEnabled: boolean;
   integrations: Record<string, string | boolean>;
 };
-
-export type PoolTrade = {
-  time: number;
-  kind: "buy" | "sell";
-  volumeUsd: number;
-  txHash: string;
-};
-
-export type PoolCvd = {
-  pair: string;
-  trades: PoolTrade[];
-  cvd: number | null;
-  buyUsd: number;
-  sellUsd: number;
-  series: Array<{ time: number; value: number }>;
-  buyCount: number;
-  sellCount: number;
-  buyCountRecent: number;
-  sellCountRecent: number;
-  buyUsdRecent: number;
-  sellUsdRecent: number;
-  spanMs: number;
-  flow: "buy" | "sell" | "flat";
-  source: string;
-  observedAt: number;
-  windowCount: number;
-  error?: string;
-};

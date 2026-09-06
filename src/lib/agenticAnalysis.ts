@@ -1,4 +1,5 @@
-import type { Candle, OnchainMarket, PoolCvd } from "../types";
+import type { FlowWindow } from "../../shared/wire";
+import type { Candle, OnchainMarket } from "../types";
 import { atr, stochRsi } from "./indicators";
 
 type Row = Record<string, unknown>;
@@ -26,19 +27,31 @@ export type AgenticAnalysis = {
   summary: string;
   stochK: number | null;
   stochD: number | null;
-  cvdDelta: number | null;
+  /** buyUsd - sellUsd of the named Tier A flow window; null while no window has been measured. */
+  netFlowUsd: number | null;
+  /** Upper-case window label the flow figures came from (e.g. "1H"); null when no window was supplied. */
+  flowWindow: string | null;
   support: number;
   resistance: number;
   whaleSellRisk: boolean;
   setups: AgentTradeSetup[];
 };
 
+/** Adapter over one Tier A flow window (from /api/flow/token `windows`); the label travels with the numbers. */
+export type AnalysisFlow = { label: string; buyUsd: number; sellUsd: number };
+
 export type AgenticAnalysisInput = {
   market: OnchainMarket;
   candles: Candle[];
-  cvd: Pick<PoolCvd, "buyUsdRecent" | "sellUsdRecent" | "flow"> | null;
+  flow: AnalysisFlow | null;
   provider: unknown;
 };
+
+/** The named rolling window as the analysis input; null when the flow poll has not returned windows (never zeros). */
+export function analysisFlowFromWindows(windows: FlowWindow[] | undefined, label: FlowWindow["label"] = "1h"): AnalysisFlow | null {
+  const window = windows?.find((item) => item.label === label);
+  return window ? { label: window.label, buyUsd: window.buyUsd, sellUsd: window.sellUsd } : null;
+}
 
 function record(value: unknown): Row {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
@@ -63,7 +76,7 @@ function bounded(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-export function analyzeToken({ market, candles, cvd, provider }: AgenticAnalysisInput): AgenticAnalysis {
+export function analyzeToken({ market, candles, flow, provider }: AgenticAnalysisInput): AgenticAnalysis {
   const usable = candles.filter((candle) => Number.isFinite(candle.close) && candle.close > 0);
   const current = market.priceUsd || usable.at(-1)?.close || 0;
   const window = usable.slice(-96);
@@ -77,8 +90,10 @@ export function analyzeToken({ market, candles, cvd, provider }: AgenticAnalysis
   const currentAtr = last(atr(usable)) || current * 0.02;
   const support = Math.min(...structure.map((candle) => candle.low));
   const resistance = Math.max(...structure.map((candle) => candle.high));
-  const cvdDelta = cvd ? cvd.buyUsdRecent - cvd.sellUsdRecent : null;
-  const positiveCvd = cvdDelta != null && cvdDelta > 0;
+  const netFlowUsd = flow ? flow.buyUsd - flow.sellUsd : null;
+  const flowWindow = flow ? flow.label.toUpperCase() : null;
+  const flowName = flowWindow ? `Net flow (${flowWindow})` : "Net flow";
+  const positiveFlow = netFlowUsd != null && netFlowUsd > 0;
   const reversal = stochK != null && stochD != null && previousK != null && previousD != null
     && stochK > stochD && previousK <= previousD && stochK < 35;
   const oversold = stochK != null && stochK <= 25;
@@ -103,22 +118,22 @@ export function analyzeToken({ market, candles, cvd, provider }: AgenticAnalysis
   const optionAConditions: TradeCondition[] = [
     { label: `Price reaches reversal zone`, met: current <= triggerA },
     { label: "Stochastic RSI crosses up below 35", met: reversal },
-    { label: "CVD turns positive", met: positiveCvd },
+    { label: `${flowName} turns positive`, met: positiveFlow },
     { label: "Liquidity passes execution floor", met: liquidityHealthy }
   ];
   const optionBConditions: TradeCondition[] = [
     { label: "Stochastic RSI is at a local bottom", met: oversold },
-    { label: "Positive CVD confluence", met: positiveCvd },
+    { label: `Positive ${flowName.toLowerCase()} confluence`, met: positiveFlow },
     { label: "Price is near local support", met: nearSupport },
     { label: "No whale distribution signal", met: !whaleSellRisk }
   ];
   const score = (conditions: TradeCondition[], bias = 0) => bounded(35 + conditions.filter((item) => item.met).length * 14 + bias);
   const confidenceA = score(optionAConditions, bullishIntel ? 5 : 0);
   const confidenceB = score(optionBConditions, bullishIntel ? 4 : 0);
-  const riskOff = whaleSellRisk && (overbought || (cvdDelta != null && cvdDelta < 0));
-  const signal = riskOff ? "RISK OFF" : (reversal && positiveCvd) || (oversold && positiveCvd && nearSupport) ? "BUY WATCH" : "WAIT";
+  const riskOff = whaleSellRisk && (overbought || (netFlowUsd != null && netFlowUsd < 0));
+  const signal = riskOff ? "RISK OFF" : (reversal && positiveFlow) || (oversold && positiveFlow && nearSupport) ? "BUY WATCH" : "WAIT";
   const confidence = riskOff ? bounded(55 + (overbought ? 15 : 0)) : Math.max(confidenceA, confidenceB);
-  const flowPhrase = cvdDelta == null ? "CVD is still resolving" : positiveCvd ? "CVD confirms net buying" : "CVD is dominated by recent sells";
+  const flowPhrase = netFlowUsd == null ? "Tier A flow is still resolving" : positiveFlow ? `Tier A net flow over the last ${flowWindow} confirms net buying` : `Tier A net flow over the last ${flowWindow} is dominated by sells`;
   const momentumPhrase = stochK == null ? "momentum is warming up" : stochK <= 25 ? "Stochastic RSI is in its lower range" : stochK >= 80 ? "Stochastic RSI is extended" : "Stochastic RSI is mid-range";
   const summary = `${market.symbol} is a ${signal.toLowerCase()} at the current structure: ${momentumPhrase}, ${flowPhrase}, and price is ${nearSupport ? "near" : "away from"} local support.${whaleSellRisk ? " Whale distribution risk is present." : " No whale sell alert is currently present."}`;
 
@@ -128,7 +143,8 @@ export function analyzeToken({ market, candles, cvd, provider }: AgenticAnalysis
     summary,
     stochK,
     stochD,
-    cvdDelta,
+    netFlowUsd,
+    flowWindow,
     support,
     resistance,
     whaleSellRisk,
@@ -153,7 +169,7 @@ export function analyzeToken({ market, candles, cvd, provider }: AgenticAnalysis
         exitPrice: exitB,
         confidence: confidenceB,
         conditions: optionBConditions,
-        rationale: "Enter near the local Stochastic RSI floor with positive CVD, then exit near the momentum top or immediately on a whale sell signal."
+        rationale: `Enter near the local Stochastic RSI floor with positive ${flowName.toLowerCase()}, then exit near the momentum top or immediately on a whale sell signal.`
       }
     ]
   };

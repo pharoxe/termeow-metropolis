@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import { TraderBook, type TraderFill } from "../traders/book.js";
 import type { HandleEntry } from "../traders/handles.js";
-import { FOMO_POPULATION_LABEL, type TraderServiceStatus } from "../traders/service.js";
+import { FOMO_POPULATION_LABEL, SEEDED_POPULATION_LABEL, type TraderServiceStatus } from "../traders/service.js";
 import {
   FOMO_TAPE_DEFAULT,
   FOMO_WINDOW_MS,
@@ -40,14 +40,16 @@ function seeded(): TraderBook {
 
 const SOURCE_STATUS = { rows: 0, lastOkAt: null, lastError: null };
 const STATUS: TraderServiceStatus = {
-  population: 2,
+  population: { classified: 2, seeded: 0, seedQueue: 0, seededLabel: SEEDED_POPULATION_LABEL },
   populationLabel: FOMO_POPULATION_LABEL,
   handles: { entries: 1, population: "robinhoodtrenches handles", traders: SOURCE_STATUS, tape: SOURCE_STATUS, learned: 0 },
   classifier: { calls: 9, rateLimited: 1 },
   receipts: { calls: 4, rateLimited: 0 },
   book: { wallets: 3, fills: 4 },
   fomoLedger: { pairs: 1, buckets: 2 },
-  counters: { annotated: 1, fomo: 1, other: 0, noMeta: 0, noReceipt: 2, unattributed: 0, ambiguous: 0, deadlined: 3, late: 1, classifyFailed: 1, classifyDeferred: 0, discoverChecked: 5, discoverDropped: 0 },
+  counters: { annotated: 1, fomo: 1, other: 0, noMeta: 0, noReceipt: 2, unattributed: 0, ambiguous: 0, deadlined: 3, late: 1, classifyFailed: 1, classifyDeferred: 0, discoverChecked: 5, discoverDropped: 0, seedChecked: 0, seedFomo: 0, seedFailed: 0, transferFills: 0, transferUnproven: 0 },
+  transfers: null,
+  erc20Meta: { cached: 0, pending: 0, resolved: 0, failed: 0, lastError: null, rpc: null },
   lastError: null
 };
 
@@ -119,7 +121,7 @@ describe("buildFomoBoardResponse", () => {
       [FOMO_B, 100],
       [FOMO_A, -200]
     ]);
-    expect(response.rows[1]).toMatchObject({ handle: "alpha", followers: 42, fills: 2, buyUsd: 500, sellUsd: 700, closed: 1, wins: 1, wilsonLow: null, profileUrl: "https://fomo.family/profile/alpha" });
+    expect(response.rows[1]).toMatchObject({ handle: "alpha", followers: 42, fills: 2, buyUsd: 500, sellUsd: 700, unpriced: 0, closed: 1, wins: 1, wilsonLow: null, profileUrl: "https://fomo.family/profile/alpha" });
     expect(response.rows[0].profileUrl).toBeNull();
     expect(response.rows.some((row) => row.wallet === OTHER)).toBe(false);
   });

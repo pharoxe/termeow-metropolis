@@ -7,6 +7,7 @@ import { mcapScale, rowMarketCap, rowTokenPrice } from "../lib/mcap";
 import { coverageChipLabel } from "../lib/flowSeries";
 import type { FlowCoverage, MarketResponse, TokenFlowResponse } from "../../shared/wire";
 import type { TapeRow } from "../lib/instrument";
+import { biasTone } from "../lib/deskFlow";
 import type { InstrumentRef } from "../lib/address";
 import { FlowSideOutputs } from "./FlowSideOutputs";
 import { FomoBoardTab } from "./FomoBoardTab";
@@ -60,13 +61,6 @@ function printAge(time: number) {
   if (ms < 3_600_000) return `${Math.max(1, Math.round(ms / 60_000))}m`;
   if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h`;
   return `${Math.round(ms / 86_400_000)}d`;
-}
-
-function flowTone(value: string) {
-  const key = value.toLowerCase();
-  if (key === "buy" || key === "bullish") return "up";
-  if (key === "sell" || key === "bearish") return "dn";
-  return "";
 }
 
 export function AuditChips({ market }: { market: OnchainMarket }) {
@@ -252,24 +246,13 @@ export function SocialPanel({ market, trench, onPick }: {
 export function BothSidesPanel({
   market,
   tape = [],
-  flow,
-  buyCount = 0,
-  sellCount = 0,
-  buyCountRecent,
-  sellCountRecent,
   coverage,
   tokenFlow
 }: {
   market: OnchainMarket;
   tape?: TapeRow[];
-  /** Legacy Solana tape bias; undefined when no legacy tape is live, rendered as an em-dash. */
-  flow?: string;
-  buyCount?: number;
-  sellCount?: number;
-  buyCountRecent?: number;
-  sellCountRecent?: number;
-  spanLabel?: string;
   coverage?: FlowCoverage;
+  /** Tier A ledger flow; the footer's bias and counts are its rolling 1h window, em-dashes until the poll has windows. */
   tokenFlow?: TokenFlowResponse | null;
 }) {
   const provider = record(market.provider);
@@ -283,9 +266,8 @@ export function BothSidesPanel({
     || 0;
   const sentRaw = String(indicators.sentiment || "").trim();
   const regimeLabel = sentRaw ? sentRaw.toUpperCase() : "—";
-  const flowLabel = flow ? flow.toUpperCase() : "—";
-  const tapeBuys = buyCountRecent ?? buyCount;
-  const tapeSells = sellCountRecent ?? sellCount;
+  const hour = tokenFlow?.windows?.find((window) => window.label === "1h") ?? null;
+  const flowLabel = hour ? (hour.net > 0 ? "BUY" : hour.net < 0 ? "SELL" : "FLAT") : "—";
   return (
     <section className="panel sides-panel flow-panel research-panel">
       <div className="ph"><span className="pt">FLOW</span><span className="sd-sym">{market.symbol}</span><span className="pm">TAPE · POOLS · SENT</span></div>
@@ -322,11 +304,10 @@ export function BothSidesPanel({
         </FeatureSection>
       </div>
       <p className="flow-footer">
-        FLOW <b className={flowTone(flowLabel)}>{flowLabel}</b>
-        {" · "}TAPE B{tapeBuys}/S{tapeSells}
+        FLOW 1H <b className={biasTone(flowLabel)}>{flowLabel}</b>
+        {" · "}1H B{hour ? hour.buys : "—"}/S{hour ? hour.sells : "—"}
         {" · "}LIQ {compact(totalLiq)}
-        {" · "}SENT <b className={flowTone(flowLabel)}>{flowLabel}</b>
-        {" · "}REGIME <b className={flowTone(regimeLabel)}>{regimeLabel}</b>
+        {" · "}REGIME <b className={biasTone(regimeLabel)}>{regimeLabel}</b>
       </p>
     </section>
   );

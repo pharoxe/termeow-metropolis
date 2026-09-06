@@ -264,7 +264,7 @@ export class FlowCollector {
     const tasks = tierA(sub.pairs).map((pair) => {
       const mint = pumpMint(pair);
       if (mint !== null) return this.pollPump(key, sub.chain, mint);
-      return this.geckoDue(sub, pair.pairAddress, now) ? this.pollGecko(key, sub.chain, pair.pairAddress, now) : Promise.resolve();
+      return this.geckoDue(sub, pair.pairAddress, now) ? this.pollGecko(key, sub, pair.pairAddress, now) : Promise.resolve();
     });
     return Promise.all(tasks);
   }
@@ -283,10 +283,11 @@ export class FlowCollector {
     }
   }
 
-  private async pollGecko(key: string, chain: Chain, pair: string, now: number): Promise<void> {
+  /** Gecko prints are oriented to the focused token (`token`), since a pool may hold it as its quote leg. */
+  private async pollGecko(key: string, sub: Subscription, pair: string, now: number): Promise<void> {
     this.patch(key, (sub) => ({ ...sub, polledAt: { ...sub.polledAt, [pair]: now } }));
     try {
-      const prints = await this.fetchGecko(chain, pair, { priority: "low" });
+      const prints = await this.fetchGecko(sub.chain, pair, { priority: "low", token: sub.address });
       this.ledger.ingest(prints);
       this.ok(key, "geckoterminal");
     } catch (error) {

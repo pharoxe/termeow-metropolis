@@ -3,7 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { config } from "../config.js";
 import { clawpumpMcp } from "../clawpump/mcp.js";
-import { geckoPoolTrades, getBoard, getHolders, getOnchainMarket, getTrenches, trenchSorts } from "../clawpump/market.js";
+import { getBoard, getHolders, getOnchainMarket, getTrenches, trenchSorts } from "../clawpump/market.js";
 import { errorMessage, fetchJson } from "../lib/http.js";
 
 const address = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
@@ -28,14 +28,6 @@ function findJupiterQuote(value: unknown): Record<string, unknown> | undefined {
   }
   return undefined;
 }
-
-
-onchainRouter.get("/trades/:pair", async (request, response, next) => {
-  try {
-    const pair = z.string().min(20).parse(request.params.pair);
-    response.json(await geckoPoolTrades(pair));
-  } catch (error) { next(error); }
-});
 
 onchainRouter.get("/search", async (request, response, next) => {
   try {

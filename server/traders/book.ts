@@ -46,6 +46,10 @@ export type TraderTapeRow = {
   side: Side;
   usd: number | null;
   time: number;
+  /** USD per token at the fill when the source carried one (R4 transfer fills); null otherwise. */
+  price: number | null;
+  /** Provenance of usd for transfer-decoded fills; absent otherwise. */
+  usdVia?: TraderFill["usdVia"];
 };
 
 export type BookSize = { wallets: number; fills: number };
@@ -56,6 +60,11 @@ export function walletKey(chain: string, wallet: string): string {
 
 function fillKey(fill: TraderFill): string {
   return `${fill.chain}:${fill.tx}:${fill.pair}:${fill.trader}:${fill.side}`;
+}
+
+/** The same fill seen under two pair ids (R3 pool attribution vs R4 "fomo:<token>" transfer decode) must count once. */
+function tradeKey(fill: Pick<TraderFill, "chain" | "tx" | "trader" | "token" | "side">): string {
+  return `${fill.chain}:${fill.tx}:${fill.trader}:${fill.token}:${fill.side}`;
 }
 
 function isValidFill(fill: TraderFill): boolean {
@@ -101,7 +110,7 @@ export class TraderBook {
   private readonly wallets = new Map<string, WalletState>();
   /** Accepted fills ascending by time; duplicates never enter. */
   private readonly ring: TraderFill[] = [];
-  /** Insertion-ordered dedupe keys, bounded to the fill ring size. */
+  /** Insertion-ordered dedupe keys, two per accepted fill (fillKey + tradeKey), so bounded to twice the fill ring. */
   private readonly seen = new Set<string>();
 
   constructor(opts: TraderBookOptions = {}) {
@@ -113,12 +122,22 @@ export class TraderBook {
 
   record(fill: TraderFill): RecordOutcome {
     if (!isValidFill(fill)) return "rejected";
-    if (this.isDuplicate(fillKey(fill))) return "duplicate";
+    const keys = [fillKey(fill), tradeKey(fill)];
+    if (keys.some((key) => this.seen.has(key))) return "duplicate";
+    for (const key of keys) this.remember(key);
     const state = this.touch(fill);
     foldWallet(state, fill, this.maxTokens);
     insertByTime(this.ring, fill, this.fillRing);
     this.evictWallets();
     return "accepted";
+  }
+
+  /** Sets the kind of a wallet already in the book (a seeded wallet whose 7702 check finished after its first fill); false when unknown here. */
+  classify(chain: Chain, wallet: string, kind: TraderKind): boolean {
+    const state = this.wallets.get(walletKey(chain, wallet));
+    if (!state) return false;
+    state.identity = { ...state.identity, kind };
+    return true;
   }
 
   recordAll(fills: TraderFill[]): RecordResult {
@@ -204,15 +223,14 @@ export class TraderBook {
     return state;
   }
 
-  private isDuplicate(key: string): boolean {
-    if (this.seen.has(key)) return true;
+  /** Only accepted fills leave keys behind, so a rejected duplicate never evicts live memory. */
+  private remember(key: string): void {
     this.seen.add(key);
-    while (this.seen.size > this.fillRing) {
+    while (this.seen.size > this.fillRing * 2) {
       const oldest = this.seen.keys().next().value;
       if (oldest === undefined) break;
       this.seen.delete(oldest);
     }
-    return false;
   }
 
   private evictWallets(): void {
@@ -235,6 +253,8 @@ function toTapeRow(fill: TraderFill, handle: string | null, kind: TraderKind | n
     tx: fill.tx,
     side: fill.side,
     usd: fill.usd,
-    time: fill.time
+    time: fill.time,
+    price: fill.price ?? null,
+    ...(fill.usdVia ? { usdVia: fill.usdVia } : {})
   };
 }

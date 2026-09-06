@@ -13,6 +13,8 @@ export type FlowPrint = {
   source: "pumpfun" | "geckoterminal" | "own";
   /** Attributed trader wallet when the receipt named one (R3); absent when unattributed. */
   trader?: TraderRef;
+  /** USD per token at this print, from the print's own amounts and quote price; null or absent when the source gives none. Never carried over from another print. */
+  price?: number | null;
 };
 
 /** Epoch-aligned bucket (minute or hour). Unpriced prints are counted, never converted. */
@@ -105,9 +107,35 @@ export type TokenFlowResponse = {
 // ---- Chain-neutral market (GET /api/market/:chain/:address) ----
 
 /** One priced or unpriced Tier A print from the ledger ring, dex resolved from the registry PairRow. */
-export type TapePrint = { pair: string; dex: string; tx: string; time: number; side: Side; usd: number | null; source: FlowPrint["source"]; trader?: TraderRef };
+export type TapePrint = { pair: string; dex: string; tx: string; time: number; side: Side; usd: number | null; source: FlowPrint["source"]; trader?: TraderRef; price?: number | null };
 
 export type MarketCandle = { time: number; open: number; high: number; low: number; close: number; volume: number };
+
+// ---- Own-tape candles (GET /api/flow/candles/:chain/:address) ----
+
+export type FlowCandleInterval = "5s" | "15s" | "1m";
+
+/**
+ * Candles built only from ledger ring prints that carry `price` (OHLC = price, volume = summed usd); buckets with no
+ * priced print are absent, never filled. `prints` counts every ring print merged, `priced` those that made candles;
+ * `spanMs` is newest minus oldest priced print. The ring is 200 prints per pair, so this is minutes of history, not hours.
+ */
+export type FlowCandlesResponse = {
+  chain: Chain;
+  address: string;
+  interval: FlowCandleInterval;
+  candles: MarketCandle[];
+  source: "own tape";
+  spanMs: number;
+  prints: number;
+  priced: number;
+  firstPrintAt: number | null;
+  /** Priced prints per producer (only sources with at least one priced print); the rings hold every Tier A source, not just this server's decoder. */
+  pricedBySource: Partial<Record<FlowPrint["source"], number>>;
+  observedAt: number;
+  stale?: boolean;
+  error?: string;
+};
 
 /**
  * One instrument on either chain. Solana adapts getOnchainMarket (ClawPump intel rides in `provider`);
@@ -211,6 +239,10 @@ export type FomoFill = {
   trader: TraderRef;
   /** Token symbol when the launch index knows it (cross-token tape); absent otherwise. */
   symbol?: string | null;
+  /** USD per token at the fill when the print carried one; null or absent otherwise. */
+  price?: number | null;
+  /** Transfer-decoded fills only: usd from the wallet's own quote Transfer ("wallet_leg") or the custody hub's USDG leg ("hub_leg"); absent when usd came with the print or is null. */
+  usdVia?: "wallet_leg" | "hub_leg";
 };
 
 /** Optional FOMO block on TokenFlowResponse: `population` = FOMO wallets seen by this server, `handles` = robinhoodtrenches handles known. */
@@ -249,6 +281,8 @@ export type FomoBoardRow = {
   buyUsd: number;
   sellUsd: number;
   netUsd: number;
+  /** Fills with usd null: in `fills`, absent from the usd totals (a wallet whose fills are all unpriced ranks at netUsd 0 for lack of dollars, not because it moved none). */
+  unpriced: number;
   closed: number;
   wins: number;
   /** Wilson lower bound of wins/closed; null under 5 closed trades. */

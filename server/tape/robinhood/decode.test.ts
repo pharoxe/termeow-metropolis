@@ -21,6 +21,8 @@ type Fixture = {
   geckoSide: "buy" | "sell" | "unknown";
   geckoUsd: number | null;
   geckoTime: string;
+  geckoFromAmount: string;
+  geckoToAmount: string;
   blockFile: string | null;
   poolFile: string | null;
 };
@@ -151,8 +153,20 @@ describe("decodeSwapLog against GeckoTerminal ground truth", () => {
       const usd = print.usd as number;
       const gecko = fixture.geckoUsd as number;
       expect(Math.abs(usd - gecko) / gecko).toBeLessThan(0.15);
+      // price = usd / token units; Gecko's whole-token leg (to_token on a buy, from_token on a sell) is the decimals oracle.
+      const geckoTokenUnits = Number(fixture.geckoSide === "buy" ? fixture.geckoToAmount : fixture.geckoFromAmount);
+      expect(((print.price as number) * geckoTokenUnits) / usd).toBeCloseTo(1, 8);
     });
   }
+
+  it("v3 0x6715fb00: 20.660502 USDG bought 1035.39874162462 FATCOIN (18 dec) -> price 0.019954 at USDG = 1", () => {
+    const fixture = index.find((entry) => entry.tx.startsWith("0x6715fb00")) as Fixture;
+    const print = receiptLogs(fixture.file)
+      .map((log) => decodeSwapLog(log, poolsFor([poolRefFor(fixture)]), { timeMs: 0, quoteUsd: () => 1 }))
+      .find((entry) => entry !== null);
+    expect(print?.usd).toBeCloseTo(20.660502, 6);
+    expect(print?.price).toBeCloseTo(20.660502 / 1035.39874162462, 9);
+  });
 
   it("v2/v3 pools keep DexScreener checksum casing on the print pair while matching logs case-insensitively", () => {
     const fixture = index.find((entry) => entry.kind === "v3") as Fixture;
@@ -235,6 +249,7 @@ describe("decodeSwapLog synthetic cases", () => {
     const buyPrint = decodeSwapLog(buy, poolsFor([v4Ref(false)]), ctx);
     expect(buyPrint?.side).toBe("buy");
     expect(buyPrint?.usd).toBeCloseTo(0.397205391124779053 * ETH_USD, 3);
+    expect(buyPrint?.price).toBeCloseTo((0.397205391124779053 * ETH_USD) / 49122, 9);
     expect(buyPrint?.pair).toBe(V4_ID);
     expect(buyPrint?.time).toBe(ctx.timeMs);
     const sell = syntheticLog("v4", V4_ID, [eth, -(50000n * 10n ** 18n), 0n, 0n, 0n, 0n]);
@@ -250,6 +265,7 @@ describe("decodeSwapLog synthetic cases", () => {
     const buyPrint = decodeSwapLog(buy, pools, price);
     expect(buyPrint?.side).toBe("buy");
     expect(buyPrint?.usd).toBeCloseTo(1.5, 6);
+    expect(buyPrint?.price).toBeCloseTo(1.5 / 1000, 9);
     const sell = syntheticLog("v4", V4_ID, [-(1000n * 10n ** 18n), usdc, 0n, 0n, 0n, 0n]);
     expect(decodeSwapLog(sell, pools, price)?.side).toBe("sell");
   });
@@ -281,11 +297,12 @@ describe("decodeSwapLog synthetic cases", () => {
     expect(decodeSwapLog(buy, pools, price)?.side).toBe("buy");
   });
 
-  it("usd is null when the quote cannot be priced", () => {
+  it("usd is null when the quote cannot be priced, and no price key is emitted", () => {
     const log = syntheticLog("v4", V4_ID, [-1n, 1n, 0n, 0n, 0n, 0n]);
     const print = decodeSwapLog(log, poolsFor([v4Ref(false)]), { ...ctx, quoteUsd: () => null });
     expect(print?.side).toBe("buy");
     expect(print?.usd).toBeNull();
+    expect("price" in (print ?? {})).toBe(false);
   });
 
   it("logKey joins tx hash and log index", () => {

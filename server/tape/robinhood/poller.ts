@@ -39,7 +39,9 @@ export type LogsHandler = (logs: RawLog[], headBlock: number) => void;
 
 /**
  * One extra eth_getLogs leg appended to this poller's batch: `topics` follows the eth_getLogs shape (position i matches
- * any listed topic; null is a wildcard). Its logs reach the handler through the same window and dedupe path. RPC budget
+ * any listed topic; null is a wildcard). An empty `addresses` list means no address filter (chain-wide by topic, used
+ * for the FOMO Transfer legs in server/traders/transfers.ts); such a leg must constrain at least one topic position or
+ * it is dropped. Its logs reach the handler through the same window and dedupe path. RPC budget
  * note: legs only ride for free on a *shared* poller; a consumer that constructs its own RobinhoodLogPoller (the launch
  * stream in server/launch/service.ts does) runs a second independent 2s eth_blockNumber + eth_getLogs loop against the
  * 429-prone public RPC.
@@ -183,7 +185,7 @@ export class RobinhoodLogPoller {
   /** Extra legs appended to every poll (same window, batch, dedupe and ordering). Empty (the default) changes nothing. */
   setExtraLegs(legs: ExtraLeg[]): void {
     this.extraLegs = legs
-      .filter((leg) => leg.addresses.length > 0)
+      .filter((leg) => leg.addresses.length > 0 || leg.topics.some((position) => position !== null && position.length > 0))
       .map((leg) => ({
         addresses: [...new Set(leg.addresses.map((address) => address.toLowerCase()))],
         topics: leg.topics.map((position) => (position === null ? null : position.map((topic) => topic.toLowerCase())))
@@ -314,7 +316,7 @@ export class RobinhoodLogPoller {
     const legs: Array<Record<string, unknown>> = [];
     if (this.filter.addresses.length > 0) legs.push({ ...range, address: this.filter.addresses, topics: [POOL_SWAP_TOPICS] });
     if (this.filter.poolIds.size > 0) legs.push({ ...range, address: [this.poolManager], topics: [[V4_SWAP_TOPIC], [...this.filter.poolIds]] });
-    for (const leg of this.extraLegs) legs.push({ ...range, address: leg.addresses, topics: leg.topics });
+    for (const leg of this.extraLegs) legs.push({ ...range, ...(leg.addresses.length > 0 ? { address: leg.addresses } : {}), topics: leg.topics });
     return legs;
   }
 
@@ -342,13 +344,13 @@ export class RobinhoodLogPoller {
     return topic0 === V2_SWAP_TOPIC || topic0 === V3_SWAP_TOPIC;
   }
 
-  /** A log satisfies an extra leg when its address is listed and every constrained topic position holds one of the listed topics. */
+  /** A log satisfies an extra leg when its address is listed (or the leg has no address filter) and every constrained topic position holds one of the listed topics. */
   private matchesExtra(log: RawLog): boolean {
     if (this.extraLegs.length === 0) return false;
     const address = log.address.toLowerCase();
     return this.extraLegs.some(
       (leg) =>
-        leg.addresses.includes(address) &&
+        (leg.addresses.length === 0 || leg.addresses.includes(address)) &&
         leg.topics.every((position, i) => position === null || position.includes((log.topics[i] ?? "").toLowerCase()))
     );
   }

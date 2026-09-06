@@ -1,4 +1,5 @@
 import type { FlowPrint, Side } from "../../shared/wire.js";
+import { perTokenPrice } from "../flow/printPrice.js";
 import { createBackoff } from "../lib/backoff.js";
 import { fetchJson } from "../lib/http.js";
 
@@ -60,7 +61,9 @@ function parseTrade(row: unknown, pair: string): FlowPrint | null {
   const side = parseSide(row.type);
   const time = parseTime(row.timestamp);
   if (side === null || time === null) return null;
-  return { chain: "solana", pair, tx: row.tx, time, side, usd: parseUsd(row.amountUsd), source: "pumpfun" };
+  const usd = parseUsd(row.amountUsd);
+  // v2 rows carry baseAmount already in whole tokens (measured: 1233700.5 for amountUsd 152.30), so no decimals are needed.
+  return { chain: "solana", pair, tx: row.tx, time, side, usd, source: "pumpfun", ...perTokenPrice(usd, parseUsd(row.baseAmount)) };
 }
 
 function parseCursor(pagination: unknown): { nextCursor: string | null; hasMore: boolean } {

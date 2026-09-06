@@ -31,6 +31,8 @@ export type HandleBookOptions = {
   tapeUrl?: string;
   tradersTtlMs?: number;
   tapeTtlMs?: number;
+  /** Called with the lowercase wallets of every successful traders-list load (R4 seeds the transfer-leg population from it). */
+  onTraders?: (wallets: string[]) => void;
 };
 
 type FeedName = Exclude<HandleSource, "learned">;
@@ -89,11 +91,13 @@ export class HandleBook {
   private readonly now: () => number;
   private readonly feeds: Feed[];
   private readonly entries = new Map<string, HandleEntry>();
+  private readonly onTraders: ((wallets: string[]) => void) | null;
   private inFlight: Promise<void> | null = null;
 
   constructor(opts: HandleBookOptions = {}) {
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.now = opts.now ?? (() => Date.now());
+    this.onTraders = opts.onTraders ?? null;
     const status = (): HandleSourceStatus => ({ rows: 0, lastOkAt: null, lastError: null });
     this.feeds = [
       { name: "traders", url: opts.tradersUrl ?? TRADERS_URL, ttlMs: opts.tradersTtlMs ?? TRADERS_TTL_MS, nextAt: 0, status: status() },
@@ -148,6 +152,7 @@ export class HandleBook {
       for (const row of rows) this.merge(row.address, row.entry);
       feed.status = { rows: rows.length, lastOkAt: this.now(), lastError: null };
       feed.nextAt = this.now() + feed.ttlMs;
+      if (feed.name === "traders" && this.onTraders && rows.length > 0) this.onTraders(rows.map((row) => row.address));
     } catch (error) {
       feed.status = { ...feed.status, lastError: `${feed.name}: ${errorMessage(error)}` };
       feed.nextAt = this.now() + HANDLES_RETRY_MS;

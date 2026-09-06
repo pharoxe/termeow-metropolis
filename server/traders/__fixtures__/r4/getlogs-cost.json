@@ -1,0 +1,506 @@
+{
+ "capturedAt": "2026-09-06T17:56Z..18:00Z (IST 23:26-23:30)",
+ "rpc": "https://rpc.mainnet.chain.robinhood.com",
+ "walletCount": 147,
+ "note": "getLogs probes measured by measure.mjs run 1 (transcribed verbatim from its stdout after the eth_call batch of 44 calls died with ETIMEDOUT); eth_call probes measured by measure2.mjs. 429s: first eth_blockNumber 429 (retry-after 23 s after a 35 s idle), first 100-block getLogs 429 twice (retry-after 60 then 0), then 6 consecutive requests at 1.5 s spacing all 200.",
+ "headBlock": 56173636,
+ "probes": [
+  {
+   "label": "eth_getLogs 100 blocks, topics [TRANSFER, null, 147 wallets] (to/buy)",
+   "ms": 631,
+   "bytes": 663,
+   "logs": 1,
+   "txs": 1,
+   "tokens": 1
+  },
+  {
+   "label": "eth_getLogs 100 blocks, topics [TRANSFER, 147 wallets] (from/sell)",
+   "ms": 328,
+   "bytes": 37,
+   "logs": 0,
+   "txs": 0,
+   "tokens": 0
+  },
+  {
+   "label": "eth_getLogs 1000 blocks, topics [TRANSFER, null, 147 wallets] (to/buy)",
+   "ms": 556,
+   "bytes": 40782,
+   "logs": 65,
+   "txs": 21,
+   "tokens": 3
+  },
+  {
+   "label": "eth_getLogs 1000 blocks, topics [TRANSFER, 147 wallets] (from/sell)",
+   "ms": 324,
+   "bytes": 663,
+   "logs": 1,
+   "txs": 1,
+   "tokens": 1
+  },
+  {
+   "label": "ONE HTTP JSON-RPC batch [eth_blockNumber, getLogs EntryPoint UserOperationEvent leg, getLogs Transfer-to 147, getLogs Transfer-from 147] over 405 blocks",
+   "ms": 976,
+   "requestBodyBytes": 20984,
+   "responseBytes": 478629,
+   "replies": [
+    {
+     "id": 1,
+     "result": "0x35927d1"
+    },
+    {
+     "id": 2,
+     "logs": 538,
+     "txs": 354,
+     "blocks": 251
+    },
+    {
+     "id": 3,
+     "logs": 1,
+     "txs": 1
+    },
+    {
+     "id": 4,
+     "logs": 0
+    }
+   ]
+  },
+  {
+   "label": "eth_call decimals batch",
+   "http": 429,
+   "attempt": 1,
+   "retryAfter": 1
+  },
+  {
+   "label": "ONE HTTP batch of 50 eth_call decimals() for 50 tokens",
+   "ms": 465,
+   "bytes": 5193,
+   "http": 200,
+   "isArray": true,
+   "errors": 0
+  },
+  {
+   "label": "eth_call symbol batch",
+   "http": 429,
+   "attempt": 1,
+   "retryAfter": 20
+  },
+  {
+   "label": "ONE HTTP batch of 50 eth_call symbol() for 50 tokens",
+   "ms": 502,
+   "bytes": 11593,
+   "http": 200,
+   "isArray": true,
+   "errors": 0
+  },
+  {
+   "label": "ONE HTTP batch of 50 eth_call name() for 50 tokens",
+   "ms": 454,
+   "bytes": 12233,
+   "http": 200,
+   "isArray": true,
+   "errors": 0
+  }
+ ],
+ "tokenMeta": [
+  {
+   "token": "0xf2e122a481b440c40eee7a7ca6d5eef65a591b76",
+   "tapeSymbol": "QC",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "QC",
+   "name": "Quantum Cats"
+  },
+  {
+   "token": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+   "tapeSymbol": "GLD",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "GLD",
+   "name": "SPDR Gold Trust • Robinhood Token"
+  },
+  {
+   "token": "0x681c033435288cb107fb30632406683086018171",
+   "tapeSymbol": "MOON",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "MOON",
+   "name": "moon cat"
+  },
+  {
+   "token": "0xcdbb7008414aaf31de517dfea5bc1b09e9626690",
+   "tapeSymbol": "OPAR",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "OPAR",
+   "name": "oPar"
+  },
+  {
+   "token": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+   "tapeSymbol": "SPCX",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "SPCX",
+   "name": "Space Exploration Technologies Corp. Class A Common Stock • Robinhood Token"
+  },
+  {
+   "token": "0xbcef005602d14cdbcff7c2bba7927c00c7ba20ed",
+   "tapeSymbol": "hfun",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "hfun",
+   "name": "hfun"
+  },
+  {
+   "token": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+   "tapeSymbol": "GOOGL",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "GOOGL",
+   "name": "Alphabet Class A • Robinhood Token"
+  },
+  {
+   "token": "0x7fe995a80075df3dc8ae11a9b82c7fe4202cd87f",
+   "tapeSymbol": "HMM",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "HMM",
+   "name": "Thinking Cat"
+  },
+  {
+   "token": "0xbe98b75361935b18d688409424a869a4c3dc7401",
+   "tapeSymbol": "NUDES",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "NUDES",
+   "name": "Send Nudes"
+  },
+  {
+   "token": "0x2e8c31162b855a2ffa90f6f8634643ad6f111e18",
+   "tapeSymbol": "AI",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "AI",
+   "name": "Artificial Inu"
+  },
+  {
+   "token": "0x39dbed3a2bd333467115de45665cc57f813c4571",
+   "tapeSymbol": "PONS",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "PONS",
+   "name": "Pons"
+  },
+  {
+   "token": "0x8b3e3ba1a55b939f93f0a205f94520b9468e17f8",
+   "tapeSymbol": "RIDE",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "RIDE",
+   "name": "RHIVIAN"
+  },
+  {
+   "token": "0x34201a68f0b83a2d8a2239c62b7a05403b36c3a6",
+   "tapeSymbol": "DANGER",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "DANGER",
+   "name": "Cyberhog"
+  },
+  {
+   "token": "0x98096d17e191b3da1d5f99a6d7b3584351b11e18",
+   "tapeSymbol": "BONER",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "BONER",
+   "name": "Boner Coin"
+  },
+  {
+   "token": "0xdb97b2aefd6816485a757ae49280d598a5c9c848",
+   "tapeSymbol": "NILF",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "NILF",
+   "name": "Not In Labor Force"
+  },
+  {
+   "token": "0x385f4f8ae47651ce5f58f5265395a669f8281e18",
+   "tapeSymbol": "MEME",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "MEME",
+   "name": "A Meme Coin"
+  },
+  {
+   "token": "0xb50288228c9f7f9f144c58506e974a9caee88aeb",
+   "tapeSymbol": "DOOKIE",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "DOOKIE",
+   "name": "DOOKIE"
+  },
+  {
+   "token": "0xdee52f2ab639b6942b0d0f0565400b93b7a0fbe5",
+   "tapeSymbol": "HARMONIC",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "HARMONIC",
+   "name": "Harmonic Agent"
+  },
+  {
+   "token": "0x020bfc650a365f8bb26819deaabf3e21291018b4",
+   "tapeSymbol": "CASHCAT",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "CASHCAT",
+   "name": "Cash Cat"
+  },
+  {
+   "token": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+   "tapeSymbol": "SPY",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "SPY",
+   "name": "SPDR S&P 500 ETF Trust • Robinhood Token"
+  },
+  {
+   "token": "0xa3a273b2b389e718c0c490a4baee9347cd4a007b",
+   "tapeSymbol": "TAMPONS",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "TAMPONS",
+   "name": "TAMPONS"
+  },
+  {
+   "token": "0x350cadde605e083f58d286e8b3a6b086685fa1ec",
+   "tapeSymbol": "Titties",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "Titties",
+   "name": "Commotitties"
+  },
+  {
+   "token": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+   "tapeSymbol": "USO",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "USO",
+   "name": "United States Oil Fund • Robinhood Token"
+  },
+  {
+   "token": "0xb27339261475ef2724095f166b46e34223b13489",
+   "tapeSymbol": "HUBRIS",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "HUBRIS",
+   "name": "HUBRIS"
+  },
+  {
+   "token": "0x42a3a7e30ae075fc2b7697ae76f5901239bb064a",
+   "tapeSymbol": "PENNIES",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "PENNIES",
+   "name": "Pennies"
+  },
+  {
+   "token": "0x90a71817bda6dac8c3a28bbfd877b02d667ae2f9",
+   "tapeSymbol": "ROBINHOOD",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "ROBINHOOD",
+   "name": "RedistribOfBillionByInstitutingNewHighObligationsOverlookedDebt"
+  },
+  {
+   "token": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+   "tapeSymbol": "COIN",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "COIN",
+   "name": "Coinbase • Robinhood Token"
+  },
+  {
+   "token": "0xd85c0c5f5a81a1527bb90f225ceacfbcb590c7d9",
+   "tapeSymbol": "OZZY",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "OZZY",
+   "name": "The Joker"
+  },
+  {
+   "token": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+   "tapeSymbol": "NVDA",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "NVDA",
+   "name": "NVIDIA • Robinhood Token"
+  },
+  {
+   "token": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+   "tapeSymbol": "TSLA",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "TSLA",
+   "name": "Tesla • Robinhood Token"
+  },
+  {
+   "token": "0x5e81213613b6b86eab4c6c50d718d34359459786",
+   "tapeSymbol": "TTWO",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "TTWO",
+   "name": "Take-Two Interactive Software • Robinhood Token"
+  },
+  {
+   "token": "0xb1bf26c1d20ff267a4f93550d1e0d06ac40a114b",
+   "tapeSymbol": "RIVN",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "RIVN",
+   "name": "Rivian Automotive • Robinhood Token"
+  },
+  {
+   "token": "0xe93237c50d904957cf27e7b1133b510c669c2e74",
+   "tapeSymbol": "MSFT",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "MSFT",
+   "name": "Microsoft • Robinhood Token"
+  },
+  {
+   "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+   "tapeSymbol": "MU",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "MU",
+   "name": "Micron Technology • Robinhood Token"
+  },
+  {
+   "token": "0x17c35105dab9936f113af60f3bf74783caf08301",
+   "tapeSymbol": "HD",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "HD",
+   "name": "Hood Domains"
+  },
+  {
+   "token": "0x62c71cd34a52c30d894419cbcc55db2afa8032ea",
+   "tapeSymbol": "YOLO",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "YOLO",
+   "name": "YOLO"
+  },
+  {
+   "token": "0x7df5daaf80e65dfcc7a1435d9b52bcf2b5753fbe",
+   "tapeSymbol": "UNIPCS",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "UNIPCS",
+   "name": "Unipcs"
+  },
+  {
+   "token": "0x43eea882b845a8493152ebc55cf30ae9281b02d5",
+   "tapeSymbol": "FIRE",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "FIRE",
+   "name": "FIRE"
+  },
+  {
+   "token": "0x0ff9072a1ead154d92c2d2fef16afba6028ce2b2",
+   "tapeSymbol": "OPTIMUS",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "OPTIMUS",
+   "name": "Optimus"
+  },
+  {
+   "token": "0xdd0b80c2a4b341676c5316f0107f6939ae021e18",
+   "tapeSymbol": "BUTTHOLE",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "BUTTHOLE",
+   "name": "BUTTHOLE"
+  },
+  {
+   "token": "0xcbb3459375f03241a6201a6f42c2dbf3ce441e18",
+   "tapeSymbol": "CHANG",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "CHANG",
+   "name": "CHANG"
+  },
+  {
+   "token": "0x7749a0d878458b0892ab957be6a88df8d3508306",
+   "tapeSymbol": "CATHOUSE",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "CATHOUSE",
+   "name": "CatHouse"
+  },
+  {
+   "token": "0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+   "tapeSymbol": "GME",
+   "isStock": 1,
+   "decimals": 18,
+   "symbol": "GME",
+   "name": "GameStop • Robinhood Token"
+  },
+  {
+   "token": "0x5d6ef090a1461b11c9427ac319260122d1c61e18",
+   "tapeSymbol": "ICOIN",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "ICOIN",
+   "name": "iCoin"
+  },
+  {
+   "token": "0x85856f025bf13b8fd2aae2f6da458318744f1e18",
+   "tapeSymbol": "CLIPPY",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "CLIPPY",
+   "name": "Clippy"
+  },
+  {
+   "token": "0xd9db30bb0d2b8d2eae3826a1372117e058791e18",
+   "tapeSymbol": "MOO",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "MOO",
+   "name": "Memory cow Moo"
+  },
+  {
+   "token": "0xa3602804e096cb73bd8344afc1ff3f3390b899c5",
+   "tapeSymbol": "PEZ",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "PEZ",
+   "name": "PEZ"
+  },
+  {
+   "token": "0xafa57c4c5a72d36530c8e816ad6e9a5947941536",
+   "tapeSymbol": "PORT",
+   "isStock": 0,
+   "decimals": 18,
+   "symbol": "PORT",
+   "name": "Port"
+  },
+  {
+   "token": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+   "tapeSymbol": "USDG",
+   "isStock": null,
+   "decimals": 6,
+   "symbol": "USDG",
+   "name": "Global Dollar"
+  },
+  {
+   "token": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+   "tapeSymbol": "WETH",
+   "isStock": null,
+   "decimals": 18,
+   "symbol": "WETH",
+   "name": "WETH"
+  }
+ ]
+}

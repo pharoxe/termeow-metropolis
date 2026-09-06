@@ -277,10 +277,10 @@ describe("FOMO block and trader on the tape", () => {
 
   function traders(): FlowTradersLike {
     return {
-      book: { tape: () => [] },
+      fillsForToken: () => [],
       fomoLedger: new FlowLedger({ now: () => NOW }),
       population: { size: 94 },
-      handles: { get: () => null, stats: () => ({ entries: 0 }) },
+      handles: { stats: () => ({ entries: 0 }) },
       dexOf: () => ""
     };
   }
@@ -292,6 +292,14 @@ describe("FOMO block and trader on the tape", () => {
     const d = deps({ traders: traders(), registry: vi.fn(async () => ({ pairs: [robinhoodRow], observedAt: NOW - 1000, stale: false })) });
     const robinhood = await buildTokenFlowResponse(params({ chain: "robinhood", address: EVM_TOKEN }), d);
     expect(robinhood.fomo).toMatchObject({ fills: [], population: 94, handles: 0 });
+  });
+
+  it("carries a per-print price onto the tape and omits the key when the producer gave none", () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([{ ...print(POOL, "p", NOW - 1000, "buy", 100), source: "own", price: 0.26783 }, print(POOL, "u", NOW - 2000, "sell", 5)]);
+    const tape = recentTape(ledger, "solana", [row(POOL, "A", 1)]);
+    expect(tape[0]).toMatchObject({ tx: "p", price: 0.26783 });
+    expect("price" in tape[1]).toBe(false);
   });
 
   it("carries the ledger print's trader onto the tape and omits the key when there is none", () => {

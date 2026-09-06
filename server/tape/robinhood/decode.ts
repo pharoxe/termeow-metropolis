@@ -1,4 +1,5 @@
 import type { FlowPrint } from "../../../shared/wire.js";
+import { perTokenPrice } from "../../flow/printPrice.js";
 import { POOL_MANAGER } from "./pools.js";
 
 /**
@@ -173,13 +174,15 @@ export function decodeSwapLog(log: EvmLog, pools: Map<string, EvmPoolRef>, ctx: 
   const decoded = decodeSwapLeg(log, pools);
   if (!decoded) return null;
   const { pool, leg } = decoded;
+  const usd = usdOf(leg, pool, ctx);
   return {
     chain: "robinhood",
     pair: pool.ledgerPair,
     tx: log.transactionHash,
     time: ctx.timeMs,
     side: leg.side,
-    usd: usdOf(leg, pool, ctx),
-    source: "own"
+    usd,
+    source: "own",
+    ...perTokenPrice(usd, quoteUnits(leg.tokenAmount, pool.tokenDecimals))
   };
 }

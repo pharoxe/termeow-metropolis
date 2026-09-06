@@ -1,5 +1,5 @@
 import type { Chain, MarketResponse, Side, TapePrint } from "../../shared/wire";
-import type { OnchainMarket, PoolTrade } from "../types";
+import type { OnchainMarket } from "../types";
 import type { InstrumentRef } from "./address";
 import { isEvmAddress } from "./address";
 import { MINT_RE } from "./mint";
@@ -75,15 +75,7 @@ function fromPrint(print: TapePrint): TapeRow {
   return { key: `${print.pair}:${print.tx}`, side: print.side, usd: print.usd, time: print.time };
 }
 
-function fromTrade(trade: PoolTrade): TapeRow {
-  return { key: trade.txHash || `${trade.time}-${trade.kind}`, side: trade.kind, usd: trade.volumeUsd, time: trade.time };
-}
-
-/** FLOW panel TYPE column: the ledger tape when it has prints, else the legacy Solana pool trades, newest first. */
-export function tapeRows(tape: TapePrint[] | undefined, legacy: PoolTrade[], limit = TAPE_ROW_LIMIT): TapeRow[] {
-  if (tape && tape.length) return tape.slice(0, limit).map(fromPrint);
-  return [...legacy]
-    .sort((a, b) => b.time - a.time || b.txHash.localeCompare(a.txHash))
-    .slice(0, limit)
-    .map(fromTrade);
+/** FLOW panel TYPE column: the ledger tape (Tier A prints, newest first as served); empty when the ledger has none. */
+export function tapeRows(tape: TapePrint[] | undefined, limit = TAPE_ROW_LIMIT): TapeRow[] {
+  return (tape ?? []).slice(0, limit).map(fromPrint);
 }

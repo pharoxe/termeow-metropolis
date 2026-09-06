@@ -77,7 +77,7 @@ export function fomoTapeRow(fill: FomoFill, now: number): FomoTapeRowView {
     label: walletLabel(fill.trader.address, fill.trader.handle),
     href,
     profileUrl: href,
-    title: `${fill.trader.address} · ${side} ${fill.token} · ${fill.dex || fill.pair} · ${fill.tx}`,
+    title: `${fill.trader.address} · ${side} ${fill.token} · ${fill.dex || fill.pair} · ${fill.tx}${fill.usdVia === "hub_leg" ? " · usd via custody hub leg" : ""}`,
     followers: followersLabel(fill.trader.followers),
     side,
     tone: fill.side === "buy" ? "up" : "dn",
@@ -117,6 +117,8 @@ export function wilsonLabel(wilsonLow: number | null, closed: number): string {
 export function fomoBoardRowView(row: FomoBoardRow, now: number): FomoBoardRowView {
   const href = profileHref(row.handle, row.profileUrl);
   const record = row.closed > 0 ? `${row.wins}/${row.closed}` : EM_DASH;
+  // Every fill unpriced: the dollars are unknown, not zero.
+  const unpricedOnly = row.fills > 0 && row.unpriced >= row.fills;
   return {
     key: `${row.chain}:${row.wallet}`,
     label: walletLabel(row.wallet, row.handle),
@@ -124,11 +126,11 @@ export function fomoBoardRowView(row: FomoBoardRow, now: number): FomoBoardRowVi
     profileUrl: href,
     title: `${row.wallet} · ${followersLabel(row.followers)} followers · last fill ${printAgeLabel(row.lastSeenAt, now)} ago`,
     followers: followersLabel(row.followers),
-    fills: String(row.fills),
-    buy: money(row.buyUsd, true),
-    sell: money(row.sellUsd, true),
-    net: signedMoney(row.netUsd),
-    netTone: row.netUsd > 0 ? "up" : row.netUsd < 0 ? "dn" : "",
+    fills: row.unpriced > 0 ? `${row.fills} (${row.unpriced}u)` : String(row.fills),
+    buy: unpricedOnly ? EM_DASH : money(row.buyUsd, true),
+    sell: unpricedOnly ? EM_DASH : money(row.sellUsd, true),
+    net: unpricedOnly ? EM_DASH : signedMoney(row.netUsd),
+    netTone: unpricedOnly ? "" : row.netUsd > 0 ? "up" : row.netUsd < 0 ? "dn" : "",
     record,
     trips: record,
     wilson: wilsonLabel(row.wilsonLow, row.closed),

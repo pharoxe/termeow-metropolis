@@ -1,5 +1,6 @@
 import { fetchJson, UpstreamError } from "../lib/http.js";
 import type { Chain, FlowPrint, Side } from "../../shared/wire.js";
+import { perTokenPrice } from "../flow/printPrice.js";
 import type { Candle } from "../types.js";
 
 export const GECKO_BASE_URL = "https://api.geckoterminal.com/api/v2";
@@ -14,6 +15,8 @@ export const GECKO_BLOCK_MS = 20_000;
 
 export type GeckoPriority = "high" | "low";
 export type GeckoGetOptions = { priority?: GeckoPriority };
+/** `token`: the focused token; when set, side and price are read relative to it (a pool may hold it as the quote leg). */
+export type GeckoTradesOptions = GeckoGetOptions & { token?: string };
 
 type Waiter = {
   priority: GeckoPriority;
@@ -159,20 +162,43 @@ function toUsd(value: unknown): number | null {
   return Number.isFinite(usd) ? usd : null;
 }
 
-export function normalizeGeckoTrade(row: GeckoTradeRow, chain: Chain, pair: string): FlowPrint | null {
-  const attrs = row.attributes || {};
-  const side = toSide(attrs.kind);
-  const time = Date.parse(String(attrs.block_timestamp || ""));
-  const tx = String(attrs.tx_hash || "").trim();
-  if (!side || !Number.isFinite(time) || !tx) return null;
-  return { chain, pair, tx, time, side, usd: toUsd(attrs.volume_in_usd), source: "geckoterminal" };
+function sameToken(chain: Chain, a: unknown, b: string): boolean {
+  if (typeof a !== "string" || !a) return false;
+  return chain === "robinhood" ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
-export async function geckoPoolTrades(network: Chain, pool: string, opts: GeckoGetOptions = {}): Promise<FlowPrint[]> {
-  const result = await geckoGet<{ data?: GeckoTradeRow[] }>(`/networks/${network}/pools/${pool}/trades`, opts);
+/**
+ * Side and whole-unit amount of the focused token's leg. Gecko's `kind` is relative to the pool's base token, so with
+ * a `token` the legs are matched by address (from_token_address / to_token_address); a row that names the token on
+ * neither leg is not this token's trade. Without a `token` (or without leg addresses) the base leg follows `kind`.
+ */
+function tokenLeg(attrs: Record<string, unknown>, chain: Chain, kind: Side, token?: string): { side: Side; amount: number | null } | null {
+  const hasAddresses = typeof attrs.from_token_address === "string" && typeof attrs.to_token_address === "string";
+  if (token && hasAddresses) {
+    if (sameToken(chain, attrs.to_token_address, token)) return { side: "buy", amount: toUsd(attrs.to_token_amount) };
+    if (sameToken(chain, attrs.from_token_address, token)) return { side: "sell", amount: toUsd(attrs.from_token_amount) };
+    return null;
+  }
+  return { side: kind, amount: toUsd(kind === "buy" ? attrs.to_token_amount : attrs.from_token_amount) };
+}
+
+export function normalizeGeckoTrade(row: GeckoTradeRow, chain: Chain, pair: string, token?: string): FlowPrint | null {
+  const attrs = row.attributes || {};
+  const kind = toSide(attrs.kind);
+  const time = Date.parse(String(attrs.block_timestamp || ""));
+  const tx = String(attrs.tx_hash || "").trim();
+  if (!kind || !Number.isFinite(time) || !tx) return null;
+  const leg = tokenLeg(attrs, chain, kind, token);
+  if (!leg) return null;
+  const usd = toUsd(attrs.volume_in_usd);
+  return { chain, pair, tx, time, side: leg.side, usd, source: "geckoterminal", ...perTokenPrice(usd, leg.amount) };
+}
+
+export async function geckoPoolTrades(network: Chain, pool: string, opts: GeckoTradesOptions = {}): Promise<FlowPrint[]> {
+  const result = await geckoGet<{ data?: GeckoTradeRow[] }>(`/networks/${network}/pools/${pool}/trades`, { priority: opts.priority });
   const prints: FlowPrint[] = [];
   for (const row of result.data || []) {
-    const print = normalizeGeckoTrade(row, network, pool);
+    const print = normalizeGeckoTrade(row, network, pool, opts.token);
     if (print) prints.push(print);
   }
   return prints;

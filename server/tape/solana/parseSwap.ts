@@ -1,4 +1,5 @@
 import type { FlowPrint, PairRow } from "../../../shared/wire.js";
+import { perTokenPrice } from "../../flow/printPrice.js";
 import { pumpPoolFor } from "../../sources/pumpfun.js";
 
 /** Raydium AMM v4 vaults are owned by this authority PDA, not by the pool account. */
@@ -165,14 +166,16 @@ function poolPrint(tx: unknown, pool: PoolRef, vaults: TokenDelta[], ctx: ParseC
   if (mintDelta === 0) return null;
   const quote = tokenQuote(vaults, ctx.mint) ?? nativeQuote(tx, pool);
   if (!quote || quote.delta === 0 || Math.sign(quote.delta) === Math.sign(mintDelta)) return null;
+  const usd = priceUsd(quote, ctx);
   return {
     chain: "solana",
     pair: pool.ledgerPair,
     tx: sig,
     time,
     side: mintDelta < 0 ? "buy" : "sell",
-    usd: priceUsd(quote, ctx),
-    source: "own"
+    usd,
+    source: "own",
+    ...perTokenPrice(usd, mintDelta)
   };
 }
 

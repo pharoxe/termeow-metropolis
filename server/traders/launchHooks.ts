@@ -4,7 +4,8 @@ import { launchPairId, type StreamLedgerLike, type StreamPollerLike } from "../l
 import type { ExtraLeg, LogsHandler, RawLog } from "../tape/robinhood/poller.js";
 import { USER_OPERATION_EVENT_TOPIC } from "./attribute.js";
 import { LruMap } from "./lru.js";
-import { ENTRY_POINT, dexFromPair, type AnnotateContext, type MetaOf, type RecordOptions } from "./service.js";
+import { ENTRY_POINT, TraderService, dexFromPair, type AnnotateContext, type MetaOf, type RecordOptions } from "./service.js";
+import { TransferFeed } from "./transferFeed.js";
 
 /** The one extra leg the launch poller carries for trader discovery: every UserOperationEvent at the EntryPoint. */
 export const USER_OP_LEG: ExtraLeg = { addresses: [ENTRY_POINT], topics: [[USER_OPERATION_EVENT_TOPIC]] };
@@ -28,8 +29,18 @@ export type TraderHooksOptions = {
   traders: TraderHooksLike;
   /** Token behind a launchpad pseudo-pair the log itself did not name (Pons curves); null when unknown. */
   tokenOf: (pair: string) => string | null;
+  /** R4 chain-wide Transfer feed wrapping the poller; undefined = the TraderService's own feed (created on first use, none for a fake), null = off. */
+  transfers?: TransferFeedLike | null;
   log?: (msg: string) => void;
 };
+
+export type TransferFeedLike = { wrapPoller(poller: StreamPollerLike): StreamPollerLike };
+
+/** The live service gets one TransferFeed for the process; a test fake (not a TraderService) gets none. */
+function liveTransferFeed(traders: TraderHooksLike, log: (msg: string) => void): TransferFeedLike | null {
+  if (!(traders instanceof TraderService)) return null;
+  return traders.transfers ?? traders.attachTransfers(new TransferFeed({ traders, log }));
+}
 
 function topicAddress(log: RawLog, index: number): string | null {
   const topic = log.topics[index];
@@ -98,8 +109,10 @@ export function userOpSenders(logs: RawLog[]): string[] {
  * curve-trade log names, and the ledger classifies that wallet (no receipt) before ingesting. Batches are ingested in
  * order through one promise chain; a batch past the annotate deadline is ingested unannotated. Never throws.
  */
-export function withTraderHooks(opts: TraderHooksOptions): { poller: StreamPollerLike; ledger: StreamLedgerLike } {
-  const log = opts.log ?? ((msg) => console.warn(msg));
+export function withTraderHooks(input: TraderHooksOptions): { poller: StreamPollerLike; ledger: StreamLedgerLike } {
+  const log = input.log ?? ((msg) => console.warn(msg));
+  const feed = input.transfers === undefined ? liveTransferFeed(input.traders, log) : input.transfers;
+  const opts = feed ? { ...input, poller: feed.wrapPoller(input.poller) } : input;
   const traders = new LruMap<string, CurveTrader>(CURVE_TRADER_RING);
   const tokens = new LruMap<string, string>(CURVE_TOKEN_CACHE);
   const tokenOf = (pair: string): string | null => {

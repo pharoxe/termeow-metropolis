@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { FlowPrint } from "../../shared/wire";
 import { UpstreamError } from "../lib/http";
 import {
   GECKO_BASE_URL,
@@ -123,21 +125,65 @@ describe("geckoGet in-flight dedupe", () => {
   });
 });
 
+type GeckoTradeFixture = { data: Array<{ attributes: Record<string, string | number> }> };
+const ansemTrades: GeckoTradeFixture = JSON.parse(readFileSync(new URL("./__fixtures__/gecko-pool-trades-solana-ansem.json", import.meta.url), "utf8"));
+const ANSEM = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
+const ANSEM_POOL = "FnzKY6x7entQ1eR3D225dQyT7ybfka4PskBMQhb8L3CC";
+
 describe("geckoPoolTrades", () => {
-  it("normalizes prints and keeps a null usd for non-numeric volume", async () => {
+  it("normalizes prints and keeps a null usd for non-numeric volume; price only when usd and the base leg are known", async () => {
     stubFetch(() => jsonResponse({
       data: [
-        { attributes: { kind: "buy", volume_in_usd: "12.5", block_timestamp: "2024-01-01T00:00:00Z", tx_hash: "TX1" } },
-        { attributes: { kind: "sell", volume_in_usd: "n/a", block_timestamp: "2024-01-01T00:01:00Z", tx_hash: "TX2" } },
+        { attributes: { kind: "buy", volume_in_usd: "12.5", block_timestamp: "2024-01-01T00:00:00Z", tx_hash: "TX1", from_token_amount: "0.1", to_token_amount: "50" } },
+        { attributes: { kind: "sell", volume_in_usd: "n/a", block_timestamp: "2024-01-01T00:01:00Z", tx_hash: "TX2", from_token_amount: "50", to_token_amount: "0.1" } },
         { attributes: { kind: "swap", volume_in_usd: "1", block_timestamp: "2024-01-01T00:02:00Z", tx_hash: "TX3" } },
         { attributes: { kind: "buy", volume_in_usd: "1", block_timestamp: "not-a-date", tx_hash: "TX4" } }
       ]
     }));
     const prints = await geckoPoolTrades("solana", "POOL");
     expect(prints).toEqual([
-      { chain: "solana", pair: "POOL", tx: "TX1", time: Date.parse("2024-01-01T00:00:00Z"), side: "buy", usd: 12.5, source: "geckoterminal" },
+      { chain: "solana", pair: "POOL", tx: "TX1", time: Date.parse("2024-01-01T00:00:00Z"), side: "buy", usd: 12.5, source: "geckoterminal", price: 0.25 },
       { chain: "solana", pair: "POOL", tx: "TX2", time: Date.parse("2024-01-01T00:01:00Z"), side: "sell", usd: null, source: "geckoterminal" }
     ]);
+  });
+
+  it("prices the measured ANSEM/SOL trades page to Gecko's own per-token USD price (to_token on buys, from_token on sells)", () => {
+    expect(ansemTrades.data.length).toBeGreaterThanOrEqual(12);
+    expect(new Set(ansemTrades.data.map((row) => row.attributes.kind))).toEqual(new Set(["buy", "sell"]));
+    for (const row of ansemTrades.data) {
+      const print = normalizeGeckoTrade(row, "solana", ANSEM_POOL);
+      expect(print).not.toBeNull();
+      const attrs = row.attributes;
+      const baseIsTo = attrs.kind === "buy";
+      expect(baseIsTo ? attrs.to_token_address : attrs.from_token_address).toBe(ANSEM);
+      const geckoPrice = Number(baseIsTo ? attrs.price_to_in_usd : attrs.price_from_in_usd);
+      expect(print?.usd).toBeCloseTo(Number(attrs.volume_in_usd), 9);
+      expect((print?.price as number) / geckoPrice).toBeCloseTo(1, 6);
+    }
+  });
+
+  it("orients side and price to the focused token when it is the pool's quote leg, and drops rows that never name it", () => {
+    const SOL = "So11111111111111111111111111111111111111112";
+    for (const row of ansemTrades.data) {
+      const attrs = row.attributes;
+      const asAnsem = normalizeGeckoTrade(row, "solana", ANSEM_POOL, ANSEM) as FlowPrint;
+      const asSol = normalizeGeckoTrade(row, "solana", ANSEM_POOL, SOL) as FlowPrint;
+      expect(asAnsem.side).toBe(attrs.kind);
+      expect(asSol.side).toBe(attrs.kind === "buy" ? "sell" : "buy");
+      const solPrice = Number(attrs.kind === "buy" ? attrs.price_from_in_usd : attrs.price_to_in_usd);
+      expect((asSol.price as number) / solPrice).toBeCloseTo(1, 6);
+      expect(normalizeGeckoTrade(row, "solana", ANSEM_POOL, "OtherMint111111111111111111111111111111111")).toBeNull();
+    }
+    const evm = { attributes: { kind: "buy", volume_in_usd: "10", block_timestamp: "2024-01-01T00:00:00Z", tx_hash: "T", from_token_address: "0xAAAA", to_token_address: "0xBBBB", from_token_amount: "5", to_token_amount: "40" } };
+    expect(normalizeGeckoTrade(evm, "robinhood", "P", "0xaaaa")).toMatchObject({ side: "sell", price: 2 });
+  });
+
+  it("omits price when the base leg amount is missing, zero or unparseable", () => {
+    const base = { kind: "sell", volume_in_usd: "10", block_timestamp: "2024-01-01T00:00:00Z", tx_hash: "T" };
+    expect("price" in (normalizeGeckoTrade({ attributes: base }, "robinhood", "P") ?? {})).toBe(false);
+    expect("price" in (normalizeGeckoTrade({ attributes: { ...base, from_token_amount: "0" } }, "robinhood", "P") ?? {})).toBe(false);
+    expect("price" in (normalizeGeckoTrade({ attributes: { ...base, from_token_amount: "abc" } }, "robinhood", "P") ?? {})).toBe(false);
+    expect(normalizeGeckoTrade({ attributes: { ...base, from_token_amount: "40" } }, "robinhood", "P")?.price).toBe(0.25);
   });
 
   it("drops rows without a tx hash", () => {

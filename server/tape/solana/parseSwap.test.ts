@@ -94,8 +94,19 @@ describe("parseSwapTransaction against measured fixtures", () => {
       if (fixture.geckoUsd !== null) {
         expect(Math.abs((print.usd as number) - fixture.geckoUsd) / fixture.geckoUsd).toBeLessThan(0.15);
       }
+      // price = usd / |pool token-vault delta| of this very tx; every priced fixture sits in the measured ANSEM band.
+      const mintDelta = tokenDeltas(tx).filter((delta) => delta.owner === fixture.pool && delta.mint === fixture.mint).reduce((sum, delta) => sum + delta.delta, 0);
+      expect(print.price).toBeCloseTo((print.usd as number) / Math.abs(mintDelta), 12);
+      expect(print.price as number).toBeGreaterThan(0.26);
+      expect(print.price as number).toBeLessThan(0.271);
     });
   }
+
+  it("pumpswap-2ZxiypZR prices from the measured vault deltas: 2.908797459 SOL for 1141.773729 ANSEM", () => {
+    const fixture = index.find((row) => row.file.startsWith("pumpswap-FnzKY6x7-2ZxiypZR")) as Fixture;
+    const [print] = parseSwapTransaction(loadFixture(fixture.file), { mint: fixture.mint, pools: [poolRef(fixture)], quotePriceUsd }).prints;
+    expect(print.price).toBeCloseTo((2.908797459 * SOL_USD_AT_FIXTURES) / 1141.773729, 9);
+  });
 });
 
 describe("tokenDeltas", () => {
@@ -165,13 +176,15 @@ describe("parseSwapTransaction synthetic cases", () => {
   it("uses ctx.blockTimeMs when the tx carries no blockTime", () => {
     const result = parseSwapTransaction(swapTx({ blockTime: undefined }), { mint: MINT, pools: [pool("poolA")], quotePriceUsd, blockTimeMs: 42_000 });
     expect(result.skipped).toBeNull();
-    expect(result.prints[0]).toMatchObject({ side: "buy", time: 42_000, usd: SOL_USD_AT_FIXTURES, tx: "SyntheticSig111" });
+    // 100 tokens (1e8 raw at 6 decimals) left the vault for 1 SOL: price = SOL/USD / 100.
+    expect(result.prints[0]).toMatchObject({ side: "buy", time: 42_000, usd: SOL_USD_AT_FIXTURES, tx: "SyntheticSig111", price: SOL_USD_AT_FIXTURES / 100 });
   });
 
-  it("prices in null when the quote mint is not priceable", () => {
+  it("prices in null when the quote mint is not priceable, and then carries no price key at all", () => {
     const result = parseSwapTransaction(swapTx(), { mint: MINT, pools: [pool("poolA")], quotePriceUsd: () => null });
     expect(result.prints[0].usd).toBeNull();
     expect(result.prints[0].side).toBe("buy");
+    expect("price" in result.prints[0]).toBe(false);
   });
 
   it("emits one print per Tier A pool when a route touches two pools", () => {
@@ -182,6 +195,8 @@ describe("parseSwapTransaction synthetic cases", () => {
     expect(result.prints.map((print) => print.pair)).toEqual([fixture!.pool, METEORA_4PAN]);
     expect(result.prints.every((print) => print.side === "sell" && print.tx === fixture!.tx)).toBe(true);
     expect(result.prints[1].usd).toBeCloseTo(21.147 * SOL_USD_AT_FIXTURES, 0);
+    // meteora 4pAN leg: ANSEM +8243.1 / WSOL -21.147 (index.json note).
+    expect(result.prints[1].price).toBeCloseTo((21.147 * SOL_USD_AT_FIXTURES) / 8243.1, 4);
     expect(result.unattributed).toBe(0);
   });
 

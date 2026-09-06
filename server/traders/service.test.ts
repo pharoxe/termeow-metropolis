@@ -212,7 +212,7 @@ describe("TraderService.discover", () => {
     expect(await h.service.discover(wallets)).toEqual({ checked: 2, dropped: 0, fomo: 1 });
     expect(h.classifier.calls).toEqual(wallets);
     expect([...h.service.population.values()]).toHaveLength(3);
-    expect(h.service.status()).toMatchObject({ population: 3, populationLabel: FOMO_POPULATION_LABEL, counters: { discoverChecked: 5, discoverDropped: 4 } });
+    expect(h.service.status()).toMatchObject({ population: { classified: 3, seeded: 0 }, populationLabel: FOMO_POPULATION_LABEL, transfers: null, counters: { discoverChecked: 5, discoverDropped: 4 } });
   });
 
   it("answers a wallet the classifier already knows without a lookup", async () => {
@@ -262,10 +262,10 @@ describe("TraderService.discover", () => {
 
 describe("toFomoFill", () => {
   it("maps a book tape row onto the wire shape without inventing a symbol", () => {
-    const fill = toFomoFill({ chain: "robinhood", trader: AVG_JOES, handle: "AvgJoesCrypto", kind: "fomo", token: "0xt", pair: "0xp", tx: "0x1", side: "buy", usd: null, time: NOW }, "uniswap", 1200);
+    const fill = toFomoFill({ chain: "robinhood", trader: AVG_JOES, handle: "AvgJoesCrypto", kind: "fomo", token: "0xt", pair: "0xp", tx: "0x1", side: "buy", usd: null, time: NOW, price: null }, "uniswap", 1200);
     expect(fill).toEqual({ chain: "robinhood", token: "0xt", pair: "0xp", dex: "uniswap", tx: "0x1", time: NOW, side: "buy", usd: null, trader: { address: AVG_JOES, kind: "fomo", handle: "AvgJoesCrypto", followers: 1200 } });
     expect("symbol" in fill).toBe(false);
-    expect(toFomoFill({ chain: "robinhood", trader: AVG_JOES, handle: null, kind: "fomo", token: "0xt", pair: "0xp", tx: "0x1", side: "buy", usd: 1, time: NOW }, "", null, "MEME").symbol).toBe("MEME");
+    expect(toFomoFill({ chain: "robinhood", trader: AVG_JOES, handle: null, kind: "fomo", token: "0xt", pair: "0xp", tx: "0x1", side: "buy", usd: 1, time: NOW, price: null }, "", null, "MEME").symbol).toBe("MEME");
   });
 
   it("keeps a FlowLedger usable as the FOMO ledger seam", () => {

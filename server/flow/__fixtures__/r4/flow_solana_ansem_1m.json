@@ -1,0 +1,2432 @@
+{
+ "capturedAt": "2026-09-06T17:53:22.847Z",
+ "source": "pumpfun+geckoterminal→ledger",
+ "note": "bars truncated to last 30 of 76; pairs[].bars truncated to last 5",
+ "chain": "solana",
+ "address": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+ "interval": "1m",
+ "anchor": "window",
+ "bars": [
+  {
+   "t": 1788715440000,
+   "buyUsd": 3498.849391099999,
+   "sellUsd": 583.7993842726177,
+   "buys": 10,
+   "sells": 2,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 2915.0500068273814,
+   "cvd": 25571.75093754317
+  },
+  {
+   "t": 1788715500000,
+   "buyUsd": 3734.7758404489505,
+   "sellUsd": 856.7927676545468,
+   "buys": 14,
+   "sells": 2,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 2877.9830727944036,
+   "cvd": 28449.73401033757
+  },
+  {
+   "t": 1788715560000,
+   "buyUsd": 1977.673258640806,
+   "sellUsd": 0.6068047370037125,
+   "buys": 2,
+   "sells": 7,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 1977.066453903802,
+   "cvd": 30426.800464241373
+  },
+  {
+   "t": 1788715620000,
+   "buyUsd": 0,
+   "sellUsd": 5.22039208821567,
+   "buys": 0,
+   "sells": 1,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -5.22039208821567,
+   "cvd": 30421.580072153156
+  },
+  {
+   "t": 1788715680000,
+   "buyUsd": 3585.189720255975,
+   "sellUsd": 784.6695991809618,
+   "buys": 4,
+   "sells": 2,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 2800.520121075013,
+   "cvd": 33222.100193228165
+  },
+  {
+   "t": 1788715740000,
+   "buyUsd": 7861.004357544514,
+   "sellUsd": 112.4284481178141,
+   "buys": 6,
+   "sells": 4,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 7748.5759094267005,
+   "cvd": 40970.67610265486
+  },
+  {
+   "t": 1788715800000,
+   "buyUsd": 642.980610843334,
+   "sellUsd": 148.70788612944372,
+   "buys": 3,
+   "sells": 12,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 494.2727247138903,
+   "cvd": 41464.94882736875
+  },
+  {
+   "t": 1788715860000,
+   "buyUsd": 10590.149492024695,
+   "sellUsd": 3843.7635887463543,
+   "buys": 11,
+   "sells": 20,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 6746.38590327834,
+   "cvd": 48211.3347306471
+  },
+  {
+   "t": 1788715920000,
+   "buyUsd": 3.4992472000303168,
+   "sellUsd": 533.9464293423449,
+   "buys": 1,
+   "sells": 2,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -530.4471821423145,
+   "cvd": 47680.88754850478
+  },
+  {
+   "t": 1788715980000,
+   "buyUsd": 199.86382634224165,
+   "sellUsd": 3890.3543291712226,
+   "buys": 4,
+   "sells": 13,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -3690.490502828981,
+   "cvd": 43990.3970456758
+  },
+  {
+   "t": 1788716040000,
+   "buyUsd": 20042.015833554706,
+   "sellUsd": 6282.928650337213,
+   "buys": 18,
+   "sells": 11,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 13759.087183217493,
+   "cvd": 57749.4842288933
+  },
+  {
+   "t": 1788716100000,
+   "buyUsd": 1427.5402267477732,
+   "sellUsd": 3756.5381229492855,
+   "buys": 9,
+   "sells": 18,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -2328.997896201512,
+   "cvd": 55420.486332691784
+  },
+  {
+   "t": 1788716160000,
+   "buyUsd": 11756.336829872153,
+   "sellUsd": 4346.995528730565,
+   "buys": 22,
+   "sells": 12,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 7409.341301141588,
+   "cvd": 62829.827633833374
+  },
+  {
+   "t": 1788716220000,
+   "buyUsd": 3413.3246016562716,
+   "sellUsd": 24979.30938946514,
+   "buys": 15,
+   "sells": 21,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -21565.98478780887,
+   "cvd": 41263.842846024505
+  },
+  {
+   "t": 1788716280000,
+   "buyUsd": 112.3595531358724,
+   "sellUsd": 8595.170974786235,
+   "buys": 4,
+   "sells": 9,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -8482.811421650362,
+   "cvd": 32781.031424374145
+  },
+  {
+   "t": 1788716340000,
+   "buyUsd": 6300.1568298258135,
+   "sellUsd": 11463.795984049995,
+   "buys": 68,
+   "sells": 165,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -5163.639154224182,
+   "cvd": 27617.39227014996
+  },
+  {
+   "t": 1788716400000,
+   "buyUsd": 3130.574714115386,
+   "sellUsd": 25207.583048894485,
+   "buys": 21,
+   "sells": 30,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -22077.0083347791,
+   "cvd": 5540.383935370861
+  },
+  {
+   "t": 1788716460000,
+   "buyUsd": 932.3637049464813,
+   "sellUsd": 5416.078462384432,
+   "buys": 16,
+   "sells": 14,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -4483.7147574379505,
+   "cvd": 1056.6691779329103
+  },
+  {
+   "t": 1788716520000,
+   "buyUsd": 3160.6026312080044,
+   "sellUsd": 3257.2572238706384,
+   "buys": 18,
+   "sells": 8,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -96.65459266263406,
+   "cvd": 960.0145852702763
+  },
+  {
+   "t": 1788716580000,
+   "buyUsd": 601.7540087231632,
+   "sellUsd": 362.314346575797,
+   "buys": 9,
+   "sells": 7,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 239.43966214736622,
+   "cvd": 1199.4542474176424
+  },
+  {
+   "t": 1788716640000,
+   "buyUsd": 5054.899460122902,
+   "sellUsd": 353.6361281861034,
+   "buys": 14,
+   "sells": 10,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 4701.263331936799,
+   "cvd": 5900.717579354441
+  },
+  {
+   "t": 1788716700000,
+   "buyUsd": 222.42189305530184,
+   "sellUsd": 504.9355888629768,
+   "buys": 5,
+   "sells": 16,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -282.51369580767494,
+   "cvd": 5618.2038835467665
+  },
+  {
+   "t": 1788716760000,
+   "buyUsd": 2906.959605621387,
+   "sellUsd": 95.72264979435607,
+   "buys": 15,
+   "sells": 8,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 2811.2369558270307,
+   "cvd": 8429.440839373798
+  },
+  {
+   "t": 1788716820000,
+   "buyUsd": 6351.602284141864,
+   "sellUsd": 578.2298665978844,
+   "buys": 12,
+   "sells": 14,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 5773.37241754398,
+   "cvd": 14202.813256917778
+  },
+  {
+   "t": 1788716880000,
+   "buyUsd": 122.5098162033153,
+   "sellUsd": 3647.132879959757,
+   "buys": 5,
+   "sells": 18,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -3524.6230637564413,
+   "cvd": 10678.190193161336
+  },
+  {
+   "t": 1788716940000,
+   "buyUsd": 27721.83573291665,
+   "sellUsd": 8095.493831427596,
+   "buys": 10,
+   "sells": 17,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": 19626.341901489053,
+   "cvd": 30304.53209465039
+  },
+  {
+   "t": 1788717000000,
+   "buyUsd": 3189.7416448977765,
+   "sellUsd": 5318.1748366400025,
+   "buys": 5,
+   "sells": 29,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -2128.433191742226,
+   "cvd": 28176.09890290816
+  },
+  {
+   "t": 1788717060000,
+   "buyUsd": 2.17903027029519,
+   "sellUsd": 1118.0861167668318,
+   "buys": 1,
+   "sells": 5,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -1115.9070864965365,
+   "cvd": 27060.191816411625
+  },
+  {
+   "t": 1788717120000,
+   "buyUsd": 0,
+   "sellUsd": 5.78116466638,
+   "buys": 0,
+   "sells": 1,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -5.78116466638,
+   "cvd": 27054.410651745246
+  },
+  {
+   "t": 1788717180000,
+   "buyUsd": 0,
+   "sellUsd": 106.12000010612,
+   "buys": 0,
+   "sells": 1,
+   "unpricedBuys": 0,
+   "unpricedSells": 0,
+   "delta": -106.12000010612,
+   "cvd": 26948.290651639127
+  }
+ ],
+ "pairs": [
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 2230860.01,
+   "volume24Usd": 7268508,
+   "share24": 0.34257109441632516,
+   "txns": {
+    "m5": {
+     "buys": 2,
+     "sells": 34
+    },
+    "h1": {
+     "buys": 138,
+     "sells": 205
+    },
+    "h6": {
+     "buys": 3133,
+     "sells": 1851
+    },
+    "h24": {
+     "buys": 6768,
+     "sells": 5013
+    }
+   },
+   "tier": "A",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": [
+    {
+     "t": 1788716760000,
+     "buyUsd": 1075.2574011253896,
+     "sellUsd": 0,
+     "buys": 1,
+     "sells": 0,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 1075.2574011253896,
+     "cvd": 4850.587723275999
+    },
+    {
+     "t": 1788716820000,
+     "buyUsd": 3151.792310290076,
+     "sellUsd": 0,
+     "buys": 3,
+     "sells": 0,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 3151.792310290076,
+     "cvd": 8002.380033566075
+    },
+    {
+     "t": 1788716940000,
+     "buyUsd": 19079.80832968427,
+     "sellUsd": 6295.165027015625,
+     "buys": 2,
+     "sells": 3,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 12784.643302668646,
+     "cvd": 20787.02333623472
+    },
+    {
+     "t": 1788717000000,
+     "buyUsd": 0,
+     "sellUsd": 2889.3719618143086,
+     "buys": 0,
+     "sells": 19,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -2889.3719618143086,
+     "cvd": 17897.651374420413
+    },
+    {
+     "t": 1788717060000,
+     "buyUsd": 0,
+     "sellUsd": 500.24872105933025,
+     "buys": 0,
+     "sells": 2,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -500.24872105933025,
+     "cvd": 17397.40265336108
+    }
+   ]
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 370975.03,
+   "volume24Usd": 6781174.6,
+   "share24": 0.319602648046915,
+   "txns": {
+    "m5": {
+     "buys": 9,
+     "sells": 35
+    },
+    "h1": {
+     "buys": 455,
+     "sells": 644
+    },
+    "h6": {
+     "buys": 7385,
+     "sells": 7212
+    },
+    "h24": {
+     "buys": 15535,
+     "sells": 15976
+    }
+   },
+   "tier": "A",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": [
+    {
+     "t": 1788716820000,
+     "buyUsd": 2678.3595256161148,
+     "sellUsd": 578.2270689555771,
+     "buys": 7,
+     "sells": 13,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 2100.1324566605376,
+     "cvd": -1776.3612094771656
+    },
+    {
+     "t": 1788716880000,
+     "buyUsd": 5.274267587722175,
+     "sellUsd": 436.0475945969448,
+     "buys": 1,
+     "sells": 15,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -430.7733270092226,
+     "cvd": -2207.1345364863882
+    },
+    {
+     "t": 1788716940000,
+     "buyUsd": 4365.851468331688,
+     "sellUsd": 1588.2161356659146,
+     "buys": 3,
+     "sells": 13,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 2777.6353326657736,
+     "cvd": 570.5007961793854
+    },
+    {
+     "t": 1788717000000,
+     "buyUsd": 90.19729478489108,
+     "sellUsd": 21.850980074060352,
+     "buys": 1,
+     "sells": 4,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 68.34631471083074,
+     "cvd": 638.8471108902161
+    },
+    {
+     "t": 1788717060000,
+     "buyUsd": 2.17903027029519,
+     "sellUsd": 499.11611881673144,
+     "buys": 1,
+     "sells": 1,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -496.93708854643626,
+     "cvd": 141.91002234377981
+    }
+   ]
+  },
+  {
+   "chain": "solana",
+   "dex": "pumpfun",
+   "pairAddress": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": null,
+   "liquidityUsd": null,
+   "volume24Usd": 3179716.826623496,
+   "share24": 0.14986281548158378,
+   "txns": {
+    "m5": null,
+    "h1": null,
+    "h6": null,
+    "h24": null
+   },
+   "tier": "A",
+   "sources": [
+    "pumpfun"
+   ],
+   "bars": [
+    {
+     "t": 1788716940000,
+     "buyUsd": 3450.6333222788285,
+     "sellUsd": 212.11266874605633,
+     "buys": 4,
+     "sells": 1,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 3238.520653532772,
+     "cvd": -3324.723746344285
+    },
+    {
+     "t": 1788717000000,
+     "buyUsd": 1477.80126944205,
+     "sellUsd": 0.3139737984698281,
+     "buys": 2,
+     "sells": 2,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 1477.4872956435802,
+     "cvd": -1847.2364507007046
+    },
+    {
+     "t": 1788717060000,
+     "buyUsd": 0,
+     "sellUsd": 118.72127689077,
+     "buys": 0,
+     "sells": 2,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -118.72127689077,
+     "cvd": -1965.9577275914746
+    },
+    {
+     "t": 1788717120000,
+     "buyUsd": 0,
+     "sellUsd": 5.78116466638,
+     "buys": 0,
+     "sells": 1,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -5.78116466638,
+     "cvd": -1971.7388922578546
+    },
+    {
+     "t": 1788717180000,
+     "buyUsd": 0,
+     "sellUsd": 106.12000010612,
+     "buys": 0,
+     "sells": 1,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -106.12000010612,
+     "cvd": -2077.8588923639745
+    }
+   ]
+  },
+  {
+   "chain": "solana",
+   "dex": "pumpswap",
+   "pairAddress": "FnzKY6x7entQ1eR3D225dQyT7ybfka4PskBMQhb8L3CC",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 2950462.49,
+   "volume24Usd": 3174943.92,
+   "share24": 0.14963786424736103,
+   "txns": {
+    "m5": {
+     "buys": 9,
+     "sells": 8
+    },
+    "h1": {
+     "buys": 126,
+     "sells": 133
+    },
+    "h6": {
+     "buys": 1329,
+     "sells": 1007
+    },
+    "h24": {
+     "buys": 5409,
+     "sells": 3221
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "BetLT47eFXDZnjM1cmZhQ4oNJkYaPZYH5yv6atfPfAri",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+   "liquidityUsd": 201539.56,
+   "volume24Usd": 1529207.14,
+   "share24": 0.0720728605566725,
+   "txns": {
+    "m5": {
+     "buys": 5,
+     "sells": 1
+    },
+    "h1": {
+     "buys": 122,
+     "sells": 182
+    },
+    "h6": {
+     "buys": 2240,
+     "sells": 1866
+    },
+    "h24": {
+     "buys": 4681,
+     "sells": 4546
+    }
+   },
+   "tier": "A",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": [
+    {
+     "t": 1788716760000,
+     "buyUsd": 0,
+     "sellUsd": 2.6739025991732044,
+     "buys": 0,
+     "sells": 1,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -2.6739025991732044,
+     "cvd": 680.1166495250603
+    },
+    {
+     "t": 1788716820000,
+     "buyUsd": 504.5583196466202,
+     "sellUsd": 0,
+     "buys": 1,
+     "sells": 0,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 504.5583196466202,
+     "cvd": 1184.6749691716805
+    },
+    {
+     "t": 1788716880000,
+     "buyUsd": 9.915553493933123,
+     "sellUsd": 0,
+     "buys": 1,
+     "sells": 0,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 9.915553493933123,
+     "cvd": 1194.5905226656137
+    },
+    {
+     "t": 1788716940000,
+     "buyUsd": 825.5426126218676,
+     "sellUsd": 0,
+     "buys": 1,
+     "sells": 0,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 825.5426126218676,
+     "cvd": 2020.1331352874813
+    },
+    {
+     "t": 1788717000000,
+     "buyUsd": 1621.7430806708353,
+     "sellUsd": 0.022107,
+     "buys": 2,
+     "sells": 1,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 1621.7209736708353,
+     "cvd": 3641.854108958317
+    }
+   ]
+  },
+  {
+   "chain": "solana",
+   "dex": "raydium-clmm",
+   "pairAddress": "BNEeD53WYjj8qfHEZtbUXyc1eL1cQv5HLb5H6yKgN7eo",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": null,
+   "liquidityUsd": 268507.0839,
+   "volume24Usd": 799321.450605917,
+   "share24": 0.03767271414223024,
+   "txns": {
+    "m5": null,
+    "h1": null,
+    "h6": null,
+    "h24": null
+   },
+   "tier": "A",
+   "sources": [
+    "geckoterminal"
+   ],
+   "bars": [
+    {
+     "t": 1788716460000,
+     "buyUsd": 0,
+     "sellUsd": 2454.0967063097,
+     "buys": 0,
+     "sells": 2,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -2454.0967063097,
+     "cvd": 10281.854890780802
+    },
+    {
+     "t": 1788716760000,
+     "buyUsd": 1452.8933587529193,
+     "sellUsd": 0,
+     "buys": 7,
+     "sells": 0,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 1452.8933587529193,
+     "cvd": 11734.74824953372
+    },
+    {
+     "t": 1788716820000,
+     "buyUsd": 16.89212858905394,
+     "sellUsd": 0,
+     "buys": 1,
+     "sells": 0,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": 16.89212858905394,
+     "cvd": 11751.640378122775
+    },
+    {
+     "t": 1788716880000,
+     "buyUsd": 0,
+     "sellUsd": 1500.041804829682,
+     "buys": 0,
+     "sells": 1,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -1500.041804829682,
+     "cvd": 10251.598573293093
+    },
+    {
+     "t": 1788717000000,
+     "buyUsd": 0,
+     "sellUsd": 2406.615813953164,
+     "buys": 0,
+     "sells": 3,
+     "unpricedBuys": 0,
+     "unpricedSells": 0,
+     "delta": -2406.615813953164,
+     "cvd": 7844.9827593399295
+    }
+   ]
+  },
+  {
+   "chain": "solana",
+   "dex": "raydium-clmm",
+   "pairAddress": "8bf99G5CvcsGXfDPecK8X7XBGVkBXVKoftkSXkLKh3m5",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": null,
+   "liquidityUsd": 77045.0079,
+   "volume24Usd": 370932.071390392,
+   "share24": 0.017482350662656087,
+   "txns": {
+    "m5": null,
+    "h1": null,
+    "h6": null,
+    "h24": null
+   },
+   "tier": "B",
+   "sources": [
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "raydium",
+   "pairAddress": "Grd31MFekko3FG1YDV3hZsMcZ783kiYTvxz2YmKTExzn",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": null,
+   "liquidityUsd": 5998.7952,
+   "volume24Usd": 327265.945598249,
+   "share24": 0.015424328231981817,
+   "txns": {
+    "m5": null,
+    "h1": null,
+    "h6": null,
+    "h24": null
+   },
+   "tier": "B",
+   "sources": [
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "orca",
+   "pairAddress": "CNTPTpytHK9txrsPCvaEnc3PoN9ZVWDDcSnFSZZonMue",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 127748.79,
+   "volume24Usd": 325802.64,
+   "share24": 0.015355361368320433,
+   "txns": {
+    "m5": {
+     "buys": 12,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 125,
+     "sells": 67
+    },
+    "h6": {
+     "buys": 1087,
+     "sells": 1142
+    },
+    "h24": {
+     "buys": 2484,
+     "sells": 2641
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "raydium",
+   "pairAddress": "CWKwP4yKzcYyfz8SiWBFDNBWX8EqPidmfXEkVgqGxpbg",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": null,
+   "liquidityUsd": 5094.8526,
+   "volume24Usd": 216197.097604961,
+   "share24": 0.010189556967697437,
+   "txns": {
+    "m5": null,
+    "h1": null,
+    "h6": null,
+    "h24": null
+   },
+   "tier": "B",
+   "sources": [
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "xx3geLdL3ZPHpTwHYY61G4TFoAvf1rrGvEt6u9CiSbS",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 40146.4,
+   "volume24Usd": 144571.87,
+   "share24": 0.006813797787347099,
+   "txns": {
+    "m5": {
+     "buys": 1,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 4,
+     "sells": 2
+    },
+    "h6": {
+     "buys": 152,
+     "sells": 133
+    },
+    "h24": {
+     "buys": 447,
+     "sells": 416
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "AUvX4hEMi9t43aqovA5tEAA5AZ7yugcpHa8SkJVEoEKa",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 78554.04,
+   "volume24Usd": 122333.9,
+   "share24": 0.005765702948557982,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 25,
+     "sells": 34
+    },
+    "h24": {
+     "buys": 115,
+     "sells": 102
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "orca",
+   "pairAddress": "2oStJEcUckQgX2aGUE3L8w8d5phxcuceDHwTfTGg33SN",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+   "liquidityUsd": 55686.34,
+   "volume24Usd": 71722.81,
+   "share24": 0.0033803583233745016,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 1,
+     "sells": 7
+    },
+    "h6": {
+     "buys": 86,
+     "sells": 140
+    },
+    "h24": {
+     "buys": 486,
+     "sells": 521
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "raydium",
+   "pairAddress": "H76FDoKbidtHPk8D6swx9mksaAGHuUxVN9PZPSKNU7b7",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+   "liquidityUsd": 4348.45,
+   "volume24Usd": 27835.34,
+   "share24": 0.0013119037479563224,
+   "txns": {
+    "m5": {
+     "buys": 10,
+     "sells": 1
+    },
+    "h1": {
+     "buys": 56,
+     "sells": 51
+    },
+    "h6": {
+     "buys": 646,
+     "sells": 614
+    },
+    "h24": {
+     "buys": 1864,
+     "sells": 1538
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "defituna",
+   "pairAddress": "5qEaEfyJ1qU4eUzitvQieGKzA4KeCo12qfEws5V1h7a2",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": null,
+   "liquidityUsd": 13896.4632,
+   "volume24Usd": 22941.0473395275,
+   "share24": 0.0010812314843924862,
+   "txns": {
+    "m5": null,
+    "h1": null,
+    "h6": null,
+    "h24": null
+   },
+   "tier": "B",
+   "sources": [
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "Fqzu1ofNGkyxGK6MXdvKUZLtyKHTWS5eVVFEYUU71mAV",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "3d1qHSAkQhoN7kN1C6tvpAArCkXWxwYdBng6taXCDM6u",
+   "liquidityUsd": 20467.4,
+   "volume24Usd": 6633.33,
+   "share24": 0.00031263460365244726,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 2
+    },
+    "h1": {
+     "buys": 32,
+     "sells": 15
+    },
+    "h6": {
+     "buys": 83,
+     "sells": 149
+    },
+    "h24": {
+     "buys": 373,
+     "sells": 393
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "4caKMZZyR3vxNPrDgCGDa7Dyqbn8dgYo1mtu5MNcYXQ7",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": null,
+   "liquidityUsd": 41156.9695,
+   "volume24Usd": 5728.6839529647,
+   "share24": 0.00026999784981076685,
+   "txns": {
+    "m5": null,
+    "h1": null,
+    "h6": null,
+    "h24": null
+   },
+   "tier": "B",
+   "sources": [
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "orca",
+   "pairAddress": "FXyy7qDb75QxxnsnKpdSD2qaQSSm8CbYT3hEzMt7UBw5",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 5000.79,
+   "volume24Usd": 4826.16,
+   "share24": 0.0002274611121055782,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 1,
+     "sells": 6
+    },
+    "h6": {
+     "buys": 72,
+     "sells": 121
+    },
+    "h24": {
+     "buys": 372,
+     "sells": 369
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "pumpswap",
+   "pairAddress": "6ksB4HbTXRQpoZrQvrnB61xPTHCjztNvWzPGiJWtk5BK",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": null,
+   "liquidityUsd": 11841.5774,
+   "volume24Usd": 4772.9066234961,
+   "share24": 0.00022495123422275746,
+   "txns": {
+    "m5": null,
+    "h1": null,
+    "h6": null,
+    "h24": null
+   },
+   "tier": "B",
+   "sources": [
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "3ntS2ocCV9bnKDYd51EsB4LJhZFGbMSuX5FWBY327uGk",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump",
+   "liquidityUsd": 717.75,
+   "volume24Usd": 2724.41,
+   "share24": 0.00012840380932906456,
+   "txns": {
+    "m5": {
+     "buys": 2,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 11,
+     "sells": 13
+    },
+    "h6": {
+     "buys": 89,
+     "sells": 98
+    },
+    "h24": {
+     "buys": 308,
+     "sells": 292
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "GTww9HEjnHSueewGaSVpakmxz6Rr4RJkjLHfzEGKEfHR",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+   "liquidityUsd": 7159.71,
+   "volume24Usd": 2606.68,
+   "share24": 0.00012285509218578922,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 6,
+     "sells": 24
+    },
+    "h24": {
+     "buys": 56,
+     "sells": 70
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "orca",
+   "pairAddress": "BqZhQ2UeoP6iMua5MLkvKuGDG82ihNBqkyyRj4tdeGhY",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+   "liquidityUsd": 1413.21,
+   "volume24Usd": 2482.86,
+   "share24": 0.00011701934805361941,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 3
+    },
+    "h6": {
+     "buys": 45,
+     "sells": 77
+    },
+    "h24": {
+     "buys": 216,
+     "sells": 185
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "WG4Vb1ASTiQuzznjzTmq54Z6FPv1Ky1eZLq64LcojdX",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+   "liquidityUsd": 76816.86,
+   "volume24Usd": 1898.97,
+   "share24": 0.00008950010527109126,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 1,
+     "sells": 2
+    },
+    "h6": {
+     "buys": 18,
+     "sells": 54
+    },
+    "h24": {
+     "buys": 121,
+     "sells": 129
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener",
+    "geckoterminal"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "raydium",
+   "pairAddress": "74UCGDNEXVH26DWfswmFbVDZA7VG9Dp7yYP2CG4F76DN",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 1013.72,
+   "volume24Usd": 699,
+   "share24": 0.00003294447705044987,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 3,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 54,
+     "sells": 62
+    },
+    "h24": {
+     "buys": 229,
+     "sells": 199
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "HGq6ixfLcFZg3WGe5fANcsBavPuB8wmzyGvpZY9JFxyB",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 1990.88,
+   "volume24Usd": 595.34,
+   "share24": 0.000028058891226344532,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 2
+    },
+    "h6": {
+     "buys": 12,
+     "sells": 22
+    },
+    "h24": {
+     "buys": 59,
+     "sells": 67
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "J4cGfY61ZMaBD2niXcfaUD7KsNZiDnjMnJsPJficos8J",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 9442.23,
+   "volume24Usd": 386.59,
+   "share24": 0.000018220322436242367,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 3,
+     "sells": 2
+    },
+    "h6": {
+     "buys": 93,
+     "sells": 87
+    },
+    "h24": {
+     "buys": 300,
+     "sells": 339
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "372fw5KTHoH22R52STZ5He6UNyHJfVsRRLsaYQop2adN",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 1391.28,
+   "volume24Usd": 380.02,
+   "share24": 0.000017910672630489213,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 2
+    },
+    "h6": {
+     "buys": 7,
+     "sells": 22
+    },
+    "h24": {
+     "buys": 46,
+     "sells": 58
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "B3rn8vg1wxWnNPmXran5sCxY3dXs4Rm7fJAxREpktEvD",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "mGZypHvkdFFhN6vLDFBRXxXKZ6McEwaSHf3t6GfBULL",
+   "liquidityUsd": 1005.34,
+   "volume24Usd": 284.89,
+   "share24": 0.000013427113114309962,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 9,
+     "sells": 4
+    },
+    "h6": {
+     "buys": 33,
+     "sells": 44
+    },
+    "h24": {
+     "buys": 139,
+     "sells": 144
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "EDfJVXxibB78qc4s8dLqYpF6PVPYX4mGKu1uehsfyGQj",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+   "liquidityUsd": 253.68,
+   "volume24Usd": 166.08,
+   "share24": 0.000007827494633102597,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 17,
+     "sells": 28
+    },
+    "h24": {
+     "buys": 71,
+     "sells": 73
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "8xs3ytpGZkhTW8Zty9eV2a2HvLGqE7jJPgdUAe3hojho",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 289.67,
+   "volume24Usd": 149.38,
+   "share24": 0.000007040409129894423,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 1
+    },
+    "h6": {
+     "buys": 7,
+     "sells": 22
+    },
+    "h24": {
+     "buys": 45,
+     "sells": 61
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "B1nPF3yvcVn5md6Juwjgm6mRDEMK8uf38PyedUaDuwNu",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 60.03,
+   "volume24Usd": 138.54,
+   "share24": 0.0000065295105158359445,
+   "txns": {
+    "m5": {
+     "buys": 1,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 3,
+     "sells": 2
+    },
+    "h6": {
+     "buys": 41,
+     "sells": 41
+    },
+    "h24": {
+     "buys": 133,
+     "sells": 150
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "93MqgYX9BuTHix1uM7nhhANwAQks49fRja8JQ7T78KQo",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "HygNWegGFjQqNMCsQmXbFgr3ViybkEN6fQtmvLXVXJmd",
+   "liquidityUsd": 1374.47,
+   "volume24Usd": 136.1,
+   "share24": 0.000006414511196804331,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 5,
+     "sells": 17
+    },
+    "h24": {
+     "buys": 39,
+     "sells": 47
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "CtJ8P6A3fu5gF3i5QrJBNDfZjGUDpADp5CpViKmAGzyt",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "B3hgxnFwveJNzxah9rrx5HnoiSUdz2b8kmggKyYKmoon",
+   "liquidityUsd": 655.46,
+   "volume24Usd": 118.65,
+   "share24": 0.000005592077542254474,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 11,
+     "sells": 19
+    },
+    "h24": {
+     "buys": 82,
+     "sells": 71
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "2CJGg19RMPzDL6FDPnfuhDUkfNdPVwNx5niYjDFXwH3u",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "aqQRs3UJmHs7ktoLo46HZAzvG9P3oCoZ41nENqFbory",
+   "liquidityUsd": 83.97,
+   "volume24Usd": 11.98,
+   "share24": 5.64627804097839e-7,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 6,
+     "sells": 6
+    },
+    "h24": {
+     "buys": 27,
+     "sells": 22
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "EijwG9Q329L4M4QNcCf4LdiNV7u5tXqwKtEefaPf7KCw",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "4UeLCRqARmfb6e6KQijtiktqqXUxbfk6jZng7DhuBAGS",
+   "liquidityUsd": 12.47,
+   "volume24Usd": 7.35,
+   "share24": 3.464118831485072e-7,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 5,
+     "sells": 2
+    },
+    "h6": {
+     "buys": 12,
+     "sells": 22
+    },
+    "h24": {
+     "buys": 53,
+     "sells": 59
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "88Z2PcRpv8JCNpACVmNgsctqDk9jmH68oRmZpVkVQMoS",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "So11111111111111111111111111111111111111112",
+   "liquidityUsd": 81.15,
+   "volume24Usd": 5.75,
+   "share24": 2.710024936195805e-7,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 4
+    },
+    "h24": {
+     "buys": 13,
+     "sells": 15
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "5xivWhJiSXMHRTWKimkCxZiQdwS2QhAbUrtKHQtF2pqJ",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "METvsvVRapdj9cFLzq4Tr43xK4tAjQfwX76z3n6mWQL",
+   "liquidityUsd": 15.48,
+   "volume24Usd": 3.05,
+   "share24": 1.437491487895166e-7,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 7,
+     "sells": 23
+    },
+    "h24": {
+     "buys": 39,
+     "sells": 52
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  },
+  {
+   "chain": "solana",
+   "dex": "meteora",
+   "pairAddress": "7LWw4M9RYiGVydxQQHgMQgNGKVkKPijtkAifDar5xxdD",
+   "baseMint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "quoteMint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+   "liquidityUsd": 10.39,
+   "volume24Usd": 2.39,
+   "share24": 1.1264277560883433e-7,
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 1,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 17,
+     "sells": 13
+    },
+    "h24": {
+     "buys": 52,
+     "sells": 45
+    }
+   },
+   "tier": "B",
+   "sources": [
+    "dexscreener"
+   ],
+   "bars": []
+  }
+ ],
+ "coverage": {
+  "fraction": 0.12287694700494621,
+  "firstPrintAt": 1788711671000,
+  "volumeShare": 0.9217821326437267,
+  "tierAPairs": 5,
+  "totalPairs": 38
+ },
+ "counts": {
+  "m5": {
+   "buys": 51,
+   "sells": 81
+  },
+  "h1": {
+   "buys": 1096,
+   "sells": 1345
+  },
+  "h6": {
+   "buys": 16718,
+   "sells": 14954
+  },
+  "h24": {
+   "buys": 40562,
+   "sells": 36814
+  }
+ },
+ "observedAt": 1788717202673,
+ "error": "geckoterminal: GeckoTerminal backoff active after 429",
+ "windows": [
+  {
+   "label": "1m",
+   "buyUsd": 0,
+   "sellUsd": 111.9011647725,
+   "net": -111.9011647725,
+   "buys": 0,
+   "sells": 2,
+   "unpriced": 0,
+   "aggressor": 0
+  },
+  {
+   "label": "5m",
+   "buyUsd": 31036.266224288032,
+   "sellUsd": 18290.788829566685,
+   "net": 12745.477394721347,
+   "buys": 21,
+   "sells": 71,
+   "unpriced": 0,
+   "aggressor": 0.6291935772448404
+  },
+  {
+   "label": "15m",
+   "buyUsd": 59809.96090918421,
+   "sellUsd": 74125.51310356958,
+   "net": -14315.552194385375,
+   "buys": 203,
+   "sells": 352,
+   "unpriced": 0,
+   "aggressor": 0.4465580261692948
+  },
+  {
+   "label": "1h",
+   "buyUsd": 241296.42105507344,
+   "sellUsd": 201697.66817346166,
+   "net": 39598.752881611785,
+   "buys": 512,
+   "sells": 736,
+   "unpriced": 0,
+   "aggressor": 0.5446944483509613
+  }
+ ],
+ "largePrints": [
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "WD4B647QFFPXDGzxJE8bEYwb4roBLbsZQb8pSEgK96R2GJSZtKhVyR8TLM85XT2pGh4ZMARxscQUKyJZKPyumEC",
+   "time": 1788717036000,
+   "side": "sell",
+   "usd": 2354.622938142524,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "BNEeD53WYjj8qfHEZtbUXyc1eL1cQv5HLb5H6yKgN7eo",
+   "dex": "raydium-clmm",
+   "tx": "WD4B647QFFPXDGzxJE8bEYwb4roBLbsZQb8pSEgK96R2GJSZtKhVyR8TLM85XT2pGh4ZMARxscQUKyJZKPyumEC",
+   "time": 1788717036000,
+   "side": "sell",
+   "usd": 2392.9409854457376,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "4uRKKMVnmesTvjxnrBpccRQr6uEnpDwUEKVtakuSXGkTEjvBAfCamgd9YQejZX39J7wqf6wJCpv1ysPcQckP4cPj",
+   "time": 1788717021000,
+   "side": "buy",
+   "usd": 1477.7164422741,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "BetLT47eFXDZnjM1cmZhQ4oNJkYaPZYH5yv6atfPfAri",
+   "dex": "meteora",
+   "tx": "4uRKKMVnmesTvjxnrBpccRQr6uEnpDwUEKVtakuSXGkTEjvBAfCamgd9YQejZX39J7wqf6wJCpv1ysPcQckP4cPj",
+   "time": 1788717021000,
+   "side": "buy",
+   "usd": 1595.1130806708352,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "24C3QyTi9FfvpX5ieBzoMSu4kC4nWACAtoA68SqQD1gWyKhv6SSprYvCitqExH4hmiF9sWGcnzcK66CiRAaABKsk",
+   "time": 1788716999000,
+   "side": "sell",
+   "usd": 1644.101637744926,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "3MuMUJ8XdBeZWPg2qaPUimYkjqze7FXdJ1QSGxenj9o42QSgiumwcbWjaJ9Znjy1NxDCxba3dJxW9h8ZRbaGNiz8",
+   "time": 1788716999000,
+   "side": "buy",
+   "usd": 18220.73322283837,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "ekNmaB648YWv1o7GYcSUF5rBCeY3VzbMg3QE4py91eAnLgSrMNBUEvBgmkvVaMGLsrQtfLk8vm2Wf5EUaZa37YC",
+   "time": 1788716999000,
+   "side": "sell",
+   "usd": 3823.8565381689223,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "ekNmaB648YWv1o7GYcSUF5rBCeY3VzbMg3QE4py91eAnLgSrMNBUEvBgmkvVaMGLsrQtfLk8vm2Wf5EUaZa37YC",
+   "time": 1788716999000,
+   "side": "buy",
+   "usd": 3810.588116713423,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "24C3QyTi9FfvpX5ieBzoMSu4kC4nWACAtoA68SqQD1gWyKhv6SSprYvCitqExH4hmiF9sWGcnzcK66CiRAaABKsk",
+   "time": 1788716999000,
+   "side": "buy",
+   "usd": 1637.5809315509891,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "BmdiNcYJ9Pku98Jo4kj5oh5ncMorUKwBPXW8ZuHB5bHSFxy2G5EhAWpB1dCY9ph7S2mbTpebfHXnKpp7LpJnRVJ",
+   "time": 1788716986000,
+   "side": "sell",
+   "usd": 1281.339344604942,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "2pzavv5EfEqdM3f7nd9bBNcWZYyX8nUbEJfqTbku3EHd88z8ApuS6NKP2LY2RYse9XZvQBWCGXayDur3vaPY21sN",
+   "time": 1788716971000,
+   "side": "buy",
+   "usd": 1808.0002329258914,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "8xXb9JvJnYVXBgY4ejK7wkiVc2MnhzuRwzJMYjYysCi5X2uHnV7jNS6orqacmaGW2xPBAt8hbsTcBPJjB62cBLm",
+   "time": 1788716910000,
+   "side": "sell",
+   "usd": 1445.53793522116,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "BNEeD53WYjj8qfHEZtbUXyc1eL1cQv5HLb5H6yKgN7eo",
+   "dex": "raydium-clmm",
+   "tx": "8xXb9JvJnYVXBgY4ejK7wkiVc2MnhzuRwzJMYjYysCi5X2uHnV7jNS6orqacmaGW2xPBAt8hbsTcBPJjB62cBLm",
+   "time": 1788716910000,
+   "side": "sell",
+   "usd": 1500.041804829682,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "5sN18F3x753NLwup5z7zUMZjmMRdFhNa7F2bwXbhHSUu2fBK6zGPwDdgHM87TDBPv4jD46SkWkWgtFr6zGGAGCE7",
+   "time": 1788716872000,
+   "side": "buy",
+   "usd": 1805.6406228864407,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "5sN18F3x753NLwup5z7zUMZjmMRdFhNa7F2bwXbhHSUu2fBK6zGPwDdgHM87TDBPv4jD46SkWkWgtFr6zGGAGCE7",
+   "time": 1788716872000,
+   "side": "buy",
+   "usd": 1271.9810285477035,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "4F6wdPybyCQ8rU5LF4fkQW4T8twV5jkEkLtkbJeajEcLogHbSEh7By7FsKWzEy7iqsYEpEyyvunDKq1ZaJf1yFHs",
+   "time": 1788716858000,
+   "side": "buy",
+   "usd": 1346.082845541592,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "4F6wdPybyCQ8rU5LF4fkQW4T8twV5jkEkLtkbJeajEcLogHbSEh7By7FsKWzEy7iqsYEpEyyvunDKq1ZaJf1yFHs",
+   "time": 1788716858000,
+   "side": "buy",
+   "usd": 1379.7349166801318,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "4zSDnzAshiazmhyrkk5MZR8rMkwhwUxSdTntrqe91ZePC468FmrdXJs2jr2v2Tkyn7BvfxhvBQ2htsSQbjncV8Sp",
+   "time": 1788716811000,
+   "side": "buy",
+   "usd": 1075.2574011253896,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "BNEeD53WYjj8qfHEZtbUXyc1eL1cQv5HLb5H6yKgN7eo",
+   "dex": "raydium-clmm",
+   "tx": "4zSDnzAshiazmhyrkk5MZR8rMkwhwUxSdTntrqe91ZePC468FmrdXJs2jr2v2Tkyn7BvfxhvBQ2htsSQbjncV8Sp",
+   "time": 1788716811000,
+   "side": "buy",
+   "usd": 1076.9195418554882,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "4CfxrnaLqmH12UHCbmT7D52nZudviaD4jFvvU9VfThgC8picbJmLMhV9rTMfs4Xem83sTmmCUtF3WrtjYqAhHTrb",
+   "time": 1788716698000,
+   "side": "buy",
+   "usd": 1390.5933651491293,
+   "source": "geckoterminal"
+  }
+ ],
+ "sinceAnchor": {
+  "startMs": 1788711660000,
+  "net": 26948.29065163908,
+  "buyUsd": 254961.9001646505,
+  "sellUsd": 228013.6095130114,
+  "prints": 1309
+ },
+ "tape": [
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "2qKSPujM2KRcHPaop41ad9qk1ikw81oDmHUbroXZkRhpkoEGQHo5uLa4oXTckji7WpEwSt7uAD4ts96y6Bw4M3WX",
+   "time": 1788717186000,
+   "side": "sell",
+   "usd": 106.12000010612,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "3cFp3ny1eDQQmBFPGy7Hks3uahbYTcnVtrSJvJVQMhjWELsqy6WcAkE1K78d6fXbjGmLWSvMvekjm5WRBi3LfyC6",
+   "time": 1788717142000,
+   "side": "sell",
+   "usd": 5.78116466638,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "hSAVmsFw3zeQEKGK2fisArGeefn9QyGzHNRPK9RAatJUvdLSjePMsLezx4pxM4bgdEXNtucsSj6xg5j7uvL4Vrz",
+   "time": 1788717106000,
+   "side": "sell",
+   "usd": 47.48621775398,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "2kGyQijXaqrtaH5BP6pWw113vvJg689W2rBzxqoJeAfCirStbgd9zi3ddrBiwEu3C4AQFwLkaCyrdbEcCgPdfPbD",
+   "time": 1788717101000,
+   "side": "sell",
+   "usd": 71.23505913679,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "5dBVeUQWGgJ7FPVQFHDP7h8HbKB5KkwgTMstrhgbcdgzk5fBNqcUZDdjXTcK8oUx2uLfHxBbCKczjWuyshSQQR9i",
+   "time": 1788717082000,
+   "side": "sell",
+   "usd": 1.3383308213976255,
+   "source": "own"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "4ca9ARuVxRdXEjoPthhjWXwGpF9iJsMXDCfXNTV3QXTmULR8rs1KkRQuZe29wqMcDnGSFuxUHCogECnSnbc5Jci7",
+   "time": 1788717074000,
+   "side": "buy",
+   "usd": 2.17903027029519,
+   "source": "own"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "3amCqVcC2wiyzuhvQDyt1xXf3g1XR6h7hpe6VX1NXsn9ZzQxZk81T9fWoHHnsyJ1guyDm9AMq7FDUKdvrBoPbr8R",
+   "time": 1788717064000,
+   "side": "sell",
+   "usd": 498.91039023793263,
+   "source": "own"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "3amCqVcC2wiyzuhvQDyt1xXf3g1XR6h7hpe6VX1NXsn9ZzQxZk81T9fWoHHnsyJ1guyDm9AMq7FDUKdvrBoPbr8R",
+   "time": 1788717064000,
+   "side": "sell",
+   "usd": 499.11611881673144,
+   "source": "own"
+  },
+  {
+   "pair": "BetLT47eFXDZnjM1cmZhQ4oNJkYaPZYH5yv6atfPfAri",
+   "dex": "meteora",
+   "tx": "1K4oBCZD8HTb92DGgi2vpZpYbKeQmibYbND5VwwfVs3qMrZRFv7Mv27QEbYNE8REdaFYZRMo4RiDjv3HMFaZxR5",
+   "time": 1788717059000,
+   "side": "sell",
+   "usd": 0.022107,
+   "source": "own"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "4uQCJ1T3oZfP7TbZkvGyY7o1rAnUofZP2Qus7BmgabM7Xot1MSEoEzYSwNAhmNVSEHZ9LjtTSfRc9WmX5epiT8fm",
+   "time": 1788717058000,
+   "side": "sell",
+   "usd": 5.410043088703003,
+   "source": "own"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "3J2cvQWditx8gz5J678Nan1ys8KnP8Qyb7JR8Q9N9gBAtWNtvYTHGRCt9Eo1vqK5RQ7YM352YnkWA2QwfPbNwHdY",
+   "time": 1788717051000,
+   "side": "sell",
+   "usd": 8.681658788622205,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "2owoeWRaEiYKvY4wK19tyVbo75Di8688xcrjHsybZrn9PFsaYvoh5v36WEx4cZoGk7b7WL7QFzMpVzrqLv8XQN7",
+   "time": 1788717049000,
+   "side": "buy",
+   "usd": 90.19729478489108,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "4pANrqEvjad4xEghrCbAAJfBm8KyNvYMKk1cuGW8erE4",
+   "dex": "meteora",
+   "tx": "2mxEBrQn2WSibhFMjAFTHu8wLZemjh9fVmU3Bh587A7mLigkxQRFnTF6CkiaHCtV3TXF9fsygvCfLwVCduUkgSyk",
+   "time": 1788717046000,
+   "side": "sell",
+   "usd": 5.85306307706863,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "5dfgfm7wwiapPsNWNnb413i8QEtJwCx55LS3PFDdLhaWkxosxYBczcMF5M5MZ4DPpYLCPnAJ2EH4Suo5F2jRsTeo",
+   "time": 1788717042000,
+   "side": "sell",
+   "usd": 0.3138398493195819,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "Se8mbtmsAL9XFhjY22fhx34QZ7NtwEwXELSHx7uAT4GKD6MZqgcTcTC9Jzfqpo6AxYkNu2VNwvK87tHyqQuXxJg",
+   "time": 1788717038000,
+   "side": "sell",
+   "usd": 11.507880958670844,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "BNEeD53WYjj8qfHEZtbUXyc1eL1cQv5HLb5H6yKgN7eo",
+   "dex": "raydium-clmm",
+   "tx": "Se8mbtmsAL9XFhjY22fhx34QZ7NtwEwXELSHx7uAT4GKD6MZqgcTcTC9Jzfqpo6AxYkNu2VNwvK87tHyqQuXxJg",
+   "time": 1788717038000,
+   "side": "sell",
+   "usd": 11.919526007296007,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "WD4B647QFFPXDGzxJE8bEYwb4roBLbsZQb8pSEgK96R2GJSZtKhVyR8TLM85XT2pGh4ZMARxscQUKyJZKPyumEC",
+   "time": 1788717036000,
+   "side": "sell",
+   "usd": 2354.622938142524,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "BNEeD53WYjj8qfHEZtbUXyc1eL1cQv5HLb5H6yKgN7eo",
+   "dex": "raydium-clmm",
+   "tx": "WD4B647QFFPXDGzxJE8bEYwb4roBLbsZQb8pSEgK96R2GJSZtKhVyR8TLM85XT2pGh4ZMARxscQUKyJZKPyumEC",
+   "time": 1788717036000,
+   "side": "sell",
+   "usd": 2392.9409854457376,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "2fYbPfPpHxYEGjPmmmjtLaqKwjCuUP1hAjG6T9EvdxUdpY5hyv9RafwbarA1Snm3NvuQ8yAuFbtEMTvCQ7yBzzsh",
+   "time": 1788717030000,
+   "side": "sell",
+   "usd": 88.80148821276444,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "4BRjyhWgKiu3tMby2nWcTkgSAzAHkenKyDMbWhdxLZcPqvjnE7mok9TzNuhjSMxuotMeTA6hE29ykJkdoKd2vTv8",
+   "time": 1788717030000,
+   "side": "sell",
+   "usd": 1.7523629664040632,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "BNEeD53WYjj8qfHEZtbUXyc1eL1cQv5HLb5H6yKgN7eo",
+   "dex": "raydium-clmm",
+   "tx": "4BRjyhWgKiu3tMby2nWcTkgSAzAHkenKyDMbWhdxLZcPqvjnE7mok9TzNuhjSMxuotMeTA6hE29ykJkdoKd2vTv8",
+   "time": 1788717030000,
+   "side": "sell",
+   "usd": 1.7553025001301652,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "4QjYJ7GYoTFZtXVtNk5RS6VdzdZjqWLjEN1bAQBicgf1fAyAj3P2qjTZjXCLKiesz2awihRNkZGdSJJcMRarVe4L",
+   "time": 1788717023000,
+   "side": "sell",
+   "usd": 0.1478184659565212,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "4uRKKMVnmesTvjxnrBpccRQr6uEnpDwUEKVtakuSXGkTEjvBAfCamgd9YQejZX39J7wqf6wJCpv1ysPcQckP4cPj",
+   "time": 1788717021000,
+   "side": "buy",
+   "usd": 1477.7164422741,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "BetLT47eFXDZnjM1cmZhQ4oNJkYaPZYH5yv6atfPfAri",
+   "dex": "meteora",
+   "tx": "4uRKKMVnmesTvjxnrBpccRQr6uEnpDwUEKVtakuSXGkTEjvBAfCamgd9YQejZX39J7wqf6wJCpv1ysPcQckP4cPj",
+   "time": 1788717021000,
+   "side": "buy",
+   "usd": 1595.1130806708352,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "BetLT47eFXDZnjM1cmZhQ4oNJkYaPZYH5yv6atfPfAri",
+   "dex": "meteora",
+   "tx": "2cS9LEM6gyrdKYbbF57BXssC8AWHUJSaoBYcUk4y1E5YgrT6uV2mSYcmMQ9LJSEmkZPmrkzDQq5PsVAZFKaWc8S1",
+   "time": 1788717019000,
+   "side": "buy",
+   "usd": 26.63,
+   "source": "own"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "85GJ8a344CEkvTcRQfhcgahSARedTmCevUZ9jny4MDzgSrzWmhCrMDfDrvsR7FicGapiHtJiQQjqbKqWLEhLzmn",
+   "time": 1788717016000,
+   "side": "sell",
+   "usd": 0.7575108942848957,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "cpTszFdyicWcW91yq1EieTD6woyZaEkujdecVjdownqS4fkXnacjMzcTHH5i5pRvMArZbF9dMiNDMz842gpBfPU",
+   "time": 1788717016000,
+   "side": "sell",
+   "usd": 0.15001143690205904,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "pumpfun:9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+   "dex": "pumpfun",
+   "tx": "5fsWu4mfpLm2eXXeqTURowLSZt6dQiAJzWJAwjZcGGUZyfX5PZtKm5gMdKJAc6KyoJNkDZ2XWswoCGxupq7YddrG",
+   "time": 1788717016000,
+   "side": "buy",
+   "usd": 0.08482716795,
+   "source": "pumpfun"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "67hpQkvRA3WsL563d5tMLAZaT9oDCfYSudx9vU8x8HssuiLKtFJjtfvVS8u1gr894RCUKuL53Z3e2HDwJoV4S1sX",
+   "time": 1788717008000,
+   "side": "sell",
+   "usd": 6.0089119649582114,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "2ANRq1QCkZ24XagcJaNPHrgSHFgDQ9zkL8jm9kxqowD7UTgb6XX3EbtKLMVRP8yymUKyfe2cKVHuaqBgnZNpQnx",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 1.055223863624137,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "2N7VWwuS9Y1Vp7C4zHvJgHT8MTLU1DwqPzNXwcosLRYtuLRneMAk2RoLQdAFxcDD9x3gqmqFmK6yJSaJd1zH9isN",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 2.722745858686579,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "2uBnz1UewcRpcLTnUV4K1eauEpC3YQZvM46hCh7oKqDf7VoMd7Cax97KB3vrujP1cRnfRfG6jvVNiyAsmBWnjC7R",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 0.44190736242704937,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "2UZoV4P4NkXbvSGtF4ihu9oYr9VsR8FCqAyzo5j6xf6AsFfMhqFNXFysPzcppKn97RaoZzqDPYzViWLAkPXrXc89",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 88.33842194576953,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "38sh178xAYoVyDSCXbjz6YAwnQL434zDim77DxYN8v9YcUpVquvc39ZAGRsF5YXfeUhAx7bfwjodvzReoBjRAe69",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 268.09002902432405,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "3u9LK6BxNAEZ3aPD9FwVv2rnsbxia19N6GYNLhKP6BLk6yyuobqayuuNMJWVr31CwCAgQuN78JrE9ckHwkRScAXm",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 10.630243447938586,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "UoMBcE1ajf8ZqapKv2Fueak7Kz17At5LezsB2CsPW6Pc8vFQXpDJfZugA6goEe26Q2nrukR3YbDjaqc1BAbKBM3",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 28.712248800323113,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "47G3oNSM9w8vBDwoeVQvGBKdsL9cav5AepR6wYXNKQHwesgqTFuJLNcmAkmhgeyvjvNcGe162MyKJx3mmzM75Xzc",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 0.007582787798813881,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "5C1hK4MmQpEAMZ43Bjipf39BMJ2Dmcn5dmorr4fL29MeUTPnTh8EcHAGkyk1gRfrC1beBQYkFpGz6w4hQue2HJib",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 18.41953644247655,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "en33n4FxkaGGeunNGNnGGaVCtA8wqPqkobsK35iHX96GY3fQxDAQoFsEqBoghhazn1A96ZL6HRKRkxDA7niBttK",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 6.181591500434685,
+   "source": "geckoterminal"
+  },
+  {
+   "pair": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+   "dex": "meteora",
+   "tx": "2os78R5yaTn8koymp6335derG9SYso2sAMBLHDt9oNY1dZMUzoqrSjtH33KYpfPe2i8cCuejCUv1msgoy7Hga75k",
+   "time": 1788717000000,
+   "side": "sell",
+   "usd": 1.0235077380407005,
+   "source": "geckoterminal"
+  }
+ ],
+ "sources": [
+  {
+   "name": "pumpfun",
+   "lastOkAt": 1788717201268,
+   "lastError": null
+  },
+  {
+   "name": "geckoterminal",
+   "lastOkAt": 1788717192245,
+   "lastError": null
+  },
+  {
+   "name": "own",
+   "lastOkAt": 1788717198661,
+   "lastError": "getTransaction: 429 rate limited",
+   "prints": 179
+  }
+ ]
+}
