@@ -11,6 +11,7 @@ import { money, pct, signedMoney } from "../lib/format";
 import { atr, macd, rsi } from "../lib/indicators";
 import { extractSolanaMint, MINT_RE } from "../lib/mint";
 import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
+import type { TokenFlowResponse } from "../../shared/wire";
 import { AuditChips, BothSidesPanel, MarketStrips, ResearchPanel, SocialPanel, ToolHealth, WatchPanel, venueSpreadHint } from "../components/DeskPanels";
 import { ThemeToggle, useTheme } from "../components/ThemeToggle";
 import { FeatureSection } from "../features/WorkspaceFeatures";
@@ -101,6 +102,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
     buyCountRecent: number; sellCountRecent: number; buyUsdRecent: number; sellUsdRecent: number;
     spanMs: number; flow: "buy" | "sell" | "flat"; failed: boolean;
   } | null>(null);
+  const [flowState, setFlowState] = useState<TokenFlowResponse | null>(null);
   const [chartUnit, setChartUnit] = useState<ChartUnit>(readChartUnit);
   const selectChartUnit = (unit: ChartUnit) => {
     setChartUnit(unit);
@@ -229,6 +231,24 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
     const timer = setInterval(load, 15_000);
     return () => { active = false; clearInterval(timer); };
   }, [tradePair]);
+
+  useEffect(() => {
+    if (mode !== "spot" || !MINT_RE.test(mint)) {
+      setFlowState(null);
+      return;
+    }
+    let active = true;
+    const load = () => api.flowToken("solana", mint, interval.toLowerCase())
+      .then((value) => {
+        if (active) setFlowState((previous) => (value.error && previous ? previous : value));
+      })
+      .catch(() => {
+        if (active) setFlowState(null);
+      });
+    load();
+    const timer = setInterval(load, 15_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [mode, mint, interval]);
 
   const perpData = object(perpResult.data);
   const perpMarket = object(perpData.market);
@@ -474,6 +494,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
                 buyCountRecent={liveCvd?.buyCountRecent || 0}
                 sellCountRecent={liveCvd?.sellCountRecent || 0}
                 spanLabel={spanLabel}
+                coverage={flowState?.coverage}
               />
             </>
           ) : mode === "spot" ? (

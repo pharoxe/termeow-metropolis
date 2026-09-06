@@ -1,0 +1,73 @@
+{
+  "trades": [
+    {
+      "slotIndexId": "367001234-0012",
+      "tx": "5KQ1buyTxSig111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "timestamp": "2026-09-06T08:15:42.000Z",
+      "userAddress": "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+      "type": "buy",
+      "program": "pump_amm",
+      "priceUsd": "0.00012345",
+      "priceSol": "0.00000061",
+      "amountUsd": "152.30",
+      "amountSol": "0.75",
+      "baseAmount": "1233700.5",
+      "quoteAmount": "0.75",
+      "fillPriceUsd": "0.00012350",
+      "fillPriceSol": "0.00000061"
+    },
+    {
+      "slotIndexId": "367001230-0007",
+      "tx": "3hSellTxSig22222222222222222222222222222222222222222222222222222222222222222222222222222",
+      "timestamp": "2026-09-06T08:15:39.000Z",
+      "userAddress": "7Y8uZq1zcnYq9VYgXxBB3M7mdxEfK2rVjfsyXqCyN1z",
+      "type": "sell",
+      "program": "pump_amm",
+      "priceUsd": "0.00012300",
+      "priceSol": "0.00000060",
+      "amountUsd": "48.10",
+      "amountSol": "0.24",
+      "baseAmount": "391000.0",
+      "quoteAmount": "0.24",
+      "fillPriceUsd": "0.00012290",
+      "fillPriceSol": "0.00000060"
+    },
+    {
+      "slotIndexId": "367001228-0003",
+      "tx": "2mMigrateTxSig3333333333333333333333333333333333333333333333333333333333333333333333333",
+      "timestamp": "2026-09-06T08:15:36.000Z",
+      "userAddress": "39azUYFWPz3VHgKCf3VChUwbpURdCHRxjWVowf5jUJjg",
+      "type": "migrate",
+      "program": "pump",
+      "priceUsd": "0.00012280",
+      "priceSol": "0.00000060",
+      "amountUsd": "0",
+      "amountSol": "0",
+      "baseAmount": "0",
+      "quoteAmount": "0",
+      "fillPriceUsd": "0.00012280",
+      "fillPriceSol": "0.00000060"
+    },
+    {
+      "slotIndexId": "367001225-0001",
+      "tx": "4nUnpricedBuyTxSig444444444444444444444444444444444444444444444444444444444444444444444",
+      "timestamp": "2026-09-06T08:15:31.000Z",
+      "userAddress": "5FHwkrdxntdK24hgQU8qgAVfNBJYpJ2mVs1AqfvJkMr",
+      "type": "buy",
+      "program": "pump_amm",
+      "priceUsd": "0.00012275",
+      "priceSol": "0.00000060",
+      "amountUsd": "",
+      "amountSol": "0.10",
+      "baseAmount": "166000.0",
+      "quoteAmount": "0.10",
+      "fillPriceUsd": "0.00012275",
+      "fillPriceSol": "0.00000060"
+    }
+  ],
+  "pagination": {
+    "nextCursor": "367001225-1788950131000",
+    "hasMore": true,
+    "limit": 100
+  }
+}

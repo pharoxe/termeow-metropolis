@@ -7,6 +7,7 @@ import { config } from "./config.js";
 import { systemRouter } from "./routes/system.js";
 import { onchainRouter } from "./routes/onchain.js";
 import { perpsRouter } from "./routes/perps.js";
+import { flowRouter } from "./routes/flow.js";
 import { clawpumpMcp } from "./clawpump/mcp.js";
 import { errorMessage, UpstreamError } from "./lib/http.js";
 
@@ -19,6 +20,7 @@ app.use(express.json({ limit: "256kb" }));
 app.use("/api", systemRouter);
 app.use("/api/onchain", onchainRouter);
 app.use("/api/perps", perpsRouter);
+app.use("/api/flow", flowRouter);
 
 if (config.nodeEnv === "production") {
   const dist = path.resolve(process.cwd(), "dist");

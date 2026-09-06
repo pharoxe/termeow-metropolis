@@ -596,6 +596,12 @@ async function loadOnchainMarket(mint: string, interval: string, cacheKey: strin
 const marketCache = new Map<string, { expiresAt: number; value: OnchainMarket }>();
 const trenchesCache = new Map<string, { expiresAt: number; value: Record<string, unknown> }>();
 
+/** Cached 5m market provider blob for a mint without fetching; null when nothing is cached. */
+export function peekMarketProvider(mint: string): Record<string, unknown> | null {
+  const cached = marketCache.get(`${mint}:5m`);
+  return cached ? record(cached.value.provider) : null;
+}
+
 function cachedIntelligenceHolders(mint: string): number | null {
   for (const key of [`${mint}:5m`, `${mint}:1m`, `${mint}:15m`]) {
     const intel = record(record(marketCache.get(key)?.value.provider).intelligence_market);

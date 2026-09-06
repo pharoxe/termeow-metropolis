@@ -1,4 +1,5 @@
 import type { OnchainMarket, PublicConfig } from "../types";
+import type { Chain, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -17,6 +18,8 @@ export const api = {
   market: (mint: string, interval = "5m") => request<OnchainMarket>(`/api/onchain/market/${mint}?interval=${interval}`),
   candles: (pair: string, interval = "5m") => request<{ pair: string; interval: string; source: string; candles: import("../types").Candle[] }>(`/api/onchain/candles/${pair}?interval=${interval}`),
   trades: (pair: string) => request<import("../types").PoolCvd>(`/api/onchain/trades/${pair}`),
+  flowToken: (chain: Chain, address: string, interval: string, anchor: TokenFlowResponse["anchor"] = "window") =>
+    request<TokenFlowResponse>(`/api/flow/token/${chain}/${address}?interval=${encodeURIComponent(interval)}&anchor=${anchor}`),
   search: (q: string) => request<Record<string, unknown>>(`/api/onchain/search?q=${encodeURIComponent(q)}`),
   trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
   board: () => request<Record<string, unknown>>("/api/onchain/board"),

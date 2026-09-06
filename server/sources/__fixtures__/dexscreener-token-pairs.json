@@ -1,0 +1,61 @@
+[
+  {
+    "chainId": "solana",
+    "dexId": "raydium",
+    "pairAddress": "RayPair1111111111111111111111111111111111111",
+    "baseToken": { "address": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", "symbol": "ANSEM" },
+    "quoteToken": { "address": "So11111111111111111111111111111111111111112", "symbol": "SOL" },
+    "priceUsd": "0.0123",
+    "liquidity": { "usd": 500000 },
+    "volume": { "m5": 1000, "h1": 50000, "h6": 900000, "h24": 10000000 },
+    "txns": {
+      "m5": { "buys": 10, "sells": 5 },
+      "h1": { "buys": 100, "sells": 80 },
+      "h6": { "buys": 600, "sells": 500 },
+      "h24": { "buys": 2000, "sells": 1900 }
+    },
+    "pairCreatedAt": 1756600000000
+  },
+  {
+    "chainId": "solana",
+    "dexId": "orca",
+    "pairAddress": "OrcaPair111111111111111111111111111111111111",
+    "baseToken": { "address": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", "symbol": "ANSEM" },
+    "quoteToken": { "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "symbol": "USDC" },
+    "priceUsd": "0.0124",
+    "liquidity": { "usd": 120000 },
+    "volume": { "m5": 200, "h1": 8000, "h6": 300000, "h24": 4000000 },
+    "pairCreatedAt": 1756650000000
+  },
+  {
+    "chainId": "solana",
+    "dexId": "meteora",
+    "pairAddress": "MetPair1111111111111111111111111111111111111",
+    "baseToken": { "address": "So11111111111111111111111111111111111111112", "symbol": "SOL" },
+    "quoteToken": { "address": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", "symbol": "ANSEM" },
+    "priceUsd": "81.2",
+    "liquidity": { "usd": 90000 },
+    "volume": { "m5": 0, "h1": 100, "h6": 5000, "h24": 700000 },
+    "txns": {
+      "m5": { "buys": 1, "sells": 1 },
+      "h1": { "buys": 9, "sells": 9 },
+      "h6": { "buys": 40, "sells": 40 },
+      "h24": { "buys": 300, "sells": 300 }
+    },
+    "pairCreatedAt": 1756700000000
+  },
+  {
+    "chainId": "solana",
+    "dexId": "pumpswap",
+    "pairAddress": "PumpPair111111111111111111111111111111111111",
+    "baseToken": { "address": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", "symbol": "ANSEM" },
+    "quoteToken": { "address": "So11111111111111111111111111111111111111112", "symbol": "SOL" },
+    "priceUsd": "n/a",
+    "volume": { "m5": 5, "h1": 300, "h6": 20000, "h24": "not-a-number" },
+    "txns": {
+      "m5": { "buys": 2, "sells": 3 },
+      "h24": { "buys": 50, "sells": 45 }
+    },
+    "pairCreatedAt": 1756550000000
+  }
+]
