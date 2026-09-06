@@ -13,11 +13,10 @@ export default function App() {
   return (
     <div className="app-shell">
       <Routes>
-        <Route path="/perps" element={<DeskPage config={config} initialMode="perp" />} />
         <Route path="/onchain" element={<DeskPage config={config} />} />
         <Route path="*" element={<Navigate to="/onchain" replace />} />
       </Routes>
-      <footer>RESEARCH SIGNALS ARE INFORMATIVE · VERIFY MINTS AND ROUTES · TRADES REQUIRE EXPLICIT APPROVAL</footer>
+      <footer className="product-footer"><span>© 2026 termeow labs</span><nav aria-label="Legal"><a href="#privacy">Privacy policy</a><a href="#terms">Terms</a></nav></footer>
     </div>
   );
 }

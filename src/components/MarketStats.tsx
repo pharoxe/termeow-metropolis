@@ -12,7 +12,7 @@ export function MarketStats({ market }: { market: OnchainMarket }) {
   ];
   return (
     <div className="stats-grid">
-      {stats.map(([label, value]) => <div key={label}><small>{label}</small><strong className={label === "24H" && Number(market.change24hPct) < 0 ? "negative" : ""}>{value}</strong></div>)}
+      {stats.map(([label, value]) => <div key={label}><small>{label}</small><strong className={[label === "24H" && Number(market.change24hPct) < 0 ? "negative" : "", label === "MCAP" || label === "FDV" ? "mcap-value" : ""].filter(Boolean).join(" ")}>{value}</strong></div>)}
     </div>
   );
 }

@@ -16,6 +16,7 @@ type DexPair = {
   liquidity?: { usd?: number };
   marketCap?: number;
   fdv?: number;
+  info?: { imageUrl?: string };
 };
 
 type RpcEnvelope<T> = { result?: T; error?: { message?: string } };
@@ -476,6 +477,7 @@ function assembleMarket(
     token_search: tools.search ? toolData(tools.search) : {},
     intelligence_market: tools.intelligence ? toolData(tools.intelligence) : {},
     arbitrage: tools.arbitrage ? toolData(tools.arbitrage) : {},
+    token_image_url: pair?.info?.imageUrl || null,
     dex_pairs: pairs.slice(0, 16).map((item) => ({
       dex: item.dexId,
       pair: item.pairAddress,

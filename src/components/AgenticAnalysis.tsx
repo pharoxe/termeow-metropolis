@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import type { Candle, OnchainMarket, PoolCvd } from "../types";
+import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
+import type { Candle, OnchainMarket, PoolCvd, PublicConfig } from "../types";
 import { analyzeToken, type AgentTradeSetup } from "../lib/agenticAnalysis";
-import { magicBlockSessionAdapter } from "../lib/agenticExecution";
+import { api, deepFind } from "../api/client";
 import { money, pct, signedMoney } from "../lib/format";
 import SpecularButton from "./effects/SpecularButton";
+import { useNotifications } from "./NotificationSystem";
+import { hasPrivy } from "../auth/WalletProviders";
+import { useFundingNetwork } from "../features/NetworkContext";
 
 type Props = {
   open: boolean;
@@ -12,14 +15,35 @@ type Props = {
   candles: Candle[];
   cvd: Pick<PoolCvd, "buyUsdRecent" | "sellUsdRecent" | "flow"> | null;
   provider: unknown;
+  config: PublicConfig;
   onClose(): void;
 };
 
-export function AgenticAnalysisPanel({ open, market, candles, cvd, provider, onClose }: Props) {
-  const { connected } = useWallet();
+function decodeBase64(value: string) {
+  const binary = atob(value);
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+function PrivyAgenticAnalysisPanel(props: Props) {
+  const { wallets } = useWallets();
+  const { signAndSendTransaction } = useSignAndSendTransaction();
+  const wallet = wallets[0];
+  return <AnalysisSurface {...props} walletAddress={wallet?.address} send={wallet ? async transaction => {
+    const result = await signAndSendTransaction({ transaction, wallet, chain: "solana:mainnet" });
+    return Array.from(result.signature).map(byte => byte.toString(16).padStart(2, "0")).join("");
+  } : undefined} />;
+}
+
+export function AgenticAnalysisPanel(props: Props) {
+  return hasPrivy ? <PrivyAgenticAnalysisPanel {...props} /> : <AnalysisSurface {...props} />;
+}
+
+function AnalysisSurface({ open, market, candles, cvd, provider, config, onClose, walletAddress, send }: Props & { walletAddress?: string; send?: (transaction: Uint8Array) => Promise<string> }) {
+  const { notify } = useNotifications();
+  const { network } = useFundingNetwork();
   const [selected, setSelected] = useState<AgentTradeSetup | null>(null);
   const [notional, setNotional] = useState("100");
-  const [slippage, setSlippage] = useState("50");
+  const [slippage, setSlippage] = useState("0.5");
   const [reviewed, setReviewed] = useState(false);
   const [executionMessage, setExecutionMessage] = useState("");
   const analysis = useMemo(() => analyzeToken({ market, candles, cvd, provider }), [market, candles, cvd, provider]);
@@ -45,19 +69,21 @@ export function AgenticAnalysisPanel({ open, market, candles, cvd, provider, onC
     setExecutionMessage("");
   };
   const execute = async () => {
-    if (!selected || !connected || !reviewed) return;
-    setExecutionMessage("Preparing session-authorized intent…");
+    if (!selected || !walletAddress || !reviewed || !send || network !== "solana") return;
+    setExecutionMessage("Preparing the Privy wallet transaction…");
     try {
-      const result = await magicBlockSessionAdapter.execute({
-        mint: market.mint,
-        symbol: market.symbol,
-        setup: selected,
-        notionalUsd: Number(notional),
-        maxSlippageBps: Number(slippage)
-      });
-      setExecutionMessage(`Submitted · ${result.signature}`);
+      const input = { inputMint: config.usdcMint, outputMint: market.mint, amount: String(Math.round(Number(notional) * 1_000_000)), slippageBps: Math.round(Number(slippage) * 100), walletAddress };
+      const quote = await api.quote(input);
+      const payload = await api.transaction({ ...input, quoteId: quote.quoteId });
+      const base64 = deepFind(payload, ["transaction", "swapTransaction", "unsignedTransaction", "serializedTransaction"]);
+      if (typeof base64 !== "string") throw new Error("ClawPump did not return a recognizable unsigned transaction");
+      const signature = await send(decodeBase64(base64));
+      setExecutionMessage(`Submitted · ${signature.slice(0, 12)}…`);
+      notify({ title: "AGENT TRADE SUBMITTED", message: `${market.symbol} execution was submitted successfully.`, tone: "success" });
     } catch (reason) {
-      setExecutionMessage(reason instanceof Error ? reason.message : String(reason));
+      const message = reason instanceof Error ? reason.message : String(reason);
+      setExecutionMessage(message);
+      notify({ title: "TRADE NOT SENT", message, tone: "warning" });
     }
   };
 
@@ -100,12 +126,12 @@ export function AgenticAnalysisPanel({ open, market, candles, cvd, provider, onC
         <p>The agent will monitor every listed condition, request the route when they converge, and execute only inside these limits.</p>
         <div className="analysis-order-grid">
           <label>NOTIONAL USDC<input type="number" min="1" step="1" value={notional} onChange={(event) => setNotional(event.target.value)} /></label>
-          <label>MAX SLIPPAGE BPS<input type="number" min="1" max="500" step="1" value={slippage} onChange={(event) => setSlippage(event.target.value)} /></label>
+          <label>MAX SLIPPAGE %<input type="number" min="0.01" max="5" step="0.01" value={slippage} onChange={(event) => setSlippage(event.target.value)} /></label>
         </div>
         <div className="analysis-order-summary"><span>SIDE <b className="up">BUY</b></span><span>ENTRY <b>{money(selected.entryPrice)}</b></span><span>EXIT <b>{selected.exitPrice ? money(selected.exitPrice) : "CONDITION-LED"}</b></span></div>
         <label className="analysis-review"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} /><span>I reviewed the trigger, amount, slippage, and exit logic.</span></label>
-        <div className="session-guard"><b>SESSION KEY REQUIRED</b><span>Automatic signing is not active yet. This preview cannot move funds.</span></div>
-        <SpecularButton className="analysis-execute" tint="#39ff88" tintOpacity={0.16} lineColor="#8affb4" textColor="var(--text)" disabled={!connected || !reviewed || !(Number(notional) > 0)} onClick={() => void execute()}>{connected ? "EXECUTE TRADE" : "CONNECT WALLET TO EXECUTE"}</SpecularButton>
+        <div className="session-guard"><b>PRIVY EMBEDDED WALLET</b><span>Execution requires the Solana wallet and a final user confirmation.</span></div>
+        <SpecularButton className="analysis-execute" tint="#39ff88" tintOpacity={0.16} lineColor="#8affb4" textColor="var(--text)" disabled={network !== "solana" || !walletAddress || !reviewed || !(Number(notional) > 0)} onClick={() => void execute()}>{network !== "solana" ? "SWITCH TO SOLANA" : walletAddress ? "EXECUTE TRADE" : "LOG IN TO EXECUTE"}</SpecularButton>
         {executionMessage && <p className="analysis-execution-message" role="status">{executionMessage}</p>}
       </section>}
 

@@ -1,13 +1,15 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { FeatureSection } from "../features/WorkspaceFeatures";
 import type { OnchainMarket, PoolTrade } from "../types";
-import { money, pct, shortAddress } from "../lib/format";
+import { money, pct } from "../lib/format";
 import { mcapScale, rowMarketCap, rowTokenPrice } from "../lib/mcap";
 import { coverageChipLabel } from "../lib/flowSeries";
 import type { FlowCoverage } from "../../shared/wire";
+import { useNotifications } from "./NotificationSystem";
 
 type Row = Record<string, unknown>;
-type WatchTab = "TRENCHES" | "KOL" | "MOVERS" | "WHALES" | "HOLDERS" | "PERPS";
+type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW";
 type TrenchSort = "hot" | "new" | "mcap" | "volume";
 
 function record(value: unknown): Row {
@@ -62,12 +64,6 @@ function flowTone(value: string) {
   return "";
 }
 
-function tokenAmt(value: unknown) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return "—";
-  return number.toLocaleString(undefined, { maximumFractionDigits: number >= 1 ? 2 : 4 });
-}
-
 export function AuditChips({ market }: { market: OnchainMarket }) {
   const provider = record(market.provider);
   const token = rows(provider.token_search, ["tokens"])[0] || {};
@@ -91,47 +87,45 @@ export function AuditChips({ market }: { market: OnchainMarket }) {
 export function MarketStrips({ market, onPick }: { market: OnchainMarket; onPick?: (mint: string, symbol?: string) => void }) {
   const provider = record(market.provider);
   const movers = rows(provider.top_movers, ["signals", "movers"]).slice(0, 8);
+  const headlineCap = mcapScale(market).mcap;
   return (
     <div className="ticker-tape">
       <div className="ticker-inner">
-        <span><b>{market.symbol}</b> {money(mcapScale(market).mcap ?? market.priceUsd, true)} <i className={changeClass(market.change24hPct)}>{pct(market.change24hPct)}</i></span>
-        {movers.map((item) => <span key={String(item.contract || item.symbol)} role="button" onClick={() => { const mint = String(item.contract || ""); if (mint) onPick?.(mint, clean(item.symbol)); }}><b>{clean(item.symbol)}</b> {rowMarketCap(item) != null ? compact(rowMarketCap(item)) : money(Number(item.price_usd))} <i className={changeClass(asChangePct(item.change_24h))}>{pct(asChangePct(item.change_24h))}</i></span>)}
+        <span><b>{market.symbol}</b> <strong className={headlineCap != null ? "mcap-value" : undefined}>{money(headlineCap ?? market.priceUsd, true)}</strong> <i className={changeClass(market.change24hPct)}>{pct(market.change24hPct)}</i></span>
+        {movers.map((item) => {
+          const cap = rowMarketCap(item);
+          return <span key={String(item.contract || item.symbol)} role="button" onClick={() => { const mint = String(item.contract || ""); if (mint) onPick?.(mint, clean(item.symbol)); }}><b>{clean(item.symbol)}</b> <strong className={cap != null ? "mcap-value" : undefined}>{cap != null ? compact(cap) : money(Number(item.price_usd))}</strong> <i className={changeClass(asChangePct(item.change_24h))}>{pct(asChangePct(item.change_24h))}</i></span>;
+        })}
       </div>
     </div>
   );
 }
 
 export function WatchPanel({
-  market, perps = [], mode = "spot", selected, onSpot, onPerp,
-  trenches = [], trenchSort = "hot", onTrenchSort, holders, search
+  market, selected, onSpot, trenches = [], onTrenchSort, search
 }: {
   market?: OnchainMarket | null;
-  perps?: Row[];
-  mode?: "spot" | "perp";
   selected?: string;
   onSpot?: (mint: string, symbol?: string) => void;
-  onPerp?: (symbol: string) => void;
   trenches?: Row[];
-  trenchSort?: TrenchSort;
   onTrenchSort?: (sort: TrenchSort) => void;
-  holders?: Row;
   search?: ReactNode;
 }) {
-  const [tab, setTab] = useState<WatchTab>(mode === "perp" ? "PERPS" : "TRENCHES");
-  useEffect(() => { setTab(mode === "perp" ? "PERPS" : "TRENCHES"); }, [mode]);
+  const [tab, setTab] = useState<WatchTab>("TRENDING");
   const provider = record(market?.provider);
-  const holderRows = rows(holders, ["holders"]);
   const gems = rows(provider.anomalies, ["gems", "signals"]);
-  const focusedInGems = gems.some((item) => String(item.contract) === selected);
-  const top1 = Number(holders?.top1Pct);
-  const top10 = Number(holders?.top10Pct);
-  const sourceRows = tab === "TRENCHES" ? trenches
-    : tab === "KOL" ? rows(provider.intelligence_signals, ["signals"])
-    : tab === "MOVERS" ? rows(provider.top_movers, ["signals", "movers"])
-    : tab === "WHALES" ? gems
-    : tab === "HOLDERS" ? holderRows
-    : tab === "PERPS" ? perps
-    : [];
+  const smartHolderRows = [...rows(provider.intelligence_signals, ["signals"]), ...gems].filter((item, index, all) => {
+    const key = String(item.contract || item.mint || item.mintAddress || item.symbol || index);
+    return all.findIndex((candidate, candidateIndex) => String(candidate.contract || candidate.mint || candidate.mintAddress || candidate.symbol || candidateIndex) === key) === index;
+  });
+  const sourceRows = tab === "TRENDING" || tab === "NEW" ? trenches
+    : tab === "BIGGEST MOVERS" ? rows(provider.top_movers, ["signals", "movers"])
+    : smartHolderRows;
+  const selectTab = (next: WatchTab) => {
+    setTab(next);
+    if (next === "TRENDING") onTrenchSort?.("hot");
+    if (next === "NEW") onTrenchSort?.("new");
+  };
   const pickSpot = (item: Row) => {
     const mint = String(item.contract || item.mint || item.mintAddress || item.token_address || item.address || "");
     if (mint) onSpot?.(mint, clean(item.symbol || item.name));
@@ -140,86 +134,101 @@ export function WatchPanel({
     <section className="panel watch-panel">
       {search}
       <div className="ph">
-        <div className="tabs">{(["TRENCHES", "KOL", "MOVERS", "WHALES", "HOLDERS", "PERPS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
-        <span className="pm">CLICK TO LOAD</span>
+        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
       </div>
-      {tab === "TRENCHES" && (
-        <div className="tabs trench-sorts">{(["hot", "new", "mcap", "volume"] as TrenchSort[]).map((item) => <button key={item} className={trenchSort === item ? "on" : ""} onClick={() => onTrenchSort?.(item)}>{item.toUpperCase()}</button>)}</div>
-      )}
-      {tab === "HOLDERS" && (
-        <div className="conc-row">
-          <span>TOP1 <b>{Number.isFinite(top1) ? `${top1.toFixed(1)}%` : "—"}</b></span>
-          <span>TOP10 <b>{Number.isFinite(top10) ? `${top10.toFixed(1)}%` : "—"}</b></span>
-          <span>COUNT <b>{holders?.holderCount != null ? Number(holders.holderCount).toLocaleString() : "—"}</b></span>
-          {holders?.error ? <span className="amber">{clean(holders.error)}</span> : null}
-        </div>
-      )}
-      {tab === "WHALES" && (
-        <div className="conc-row">
-          <span>{focusedInGems ? <b className="amber">FOCUSED MINT IN GEM TAPE</b> : "FOCUSED MINT NOT IN CURRENT GEM TAPE"}</span>
-          {Number.isFinite(top10) && top10 > 0 && <span>HOLD TOP10 <b>{top10.toFixed(1)}%</b></span>}
-        </div>
-      )}
       <div className="panel-scroll">
-        {tab === "PERPS" ? (
-          <table className="terminal-table"><thead><tr><th>MARKET</th><th className="r">MAX LEV</th></tr></thead><tbody>{sourceRows.slice(0, 76).map((item) => <tr className={String(item.perpSymbol) === selected ? "selected" : ""} key={String(item.perpSymbol)} onClick={() => onPerp?.(String(item.perpSymbol))}><td><b>{clean(item.perpSymbol)}</b><small>{clean(item.displayName || item.category)}</small></td><td className="r">{String(item.maxLeverage || "—")}×</td></tr>)}</tbody></table>
-        ) : tab === "TRENCHES" ? (
+        {tab === "TRENDING" || tab === "NEW" ? (
           <table className="terminal-table"><thead><tr><th>TOKEN / SOCIAL</th><th className="r">MCAP / VOL</th></tr></thead><tbody>{sourceRows.slice(0, 48).map((item) => {
             const mint = String(item.mintAddress || "");
             return <tr className={mint && mint === selected ? "selected" : ""} key={mint || String(item.symbol)} onClick={() => pickSpot(item)}>
               <td><b>{clean(item.symbol)}</b><small>{item.isGraduated ? "GRAD" : "BOND"}{item.xVerified ? " · X✓" : ""} {clean(item.agentXUsername || item.xVerifiedHandle || "")}</small></td>
-              <td className="r">{compact(item.marketCap)}<small>{compact(item.volume24h)}</small></td>
+              <td className="r"><b className="mcap-value">{compact(item.marketCap)}</b><small>{compact(item.volume24h)}</small></td>
             </tr>;
           })}</tbody></table>
-        ) : tab === "HOLDERS" ? (
-          <table className="terminal-table holders-table"><thead><tr><th>ACCOUNT</th><th className="r">AMOUNT</th><th className="r">PCT</th></tr></thead><tbody>{holderRows.map((item, index) => <tr className="static" key={String(item.address || index)}>
-            <td><b>{shortAddress(String(item.address || ""))}</b><small>{clean(item.address)}</small></td>
-            <td className="r">{tokenAmt(item.uiAmount)}</td>
-            <td className="r">{item.pct == null ? "—" : `${Number(item.pct).toFixed(2)}%`}</td>
-          </tr>)}</tbody></table>
         ) : (
-          <table className="terminal-table"><thead><tr><th>SYMBOL / SIGNAL</th><th className="r">MCAP</th><th className="r">24H</th></tr></thead><tbody>{sourceRows.slice(0, 24).map((item, index) => {
+          <table className="terminal-table signal-table"><thead><tr><th>SYMBOL / SIGNAL</th><th className="r">MCAP</th><th className="r">24H</th></tr></thead><tbody>{sourceRows.slice(0, 24).map((item, index) => {
             const mint = String(item.contract || item.mint || item.mintAddress || "");
             const change = asChangePct(item.change_24h);
             const cap = rowMarketCap(item);
             const px = rowTokenPrice(item);
-            return <tr className={mint && mint === selected ? "selected" : ""} key={String(item.contract || item.symbol || index)} onClick={() => pickSpot(item)}><td><b>{clean(item.symbol || item.name)}</b><small>{clean(item.signal || item.name)}{item.chain && String(item.chain) !== "sol" ? ` · ${String(item.chain).toUpperCase()}` : ""}</small></td><td className="r">{cap != null ? compact(cap) : "—"}{px != null ? <small>{money(px)}</small> : null}</td><td className={`r ${change == null ? "" : changeClass(change)}`}>{change == null ? "—" : pct(change)}</td></tr>;
+            return <tr className={mint && mint === selected ? "selected" : ""} key={String(item.contract || item.symbol || index)} onClick={() => pickSpot(item)}><td><b>{clean(item.symbol || item.name)}</b><small>{clean(item.signal || item.name)}{item.chain && String(item.chain) !== "sol" ? ` · ${String(item.chain).toUpperCase()}` : ""}</small></td><td className="r"><b className="mcap-value">{cap != null ? compact(cap) : "—"}</b>{px != null ? <small>{money(px)}</small> : null}</td><td className={`r ${change == null ? "" : changeClass(change)}`}>{change == null ? "—" : pct(change)}</td></tr>;
           })}</tbody></table>
         )}
-        {!sourceRows.length && <p className="empty-copy">{tab === "HOLDERS" && holders?.error ? clean(holders.error) : "No rows returned by this feed."}</p>}
+        {!sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
       </div>
     </section>
   );
 }
 
-export function SocialPanel({ market, trench, flow }: {
+export function SocialPanel({ market, trench, flow, onPick }: {
   market: OnchainMarket;
   trench?: Row | null;
   flow?: { bias: string; buyCount: number; sellCount: number; spanLabel: string };
+  onPick?: (mint: string, symbol?: string) => void;
 }) {
+  const { notify } = useNotifications();
   const provider = record(market.provider);
   const intelligence = record(provider.intelligence_market);
-  const indicators = record(provider.get_indicators);
   const signals = rows(provider.intelligence_signals, ["signals"]);
-  const matching = signals.filter((item) => String(item.contract) === market.mint);
-  const tags = Array.isArray(intelligence.narrative_tags) ? intelligence.narrative_tags.map((tag) => String(tag)) : [];
   const twitter = trench ? String(trench.twitter || "") : "";
   const telegram = trench ? String(trench.telegram || "") : "";
   const handle = trench ? clean(trench.xVerifiedHandle || trench.agentXUsername || "") : "";
-  const sent = String(indicators.sentiment || "").trim();
-  const sentLabel = sent ? sent.toUpperCase() : "—";
+  const movers = rows(provider.top_movers, ["signals", "movers"]);
+  const anomalies = rows(provider.anomalies, ["gems", "signals"]);
+  const incomingBubbles = useMemo(() => {
+    const bubbleRows: Array<{ id: string; tag: "THESIS" | "TOP TRADER BUY" | "TOP TRADER SELL" | "VOLUME SPIKE"; symbol: string; mint: string; message: string; tone: string; xUrl?: string; xHandle?: string }> = [];
+    const narrative = clean(intelligence.narratives || `${market.symbol} is being tracked across price, flow, liquidity, and social intelligence.`);
+    const thesisHandle = market.symbol.toUpperCase() === "ANSEM" ? "@blknoiz" : handle && handle !== "—" ? `@${handle.replace(/^@/, "")}` : undefined;
+    const thesisUrl = market.symbol.toUpperCase() === "ANSEM" ? "https://x.com/blknoiz" : twitter && twitter !== "null" ? twitter : undefined;
+    bubbleRows.push({ id: `thesis-${market.mint}`, tag: "THESIS", symbol: market.symbol, mint: market.mint, message: narrative, tone: "thesis", xUrl: thesisUrl, xHandle: thesisHandle });
+    const signalSource = signals.length ? signals : anomalies;
+    signalSource.slice(0, 3).forEach((item, index) => {
+      const message = clean(item.signal || item.summary || item.reason || item.name);
+      const isSell = /sell|bear|exit|distribution/i.test(message);
+      const symbol = clean(item.symbol || market.symbol);
+      const mint = String(item.contract || item.mint || item.mintAddress || market.mint);
+      const rawHandle = clean(item.author_handle || item.handle || item.username || item.x_handle || "");
+      const xUrl = String(item.tweet_url || item.twitter_url || item.x_url || "") || undefined;
+      bubbleRows.push({ id: `trader-${mint}-${index}`, tag: isSell ? "TOP TRADER SELL" : "TOP TRADER BUY", symbol, mint, message, tone: isSell ? "sell" : "buy", xUrl, xHandle: rawHandle !== "—" ? `@${rawHandle.replace(/^@/, "")}` : undefined });
+    });
+    movers.slice(0, 3).forEach((item, index) => {
+      const symbol = clean(item.symbol || item.name || market.symbol);
+      const mint = String(item.contract || item.mint || item.mintAddress || market.mint);
+      const volume = Number(item.volume_24h || item.volume24h || item.volume_usd);
+      const change = asChangePct(item.change_24h);
+      bubbleRows.push({ id: `volume-${mint}-${index}`, tag: "VOLUME SPIKE", symbol, mint, message: `${symbol} activity accelerated${Number.isFinite(volume) ? ` to ${money(volume, true)} volume` : " across the live tape"}${change == null ? "." : ` with ${pct(change)} momentum.`}`, tone: "volume" });
+    });
+    if (!signalSource.length) bubbleRows.push({ id: `trader-placeholder-${market.mint}`, tag: flow?.bias === "sell" ? "TOP TRADER SELL" : "TOP TRADER BUY", symbol: market.symbol, mint: market.mint, message: `${market.symbol} smart-flow watch is ${flow?.bias || "neutral"}; waiting for the next confirmed wallet cluster.`, tone: flow?.bias === "sell" ? "sell" : "buy" });
+    if (!movers.length) bubbleRows.push({ id: `volume-placeholder-${market.mint}`, tag: "VOLUME SPIKE", symbol: market.symbol, mint: market.mint, message: `${market.symbol} volume monitor is live and will update when the backend detects acceleration.`, tone: "volume" });
+    return bubbleRows.slice(0, 8);
+  }, [anomalies, flow?.bias, handle, intelligence.narratives, market.mint, market.symbol, movers, signals, twitter]);
+  const bubbleSignature = incomingBubbles.map((bubble) => bubble.id).join("|");
+  const [bubbles, setBubbles] = useState(incomingBubbles);
+  useEffect(() => {
+    setBubbles((current) => [...incomingBubbles, ...current.filter((old) => !incomingBubbles.some((fresh) => fresh.id === old.id))].slice(0, 8));
+  }, [bubbleSignature]);
   return (
     <section className="panel radar-panel social-panel">
-      <div className="ph"><span className="pt">SOCIAL</span><span className="pm">NARRATIVE · KOL · LINKS</span></div>
-      <div className="sentiment-strip">
-        <span>REGIME <b className={flowTone(sentLabel)}>{sentLabel}</b></span>
-        {flow ? <span>TAPE SENT <b className={flowTone(flow.bias)}>{flow.bias.toUpperCase()}</b> {flow.spanLabel} B{flow.buyCount}/S{flow.sellCount}</span> : null}
-        <span className={matching.length ? "up" : ""}>{matching.length ? "KOL HIT" : "NO KOL HIT"}</span>
-      </div>
       <div className="panel-scroll">
-        <article className="narrative"><b>NARRATIVE</b><p>{clean(intelligence.narratives || "No narrative returned.")}</p><small>{tags.length ? tags.join(" · ") : "SOLANA"}</small></article>
-        {matching.map((item, index) => <article className="news-row" key={String(item.contract || index)}><b>KOL · {clean(item.symbol)}</b><p>{clean(item.signal)}</p></article>)}
-        {!matching.length && <p className="empty-copy">No KOL hit on this mint in the current tape.</p>}
+        <div className="social-bubble-flow">
+          <AnimatePresence initial={false} mode="popLayout">
+            {bubbles.map((bubble, index) => <motion.article
+              layout
+              key={bubble.id}
+              className={`social-bubble ${bubble.tone}`}
+              initial={{ opacity: 0, scale: 0.65, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.75, y: -14 }}
+              transition={{ type: "spring", stiffness: 430, damping: 24, delay: index * 0.025 }}
+            >
+              <div className="social-bubble-top"><span>{bubble.tag}</span>{bubble.xUrl && bubble.xHandle ? <a href={bubble.xUrl} target="_blank" rel="noreferrer" aria-label={`Open ${bubble.xHandle} on X`} onClick={(event) => event.stopPropagation()}><svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true"><path d="M0 0h3v2h1v2h2V2h1V0h3L7 5l5 7H9L6 7.5 3 12H0l4.5-7z" /></svg>{bubble.xHandle}</a> : null}</div>
+              <button type="button" className="social-bubble-chart" onClick={() => {
+                  onPick?.(bubble.mint, bubble.symbol);
+                  notify({ title: `${bubble.tag} · ${bubble.symbol}`, message: "Chart and trading context are loading for this signal.", tone: bubble.tone === "sell" ? "warning" : "info" });
+                }}><b>${bubble.symbol}</b><p>{bubble.message}</p><em>OPEN CHART →</em></button>
+            </motion.article>)}
+          </AnimatePresence>
+        </div>
         {trench && (
           <div className="social-links">
             {trench.xVerified ? <span className="chip good">X VERIFIED {handle !== "—" ? handle : ""}</span> : null}
@@ -273,12 +282,12 @@ export function BothSidesPanel({
   const tapeBuys = buyCountRecent ?? buyCount;
   const tapeSells = sellCountRecent ?? sellCount;
   return (
-    <section className="panel sides-panel flow-panel">
+    <section className="panel sides-panel flow-panel research-panel">
       <div className="ph"><span className="pt">FLOW</span><span className="sd-sym">{market.symbol}</span><span className="pm">TAPE · POOLS · SENT</span></div>
       {coverage ? <p className="pm"><span className="chip">{coverageChipLabel(coverage)}</span></p> : null}
       <div className="flow-columns">
         <FeatureSection id="flow" className="tape-col">
-          <h3>TAPE</h3>
+          <h3>TYPE</h3>
           {tape.length
             ? tape.map((trade) => (
               <p className={`tape-row ${trade.kind === "buy" ? "up" : "dn"}`} key={trade.txHash || `${trade.time}-${trade.kind}`}>
@@ -313,7 +322,6 @@ export function BothSidesPanel({
         {" · "}SENT <b className={flowTone(tapeSent)}>{tapeSent}</b>
         {" · "}REGIME <b className={flowTone(regimeLabel)}>{regimeLabel}</b>
       </p>
-      <p className="method-note">Tape is Gecko pool prints (last ~300), not a full-day reconstruction. Pool liquidity is cancellable/movable and should not be treated as guaranteed execution depth.</p>
     </section>
   );
 }
@@ -325,13 +333,22 @@ export function ResearchPanel({ market }: { market: OnchainMarket }) {
   const news = rows(provider.news, ["articles", "news", "items"]);
   const newsError = newsPayload.error ? clean(newsPayload.error) : "";
   return (
-    <section className="panel research-panel">
-      <div className="ph"><span className="pt">NEWS · RESEARCH</span><span className="pm">MATERIAL · SOURCED</span></div>
+    <section className="panel project-info-panel">
+      <div className="ph"><span className="pt">PROJECT INFORMATION</span><span className="pm">CLAWPUMP · SOURCED</span></div>
       <div className="panel-scroll">
+        <div className="project-facts">
+          <div><small>PROJECT</small><strong>{market.name}</strong></div>
+          <div><small>TICKER</small><strong>${market.symbol}</strong></div>
+          <div><small>MARKET CAP</small><strong className="mcap-value">{money(market.marketCapUsd ?? market.fdvUsd, true)}</strong></div>
+          <div><small>LIQUIDITY</small><strong>{money(market.liquidityUsd, true)}</strong></div>
+          <div><small>24H VOLUME</small><strong>{money(market.volume24hUsd, true)}</strong></div>
+          <div><small>PRIMARY VENUE</small><strong>{market.dex || market.source}</strong></div>
+        </div>
+        <p className="project-contract" title={market.mint}><span>CONTRACT</span><b>{market.mint}</b></p>
         {news.slice(0, 8).map((item, index) => <article className="news-row" key={String(item.id || item.url || index)}><b>{clean(item.title || item.headline)}</b><p>{clean(item.summary || item.description)}</p></article>)}
         {!news.length && (
           <>
-            <article className="narrative"><b>CLAWPUMP NARRATIVE</b><p>{clean(intelligence.narratives || "No narrative returned.")}</p><small>{Array.isArray(intelligence.narrative_tags) ? intelligence.narrative_tags.join(" · ") : "SOLANA"}</small></article>
+            <article className="narrative"><b>CLAWPUMP NARRATIVE</b><p className="project-description">{clean(intelligence.narratives || "No narrative returned.")}</p><small>{Array.isArray(intelligence.narrative_tags) ? intelligence.narrative_tags.join(" · ") : "SOLANA"}</small></article>
             <p className="empty-copy">News feed unconfigured{newsError ? ` · ${newsError}` : ""}.</p>
           </>
         )}
@@ -347,23 +364,5 @@ export function ToolHealth({ market }: { market: OnchainMarket }) {
     if (extra in provider) tools.push(extra);
   }
   return <div className="tool-health">{tools.map((name) => <span key={name} className={record(provider[name]).error ? "bad" : "good"}>{name.replace("intelligence_", "intel/").replace("get_", "")}</span>)}</div>;
-}
-
-export function venueSpreadHint(pairPrice: unknown, intelPrice: unknown, impliedRate: unknown, arbUsd: unknown) {
-  const price = Number(pairPrice);
-  const intel = Number(intelPrice);
-  if (!Number.isFinite(price) || !Number.isFinite(intel) || intel === 0) return "";
-  const vsIntel = ((price - intel) / intel) * 10_000;
-  const implied = Number(impliedRate);
-  const output = Number(arbUsd);
-  const arbRef = Number.isFinite(output) && output > 0
-    ? output
-    : Number.isFinite(implied) && implied > 0
-      ? (Math.abs(implied - intel) / intel < 0.5 ? implied : 1 / implied)
-      : null;
-  const vsArb = arbRef && arbRef > 0 ? ((price - arbRef) / arbRef) * 10_000 : null;
-  const bps = Math.abs(vsIntel) >= 1 ? vsIntel : (vsArb ?? 0);
-  if (!Number.isFinite(bps) || Math.abs(bps) < 1) return "";
-  return `${bps >= 0 ? "+" : ""}${bps.toFixed(0)}bp`;
 }
 
