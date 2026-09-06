@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { clawpumpMcp } from "./mcp.js";
-import { fetchJson, errorMessage, UpstreamError } from "../lib/http.js";
+import { fetchJson, errorMessage } from "../lib/http.js";
+import { isGeckoBlocked, noteGeckoError } from "../sources/gecko.js";
 import { mockAnsemMarket } from "../mock/market.js";
 import type { Candle, OnchainMarket, ToolResult } from "../types.js";
 import { computeCvd, type PoolTrade } from "./cvd.js";
@@ -94,7 +95,7 @@ async function geckoOhlcv(resourcePath: string, interval = "5m"): Promise<Candle
   return [...byTime.values()].sort((a, b) => a.time - b.time);
 }
 
-export async function geckoCandles(pairAddress?: string, interval = "5m"): Promise<Candle[]> {
+async function geckoCandles(pairAddress?: string, interval = "5m"): Promise<Candle[]> {
   if (!pairAddress) return [];
   return geckoOhlcv(`pools/${pairAddress}`, interval);
 }
@@ -120,22 +121,6 @@ async function geckoTokenPoolPairs(mint: string): Promise<DexPair[]> {
     });
   }
   return pools;
-}
-
-let geckoBlockedUntil = 0;
-
-function isGeckoBlocked() {
-  return Date.now() < geckoBlockedUntil;
-}
-
-function noteGeckoError(error: unknown) {
-  if (error instanceof UpstreamError && error.status === 429) {
-    geckoBlockedUntil = Date.now() + 20_000;
-  }
-}
-
-export function resetGeckoBackoff() {
-  geckoBlockedUntil = 0;
 }
 
 type PumpFunBar = {

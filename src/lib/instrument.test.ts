@@ -1,0 +1,110 @@
+import { describe, expect, it } from "vitest";
+import type { MarketResponse, TapePrint } from "../../shared/wire";
+import type { PoolTrade } from "../types";
+import {
+  brandSuffix, instrumentLabel, isEmptyMarket, isValidInstrument, legacyMarket, sameInstrument, tapeRows, tradeLinks
+} from "./instrument";
+
+const ANSEM = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
+const FATCOIN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
+
+function market(overrides: Partial<MarketResponse> = {}): MarketResponse {
+  return {
+    instrument: { chain: "robinhood", address: FATCOIN, symbol: "FAT", name: "Fatcoin", image: null, socials: [], websites: [] },
+    priceUsd: 0.5,
+    marketCapUsd: 1000,
+    fdvUsd: null,
+    liquidityUsd: 200,
+    volume24Usd: 50,
+    change24Pct: -3,
+    primaryPair: { dex: "uniswap", pairAddress: "0xpair", quoteSymbol: "WETH" },
+    candles: [{ time: 1, open: 1, high: 1, low: 1, close: 1, volume: 1 }],
+    interval: "5m",
+    observedAt: 10,
+    source: "dexscreener + geckoterminal",
+    degraded: false,
+    notes: [],
+    ...overrides
+  };
+}
+
+describe("instrument labels", () => {
+  it("names the chain on the slab and the brand", () => {
+    expect(instrumentLabel("solana")).toBe("SOLANA SPOT");
+    expect(instrumentLabel("robinhood")).toBe("ROBINHOOD SPOT");
+    expect(brandSuffix("solana")).toBe("sol");
+    expect(brandSuffix("robinhood")).toBe("rhc");
+  });
+});
+
+describe("isValidInstrument / sameInstrument", () => {
+  it("validates per chain", () => {
+    expect(isValidInstrument({ chain: "solana", address: ANSEM })).toBe(true);
+    expect(isValidInstrument({ chain: "solana", address: FATCOIN })).toBe(false);
+    expect(isValidInstrument({ chain: "robinhood", address: FATCOIN })).toBe(true);
+    expect(isValidInstrument({ chain: "robinhood", address: ANSEM })).toBe(false);
+  });
+  it("compares Robinhood addresses case-insensitively and Solana exactly", () => {
+    expect(sameInstrument({ chain: "robinhood", address: FATCOIN }, { chain: "robinhood", address: FATCOIN.toUpperCase().replace("0X", "0x") })).toBe(true);
+    expect(sameInstrument({ chain: "solana", address: ANSEM }, { chain: "solana", address: ANSEM.toLowerCase() })).toBe(false);
+    expect(sameInstrument({ chain: "solana", address: ANSEM }, { chain: "robinhood", address: ANSEM })).toBe(false);
+  });
+});
+
+describe("tradeLinks", () => {
+  it("builds the Uniswap deep link and the DexScreener pair URL", () => {
+    expect(tradeLinks(FATCOIN, "0xpair")).toEqual({
+      uniswap: `https://app.uniswap.org/swap?chain=robinhood&outputCurrency=${FATCOIN}`,
+      dexscreener: "https://dexscreener.com/robinhood/0xpair"
+    });
+  });
+  it("falls back to the token page when no primary pair is known", () => {
+    expect(tradeLinks(FATCOIN, null).dexscreener).toBe(`https://dexscreener.com/robinhood/${FATCOIN}`);
+  });
+});
+
+describe("legacyMarket", () => {
+  it("maps the neutral shape back onto the ClawPump panel shape without inventing values", () => {
+    const legacy = legacyMarket(market({ provider: { a: 1 } }));
+    expect(legacy.mint).toBe(FATCOIN);
+    expect(legacy.symbol).toBe("FAT");
+    expect(legacy.change24hPct).toBe(-3);
+    expect(legacy.volume24hUsd).toBe(50);
+    expect(legacy.pairAddress).toBe("0xpair");
+    expect(legacy.dex).toBe("uniswap");
+    expect(legacy.provider).toEqual({ a: 1 });
+    expect(legacy.fdvUsd).toBeNull();
+    expect(legacy.signals).toEqual([]);
+  });
+  it("keeps pair and dex null when there is no primary pair", () => {
+    const legacy = legacyMarket(market({ primaryPair: null, provider: undefined }));
+    expect(legacy.pairAddress).toBeNull();
+    expect(legacy.dex).toBeNull();
+    expect(legacy.provider).toBeUndefined();
+  });
+});
+
+describe("isEmptyMarket", () => {
+  it("is true only for the error envelope with no price and no candles", () => {
+    expect(isEmptyMarket(market({ error: "boom", candles: [], priceUsd: null }))).toBe(true);
+    expect(isEmptyMarket(market({ error: "stale", stale: true }))).toBe(false);
+    expect(isEmptyMarket(market({ candles: [], priceUsd: null }))).toBe(false);
+  });
+});
+
+describe("tapeRows", () => {
+  const print: TapePrint = { pair: "p", dex: "uniswap", tx: "t1", time: 5, side: "sell", usd: null, source: "own" };
+  const trade: PoolTrade = { time: 3, kind: "buy", volumeUsd: 12, txHash: "h1" };
+  it("prefers the ledger tape and keeps unpriced prints null", () => {
+    expect(tapeRows([print], [trade])).toEqual([{ key: "p:t1", side: "sell", usd: null, time: 5 }]);
+  });
+  it("falls back to legacy trades newest first when the tape is empty or absent", () => {
+    const older: PoolTrade = { time: 1, kind: "sell", volumeUsd: 4, txHash: "h0" };
+    expect(tapeRows([], [older, trade]).map((row) => row.key)).toEqual(["h1", "h0"]);
+    expect(tapeRows(undefined, [trade])[0]).toEqual({ key: "h1", side: "buy", usd: 12, time: 3 });
+  });
+  it("caps at the limit", () => {
+    const many = Array.from({ length: 20 }, (_, index) => ({ ...print, tx: `t${index}`, time: index }));
+    expect(tapeRows(many, [], 14)).toHaveLength(14);
+  });
+});

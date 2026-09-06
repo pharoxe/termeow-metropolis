@@ -1,11 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { NATIVE_DECIMALS, NATIVE_ETH, POOL_MANAGER } from "./pools.js";
 import {
   decodeSwapLog,
   logKey,
-  NATIVE_ETH,
-  NATIVE_ETH_DECIMALS,
-  POOL_MANAGER,
   SWAP_TOPICS,
   toSignedBigInt,
   type EvmLog,
@@ -53,7 +51,7 @@ function quoteUsdFromDexScreener(pool: string): number {
 }
 
 function decimalsOf(fixture: Fixture): { tokenDecimals: number; quoteDecimals: number } {
-  if (fixture.poolFile === null) return { tokenDecimals: 18, quoteDecimals: NATIVE_ETH_DECIMALS };
+  if (fixture.poolFile === null) return { tokenDecimals: 18, quoteDecimals: NATIVE_DECIMALS };
   const { decoded } = loadJson<PoolFile>(fixture.poolFile);
   const tokenIs0 = decoded.token0.toLowerCase() === fixture.token.toLowerCase();
   return {

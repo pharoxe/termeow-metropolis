@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { FeatureSection } from "../features/WorkspaceFeatures";
-import type { OnchainMarket, PoolTrade } from "../types";
+import type { OnchainMarket } from "../types";
 import { money, pct } from "../lib/format";
 import { mcapScale, rowMarketCap, rowTokenPrice } from "../lib/mcap";
 import { coverageChipLabel } from "../lib/flowSeries";
-import type { FlowCoverage, TokenFlowResponse } from "../../shared/wire";
+import type { FlowCoverage, MarketResponse, TokenFlowResponse } from "../../shared/wire";
+import type { TapeRow } from "../lib/instrument";
 import { FlowSideOutputs } from "./FlowSideOutputs";
-import { LighterMarketsTable } from "./LighterPanel";
 import { useNotifications } from "./NotificationSystem";
 
 type Row = Record<string, unknown>;
-type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW" | "LIGHTER";
+type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW";
 type TrenchSort = "hot" | "new" | "mcap" | "volume";
 
 function record(value: unknown): Row {
@@ -104,13 +104,11 @@ export function MarketStrips({ market, onPick }: { market: OnchainMarket; onPick
 }
 
 export function WatchPanel({
-  market, selected, onSpot, trenches = [], onTrenchSort, search, onLighter, lighterSelected = null
+  market, selected, onSpot, trenches = [], onTrenchSort, search
 }: {
   market?: OnchainMarket | null;
   selected?: string;
   onSpot?: (mint: string, symbol?: string) => void;
-  onLighter?: (marketId: number, symbol: string) => void;
-  lighterSelected?: number | null;
   trenches?: Row[];
   onTrenchSort?: (sort: TrenchSort) => void;
   search?: ReactNode;
@@ -138,13 +136,10 @@ export function WatchPanel({
     <section className="panel watch-panel">
       {search}
       <div className="ph">
-        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW", "LIGHTER"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
-        {tab === "LIGHTER" && <span className="pm">LIGHTER · PERPS · ROBINHOOD WALLET</span>}
+        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
       </div>
       <div className="panel-scroll">
-        {tab === "LIGHTER" ? (
-          <LighterMarketsTable selected={lighterSelected} onPick={onLighter} />
-        ) : tab === "TRENDING" || tab === "NEW" ? (
+        {tab === "TRENDING" || tab === "NEW" ? (
           <table className="terminal-table"><thead><tr><th>TOKEN / SOCIAL</th><th className="r">MCAP / VOL</th></tr></thead><tbody>{sourceRows.slice(0, 48).map((item) => {
             const mint = String(item.mintAddress || "");
             return <tr className={mint && mint === selected ? "selected" : ""} key={mint || String(item.symbol)} onClick={() => pickSpot(item)}>
@@ -161,16 +156,15 @@ export function WatchPanel({
             return <tr className={mint && mint === selected ? "selected" : ""} key={String(item.contract || item.symbol || index)} onClick={() => pickSpot(item)}><td><b>{clean(item.symbol || item.name)}</b><small>{clean(item.signal || item.name)}{item.chain && String(item.chain) !== "sol" ? ` · ${String(item.chain).toUpperCase()}` : ""}</small></td><td className="r"><b className="mcap-value">{cap != null ? compact(cap) : "—"}</b>{px != null ? <small>{money(px)}</small> : null}</td><td className={`r ${change == null ? "" : changeClass(change)}`}>{change == null ? "—" : pct(change)}</td></tr>;
           })}</tbody></table>
         )}
-        {tab !== "LIGHTER" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
+        {!sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
       </div>
     </section>
   );
 }
 
-export function SocialPanel({ market, trench, flow, onPick }: {
+export function SocialPanel({ market, trench, onPick }: {
   market: OnchainMarket;
   trench?: Row | null;
-  flow?: { bias: string; buyCount: number; sellCount: number; spanLabel: string };
   onPick?: (mint: string, symbol?: string) => void;
 }) {
   const { notify } = useNotifications();
@@ -184,10 +178,12 @@ export function SocialPanel({ market, trench, flow, onPick }: {
   const anomalies = rows(provider.anomalies, ["gems", "signals"]);
   const incomingBubbles = useMemo(() => {
     const bubbleRows: Array<{ id: string; tag: "THESIS" | "TOP TRADER BUY" | "TOP TRADER SELL" | "VOLUME SPIKE"; symbol: string; mint: string; message: string; tone: string; xUrl?: string; xHandle?: string }> = [];
-    const narrative = clean(intelligence.narratives || `${market.symbol} is being tracked across price, flow, liquidity, and social intelligence.`);
-    const thesisHandle = market.symbol.toUpperCase() === "ANSEM" ? "@blknoiz" : handle && handle !== "—" ? `@${handle.replace(/^@/, "")}` : undefined;
-    const thesisUrl = market.symbol.toUpperCase() === "ANSEM" ? "https://x.com/blknoiz" : twitter && twitter !== "null" ? twitter : undefined;
-    bubbleRows.push({ id: `thesis-${market.mint}`, tag: "THESIS", symbol: market.symbol, mint: market.mint, message: narrative, tone: "thesis", xUrl: thesisUrl, xHandle: thesisHandle });
+    const narrative = intelligence.narratives ? clean(intelligence.narratives) : "";
+    if (narrative && narrative !== "—") {
+      const thesisHandle = handle && handle !== "—" ? `@${handle.replace(/^@/, "")}` : undefined;
+      const thesisUrl = twitter && twitter !== "null" ? twitter : undefined;
+      bubbleRows.push({ id: `thesis-${market.mint}`, tag: "THESIS", symbol: market.symbol, mint: market.mint, message: narrative, tone: "thesis", xUrl: thesisUrl, xHandle: thesisHandle });
+    }
     const signalSource = signals.length ? signals : anomalies;
     signalSource.slice(0, 3).forEach((item, index) => {
       const message = clean(item.signal || item.summary || item.reason || item.name);
@@ -205,10 +201,8 @@ export function SocialPanel({ market, trench, flow, onPick }: {
       const change = asChangePct(item.change_24h);
       bubbleRows.push({ id: `volume-${mint}-${index}`, tag: "VOLUME SPIKE", symbol, mint, message: `${symbol} activity accelerated${Number.isFinite(volume) ? ` to ${money(volume, true)} volume` : " across the live tape"}${change == null ? "." : ` with ${pct(change)} momentum.`}`, tone: "volume" });
     });
-    if (!signalSource.length) bubbleRows.push({ id: `trader-placeholder-${market.mint}`, tag: flow?.bias === "sell" ? "TOP TRADER SELL" : "TOP TRADER BUY", symbol: market.symbol, mint: market.mint, message: `${market.symbol} smart-flow watch is ${flow?.bias || "neutral"}; waiting for the next confirmed wallet cluster.`, tone: flow?.bias === "sell" ? "sell" : "buy" });
-    if (!movers.length) bubbleRows.push({ id: `volume-placeholder-${market.mint}`, tag: "VOLUME SPIKE", symbol: market.symbol, mint: market.mint, message: `${market.symbol} volume monitor is live and will update when the backend detects acceleration.`, tone: "volume" });
     return bubbleRows.slice(0, 8);
-  }, [anomalies, flow?.bias, handle, intelligence.narratives, market.mint, market.symbol, movers, signals, twitter]);
+  }, [anomalies, handle, intelligence.narratives, market.mint, market.symbol, movers, signals, twitter]);
   const bubbleSignature = incomingBubbles.map((bubble) => bubble.id).join("|");
   const [bubbles, setBubbles] = useState(incomingBubbles);
   useEffect(() => {
@@ -217,6 +211,7 @@ export function SocialPanel({ market, trench, flow, onPick }: {
   return (
     <section className="panel radar-panel social-panel">
       <div className="panel-scroll">
+        {!bubbles.length && <p className="empty-copy">No ClawPump signals, narrative, or movers returned for {market.symbol}.</p>}
         <div className="social-bubble-flow">
           <AnimatePresence initial={false} mode="popLayout">
             {bubbles.map((bubble, index) => <motion.article
@@ -249,14 +244,10 @@ export function SocialPanel({ market, trench, flow, onPick }: {
   );
 }
 
-export function SignalRadar({ market, trench }: { market: OnchainMarket; trench?: Row | null }) {
-  return <SocialPanel market={market} trench={trench} />;
-}
-
 export function BothSidesPanel({
   market,
-  trades = [],
-  flow = "flat",
+  tape = [],
+  flow,
   buyCount = 0,
   sellCount = 0,
   buyCountRecent,
@@ -265,7 +256,8 @@ export function BothSidesPanel({
   tokenFlow
 }: {
   market: OnchainMarket;
-  trades?: PoolTrade[];
+  tape?: TapeRow[];
+  /** Legacy Solana tape bias; undefined when no legacy tape is live, rendered as an em-dash. */
   flow?: string;
   buyCount?: number;
   sellCount?: number;
@@ -279,7 +271,6 @@ export function BothSidesPanel({
   const intelligence = record(provider.intelligence_market);
   const indicators = record(provider.get_indicators);
   const pools = rows(intelligence, ["top_pools"]).slice().sort((a, b) => (Number(b.liquidity_usd) || 0) - (Number(a.liquidity_usd) || 0));
-  const tape = [...trades].sort((a, b) => b.time - a.time || b.txHash.localeCompare(a.txHash)).slice(0, 14);
   const liqs = pools.map((pool) => Number(pool.liquidity_usd) || 0);
   const maxLiq = Math.max(0, ...liqs);
   const totalLiq = liqs.reduce((sum, value) => sum + value, 0)
@@ -287,7 +278,7 @@ export function BothSidesPanel({
     || 0;
   const sentRaw = String(indicators.sentiment || "").trim();
   const regimeLabel = sentRaw ? sentRaw.toUpperCase() : "—";
-  const tapeSent = String(flow || "flat").toUpperCase();
+  const flowLabel = flow ? flow.toUpperCase() : "—";
   const tapeBuys = buyCountRecent ?? buyCount;
   const tapeSells = sellCountRecent ?? sellCount;
   return (
@@ -299,11 +290,11 @@ export function BothSidesPanel({
         <FeatureSection id="flow" className="tape-col">
           <h3>TYPE</h3>
           {tape.length
-            ? tape.map((trade) => (
-              <p className={`tape-row ${trade.kind === "buy" ? "up" : "dn"}`} key={trade.txHash || `${trade.time}-${trade.kind}`}>
-                <span>{trade.kind === "buy" ? "BUY" : "SELL"}</span>
-                <b>{money(trade.volumeUsd, true)}</b>
-                <em>{printAge(trade.time)}</em>
+            ? tape.map((row) => (
+              <p className={`tape-row ${row.side === "buy" ? "up" : "dn"}`} key={row.key}>
+                <span>{row.side === "buy" ? "BUY" : "SELL"}</span>
+                <b>{money(row.usd, true)}</b>
+                <em>{printAge(row.time)}</em>
               </p>
             ))
             : <p className="empty-copy">No pool prints in this window.</p>}
@@ -326,53 +317,47 @@ export function BothSidesPanel({
         </FeatureSection>
       </div>
       <p className="flow-footer">
-        FLOW <b className={flowTone(flow)}>{String(flow || "flat").toUpperCase()}</b>
+        FLOW <b className={flowTone(flowLabel)}>{flowLabel}</b>
         {" · "}TAPE B{tapeBuys}/S{tapeSells}
         {" · "}LIQ {compact(totalLiq)}
-        {" · "}SENT <b className={flowTone(tapeSent)}>{tapeSent}</b>
+        {" · "}SENT <b className={flowTone(flowLabel)}>{flowLabel}</b>
         {" · "}REGIME <b className={flowTone(regimeLabel)}>{regimeLabel}</b>
       </p>
     </section>
   );
 }
 
-export function ResearchPanel({ market }: { market: OnchainMarket }) {
+/** Project facts for either chain. ClawPump narrative and news are Solana-only; Robinhood shows only what DexScreener returned. */
+export function ResearchPanel({ market }: { market: MarketResponse }) {
+  const solana = market.instrument.chain === "solana";
   const provider = record(market.provider);
   const intelligence = record(provider.intelligence_market);
   const newsPayload = record(provider.news);
-  const news = rows(provider.news, ["articles", "news", "items"]);
+  const news = solana ? rows(provider.news, ["articles", "news", "items"]) : [];
   const newsError = newsPayload.error ? clean(newsPayload.error) : "";
   return (
     <section className="panel project-info-panel">
-      <div className="ph"><span className="pt">PROJECT INFORMATION</span><span className="pm">CLAWPUMP · SOURCED</span></div>
+      <div className="ph"><span className="pt">PROJECT INFORMATION</span><span className="pm">{solana ? "CLAWPUMP · SOURCED" : "DEXSCREENER"}</span></div>
       <div className="panel-scroll">
         <div className="project-facts">
-          <div><small>PROJECT</small><strong>{market.name}</strong></div>
-          <div><small>TICKER</small><strong>${market.symbol}</strong></div>
+          <div><small>PROJECT</small><strong>{market.instrument.name}</strong></div>
+          <div><small>TICKER</small><strong>${market.instrument.symbol}</strong></div>
           <div><small>MARKET CAP</small><strong className="mcap-value">{money(market.marketCapUsd ?? market.fdvUsd, true)}</strong></div>
           <div><small>LIQUIDITY</small><strong>{money(market.liquidityUsd, true)}</strong></div>
-          <div><small>24H VOLUME</small><strong>{money(market.volume24hUsd, true)}</strong></div>
-          <div><small>PRIMARY VENUE</small><strong>{market.dex || market.source}</strong></div>
+          <div><small>24H VOLUME</small><strong>{money(market.volume24Usd, true)}</strong></div>
+          <div><small>PRIMARY VENUE</small><strong>{market.primaryPair?.dex || market.source}</strong></div>
         </div>
-        <p className="project-contract" title={market.mint}><span>CONTRACT</span><b>{market.mint}</b></p>
+        <p className="project-contract" title={market.instrument.address}><span>CONTRACT</span><b>{market.instrument.address}</b></p>
         {news.slice(0, 8).map((item, index) => <article className="news-row" key={String(item.id || item.url || index)}><b>{clean(item.title || item.headline)}</b><p>{clean(item.summary || item.description)}</p></article>)}
-        {!news.length && (
+        {solana && !news.length && (
           <>
             <article className="narrative"><b>CLAWPUMP NARRATIVE</b><p className="project-description">{clean(intelligence.narratives || "No narrative returned.")}</p><small>{Array.isArray(intelligence.narrative_tags) ? intelligence.narrative_tags.join(" · ") : "SOLANA"}</small></article>
             <p className="empty-copy">News feed unconfigured{newsError ? ` · ${newsError}` : ""}.</p>
           </>
         )}
+        {!solana && <p className="empty-copy">Narrative, news, and holder intel are Solana-only (ClawPump). Nothing is inferred for Robinhood.</p>}
       </div>
     </section>
   );
-}
-
-export function ToolHealth({ market }: { market: OnchainMarket }) {
-  const provider = record(market.provider);
-  const tools = ["token_search", "get_indicators", "intelligence_market", "intelligence_signals", "top_movers", "anomalies", "macro", "arbitrage"];
-  for (const extra of ["trenches", "holders"]) {
-    if (extra in provider) tools.push(extra);
-  }
-  return <div className="tool-health">{tools.map((name) => <span key={name} className={record(provider[name]).error ? "bad" : "good"}>{name.replace("intelligence_", "intel/").replace("get_", "")}</span>)}</div>;
 }
 

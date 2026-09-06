@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { rankCandlePairs, resetGeckoBackoff, resolveGeckoCandles } from "./market";
+import { resetGeckoBackoff } from "../sources/gecko";
+import { rankCandlePairs, resolveGeckoCandles } from "./market";
 
 const mint = "So11111111111111111111111111111111111111112";
 

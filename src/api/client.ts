@@ -1,5 +1,5 @@
-import type { OnchainMarket, PublicConfig } from "../types";
-import type { Chain, LighterBook, LighterFlowResponse, LighterMarketsResponse, LighterTradesResponse, TokenFlowResponse } from "../../shared/wire";
+import type { PublicConfig } from "../types";
+import type { Chain, MarketResponse, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -15,15 +15,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   config: () => request<PublicConfig>("/api/config"),
-  market: (mint: string, interval = "5m") => request<OnchainMarket>(`/api/onchain/market/${mint}?interval=${interval}`),
-  candles: (pair: string, interval = "5m") => request<{ pair: string; interval: string; source: string; candles: import("../types").Candle[] }>(`/api/onchain/candles/${pair}?interval=${interval}`),
+  market: (chain: Chain, address: string, interval = "5m") => request<MarketResponse>(`/api/market/${chain}/${address}?interval=${encodeURIComponent(interval)}`),
   trades: (pair: string) => request<import("../types").PoolCvd>(`/api/onchain/trades/${pair}`),
   flowToken: (chain: Chain, address: string, interval: string, anchor: TokenFlowResponse["anchor"] = "window") =>
     request<TokenFlowResponse>(`/api/flow/token/${chain}/${address}?interval=${encodeURIComponent(interval)}&anchor=${anchor}`),
-  lighterMarkets: () => request<LighterMarketsResponse>("/api/lighter/markets"),
-  lighterBook: (marketId: number, depth: number) => request<LighterBook>(`/api/lighter/${marketId}/book?depth=${depth}`),
-  lighterTrades: (marketId: number, limit: number) => request<LighterTradesResponse>(`/api/lighter/${marketId}/trades?limit=${limit}`),
-  lighterFlow: (marketId: number, interval: string) => request<LighterFlowResponse>(`/api/lighter/${marketId}/flow?interval=${encodeURIComponent(interval)}`),
   search: (q: string) => request<Record<string, unknown>>(`/api/onchain/search?q=${encodeURIComponent(q)}`),
   trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
   board: () => request<Record<string, unknown>>("/api/onchain/board"),

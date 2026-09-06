@@ -4,7 +4,6 @@ import type { Candle, OnchainMarket, PoolCvd, PublicConfig } from "../types";
 import { analyzeToken, type AgentTradeSetup } from "../lib/agenticAnalysis";
 import { api, deepFind } from "../api/client";
 import { money, pct, signedMoney } from "../lib/format";
-import SpecularButton from "./effects/SpecularButton";
 import { useNotifications } from "./NotificationSystem";
 import { hasPrivy } from "../auth/WalletProviders";
 import { useFundingNetwork } from "../features/NetworkContext";
@@ -131,7 +130,7 @@ function AnalysisSurface({ open, market, candles, cvd, provider, config, onClose
         <div className="analysis-order-summary"><span>SIDE <b className="up">BUY</b></span><span>ENTRY <b>{money(selected.entryPrice)}</b></span><span>EXIT <b>{selected.exitPrice ? money(selected.exitPrice) : "CONDITION-LED"}</b></span></div>
         <label className="analysis-review"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} /><span>I reviewed the trigger, amount, slippage, and exit logic.</span></label>
         <div className="session-guard"><b>PRIVY EMBEDDED WALLET</b><span>Execution requires the Solana wallet and a final user confirmation.</span></div>
-        <SpecularButton className="analysis-execute" tint="#39ff88" tintOpacity={0.16} lineColor="#8affb4" textColor="var(--text)" disabled={network !== "solana" || !walletAddress || !reviewed || !(Number(notional) > 0)} onClick={() => void execute()}>{network !== "solana" ? "SWITCH TO SOLANA" : walletAddress ? "EXECUTE TRADE" : "LOG IN TO EXECUTE"}</SpecularButton>
+        <button type="button" className="primary analysis-execute" disabled={network !== "solana" || !walletAddress || !reviewed || !(Number(notional) > 0)} onClick={() => void execute()}>{network !== "solana" ? "SWITCH TO SOLANA" : walletAddress ? "EXECUTE TRADE" : "LOG IN TO EXECUTE"}</button>
         {executionMessage && <p className="analysis-execution-message" role="status">{executionMessage}</p>}
       </section>}
 

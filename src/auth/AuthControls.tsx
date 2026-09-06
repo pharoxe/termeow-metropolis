@@ -30,9 +30,6 @@ function LivePrivyControl() {
   const { network, setNetwork } = useFundingNetwork();
   const [profileOpen, setProfileOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
-  const [transferMode, setTransferMode] = useState<"swap" | "bridge">("swap");
-  const [amount, setAmount] = useState("");
-  const [preview, setPreview] = useState("");
   const profileRef = useRef<HTMLDivElement>(null);
   const evmWallet = useMemo(() => evmWallets.find(wallet => ["privy", "privy-v2"].includes(wallet.walletClientType)) ?? evmWallets[0], [evmWallets]);
   const solanaWallet = solanaWallets[0];
@@ -70,11 +67,6 @@ function LivePrivyControl() {
     }
   };
   const activeAddress = network === "solana" ? solanaWallet?.address : evmWallet?.address;
-  const buildPreview = () => {
-    if (!(Number(amount) > 0)) return setPreview("ENTER AN AMOUNT TO CONTINUE");
-    const receive = transferMode === "swap" ? "USDC" : networkNativeToken(network === "solana" ? "robinhood" : "solana");
-    setPreview(`${transferMode.toUpperCase()} ${amount} ${networkNativeToken(network)} → ${receive} · ROUTE PREVIEW ONLY`);
-  };
 
   return <div className="profile-control" ref={profileRef}>
     <button className="auth-button primary-auth" type="button" disabled={!ready} onClick={() => authenticated ? setProfileOpen(open => !open) : login()}>
@@ -87,12 +79,6 @@ function LivePrivyControl() {
         <article className={network === "robinhood" ? "active" : ""}><small>ROBINHOOD CHAIN · ETH</small><strong>{shortAddress(evmWallet?.address)}</strong><button type="button" onClick={() => void fund("robinhood")}>FUND ETH</button></article>
         <article className={network === "solana" ? "active" : ""}><small>SOLANA · SOL</small><strong>{shortAddress(solanaWallet?.address)}</strong><button type="button" onClick={() => void fund("solana")}>FUND SOL</button></article>
       </div>
-      <section className="profile-transfer">
-        <div className="transfer-tabs"><button type="button" className={transferMode === "swap" ? "active" : ""} onClick={() => { setTransferMode("swap"); setPreview(""); }}>SWAP</button><button type="button" className={transferMode === "bridge" ? "active" : ""} onClick={() => { setTransferMode("bridge"); setPreview(""); }}>BRIDGE</button></div>
-        <label><span>PAY · {networkNativeToken(network)}</span><input inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} placeholder="0.00" /></label>
-        <button type="button" className="profile-action" onClick={buildPreview}>PREVIEW {transferMode.toUpperCase()}</button>
-        {preview && <small className="transfer-preview">{preview}</small>}
-      </section>
       <div className="profile-foot"><span>{shortAddress(activeAddress)}</span><button type="button" onClick={() => { setProfileOpen(false); void logout(); }}>LOG OUT</button></div>
     </div>}
     {onboardingOpen && <dialog className="funding-onboarding" open aria-modal="true">

@@ -1,6 +1,5 @@
 // Wire types shared by server/ and src/. Import type-only from either side.
-/** "lighter" is a venue id (zk-rollup perp DEX, off-chain matching), not a chain; it shares the union so the flow ledger can key its prints. */
-export type Chain = "solana" | "robinhood" | "lighter";
+export type Chain = "solana" | "robinhood";
 export type Side = "buy" | "sell";
 
 /** One pool print as ingested into the flow ledger. `usd` is null when it cannot be priced honestly. */
@@ -11,7 +10,7 @@ export type FlowPrint = {
   time: number; // ms epoch
   side: Side;
   usd: number | null;
-  source: "pumpfun" | "geckoterminal" | "own" | "lighter";
+  source: "pumpfun" | "geckoterminal" | "own";
 };
 
 /** Epoch-aligned bucket (minute or hour). Unpriced prints are counted, never converted. */
@@ -95,73 +94,45 @@ export type TokenFlowResponse = {
   largePrints?: LargePrint[];
   sinceAnchor?: SinceAnchor;
   sources?: SourceChip[];
+  /** Newest Tier A prints across pairs from the ledger ring, time desc, at most 40. */
+  tape?: TapePrint[];
 };
 
-// ---- Lighter (perp venue; off-chain matching, surfaced via Robinhood Wallet) ----
+// ---- Chain-neutral market (GET /api/market/:chain/:address) ----
 
-export type LighterMarket = {
-  marketId: number;
-  symbol: string;
-  status: string;
-  markPrice: number | null;
-  indexPrice: number | null;
-  lastPrice: number | null;
-  change24Pct: number | null;
+/** One priced or unpriced Tier A print from the ledger ring, dex resolved from the registry PairRow. */
+export type TapePrint = { pair: string; dex: string; tx: string; time: number; side: Side; usd: number | null; source: FlowPrint["source"] };
+
+export type MarketCandle = { time: number; open: number; high: number; low: number; close: number; volume: number };
+
+/**
+ * One instrument on either chain. Solana adapts getOnchainMarket (ClawPump intel rides in `provider`);
+ * Robinhood assembles DexScreener pairs + GeckoTerminal pool OHLCV. `stale`/`error` follow the read-route contract.
+ */
+export type MarketResponse = {
+  instrument: {
+    chain: Chain;
+    address: string;
+    symbol: string;
+    name: string;
+    image: string | null;
+    socials: Array<{ type: string; url: string }>;
+    websites: string[];
+  };
+  priceUsd: number | null;
+  marketCapUsd: number | null;
+  fdvUsd: number | null;
+  liquidityUsd: number | null;
   volume24Usd: number | null;
-  trades24: number | null;
-  sizeDecimals: number;
-  priceDecimals: number;
-};
-
-/** One Lighter trade from the taker's perspective: is_maker_ask true => the taker lifted an ask => buy. */
-export type LighterTrade = {
-  id: string;
-  tx: string;
-  time: number; // ms epoch
-  price: number;
-  size: number;
-  usd: number | null;
-  takerSide: Side;
-  liquidation: boolean;
-};
-
-export type LighterLevel = { price: number; size: number };
-export type LighterFunding = { rate: number; direction: string; at: number };
-export type LighterBookSource = "stream" | "rest" | null;
-
-export type LighterMarketsResponse = { markets: LighterMarket[]; observedAt: number | null; stale?: boolean; error?: string };
-
-/** Merged stream book, or a one-shot REST snapshot labelled source "rest" + stale. Empty sides with an error when neither is available. */
-export type LighterBook = {
-  marketId: number;
-  asks: LighterLevel[];
-  bids: LighterLevel[];
-  mid: number | null;
-  spreadBps: number | null;
-  updatedAt: number | null;
-  source: LighterBookSource;
-  stale?: boolean;
-  error?: string;
-};
-
-export type LighterTradesResponse = {
-  marketId: number;
-  trades: LighterTrade[];
-  population: string; // "LIGHTER · TAKER SIDE"
-  source: LighterBookSource;
-  stale?: boolean;
-  error?: string;
-};
-
-export type LighterFlowResponse = {
-  marketId: number;
+  change24Pct: number | null;
+  primaryPair: { dex: string; pairAddress: string; quoteSymbol: string | null } | null;
+  candles: MarketCandle[];
   interval: string;
-  bars: FlowBar[];
-  windows: FlowWindow[];
-  coverage: { firstPrintAt: number | null };
-  funding: LighterFunding | null;
   observedAt: number;
-  source: "lighter";
+  source: string;
+  degraded: boolean;
+  notes: string[];
+  provider?: unknown;
   stale?: boolean;
   error?: string;
 };

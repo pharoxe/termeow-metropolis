@@ -11,9 +11,13 @@ export type DexScreenerPair = {
   chainId?: string;
   dexId?: string;
   pairAddress?: string;
-  baseToken?: { address?: string; symbol?: string };
-  quoteToken?: { address?: string; symbol?: string };
+  baseToken?: { address?: string; symbol?: string; name?: string };
+  quoteToken?: { address?: string; symbol?: string; name?: string };
   priceUsd?: string;
+  priceChange?: { m5?: unknown; h1?: unknown; h6?: unknown; h24?: unknown };
+  fdv?: unknown;
+  marketCap?: unknown;
+  info?: { imageUrl?: string; websites?: Array<{ url?: string; label?: string }>; socials?: Array<{ type?: string; url?: string }> };
   liquidity?: { usd?: unknown };
   volume?: { m5?: unknown; h1?: unknown; h6?: unknown; h24?: unknown };
   txns?: { m5?: RawTxnWindow; h1?: RawTxnWindow; h6?: RawTxnWindow; h24?: RawTxnWindow };
@@ -140,4 +144,41 @@ export async function getTokenPairs(chain: Chain, address: string): Promise<Toke
 export function resetTokenPairsCache(): void {
   cache.clear();
   inFlight.clear();
+  rawCache.clear();
+  rawInFlight.clear();
+}
+
+// ---- Raw token-pairs (token metadata the normalized PairRow drops: symbol, name, image, socials, priceUsd, change, fdv, mcap) ----
+
+export type RawTokenPairsResult = { pairs: DexScreenerPair[]; stale: boolean; error?: string; observedAt: number };
+
+type RawCacheEntry = { pairs: DexScreenerPair[]; observedAt: number };
+
+const rawCache = new Map<string, RawCacheEntry>();
+const rawInFlight = new Map<string, Promise<RawTokenPairsResult>>();
+
+async function refreshRaw(key: string, chain: Chain, address: string, previous?: RawCacheEntry): Promise<RawTokenPairsResult> {
+  try {
+    const url = `${TOKEN_PAIRS_BASE}/${chain}/${encodeURIComponent(address)}`;
+    const body = await fetchJson<unknown>(url, { headers: { Accept: "application/json" } });
+    const pairs = Array.isArray(body) ? (body.filter((raw) => raw && typeof raw === "object") as DexScreenerPair[]) : [];
+    const entry = { pairs, observedAt: Date.now() };
+    rawCache.set(key, entry);
+    return { ...entry, stale: false };
+  } catch (error) {
+    if (!previous) throw error;
+    return { pairs: previous.pairs, observedAt: previous.observedAt, stale: true, error: errorMessage(error) };
+  }
+}
+
+/** The un-normalized DexScreener token-pairs body with the same 60s TTL / in-flight dedupe / last-good contract as getTokenPairs. */
+export async function rawTokenPairs(chain: Chain, address: string): Promise<RawTokenPairsResult> {
+  const key = cacheKey(chain, address);
+  const cached = rawCache.get(key);
+  if (cached && Date.now() - cached.observedAt < CACHE_TTL_MS) return { ...cached, stale: false };
+  const pending = rawInFlight.get(key);
+  if (pending) return pending;
+  const request = refreshRaw(key, chain, address, cached).finally(() => rawInFlight.delete(key));
+  rawInFlight.set(key, request);
+  return request;
 }

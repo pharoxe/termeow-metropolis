@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PairRow } from "../../shared/wire.js";
 import fixture from "./__fixtures__/dexscreener-token-pairs.json";
-import { fetchTokenPairs, getTokenPairs, normalizePair, resetTokenPairsCache, sumTxns } from "./dexscreener.js";
+import { fetchTokenPairs, getTokenPairs, normalizePair, rawTokenPairs, resetTokenPairsCache, sumTxns } from "./dexscreener.js";
 
 const ANSEM = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 
@@ -154,5 +154,33 @@ describe("getTokenPairs", () => {
   it("throws when there is no cached value to fall back to", async () => {
     stubFetch(() => jsonResponse({ error: "down" }, 503));
     await expect(getTokenPairs("solana", ANSEM)).rejects.toThrow("503");
+  });
+});
+
+describe("rawTokenPairs", () => {
+  it("returns the un-normalized body, caches it for 60s and serves last-good with stale + error on failure", async () => {
+    resetTokenPairsCache();
+    const raw = [{ chainId: "robinhood", pairAddress: "0xP", baseToken: { address: "0xT", symbol: "FAT", name: "Fatcoin" }, priceUsd: "0.02", info: { imageUrl: "https://img" } }];
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      calls += 1;
+      if (calls === 1) return new Response(JSON.stringify(raw), { status: 200 });
+      return new Response("nope", { status: 500 });
+    }));
+    const first = await rawTokenPairs("robinhood", "0xT");
+    expect(first.stale).toBe(false);
+    expect(first.pairs).toEqual(raw);
+    const cached = await rawTokenPairs("robinhood", "0XT");
+    expect(cached.pairs).toEqual(raw);
+    expect(calls).toBe(1);
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 61_000);
+    const stale = await rawTokenPairs("robinhood", "0xT");
+    expect(stale.stale).toBe(true);
+    expect(stale.pairs).toEqual(raw);
+    expect(stale.error).toContain("500");
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    resetTokenPairsCache();
   });
 });

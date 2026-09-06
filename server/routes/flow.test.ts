@@ -6,8 +6,10 @@ import type { RegistryResult } from "../flow/registry.js";
 import {
   DEFAULT_BAR_COUNT,
   FLOW_SOURCE,
+  TAPE_LIMIT,
   buildTokenFlowResponse,
   flowParamsSchema,
+  recentTape,
   resolveFlowParams,
   type FlowParams,
   type FlowRouteDeps
@@ -207,5 +209,49 @@ describe("buildTokenFlowResponse", () => {
     expect(response.windows).toBeUndefined();
     expect(response.sources).toBeUndefined();
     expect(d.subscribe).not.toHaveBeenCalled();
+  });
+});
+
+describe("tape", () => {
+  const POOL_B = "PoolBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+  const POOL_TIER_B = "PoolCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+
+  it("merges Tier A pairs newest first with the PairRow dex, keeps unpriced prints and skips Tier B", () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([
+      print(POOL, "a1", NOW - 3000, "buy", 10),
+      { ...print(POOL_B, "b1", NOW - 1000, "sell", 0), usd: null, source: "own" },
+      print(POOL, "a2", NOW - 2000, "sell", 20),
+      print(POOL_TIER_B, "c1", NOW - 500, "buy", 999)
+    ]);
+    const pairs = [row(POOL, "A", 0.5), row(POOL_B, "A", 0.5, { dex: "meteora" }), row(POOL_TIER_B, "B", null)];
+    expect(recentTape(ledger, "solana", pairs)).toEqual([
+      { pair: POOL_B, dex: "meteora", tx: "b1", time: NOW - 1000, side: "sell", usd: null, source: "own" },
+      { pair: POOL, dex: "raydium", tx: "a2", time: NOW - 2000, side: "sell", usd: 20, source: "geckoterminal" },
+      { pair: POOL, dex: "raydium", tx: "a1", time: NOW - 3000, side: "buy", usd: 10, source: "geckoterminal" }
+    ]);
+  });
+
+  it("caps the merged tape at TAPE_LIMIT (40) across pairs", () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([
+      ...Array.from({ length: 30 }, (_, index) => print(POOL, `a${index}`, NOW - index * 10, "buy", 1)),
+      ...Array.from({ length: 30 }, (_, index) => print(POOL_B, `b${index}`, NOW - index * 10 - 5, "sell", 1))
+    ]);
+    const tape = recentTape(ledger, "solana", [row(POOL, "A", 0.5), row(POOL_B, "A", 0.5)]);
+    expect(TAPE_LIMIT).toBe(40);
+    expect(tape).toHaveLength(40);
+    expect(tape[0].tx).toBe("a0");
+    expect(tape.every((item, index) => index === 0 || tape[index - 1].time >= item.time)).toBe(true);
+    expect(recentTape(ledger, "solana", [row(POOL, "A", 1)], 5)).toHaveLength(5);
+  });
+
+  it("rides on the flow response as a side output and is absent on the empty envelope", async () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([print(POOL, "x", NOW - 1000, "buy", 5)]);
+    const response = await buildTokenFlowResponse(params(), deps({}, ledger));
+    expect(response.tape).toEqual([{ pair: POOL, dex: "raydium", tx: "x", time: NOW - 1000, side: "buy", usd: 5, source: "geckoterminal" }]);
+    const failed = await buildTokenFlowResponse(params(), deps({ registry: async () => { throw new Error("down"); } }));
+    expect(failed.tape).toBeUndefined();
   });
 });

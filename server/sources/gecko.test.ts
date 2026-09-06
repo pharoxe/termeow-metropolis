@@ -1,14 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UpstreamError } from "../lib/http";
 import {
+  GECKO_BASE_URL,
   GECKO_BUCKET_LIMIT,
   GECKO_BUCKET_WINDOW_MS,
   GECKO_MAX_WAIT_MS,
+  GECKO_OHLCV_INTERVALS,
   geckoGet,
+  geckoPoolOhlcv,
   geckoPoolTrades,
   geckoTokenPools,
   isGeckoBlocked,
+  mapGeckoOhlcv,
   normalizeGeckoTrade,
+  type GeckoOhlcvInterval,
   resetGeckoBackoff,
   resetGeckoBucket
 } from "./gecko";
@@ -155,5 +160,44 @@ describe("geckoTokenPools", () => {
       { dex: "raydium", pairAddress: "P1", liquidityUsd: 1000.5, volume24Usd: 250 },
       { dex: "", pairAddress: "P2", liquidityUsd: null, volume24Usd: null }
     ]);
+  });
+});
+
+describe("geckoPoolOhlcv", () => {
+  it("maps ohlcv_list rows to ms candles, ascending and deduped by time, dropping non-finite rows", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({
+      data: { attributes: { ohlcv_list: [
+        [1_700_000_600, "1.5", "2", "1", "1.8", "300"],
+        [1_700_000_300, 1, 1.6, 0.9, 1.5, 100],
+        [1_700_000_300, 1.1, 1.6, 0.9, 1.5, 120],
+        [1_700_000_000, 1, 1, 1, "n/a", 10],
+        "garbage"
+      ] } }
+    }));
+    const candles = await geckoPoolOhlcv("robinhood", "0xpool", "5m");
+    expect(String(fetchMock.mock.calls[0][0])).toBe("https://api.geckoterminal.com/api/v2/networks/robinhood/pools/0xpool/ohlcv/minute?aggregate=5&limit=1000");
+    expect(candles).toEqual([
+      { time: 1_700_000_300_000, open: 1.1, high: 1.6, low: 0.9, close: 1.5, volume: 120 },
+      { time: 1_700_000_600_000, open: 1.5, high: 2, low: 1, close: 1.8, volume: 300 }
+    ]);
+  });
+
+  it("maps every interval to the unit/aggregate pair the Solana path uses and forwards limit + before_timestamp", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({ data: { attributes: { ohlcv_list: [] } } }));
+    const expected: Record<GeckoOhlcvInterval, string> = {
+      "1m": "minute?aggregate=1", "5m": "minute?aggregate=5", "15m": "minute?aggregate=15",
+      "1h": "hour?aggregate=1", "4h": "hour?aggregate=4", "1d": "day?aggregate=1"
+    };
+    for (const interval of GECKO_OHLCV_INTERVALS) {
+      await geckoPoolOhlcv("solana", `P-${interval}`, interval, { limit: 50, beforeTs: 1_700_000_000.9 });
+      expect(String(fetchMock.mock.calls.at(-1)?.[0])).toBe(`${GECKO_BASE_URL}/networks/solana/pools/P-${interval}/ohlcv/${expected[interval]}&limit=50&before_timestamp=1700000000`);
+    }
+  });
+
+  it("clamps limit into 1..1000 and returns [] for a body without ohlcv_list", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({ data: {} }));
+    expect(await geckoPoolOhlcv("robinhood", "P", "1h", { limit: 5000 })).toEqual([]);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("limit=1000");
+    expect(mapGeckoOhlcv(undefined)).toEqual([]);
   });
 });

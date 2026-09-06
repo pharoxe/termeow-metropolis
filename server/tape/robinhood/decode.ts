@@ -1,4 +1,5 @@
 import type { FlowPrint } from "../../../shared/wire.js";
+import { POOL_MANAGER } from "./pools.js";
 
 /**
  * Uniswap Swap event decoders for Robinhood Chain (chain id 4663, Arbitrum Orbit).
@@ -12,13 +13,6 @@ export const SWAP_TOPICS = {
   v3: "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
   v4: "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f"
 } as const;
-
-/** Uniswap v4 singleton on Robinhood Chain; every v4 Swap log is emitted here with topics[1] = poolId. */
-export const POOL_MANAGER = "0x8366a39cc670b4001a1121b8f6a443a643e40951";
-
-/** Native ETH is currency0 in v4 and has no contract, so its decimals cannot be read on-chain. */
-export const NATIVE_ETH = "0x0000000000000000000000000000000000000000";
-export const NATIVE_ETH_DECIMALS = 18;
 
 export type SwapKind = keyof typeof SWAP_TOPICS;
 

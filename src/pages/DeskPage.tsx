@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { api } from "../api/client";
-import type { Candle, OnchainMarket, PublicConfig } from "../types";
+import type { OnchainMarket, PublicConfig } from "../types";
 import { MarketChart, type IndicatorSet, type MarketChartHandle } from "../components/MarketChart";
 import { IndicatorBar } from "../components/IndicatorBar";
-import { SpotTradeTicket } from "../components/SpotTradeTicket";
+import { ExecutionRail } from "../components/ExecutionRail";
 import { AuthControls } from "../auth/AuthControls";
 import { money, pct, signedMoney } from "../lib/format";
 import { atr, macd, rsi } from "../lib/indicators";
-import { extractSolanaMint, MINT_RE } from "../lib/mint";
+import { MINT_RE } from "../lib/mint";
+import { extractAddress, type InstrumentRef } from "../lib/address";
+import { brandSuffix, instrumentKey, isEmptyMarket, isValidInstrument, legacyMarket, sameInstrument, tapeRows } from "../lib/instrument";
 import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
-import type { TokenFlowResponse } from "../../shared/wire";
+import type { MarketResponse, TokenFlowResponse } from "../../shared/wire";
 import { buildChartFlowInput } from "../lib/flowPanel";
-import { AuditChips, BothSidesPanel, MarketStrips, ResearchPanel, SocialPanel, WatchPanel } from "../components/DeskPanels";
-import { LighterPanel } from "../components/LighterPanel";
+import { BothSidesPanel, MarketStrips, SocialPanel, WatchPanel } from "../components/DeskPanels";
 import { ThemeToggle, useTheme } from "../components/ThemeToggle";
 import { FeatureSection } from "../features/WorkspaceFeatures";
-import Grainient from "../components/effects/Grainient";
 import { AccountScreen } from "../components/AccountScreens";
 import { AgenticAnalysisPanel } from "../components/AgenticAnalysis";
 import { SfxToggle, useNotifications } from "../components/NotificationSystem";
@@ -83,29 +83,24 @@ function providerImageUrl(value: unknown): string | null {
   return visit(value);
 }
 
-function TokenIcon({ symbol, src }: { symbol: string; src: string | null }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  return <span className={`asset-icon${src && !failed ? " has-image" : ""}`}>{src && !failed ? <img src={src} alt="" onError={() => setFailed(true)} /> : (symbol || "T").slice(0, 1)}</span>;
-}
-
 export function DeskPage({ config }: { config: PublicConfig }) {
   const [theme, setTheme] = useTheme();
   const { network, setNetwork } = useFundingNetwork();
   const { notify } = useNotifications();
   const [section, setSection] = useState("Trade");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [mint, setMint] = useState(config.ansemMint);
+  const [instrument, setInstrument] = useState<InstrumentRef>({ chain: "solana", address: config.ansemMint });
+  const solana = instrument.chain === "solana";
   const [query, setQuery] = useState("");
   const [interval, setIntervalValue] = useState("15M");
   const [chartExpanded, setChartExpanded] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const chartRef = useRef<MarketChartHandle>(null);
-  const lastNotifiedMint = useRef("");
+  const lastNotifiedInstrument = useRef("");
   const lastNotifiedError = useRef("");
   const [indicators, setIndicators] = useState(initialIndicators);
   const [board, setBoard] = useState<Row>({});
-  const [spot, setSpot] = useState<OnchainMarket | null>(null);
+  const [spot, setSpot] = useState<MarketResponse | null>(null);
   const [error, setError] = useState("");
   const [trenchSort, setTrenchSort] = useState<"hot" | "new" | "mcap" | "volume">("hot");
   const [trenches, setTrenches] = useState<Row>({});
@@ -118,50 +113,58 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   } | null>(null);
   const [flowState, setFlowState] = useState<TokenFlowResponse | null>(null);
   const [chartUnit, setChartUnit] = useState<ChartUnit>(readChartUnit);
-  const [lighter, setLighter] = useState<{ marketId: number; symbol: string } | null>(null);
   const selectChartUnit = (unit: ChartUnit) => {
     setChartUnit(unit);
     persistChartUnit(unit);
   };
 
   useEffect(() => {
+    if (!solana) { setBoard({}); return; }
     let active = true;
     const load = () => api.board().then((value) => { if (active) setBoard(object(value)); }).catch(() => undefined);
     load();
     const timer = setInterval(load, 30_000);
     return () => { active = false; clearInterval(timer); };
-  }, []);
+  }, [solana]);
 
   useEffect(() => {
+    if (!solana) { setTrenches({}); return; }
     let active = true;
     const load = () => api.trenches(trenchSort).then((value) => { if (active) setTrenches(object(value)); }).catch(() => { if (active) setTrenches({ tokens: [], error: "trenches unavailable" }); });
     load();
     const timer = setInterval(load, 30_000);
     return () => { active = false; clearInterval(timer); };
-  }, [trenchSort]);
+  }, [trenchSort, solana]);
 
   useEffect(() => {
-    let active = true;
     setHolders({});
-    const load = () => api.holders(mint).then((value) => { if (active) setHolders(object(value)); }).catch(() => { if (active) setHolders({ holders: [], error: "holders unavailable" }); });
+    if (!solana) return;
+    let active = true;
+    const load = () => api.holders(instrument.address).then((value) => { if (active) setHolders(object(value)); }).catch(() => { if (active) setHolders({ holders: [], error: "holders unavailable" }); });
     load();
     const timer = setInterval(load, 45_000);
     return () => { active = false; clearInterval(timer); };
-  }, [mint]);
+  }, [instrument, solana]);
 
   useEffect(() => {
     let active = true;
-    setSpot((current) => (current?.mint === mint ? current : null));
-    const requested = mint;
-    const load = () => api.market(requested, interval.toLowerCase())
-      .then((value) => { if (active && value.mint === requested) { setSpot(value); setError(""); } })
+    const requested = instrument;
+    setSpot((current) => (current && sameInstrument(current.instrument, requested) ? current : null));
+    const load = () => api.market(requested.chain, requested.address, interval.toLowerCase())
+      .then((value) => {
+        if (!active || !sameInstrument(value.instrument, requested)) return;
+        setError(value.error || "");
+        if (!isEmptyMarket(value)) setSpot(value);
+      })
       .catch((reason) => active && setError(reason instanceof Error ? reason.message : String(reason)));
     load();
     const timer = setInterval(load, 45_000);
     return () => { active = false; clearInterval(timer); };
-  }, [mint, interval]);
+  }, [instrument, interval]);
 
-  const tradePair = spot?.mint === mint ? spot?.pairAddress || "" : "";
+  const feed = spot && sameInstrument(spot.instrument, instrument) ? spot : null;
+  const legacy = useMemo(() => (feed ? legacyMarket(feed) : null), [feed]);
+  const tradePair = solana ? feed?.primaryPair?.pairAddress || "" : "";
   useEffect(() => {
     if (!tradePair) {
       setCvdState(null);
@@ -201,12 +204,12 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   }, [tradePair]);
 
   useEffect(() => {
-    if (!MINT_RE.test(mint)) {
+    if (!isValidInstrument(instrument)) {
       setFlowState(null);
       return;
     }
     let active = true;
-    const load = () => api.flowToken("solana", mint, interval.toLowerCase())
+    const load = () => api.flowToken(instrument.chain, instrument.address, interval.toLowerCase())
       .then((value) => {
         if (active) setFlowState((previous) => (value.error && previous ? previous : value));
       })
@@ -216,23 +219,22 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     load();
     const timer = setInterval(load, 15_000);
     return () => { active = false; clearInterval(timer); };
-  }, [mint, interval]);
+  }, [instrument, interval]);
 
-  const feed = spot?.mint === mint ? spot : null;
   useEffect(() => {
-    if (!feed || lastNotifiedMint.current === feed.mint) return;
-    lastNotifiedMint.current = feed.mint;
-    notify({ title: `${feed.symbol} ONLINE`, message: "Chart, project intelligence, pools, and social flow are synchronized.", tone: "success" });
-  }, [feed, notify]);
+    if (!feed || lastNotifiedInstrument.current === instrumentKey(feed.instrument)) return;
+    lastNotifiedInstrument.current = instrumentKey(feed.instrument);
+    notify({ title: `${feed.instrument.symbol} ONLINE`, message: solana ? "Chart, project intelligence, pools, and social flow are synchronized." : "Chart and flow are live. Project intel and execution are Solana-only.", tone: "success" });
+  }, [feed, notify, solana]);
   useEffect(() => {
     if (!error || lastNotifiedError.current === error) return;
     lastNotifiedError.current = error;
     notify({ title: "FEED DEGRADED", message: error, tone: "warning" });
   }, [error, notify]);
   const trenchRows = array(trenches.tokens);
-  const focusedTrench = trenchRows.find((item) => String(item.mintAddress) === mint) || null;
-  const mergedProvider = { ...board, ...object(feed?.provider) };
-  const tokenIconUrl = providerImageUrl([focusedTrench, feed?.provider]);
+  const focusedTrench = solana ? trenchRows.find((item) => String(item.mintAddress) === instrument.address) || null : null;
+  const mergedProvider = solana ? { ...board, ...object(feed?.provider) } : {};
+  const tokenIconUrl = feed?.instrument.image ?? providerImageUrl([focusedTrench, feed?.provider]);
   const analysisProvider = { ...mergedProvider, holders, trenches };
   const clawSentiment = String(object(mergedProvider.get_indicators).sentiment || "").trim();
   const regimeLabel = clawSentiment ? clawSentiment.toUpperCase() : "—";
@@ -240,6 +242,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const deltaUsd = liveCvd ? liveCvd.buyUsdRecent - liveCvd.sellUsdRecent : null;
   const spanLabel = tapeSpanLabel(liveCvd?.spanMs ?? 0);
   const flowBias = liveCvd?.flow || "flat";
+  const tape = useMemo(() => tapeRows(flowState?.tape, liveCvd?.trades || []), [flowState?.tape, liveCvd?.trades]);
   const scale = feed ? mcapScale(feed) : { mcap: null, supply: null, source: null as "mcap" | "fdv" | null };
   const hasMcap = Boolean(scale.source && scale.supply);
   const useMcap = chartUnit === "mcap" && hasMcap;
@@ -247,16 +250,16 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const candles = useMemo(() => {
     return useMcap ? scaleCandlesToMcap(rawSpotCandles || [], scale.supply) : (rawSpotCandles || []);
   }, [rawSpotCandles, scale.supply, useMcap]);
-  const chartTitle = feed ? `${feed.symbol}/USD` : `LOADING ${mint.slice(0, 6)}…`;
+  const chartTitle = feed ? `${feed.instrument.symbol}/USD` : `LOADING ${instrument.address.slice(0, 6)}…`;
   const chartPrice = useMcap ? scale.mcap : feed?.priceUsd;
   const chartPriceCompact = useMcap;
-  const chartChange = feed?.change24hPct;
+  const chartChange = feed?.change24Pct;
   const chartUnitLabel = hasMcap ? (useMcap ? "MCAP" : "USD") : "NO MCAP";
   const chartSub = hasMcap ? (useMcap ? money(feed?.priceUsd) : money(scale.mcap, true)) : null;
   const cvdValue = cvdState && !cvdState.failed ? cvdState.cvd : null;
   const cvdSeries = cvdState && !cvdState.failed ? cvdState.series : undefined;
   const chartFlow = useMemo(() => (flowState ? buildChartFlowInput(flowState, candles) : undefined), [flowState, candles]);
-  const sourceLabel = feed?.dex || feed?.source || "GECKO";
+  const sourceLabel = feed?.primaryPair?.dex || feed?.source || "GECKO";
 
   const technicals = useMemo(() => {
     if (!candles.length) return null;
@@ -272,21 +275,23 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     };
   }, [candles]);
 
-  const focusSpot = (nextMint: string, symbol?: string) => {
-    if (!MINT_RE.test(nextMint)) return;
-    if (nextMint !== mint) notify({ title: `OPENING ${symbol?.toUpperCase() || "TOKEN"}`, message: "Loading the selected contract and its live market context.", tone: "info" });
-    setMint(nextMint);
-    setSpot((current) => (current?.mint === nextMint ? current : null));
-    setQuery(symbol ? symbol.toUpperCase() : nextMint);
+  const focusInstrument = (next: InstrumentRef, symbol?: string) => {
+    if (!isValidInstrument(next)) return;
+    if (!sameInstrument(next, instrument)) notify({ title: `OPENING ${symbol?.toUpperCase() || "TOKEN"}`, message: "Loading the selected contract and its live market context.", tone: "info" });
+    setInstrument(next);
+    setSpot((current) => (current && sameInstrument(current.instrument, next) ? current : null));
+    setFlowState(null);
+    setQuery(symbol ? symbol.toUpperCase() : next.address);
     setError("");
-    setLighter(null);
   };
+  /** ClawPump lists, movers, and ticker search only ever yield Solana mints. */
+  const focusSolana = (nextMint: string, symbol?: string) => focusInstrument({ chain: "solana", address: nextMint }, symbol);
   const submitQuery = async () => {
     const text = query.trim();
     if (!text) return;
-    const parsed = extractSolanaMint(text);
+    const parsed = extractAddress(text);
     if (parsed && "error" in parsed) { setError(parsed.error); return; }
-    if (parsed && "mint" in parsed) { focusSpot(parsed.mint); return; }
+    if (parsed) { focusInstrument(parsed); return; }
     const upper = text.toUpperCase();
     const trenchHit = trenchRows.find((item) => {
       const symbol = String(item.symbol || "").toUpperCase();
@@ -295,7 +300,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
       return symbol === upper || name === upper || mintAddress === text || mintAddress.toUpperCase() === upper;
     });
     const trenchMint = String(trenchHit?.mintAddress || trenchHit?.mint || trenchHit?.contract || "");
-    if (trenchHit && MINT_RE.test(trenchMint)) { focusSpot(trenchMint, String(trenchHit.symbol || text)); return; }
+    if (trenchHit && MINT_RE.test(trenchMint)) { focusSolana(trenchMint, String(trenchHit.symbol || text)); return; }
     try {
       const result = await api.search(text);
       const data = object(result.data);
@@ -305,7 +310,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
         return symbol === upper || MINT_RE.test(String(item.address || item.mint || item.contract || ""));
       }) || rows.find((item) => MINT_RE.test(String(item.address || item.mint || item.contract || "")));
       const found = String(hit?.address || hit?.mint || hit?.contract || "");
-      if (found && MINT_RE.test(found)) focusSpot(found, String(hit?.symbol || text));
+      if (found && MINT_RE.test(found)) focusSolana(found, String(hit?.symbol || text));
       else setError(`No mint found for ${text}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -313,21 +318,21 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   };
 
   const openPastedContract = (event: ClipboardEvent<HTMLInputElement>) => {
-    const parsed = extractSolanaMint(event.clipboardData.getData("text"));
+    const parsed = extractAddress(event.clipboardData.getData("text"));
     if (!parsed || "error" in parsed) return;
     event.preventDefault();
-    setQuery(parsed.mint);
-    focusSpot(parsed.mint);
+    setQuery(parsed.address);
+    focusInstrument(parsed);
   };
 
-  const mintLabel = `${mint.slice(0, 4)}…${mint.slice(-4)}`;
+  const mintLabel = `${instrument.address.slice(0, 4)}…${instrument.address.slice(-4)}`;
   const spotLoading = !feed;
   const scannerSearch = <div className="scanner-search">
     <AnimatePresence initial={false} mode="sync">
       {!searchOpen ? <motion.button key="scanner-closed" type="button" className="scanner-search-head" aria-label="Discover markets" aria-expanded="false" aria-controls="scanner-search-field" initial={{ opacity: 0, scaleX: 0.22 }} animate={{ opacity: 1, scaleX: 1 }} exit={{ opacity: 0, scaleX: 0.22 }} transition={{ type: "spring", stiffness: 1500, damping: 70, mass: 0.22 }} style={{ transformOrigin: "right center" }} onClick={() => setSearchOpen(true)}><span>Discover markets</span><span className="search-icon" aria-hidden="true">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
       </span></motion.button> : <motion.form key="scanner-open" id="scanner-search-field" className="command-form" initial={{ opacity: 0, scaleX: 0.2 }} animate={{ opacity: 1, scaleX: 1 }} exit={{ opacity: 0, scaleX: 0.2 }} transition={{ type: "spring", stiffness: 1500, damping: 70, mass: 0.22 }} style={{ transformOrigin: "right center" }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false); }} onSubmit={event => { event.preventDefault(); void submitQuery(); }}>
-        <input autoFocus className="command-input" value={query} aria-label="Paste Solana contract address" placeholder="Paste contract address" spellCheck={false} autoComplete="off" onPaste={openPastedContract} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key === "Escape") setSearchOpen(false); }} />
+        <input autoFocus className="command-input" value={query} aria-label="Paste a Solana or Robinhood contract address" placeholder="Paste contract address" spellCheck={false} autoComplete="off" onPaste={openPastedContract} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key === "Escape") setSearchOpen(false); }} />
         <button className="search-submit" type="submit" aria-label="Open token"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
         <button className="search-close" type="button" aria-label="Close market search" onClick={() => setSearchOpen(false)}>×</button>
       </motion.form>}
@@ -336,12 +341,12 @@ export function DeskPage({ config }: { config: PublicConfig }) {
 
   return (
     <main className="onchain-desk">
-      <div className="desk-grainient" aria-hidden="true"><Grainient color1="#12472c" color2="#080e0b" color3="#248e59" lightMode={theme === "light"} timeSpeed={0.08} grainAmount={0.035} contrast={1} /></div>
+      <div className="desk-grainient" aria-hidden="true" />
       <header className="app-header desk-header">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">▦</span><strong>termeow</strong><b>{network === "solana" ? "sol" : "rhc"}</b>
+          <span className="brand-mark" aria-hidden="true">▦</span><strong>termeow</strong><b>{brandSuffix(instrument.chain)}</b>
         </div>
-        <nav className="primary-navigation" aria-label="Main navigation">{["Trade", "Automation", "Portfolio", "Referrals", "Leaderboard"].map(item => <button key={item} aria-current={section === item ? "page" : undefined} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
+        <nav className="primary-navigation" aria-label="Main navigation">{["Trade", "Portfolio"].map(item => <button key={item} aria-current={section === item ? "page" : undefined} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
         <nav className="mode-switch funding-network-picker header-network-picker" aria-label="Funding network">
           <button type="button" className={network === "robinhood" ? "active" : ""} aria-pressed={network === "robinhood"} onClick={() => { setNetwork("robinhood"); notify({ title: "ROBINHOOD WALLET", message: "ETH funding is selected. Solana execution remains disabled until you switch back.", tone: "info" }); }}>ROBINHOOD</button>
           <button type="button" className={network === "solana" ? "active" : ""} aria-pressed={network === "solana"} onClick={() => { setNetwork("solana"); notify({ title: "SOLANA WALLET", message: "SOL funding and Solana spot execution are selected.", tone: "info" }); }}>SOLANA</button>
@@ -350,30 +355,27 @@ export function DeskPage({ config }: { config: PublicConfig }) {
         <SfxToggle />
         <AuthControls />
       </header>
-      {feed && <MarketStrips market={feed} onPick={focusSpot} />}
-      {section !== "Trade" && <AccountScreen section={section as "Automation" | "Portfolio" | "Referrals" | "Leaderboard"} onBack={() => setSection("Trade")} />}
+      {legacy && <MarketStrips market={legacy} onPick={focusSolana} />}
+      {section !== "Trade" && <AccountScreen section="Portfolio" onBack={() => setSection("Trade")} />}
       <div className="desk-grid" style={section !== "Trade" ? {display:"none"} : undefined}>
         <WatchPanel
           search={scannerSearch}
           market={{ provider: mergedProvider } as OnchainMarket}
-          selected={mint}
-          onSpot={focusSpot}
+          selected={instrument.address}
+          onSpot={focusSolana}
           trenches={trenchRows}
           onTrenchSort={setTrenchSort}
-          onLighter={(marketId, symbol) => setLighter({ marketId, symbol })}
-          lighterSelected={lighter?.marketId ?? null}
         />
         <section className={`panel chart-panel${chartExpanded ? " chart-expanded" : ""}`}>
           <div className="ph chart-head">
             <div className="chart-head-left">
-              <span className="pt">{lighter ? `LIGHTER ${lighter.symbol}` : chartTitle}</span>
-              {lighter && <button type="button" className="lighter-close" title="Back to the spot chart" onClick={() => setLighter(null)}>CLOSE</button>}
+              <span className="pt">{chartTitle}</span>
               <span className="unit-toggle" role="group" aria-label="Chart unit">
                   <button type="button" className={!useMcap ? "on" : ""} onClick={() => selectChartUnit("price")}>PRICE</button>
                   <button type="button" className={useMcap ? "on" : ""} disabled={!hasMcap} onClick={() => selectChartUnit("mcap")}>MCAP</button>
               </span>
               <span className="intervals">{intervals.map((item) => <button key={item} className={interval === item ? "on" : ""} onClick={() => setIntervalValue(item)}>{item}</button>)}</span>
-              <button type="button" className="analyze-trigger" title="Synthesize token data into executable trade setups" disabled={!feed || !feed.candles.length} onClick={() => { setAnalysisOpen(true); notify({ title: `ANALYZING ${feed?.symbol || "TOKEN"}`, message: "Synthesizing momentum, CVD, liquidity, whale flow, and project intelligence.", tone: "success" }); }}>✦ ANALYZE</button>
+              <button type="button" className="analyze-trigger" title="Synthesize token data into executable trade setups" disabled={!solana || !feed || !feed.candles.length} onClick={() => { setAnalysisOpen(true); notify({ title: `ANALYZING ${feed?.instrument.symbol || "TOKEN"}`, message: "Synthesizing momentum, CVD, liquidity, whale flow, and project intelligence.", tone: "success" }); }}>✦ ANALYZE</button>
             </div>
             <div className="chart-head-right">
               <span className="chart-hero">
@@ -394,9 +396,9 @@ export function DeskPage({ config }: { config: PublicConfig }) {
             <button type="button" title="Jump to the latest candle" onClick={() => chartRef.current?.goToRealtime()}>LIVE</button>
             <button type="button" title={chartExpanded ? "Exit expanded chart" : "Expand chart"} aria-pressed={chartExpanded} onClick={() => setChartExpanded((expanded) => !expanded)}>{chartExpanded ? "CLOSE" : "EXPAND"}</button>
           </div>
-          {lighter ? <LighterPanel marketId={lighter.marketId} symbol={lighter.symbol} /> : spotLoading ? (
+          {spotLoading ? (
             <div className="integration-empty chart-loading"><span className="notification-pixel chart-loader" aria-hidden="true"><i /><i /><i /><i /></span><h2>LOADING {mintLabel}</h2><p>{error || "Fetching chart, intel, holders, and social for this contract."}</p></div>
-          ) : candles.length ? <MarketChart ref={chartRef} candles={candles} indicators={indicators} cvdSeries={cvdSeries} flow={chartFlow} compactAxis={useMcap} theme={theme} /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{error || "No OHLCV on Gecko for this mint's pools."}</p></div>}
+          ) : candles.length ? <MarketChart ref={chartRef} candles={candles} indicators={indicators} cvdSeries={cvdSeries} flow={chartFlow} compactAxis={useMcap} theme={theme} /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{error || "No OHLCV on Gecko for this token's pools."}</p></div>}
           <div className="chart-readout">
             <span>RSI14 <b>{technicals?.rsi?.toFixed(2) || "—"}</b></span>
             <span>MACD <b>{technicals?.macd?.toPrecision(4) || "—"}</b></span>
@@ -415,40 +417,23 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           </div>
         </section>
         <aside className="execution-rail">
-          {feed ? (
-            <>
-              <div className="instrument-slab">
-                <div><TokenIcon symbol={feed.symbol} src={tokenIconUrl} /><span><b className={scale.source ? "mcap-value" : ""}>{scale.source ? money(scale.mcap, true) : money(feed.priceUsd)}</b><small>{feed.symbol}/USD {scale.source ? money(feed.priceUsd) : ""} · {feed.name} · SOLANA SPOT</small><AuditChips market={feed} /></span></div>
-              </div>
-              <FeatureSection id="execution" className="trade-execution-section"><SpotTradeTicket key={mint} config={config} mint={mint} symbol={feed.symbol} /></FeatureSection>
-              <FeatureSection id="research"><ResearchPanel market={feed} /></FeatureSection>
-            </>
-          ) : (
-            <>
-              <div className="instrument-slab">
-                <div><span className="asset-icon">…</span><span><b>LOADING {mintLabel}</b><small>{mint} · SOLANA SPOT</small></span></div>
-              </div>
-              <FeatureSection id="execution" className="trade-execution-section"><SpotTradeTicket key={mint} config={config} mint={mint} symbol="TOKEN" /></FeatureSection>
-              <FeatureSection id="research"><section className="panel project-info-panel"><div className="ph"><span className="pt">PROJECT INFORMATION</span><span className="pm">LOADING</span></div><p className="empty-copy">Fetching project intelligence for this contract.</p></section></FeatureSection>
-            </>
-          )}
+          <ExecutionRail instrument={instrument} feed={feed} legacy={legacy} iconUrl={tokenIconUrl} config={config} />
         </aside>
         <FeatureSection id="social" className="radar-panel" meta={<span className="social-live"><i /> LIVE</span>}>
-        {feed ? <SocialPanel
-          market={{ ...feed, provider: mergedProvider }}
+        {legacy && solana ? <SocialPanel
+          market={{ ...legacy, provider: mergedProvider }}
           trench={focusedTrench}
-          flow={{ bias: flowBias, buyCount: liveCvd?.buyCountRecent || 0, sellCount: liveCvd?.sellCountRecent || 0, spanLabel }}
-          onPick={focusSpot}
+          onPick={focusSolana}
         /> : (
           <section className="panel radar-panel social-panel">
-            <p className="empty-copy">Fetching KOL, narrative, and social links for this mint.</p>
+            <p className="empty-copy">{solana ? "Fetching KOL, narrative, and social links for this mint." : "Social radar is Solana-only (ClawPump). No Robinhood social feed is wired yet."}</p>
           </section>
         )}
         </FeatureSection>
-        {feed ? <BothSidesPanel
-          market={feed}
-          trades={liveCvd?.trades || []}
-          flow={flowBias}
+        {legacy ? <BothSidesPanel
+          market={legacy}
+          tape={tape}
+          flow={liveCvd ? flowBias : undefined}
           buyCount={liveCvd?.buyCount || 0}
           sellCount={liveCvd?.sellCount || 0}
           buyCountRecent={liveCvd?.buyCountRecent || 0}
@@ -463,7 +448,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           </section>
         )}
       </div>
-      {feed && <AgenticAnalysisPanel open={analysisOpen} market={feed} candles={feed.candles} cvd={liveCvd} provider={analysisProvider} config={config} onClose={() => setAnalysisOpen(false)} />}
+      {legacy && solana && <AgenticAnalysisPanel open={analysisOpen} market={legacy} candles={legacy.candles} cvd={liveCvd} provider={analysisProvider} config={config} onClose={() => setAnalysisOpen(false)} />}
     </main>
   );
 }

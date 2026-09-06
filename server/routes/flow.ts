@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { Chain, FlowBar, PairRow, TokenFlowResponse } from "../../shared/wire.js";
+import type { Chain, FlowBar, PairRow, TapePrint, TokenFlowResponse } from "../../shared/wire.js";
 import { peekMarketProvider } from "../clawpump/market.js";
 import {
   FLOW_INTERVALS,
@@ -24,6 +24,7 @@ import { pumpPoolFor } from "../sources/pumpfun.js";
 export const FLOW_SOURCE = "pumpfun+geckoterminal→ledger";
 export const DEFAULT_BAR_COUNT = 300;
 export const SESSION_START_MS = Date.now();
+export const TAPE_LIMIT = 40;
 const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
 const FLOW_ANCHORS = ["window", "session", "launch"] as const;
@@ -112,7 +113,19 @@ function anchorStart(params: FlowParams, bars: FlowBar[], deps: FlowRouteDeps): 
   return bars[0]?.t ?? null;
 }
 
-type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources">;
+type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources" | "tape">;
+
+/** Newest Tier A prints across pairs from the ledger ring, dex from the PairRow, time desc, at most `limit`. Unpriced prints keep usd null. */
+export function recentTape(ledger: FlowLedger, chain: Chain, pairs: PairRow[], limit = TAPE_LIMIT): TapePrint[] {
+  const out: TapePrint[] = [];
+  for (const pair of pairs) {
+    if (pair.tier !== "A") continue;
+    for (const print of ledger.recentPrints(chain, pair.pairAddress, limit)) {
+      out.push({ pair: print.pair, dex: pair.dex, tx: print.tx, time: print.time, side: print.side, usd: print.usd, source: print.source });
+    }
+  }
+  return out.sort((a, b) => b.time - a.time).slice(0, Math.max(0, limit));
+}
 
 /** Windows and large prints are Tier A only; windows end at observedAt, sinceAnchor ends at params.toMs. */
 function sideOutputs(params: FlowParams, pairs: PairRow[], bars: FlowBar[], deps: FlowRouteDeps, observedAt: number): SideOutputs {
@@ -122,6 +135,7 @@ function sideOutputs(params: FlowParams, pairs: PairRow[], bars: FlowBar[], deps
     windows: flowWindows(ledger, params.chain, pairs, observedAt),
     largePrints: largePrints(ledger, params.chain, pairs),
     sinceAnchor: sinceAnchor(ledger, params.chain, pairs, anchorStart(params, bars, deps), params.toMs),
+    tape: recentTape(ledger, params.chain, pairs),
     ...(status ? { sources: sourceChips(status.sources) } : {})
   };
 }
