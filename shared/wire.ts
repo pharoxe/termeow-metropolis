@@ -11,6 +11,8 @@ export type FlowPrint = {
   side: Side;
   usd: number | null;
   source: "pumpfun" | "geckoterminal" | "own";
+  /** Attributed trader wallet when the receipt named one (R3); absent when unattributed. */
+  trader?: TraderRef;
 };
 
 /** Epoch-aligned bucket (minute or hour). Unpriced prints are counted, never converted. */
@@ -96,12 +98,14 @@ export type TokenFlowResponse = {
   sources?: SourceChip[];
   /** Newest Tier A prints across pairs from the ledger ring, time desc, at most 40. */
   tape?: TapePrint[];
+  /** FOMO trader fills for this token when the trader service is running; absent otherwise. */
+  fomo?: TokenFlowFomo;
 };
 
 // ---- Chain-neutral market (GET /api/market/:chain/:address) ----
 
 /** One priced or unpriced Tier A print from the ledger ring, dex resolved from the registry PairRow. */
-export type TapePrint = { pair: string; dex: string; tx: string; time: number; side: Side; usd: number | null; source: FlowPrint["source"] };
+export type TapePrint = { pair: string; dex: string; tx: string; time: number; side: Side; usd: number | null; source: FlowPrint["source"]; trader?: TraderRef };
 
 export type MarketCandle = { time: number; open: number; high: number; low: number; close: number; volume: number };
 
@@ -185,6 +189,84 @@ export type LaunchesResponse = {
   sources: Array<{ name: string; lastOkAt: number | null; lastError: string | null }>;
   /** True when the list hit the route cap: older rows inside `window` were cut and only the newest are returned. */
   truncated?: boolean;
+  stale?: boolean;
+  error?: string;
+};
+
+// ---- FOMO trader fills (R3, optional block on GET /api/flow/token) ----
+
+/**
+ * One fill attributed to a trader wallet. `kind` is "fomo" only when the wallet passed the EIP-7702 designator
+ * check on this server; `handle`/`followers` come from the robinhoodtrenches trader population and stay null otherwise.
+ */
+export type FomoFill = {
+  chain: Chain;
+  token: string;
+  pair: string;
+  dex: string;
+  tx: string;
+  time: number; // ms epoch
+  side: Side;
+  usd: number | null;
+  trader: TraderRef;
+  /** Token symbol when the launch index knows it (cross-token tape); absent otherwise. */
+  symbol?: string | null;
+};
+
+/** Optional FOMO block on TokenFlowResponse: `population` = FOMO wallets seen by this server, `handles` = robinhoodtrenches handles known. */
+export type TokenFlowFomo = { fills: FomoFill[]; windows: FlowWindow[]; population: number; handles: number };
+
+// ---- Trader identity (R3: server/traders) ----
+
+/** "fomo" only when eth_getCode(wallet) equals the EIP-7702 FOMO designator on this server; everything else is "other". */
+export type TraderKind = "fomo" | "other";
+/** A wallet attributed to a print. `handle`/`followers` come from the robinhoodtrenches population and stay null otherwise. */
+export type TraderRef = { address: string; kind: TraderKind; handle: string | null; followers: number | null };
+
+// ---- FOMO routes (GET /api/fomo/tape, GET /api/fomo/board) ----
+
+export type FomoChainScope = "all" | Chain;
+export type FomoBoardWindow = "1h" | "24h" | "7d";
+
+/** Newest FOMO-kind fills across every tracked token as this server saw them; `population` = FOMO wallets seen here. */
+export type FomoTapeResponse = {
+  chain: FomoChainScope;
+  fills: FomoFill[];
+  population: number;
+  handles: number;
+  observedAt: number;
+  stale?: boolean;
+  error?: string;
+};
+
+/** One wallet on the board. netUsd = buyUsd - sellUsd (net flow into tokens, not P&L); closed/wins are realized-partial round trips. */
+export type FomoBoardRow = {
+  chain: Chain;
+  wallet: string;
+  handle: string | null;
+  followers: number | null;
+  fills: number;
+  buyUsd: number;
+  sellUsd: number;
+  netUsd: number;
+  closed: number;
+  wins: number;
+  /** Wilson lower bound of wins/closed; null under 5 closed trades. */
+  wilsonLow: number | null;
+  lastSeenAt: number;
+  profileUrl: string | null;
+};
+
+export type FomoBoardResponse = {
+  chain: FomoChainScope;
+  window: FomoBoardWindow;
+  rows: FomoBoardRow[];
+  population: number;
+  /** Always name the population: "FOMO wallets seen by this server". */
+  populationLabel: string;
+  /** Oldest fill still in the ring when the window reaches past it (numbers are truncated, not lifetime); null otherwise. */
+  truncatedAt: number | null;
+  observedAt: number;
   stale?: boolean;
   error?: string;
 };

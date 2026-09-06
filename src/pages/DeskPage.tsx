@@ -14,7 +14,9 @@ import { brandSuffix, instrumentKey, isEmptyMarket, isValidInstrument, legacyMar
 import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
 import type { MarketResponse, TokenFlowResponse } from "../../shared/wire";
 import { buildChartFlowInput } from "../lib/flowPanel";
+import { buildFomoMarkers } from "../lib/fomoMarkers";
 import { BothSidesPanel, MarketStrips, SocialPanel, WatchPanel } from "../components/DeskPanels";
+import { FomoTapePanel } from "../components/FomoTapePanel";
 import { ThemeToggle, useTheme } from "../components/ThemeToggle";
 import { FeatureSection } from "../features/WorkspaceFeatures";
 import { AccountScreen } from "../components/AccountScreens";
@@ -259,6 +261,12 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const cvdValue = cvdState && !cvdState.failed ? cvdState.cvd : null;
   const cvdSeries = cvdState && !cvdState.failed ? cvdState.series : undefined;
   const chartFlow = useMemo(() => (flowState ? buildChartFlowInput(flowState, candles) : undefined), [flowState, candles]);
+  /** FOMO arrows ride the candle series; `dropped` is surfaced in the chart meta so a capped view never looks complete. */
+  const fomo = useMemo(
+    () => buildFomoMarkers(flowState?.fomo?.fills ?? [], chartFlow?.candleTimes ?? [], { theme }),
+    [flowState?.fomo?.fills, chartFlow?.candleTimes, theme]
+  );
+  const fomoMeta = [fomo.markers.length ? `${fomo.markers.length} FOMO` : "", fomo.dropped ? `+${fomo.dropped} more` : "", fomo.beforeRange ? `${fomo.beforeRange} off-chart` : ""].filter(Boolean).join(" ");
   const sourceLabel = feed?.primaryPair?.dex || feed?.source || "GECKO";
 
   const technicals = useMemo(() => {
@@ -385,7 +393,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
                 {chartUnitLabel && <em className={chartUnitLabel === "NO MCAP" ? "chart-unit warn" : "chart-unit"}>{chartUnitLabel}</em>}
                 {chartSub && <small className={`chart-sub${!useMcap ? " mcap-value" : ""}`}>{chartSub}</small>}
               </span>
-              <span className="chart-meta">{candles.length} BARS · {sourceLabel} · {interval}</span>
+              <span className="chart-meta">{candles.length} BARS · {sourceLabel} · {interval}{fomoMeta ? ` · ${fomoMeta}` : ""}</span>
             </div>
           </div>
           <IndicatorBar value={indicators} onChange={setIndicators} />
@@ -399,7 +407,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           </div>
           {spotLoading ? (
             <div className="integration-empty chart-loading"><span className="notification-pixel chart-loader" aria-hidden="true"><i /><i /><i /><i /></span><h2>LOADING {mintLabel}</h2><p>{error || "Fetching chart, intel, holders, and social for this contract."}</p></div>
-          ) : candles.length ? <MarketChart ref={chartRef} candles={candles} indicators={indicators} cvdSeries={cvdSeries} flow={chartFlow} compactAxis={useMcap} theme={theme} /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{error || "No OHLCV on Gecko for this token's pools."}</p></div>}
+          ) : candles.length ? <MarketChart ref={chartRef} candles={candles} indicators={indicators} cvdSeries={cvdSeries} flow={chartFlow} fomoMarkers={fomo.markers} compactAxis={useMcap} theme={theme} /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{error || "No OHLCV on Gecko for this token's pools."}</p></div>}
           <div className="chart-readout">
             <span>RSI14 <b>{technicals?.rsi?.toFixed(2) || "—"}</b></span>
             <span>MACD <b>{technicals?.macd?.toPrecision(4) || "—"}</b></span>
@@ -425,11 +433,11 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           market={{ ...legacy, provider: mergedProvider }}
           trench={focusedTrench}
           onPick={focusSolana}
-        /> : (
+        /> : solana ? (
           <section className="panel radar-panel social-panel">
-            <p className="empty-copy">{solana ? "Fetching KOL, narrative, and social links for this mint." : "Social radar is Solana-only (ClawPump). No Robinhood social feed is wired yet."}</p>
+            <p className="empty-copy">Fetching KOL, narrative, and social links for this mint.</p>
           </section>
-        )}
+        ) : <FomoTapePanel onInstrument={focusInstrument} />}
         </FeatureSection>
         {legacy ? <BothSidesPanel
           market={legacy}

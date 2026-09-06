@@ -3,9 +3,13 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  createSeriesMarkers,
   HistogramSeries,
   LineSeries,
   type IChartApi,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
+  type Time,
   type UTCTimestamp
 } from "lightweight-charts";
 import type { Candle } from "../types";
@@ -13,6 +17,7 @@ import { bollinger, ema, macd, obv, rsi, vwap } from "../lib/indicators";
 import { axisUsd } from "../lib/format";
 import { alignFlowToCandles } from "../lib/cvdAlign";
 import { buildFlowSeries, type FlowChartInput } from "../lib/flowChart";
+import type { FomoMarker } from "../lib/fomoMarkers";
 import { applyFlowSeries, createFlowSeries, SIDE_PANE_STRETCH } from "./flowChartSeries";
 import type { Theme } from "./ThemeToggle";
 
@@ -45,6 +50,12 @@ function lineData(candles: Candle[], values: Array<number | null>) {
 }
 
 const EMPTY_CVD: CvdSeriesPoint[] = [];
+const EMPTY_MARKERS: FomoMarker[] = [];
+
+/** FomoMarker is already the library's marker shape; only `time` needs the branded UTC-seconds type. */
+function toSeriesMarkers(markers: FomoMarker[]): SeriesMarker<Time>[] {
+  return markers.map((marker) => ({ ...marker, time: marker.time as UTCTimestamp }));
+}
 
 const compactFormat = { type: "custom" as const, minMove: 1, formatter: (value: number) => axisUsd(value) };
 
@@ -57,15 +68,19 @@ type MarketChartProps = {
   cvdSeries?: CvdSeriesPoint[];
   /** F4 token flow (Δ/BAR, CVD, Tier A pair lines, BUY % ribbon); replaces the legacy CVD pane when it has enough bars. */
   flow?: FlowChartInput;
+  /** R3 FOMO-wallet fills placed on the candle series (built by buildFomoMarkers); applied without rebuilding the chart. */
+  fomoMarkers?: FomoMarker[];
   compactAxis?: boolean;
   theme?: Theme;
 };
 
 const MIN_FLOW_BARS = 2;
 
-export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(function MarketChart({ candles, indicators, cvdSeries = EMPTY_CVD, flow, compactAxis = false, theme = "dark" }, ref) {
+export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(function MarketChart({ candles, indicators, cvdSeries = EMPTY_CVD, flow, fomoMarkers = EMPTY_MARKERS, compactAxis = false, theme = "dark" }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const fomoRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const fomoDataRef = useRef<FomoMarker[]>(fomoMarkers);
   const barCountRef = useRef(0);
   const visibleRangeRef = useRef<{ from: number; to: number } | null>(null);
 
@@ -128,6 +143,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     if (!bars.length) return;
     barCountRef.current = bars.length;
     price.setData(bars);
+    fomoRef.current = createSeriesMarkers(price, toSeriesMarkers(fomoDataRef.current));
 
     const closes = candles.map((candle) => candle.close);
     if (indicators.ema) {
@@ -229,9 +245,16 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
       if (current) visibleRangeRef.current = { from: Number(current.from), to: Number(current.to) };
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(rememberRange);
       if (chartRef.current === chart) chartRef.current = null;
+      fomoRef.current = null;
       chart.remove();
     };
   }, [candles, indicators, cvdSeries, flow, compactAxis, theme]);
+
+  // Markers ride the existing candle series: a new poll only calls setMarkers, it never rebuilds the chart.
+  useEffect(() => {
+    fomoDataRef.current = fomoMarkers;
+    fomoRef.current?.setMarkers(toSeriesMarkers(fomoMarkers));
+  }, [fomoMarkers]);
 
   return <div className="chart-host" ref={host} />;
 });

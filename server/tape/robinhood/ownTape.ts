@@ -2,8 +2,9 @@ import type { FlowPrint, PairRow } from "../../../shared/wire.js";
 import { config } from "../../config.js";
 import type { FlowLedger } from "../../flow/ledger.js";
 import { errorMessage } from "../../lib/http.js";
+import { getTraderService, type AnnotateContext, type MetaOf, type PrintMeta } from "../../traders/service.js";
 import { BlockTimeCache, type BlockTimeStats } from "./blocks.js";
-import { decodeSwapLog, type EvmPoolRef as DecodePoolRef } from "./decode.js";
+import { decodeSwapLeg, decodeSwapLog, type EvmPoolRef as DecodePoolRef } from "./decode.js";
 import { RobinhoodLogPoller, type LogsHandler, type PollerStats, type RawLog } from "./poller.js";
 import { POOL_MANAGER, poolResolveStatus, resolvePoolRef, type EvmPoolRef, type PoolResolveStatus } from "./pools.js";
 import { EvmQuotePrice, type EvmQuotePriceStatus } from "./price.js";
@@ -20,6 +21,11 @@ export type PollerLike = {
 export type BlockTimeLike = {
   timeMs(blockNumber: number): Promise<number | null>;
   stats(): BlockTimeStats;
+};
+/** R3 trader attribution seam: the shared TraderService in production, null in tests and when it is not wired. */
+export type TraderAnnotatorLike = {
+  annotate(prints: FlowPrint[], ctx: AnnotateContext): Promise<FlowPrint[]>;
+  record(prints: FlowPrint[], meta: MetaOf): unknown;
 };
 export type EvmPriceLike = {
   prime(quotes: string[]): Promise<void>;
@@ -39,6 +45,8 @@ export type RobinhoodOwnTapeOptions = {
   /** Pause between two pool resolutions (RESOLVE_STAGGER_MS by default; tests pass 0). */
   resolveStaggerMs?: number;
   decode?: typeof decodeSwapLog;
+  /** Omitted (or null) means prints are ingested unannotated; the live tape passes the shared TraderService. */
+  traders?: TraderAnnotatorLike | null;
 };
 
 export type RobinhoodOwnTapeCounters = {
@@ -87,6 +95,12 @@ function toDecodeRef(ref: EvmPoolRef): DecodePoolRef {
   return { ...ref, pairAddress: ref.pair };
 }
 
+/** Token, dex and the fill's token leg in base units (the hint that separates several traders' fills bundled into one tx). */
+function printMeta(log: RawLog, pools: Map<string, DecodePoolRef>, token: string): PrintMeta {
+  const decoded = decodeSwapLeg(log, pools);
+  return { token, dex: decoded?.pool.dex ?? "", ...(decoded ? { amount: decoded.leg.tokenAmount } : {}) };
+}
+
 function blockOf(blockNumber: string): number | null {
   try {
     return hexToNumber(blockNumber);
@@ -97,7 +111,7 @@ function blockOf(blockNumber: string): number | null {
 
 /** Tape against config.robinhood.rpcUrl (ROBINHOOD_RPC_URL, public Robinhood Chain RPC by default). */
 export function createRobinhoodOwnTapeFromConfig(ledger: FlowLedger, log?: (msg: string) => void): RobinhoodOwnTape {
-  return new RobinhoodOwnTape({ rpcUrl: config.robinhood.rpcUrl, ledger, log });
+  return new RobinhoodOwnTape({ rpcUrl: config.robinhood.rpcUrl, ledger, log, traders: getTraderService() });
 }
 
 /**
@@ -117,6 +131,7 @@ export class RobinhoodOwnTape {
   private readonly prices: EvmPriceLike;
   private readonly resolveStatus: () => PoolResolveStatus;
   private readonly decode: typeof decodeSwapLog;
+  private readonly traders: TraderAnnotatorLike | null;
   private readonly queue: PoolResolveQueue;
   private readonly tokens = new Map<string, TokenState>();
   /** Pool id (lowercase contract or poolId) -> decoder ref; the first token to track a pool owns its prints. */
@@ -136,6 +151,7 @@ export class RobinhoodOwnTape {
     this.prices = opts.prices ?? new EvmQuotePrice({ chain: "robinhood", now: this.now });
     this.resolveStatus = opts.resolveStatus ?? poolResolveStatus;
     this.decode = opts.decode ?? decodeSwapLog;
+    this.traders = opts.traders ?? null;
     const resolve: PoolResolver = opts.resolve ?? ((row) => resolvePoolRef(row, { rpcUrl: opts.rpcUrl }));
     this.queue = new PoolResolveQueue({
       resolve,
@@ -230,11 +246,27 @@ export class RobinhoodOwnTape {
     await this.prices.prime(quotes);
     const times = await this.blockTimes(logs);
     const prints: FlowPrint[] = [];
+    const metas = new Map<FlowPrint, PrintMeta>();
     for (const log of logs) {
-      const print = this.decodeOne(log, pools, times.get(log.blockNumber) ?? null);
-      if (print) prints.push(print);
+      const decoded = this.decodeOne(log, pools, times.get(log.blockNumber) ?? null);
+      if (!decoded) continue;
+      prints.push(decoded.print);
+      metas.set(decoded.print, printMeta(log, pools, decoded.token));
     }
-    if (prints.length) this.ledger.ingest(prints);
+    if (prints.length) this.ledger.ingest(await this.annotate(prints, pools, (print) => metas.get(print) ?? null));
+  }
+
+  /** R3: attribution runs between decode and ingest; no service, a throw, or the batch deadline ingests unannotated. */
+  private async annotate(prints: FlowPrint[], pools: Map<string, DecodePoolRef>, meta: MetaOf): Promise<FlowPrint[]> {
+    if (!this.traders) return prints;
+    try {
+      const annotated = await this.traders.annotate(prints, { pools: [...pools.values()].map((ref) => ref.pair), meta });
+      this.traders.record(annotated, meta);
+      return annotated;
+    } catch (error) {
+      this.fail(`annotate: ${errorMessage(error)}`);
+      return prints;
+    }
   }
 
   /** One block-time lookup per distinct block in the batch; the cache joins duplicates in flight. */
@@ -249,7 +281,8 @@ export class RobinhoodOwnTape {
     return new Map(entries);
   }
 
-  private decodeOne(log: RawLog, pools: Map<string, DecodePoolRef>, timeMs: number | null): FlowPrint | null {
+  /** The print plus the token that owns the emitting pool (the same owner the counters are bumped under). */
+  private decodeOne(log: RawLog, pools: Map<string, DecodePoolRef>, timeMs: number | null): { print: FlowPrint; token: string } | null {
     const owner = this.ownerOf(log);
     if (owner === null) return null;
     if (timeMs === null) {
@@ -259,7 +292,7 @@ export class RobinhoodOwnTape {
     try {
       const print = this.decode(log, pools, { timeMs, quoteUsd: (quote) => this.prices.get(quote) });
       this.bump(owner, print ? { prints: 1, lastPrintAt: this.now() } : { undecoded: 1 });
-      return print;
+      return print ? { print, token: owner } : null;
     } catch (error) {
       this.bump(owner, { undecoded: 1 });
       this.fail(`decode ${log.transactionHash}: ${errorMessage(error)}`);

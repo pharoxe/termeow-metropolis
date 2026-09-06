@@ -1,7 +1,33 @@
-import type { TokenFlowResponse } from "../../shared/wire";
+import type { TokenFlowFomo, TokenFlowResponse } from "../../shared/wire";
 import { largePrintRow, sinceAnchorLine, sourceChipState, windowRow } from "../lib/flowPanel";
+import { fomoHeaderLabel, fomoWindowRows } from "../lib/fomoPanel";
 
 const WINDOW_COLUMNS = ["WINDOW", "BUY", "SELL", "NET", "PRINTS", "AGGR"];
+
+/** FOMO-cohort window totals: the same table as the all-flow windows, summed over FOMO-wallet fills alone. */
+function FomoWindows({ fomo }: { fomo: TokenFlowFomo }) {
+  const rows = fomoWindowRows(fomo);
+  return (
+    <div className="flow-fomo">
+      <span className="pm flow-fomo-title">{fomoHeaderLabel(fomo.population, fomo.handles)}</span>
+      {rows.length ? (
+        <table className="terminal-table flow-windows">
+          <tbody>
+            {rows.map((row) => (
+              <tr className="static" key={row.label}>
+                <td>{row.label}</td>
+                <td className="r up">{row.buy}</td>
+                <td className="r dn">{row.sell}</td>
+                <td className={`r ${row.netTone}`}>{row.net}</td>
+                <td className="r">{row.prints}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <p className="empty-copy">No FOMO fills for this token in the ledger.</p>}
+    </div>
+  );
+}
 
 /** F4 side outputs under the FLOW coverage chip: source health, rolling windows, since-anchor totals, large prints. Tier A pairs only. */
 export function FlowSideOutputs({ flow, now = Date.now() }: { flow: TokenFlowResponse | null; now?: number }) {
@@ -40,6 +66,7 @@ export function FlowSideOutputs({ flow, now = Date.now() }: { flow: TokenFlowRes
         </table>
       ) : <p className="empty-copy">No window totals in the ledger.</p>}
       <p className="pm flow-since">{sinceAnchorLine(flow.anchor, flow.sinceAnchor)}</p>
+      {flow.fomo ? <FomoWindows fomo={flow.fomo} /> : null}
       <div className="flow-large">
         <span className="pm flow-large-title">LARGE PRINTS ≥ $1K</span>
         {prints.length

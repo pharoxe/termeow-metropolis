@@ -12,7 +12,8 @@ import {
   recentTape,
   resolveFlowParams,
   type FlowParams,
-  type FlowRouteDeps
+  type FlowRouteDeps,
+  type FlowTradersLike
 } from "./flow.js";
 
 const MINT = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
@@ -266,5 +267,39 @@ describe("tape", () => {
     expect(response.tape).toEqual([{ pair: POOL, dex: "raydium", tx: "x", time: NOW - 1000, side: "buy", usd: 5, source: "geckoterminal" }]);
     const failed = await buildTokenFlowResponse(params(), deps({ registry: async () => { throw new Error("down"); } }));
     expect(failed.tape).toBeUndefined();
+  });
+});
+
+describe("FOMO block and trader on the tape", () => {
+  const EVM_TOKEN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
+  const EVM_POOL = "0x00000000000000000000000000000000000000aa";
+  const TRADER = { address: "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1", kind: "fomo" as const, handle: "AvgJoesCrypto", followers: 1200 };
+
+  function traders(): FlowTradersLike {
+    return {
+      book: { tape: () => [] },
+      fomoLedger: new FlowLedger({ now: () => NOW }),
+      population: { size: 94 },
+      handles: { get: () => null, stats: () => ({ entries: 0 }) },
+      dexOf: () => ""
+    };
+  }
+
+  it("attaches a fomo block on robinhood only; a Solana token never gets one even with the service wired", async () => {
+    const solana = await buildTokenFlowResponse(params(), deps({ traders: traders() }));
+    expect(solana.fomo).toBeUndefined();
+    const robinhoodRow = row(EVM_POOL, "A", 1, { chain: "robinhood", dex: "uniswap", baseMint: EVM_TOKEN });
+    const d = deps({ traders: traders(), registry: vi.fn(async () => ({ pairs: [robinhoodRow], observedAt: NOW - 1000, stale: false })) });
+    const robinhood = await buildTokenFlowResponse(params({ chain: "robinhood", address: EVM_TOKEN }), d);
+    expect(robinhood.fomo).toMatchObject({ fills: [], population: 94, handles: 0 });
+  });
+
+  it("carries the ledger print's trader onto the tape and omits the key when there is none", () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([{ ...print(POOL, "a", NOW - 1000, "buy", 100), trader: TRADER }, print(POOL, "b", NOW - 2000, "sell", 5)]);
+    const tape = recentTape(ledger, "solana", [row(POOL, "A", 1)]);
+    expect(tape.map((p) => p.tx)).toEqual(["a", "b"]);
+    expect(tape[0].trader).toEqual(TRADER);
+    expect("trader" in tape[1]).toBe(false);
   });
 });

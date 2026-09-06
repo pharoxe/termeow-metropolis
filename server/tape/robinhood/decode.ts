@@ -150,12 +150,8 @@ function usdOf(leg: SwapLeg, pool: EvmPoolRef, ctx: DecodeContext): number | nul
   return Number.isFinite(usd) ? usd : null;
 }
 
-/**
- * Decodes one Swap log into a FlowPrint, or null when the log is not a known pool's swap.
- * One print per matching log: a multi-hop tx yields one print per pool it touched, and the
- * ledger's (chain, tx, pair) dedupe keeps them apart.
- */
-export function decodeSwapLog(log: EvmLog, pools: Map<string, EvmPoolRef>, ctx: DecodeContext): FlowPrint | null {
+/** The raw legs of a known pool's Swap log (base units, side); null when it is not a tracked pool's swap. */
+export function decodeSwapLeg(log: EvmLog, pools: Map<string, EvmPoolRef>): { pool: EvmPoolRef; leg: SwapLeg } | null {
   const topic0 = log.topics[0];
   const kind = typeof topic0 === "string" ? KIND_BY_TOPIC.get(topic0.toLowerCase()) : undefined;
   if (!kind) return null;
@@ -165,7 +161,18 @@ export function decodeSwapLog(log: EvmLog, pools: Map<string, EvmPoolRef>, ctx: 
   const words = dataWords(log.data);
   if (!words || words.length < WORDS_BY_KIND[kind]) return null;
   const leg = decodeLeg(kind, words, pool.tokenIsCurrency0);
-  if (!leg) return null;
+  return leg ? { pool, leg } : null;
+}
+
+/**
+ * Decodes one Swap log into a FlowPrint, or null when the log is not a known pool's swap.
+ * One print per matching log: a multi-hop tx yields one print per pool it touched, and the
+ * ledger's (chain, tx, pair) dedupe keeps them apart.
+ */
+export function decodeSwapLog(log: EvmLog, pools: Map<string, EvmPoolRef>, ctx: DecodeContext): FlowPrint | null {
+  const decoded = decodeSwapLeg(log, pools);
+  if (!decoded) return null;
+  const { pool, leg } = decoded;
   return {
     chain: "robinhood",
     pair: pool.ledgerPair,

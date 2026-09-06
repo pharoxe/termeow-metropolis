@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import type { PairRow } from "../../../shared/wire.js";
+import type { FlowPrint, PairRow } from "../../../shared/wire.js";
+import type { AnnotateContext } from "../../traders/service.js";
 import type { BlockTimeStats } from "./blocks.js";
 import { FlowLedger, MINUTE_MS } from "../../flow/ledger.js";
 import { decodeSwapLog, SWAP_TOPICS } from "./decode.js";
@@ -266,5 +267,55 @@ describe("RobinhoodOwnTape", () => {
     h.tape.stop();
     expect(h.poller.stops).toBe(1);
     expect(h.tape.stats()).toMatchObject({ tokens: 0, pools: 0, poller: POLLER_STATS, blocks: BLOCK_STATS, price: PRICE_STATUS, resolve: { lastError: "unresolved pool" } });
+  });
+});
+
+describe("RobinhoodOwnTape trader annotation (R3)", () => {
+  const TRADER = { address: "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1", kind: "fomo" as const, handle: "AvgJoesCrypto", followers: 1200 };
+
+  function fakeTraders(behaviour: "annotate" | "throw") {
+    const calls: Array<{ prints: FlowPrint[]; pools: string[]; metas: Array<ReturnType<AnnotateContext["meta"]>> }> = [];
+    const recorded: FlowPrint[][] = [];
+    return {
+      calls,
+      recorded,
+      annotate: async (prints: FlowPrint[], ctx: AnnotateContext) => {
+        calls.push({ prints, pools: [...(ctx.pools ?? [])], metas: prints.map((print) => ctx.meta(print)) });
+        if (behaviour === "throw") throw new Error("rpc down");
+        return prints.map((print) => ({ ...print, trader: TRADER }));
+      },
+      record: (prints: FlowPrint[]) => {
+        recorded.push(prints);
+      }
+    };
+  }
+
+  it("runs annotate between decode and ingest with token, dex and the Swap amount, then records the annotated prints", async () => {
+    const traders = fakeTraders("annotate");
+    const h = harness({ traders });
+    await tracked(h, [row(V3_PAIR, "A")], V3_ONLY);
+    h.poller.emit([V3_LOG]);
+    await vi.waitFor(() => expect(h.ledger.pairs()).toContain(`robinhood:${V3_PAIR}`));
+    expect(traders.calls).toHaveLength(1);
+    expect(traders.calls[0].pools).toEqual([V3_PAIR.toLowerCase()]);
+    expect(traders.calls[0].metas[0]).toMatchObject({ token: FATCOIN.toLowerCase(), dex: "uniswap" });
+    expect(typeof traders.calls[0].metas[0]?.amount).toBe("bigint");
+    expect(h.ledger.recentPrints("robinhood", V3_PAIR)[0].trader).toEqual(TRADER);
+    expect(traders.recorded[0][0].trader).toEqual(TRADER);
+  });
+
+  it("ingests unannotated and records the error when the service throws; no service means no annotation at all", async () => {
+    const traders = fakeTraders("throw");
+    const h = harness({ traders });
+    await tracked(h, [row(V3_PAIR, "A")], V3_ONLY);
+    h.poller.emit([V3_LOG]);
+    await vi.waitFor(() => expect(h.ledger.pairs()).toContain(`robinhood:${V3_PAIR}`));
+    expect(h.ledger.recentPrints("robinhood", V3_PAIR)[0].trader).toBeUndefined();
+    expect(h.tape.stats().lastError).toBe("annotate: rpc down");
+    const plain = harness();
+    await tracked(plain, [row(V3_PAIR, "A")], V3_ONLY);
+    plain.poller.emit([V3_LOG]);
+    await vi.waitFor(() => expect(plain.ledger.pairs()).toContain(`robinhood:${V3_PAIR}`));
+    expect(plain.ledger.recentPrints("robinhood", V3_PAIR)[0].trader).toBeUndefined();
   });
 });

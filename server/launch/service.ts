@@ -15,6 +15,8 @@ import { TRENCHES_SOURCE, fetchTrenchTokens, type TrenchTokensResult, type Trenc
 import { BlockTimeCache } from "../tape/robinhood/blocks.js";
 import { RobinhoodLogPoller } from "../tape/robinhood/poller.js";
 import { EvmQuotePrice } from "../tape/robinhood/price.js";
+import { withTraderHooks } from "../traders/launchHooks.js";
+import { getTraderService } from "../traders/service.js";
 import { DEXSCREENER_TOKENS_SOURCE, PUMPPORTAL_SOURCE, profileUpsert, solanaLaunchUpsert, tokenBatchUpsert, trenchUpsert } from "./enrich.js";
 import { pickEnrichBatch, pruneAttempts } from "./enrichBatch.js";
 import { LaunchIndex, launchKey, type LaunchIndexStats, type LaunchListQuery } from "./index.js";
@@ -58,12 +60,31 @@ export type LaunchServiceStatus = {
   pumpportal: PumpPortalStatus | null;
 };
 
+/** Token behind a curve pseudo-pair: Flap/Trench name it in the pair, Pons/Bags pairs carry the emitter, looked up on the index. */
+function tokenForCurvePair(index: LaunchIndex, pair: string): string | null {
+  const colon = pair.indexOf(":");
+  if (colon <= 0) return null;
+  const pad = pair.slice(0, colon);
+  const id = pair.slice(colon + 1).toLowerCase();
+  if (pad === "flap" || pad === "trench") return id;
+  const row = index.list({ chain: "robinhood", windowMs: ENRICH_WINDOW_MS }).find((candidate) => candidate.curve?.toLowerCase() === id);
+  return row?.token ?? null;
+}
+
+/** R3: the launch poller also carries the EntryPoint user-op leg and curve trades are trader-annotated before ingest. */
 function liveRobinhoodStream(index: LaunchIndex, log: (msg: string) => void): RobinhoodLaunchStream {
   const rpcUrl = config.robinhood.rpcUrl;
+  const hooked = withTraderHooks({
+    poller: new RobinhoodLogPoller({ rpcUrl, log }),
+    ledger: flowCollector.ledger,
+    traders: getTraderService(),
+    tokenOf: (pair) => tokenForCurvePair(index, pair),
+    log
+  });
   return new RobinhoodLaunchStream({
     index,
-    ledger: flowCollector.ledger,
-    poller: new RobinhoodLogPoller({ rpcUrl, log }),
+    ledger: hooked.ledger,
+    poller: hooked.poller,
     blocks: new BlockTimeCache({ rpcUrl }),
     prices: new EvmQuotePrice({ chain: "robinhood" }),
     log

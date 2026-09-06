@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { Chain, FlowBar, PairRow, TapePrint, TokenFlowResponse } from "../../shared/wire.js";
+import type { Chain, FlowBar, PairRow, TapePrint, TokenFlowFomo, TokenFlowResponse } from "../../shared/wire.js";
 import { peekMarketProvider } from "../clawpump/market.js";
 import {
   FLOW_INTERVALS,
@@ -19,6 +19,8 @@ import { sourceChips, type SourcesLike } from "../flow/sources.js";
 import { getLaunchService } from "../launch/service.js";
 import { errorMessage } from "../lib/http.js";
 import { getTokenPairs, sumTxns } from "../sources/dexscreener.js";
+import type { TraderTapeRow } from "../traders/book.js";
+import { getTraderService, toFomoFill } from "../traders/service.js";
 import { geckoTokenPools } from "../sources/gecko.js";
 import { pumpPoolFor } from "../sources/pumpfun.js";
 
@@ -26,6 +28,7 @@ export const FLOW_SOURCE = "pumpfun+geckoterminal→ledger";
 export const DEFAULT_BAR_COUNT = 300;
 export const SESSION_START_MS = Date.now();
 export const TAPE_LIMIT = 40;
+export const FOMO_TAPE_LIMIT = 40;
 const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
 const FLOW_ANCHORS = ["window", "session", "launch"] as const;
@@ -64,11 +67,21 @@ export type FlowCollectorLike = {
   status?(chain: Chain, address: string): { sources: SourcesLike };
 };
 
+/** The slice of TraderService the FOMO block reads; absent means no FOMO block (tests, or the service not wired). */
+export type FlowTradersLike = {
+  book: { tape(chain: Chain, limit: number, opts: { kind: "fomo"; token: string }): TraderTapeRow[] };
+  fomoLedger: FlowLedger;
+  population: { size: number };
+  handles: { get(address: string): { followers: number | null } | null; stats(): { entries: number } };
+  dexOf(chain: Chain, pair: string): string;
+};
+
 export type FlowRouteDeps = {
   registry: (chain: Chain, address: string) => Promise<RegistryResult>;
   collector: FlowCollectorLike;
   sessionStartMs: number;
   now: () => number;
+  traders?: FlowTradersLike;
 };
 
 /** Zod-validates route params and query; `to` defaults to now, `from` to DEFAULT_BAR_COUNT bars earlier. */
@@ -114,7 +127,16 @@ function anchorStart(params: FlowParams, bars: FlowBar[], deps: FlowRouteDeps): 
   return bars[0]?.t ?? null;
 }
 
-type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources" | "tape">;
+type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources" | "tape" | "fomo">;
+
+/** FOMO-kind fills of this token (newest first) plus FOMO-only window totals over the same Tier A pairs. Robinhood only (the designator check is eth_getCode); populations are "seen by this server". */
+export function fomoBlock(traders: FlowTradersLike, params: FlowParams, pairs: PairRow[], observedAt: number): TokenFlowFomo {
+  const dexByPair = new Map(pairs.map((pair) => [pair.pairAddress, pair.dex]));
+  const fills = traders.book.tape(params.chain, FOMO_TAPE_LIMIT, { kind: "fomo", token: params.address }).map((row) =>
+    toFomoFill(row, dexByPair.get(row.pair) ?? traders.dexOf(row.chain, row.pair), traders.handles.get(row.trader)?.followers ?? null)
+  );
+  return { fills, windows: flowWindows(traders.fomoLedger, params.chain, pairs, observedAt), population: traders.population.size, handles: traders.handles.stats().entries };
+}
 
 /** Newest Tier A prints across pairs from the ledger ring, dex from the PairRow, time desc, at most `limit`. Unpriced prints keep usd null. */
 export function recentTape(ledger: FlowLedger, chain: Chain, pairs: PairRow[], limit = TAPE_LIMIT): TapePrint[] {
@@ -122,7 +144,7 @@ export function recentTape(ledger: FlowLedger, chain: Chain, pairs: PairRow[], l
   for (const pair of pairs) {
     if (pair.tier !== "A") continue;
     for (const print of ledger.recentPrints(chain, pair.pairAddress, limit)) {
-      out.push({ pair: print.pair, dex: pair.dex, tx: print.tx, time: print.time, side: print.side, usd: print.usd, source: print.source });
+      out.push({ pair: print.pair, dex: pair.dex, tx: print.tx, time: print.time, side: print.side, usd: print.usd, source: print.source, ...(print.trader ? { trader: print.trader } : {}) });
     }
   }
   return out.sort((a, b) => b.time - a.time).slice(0, Math.max(0, limit));
@@ -137,7 +159,8 @@ function sideOutputs(params: FlowParams, pairs: PairRow[], bars: FlowBar[], deps
     largePrints: largePrints(ledger, params.chain, pairs),
     sinceAnchor: sinceAnchor(ledger, params.chain, pairs, anchorStart(params, bars, deps), params.toMs),
     tape: recentTape(ledger, params.chain, pairs),
-    ...(status ? { sources: sourceChips(status.sources) } : {})
+    ...(status ? { sources: sourceChips(status.sources) } : {}),
+    ...(deps.traders && params.chain === "robinhood" ? { fomo: fomoBlock(deps.traders, params, pairs, observedAt) } : {})
   };
 }
 
@@ -210,7 +233,8 @@ const liveDeps: FlowRouteDeps = {
   registry: liveRegistry,
   collector: flowCollector,
   sessionStartMs: SESSION_START_MS,
-  now: () => Date.now()
+  now: () => Date.now(),
+  traders: getTraderService()
 };
 
 export const flowRouter = Router();

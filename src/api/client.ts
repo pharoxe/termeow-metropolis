@@ -1,5 +1,5 @@
 import type { PublicConfig } from "../types";
-import type { Chain, LaunchesResponse, MarketResponse, TokenFlowResponse } from "../../shared/wire";
+import type { Chain, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -24,6 +24,13 @@ export const api = {
     if (params.pad) search.set("pad", params.pad);
     return request<LaunchesResponse>(`/api/launches?${search.toString()}`);
   },
+  fomoTape: (params: { chain?: FomoChainScope; limit?: number } = {}) => {
+    const search = new URLSearchParams({ chain: params.chain ?? "all" });
+    if (params.limit) search.set("limit", String(params.limit));
+    return request<FomoTapeResponse>(`/api/fomo/tape?${search.toString()}`);
+  },
+  fomoBoard: (params: { chain?: FomoChainScope; window?: FomoBoardWindow } = {}) =>
+    request<FomoBoardResponse>(`/api/fomo/board?${new URLSearchParams({ chain: params.chain ?? "all", window: params.window ?? "24h" }).toString()}`),
   search: (q: string) => request<Record<string, unknown>>(`/api/onchain/search?q=${encodeURIComponent(q)}`),
   trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
   board: () => request<Record<string, unknown>>("/api/onchain/board"),

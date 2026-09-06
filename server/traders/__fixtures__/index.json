@@ -1,0 +1,408 @@
+{
+  "capturedAt": "2026-09-06T16:20:22.683Z",
+  "source": "https://robinhoodtrenches.com/api/tape?limit=120 (120 rows, 48 distinct wallets) + rpc.mainnet.chain.robinhood.com",
+  "entryPoint": "0x4337084d9e255ff0702461cf8895ce9e3b5ff108",
+  "relayB": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
+  "txToHistogramOverFirst10SampledTapeTxs": {
+    "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be": 4,
+    "0xe0c0c31d6413dafffdf99f45f9c07bc8d5245fcc": 2,
+    "0xca11bde05977b3631167028862be2a173976ca11 (Multicall3)": 2,
+    "0x6621fbc88edb5c37e87c82b65bfa17be0003d59d": 1,
+    "0xe5eac6b2143c7d6eb2e242fc1c8e43b24eef4d46": 1
+  },
+  "blockTimeEstimate": {
+    "secPerBlock": 0.10067766933627315,
+    "fromTapeRows": 120,
+    "blockRange": [
+      56079170,
+      56110011
+    ],
+    "tsRange": [
+      1788707945,
+      1788711050
+    ]
+  },
+  "note": "Some receipt files were written concurrently by another process at 21:43:21-26 IST with shape {transaction, receipt}; metadata for them is joined here from tape.json by tx hash. Relay classification is tx.to only.",
+  "fills": [
+    {
+      "file": "receipt-AvgJoesCrypto-20bd4d71.json",
+      "shape": "this-agent {capturedAt,tape,tx,receipt}",
+      "tx": "0x20bd4d71702c49bbd3ab8f96167ab4c2cf7619c286cb8d53c09aac1f2337e727",
+      "block": 56104164,
+      "expectedWallet": "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1",
+      "handle": "AvgJoesCrypto",
+      "side": "buy",
+      "token": "0xf9b46d3d1b22199d4d1025a9cedb540a33f1a2d5",
+      "symbol": "XOM",
+      "relay": "other",
+      "txTo": "0xe0c0c31d6413dafffdf99f45f9c07bc8d5245fcc",
+      "txFrom": "0x45b6263367a3c3c33720f02937d20d50b5a7613c",
+      "status": "0x1",
+      "logs": 181,
+      "erc20Transfers": 60,
+      "walletInTransfers": 1,
+      "walletRoles": [
+        "to@tradedToken"
+      ],
+      "userOpEvents": 0,
+      "userOpSenderMatchesWallet": null,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1",
+          "handle": "AvgJoesCrypto",
+          "side": "buy",
+          "token": "0xf9b46d3d1b22199d4d1025a9cedb540a33f1a2d5",
+          "symbol": "XOM"
+        }
+      ]
+    },
+    {
+      "file": "receipt-AvgJoesCrypto-51e1a0bc.json",
+      "shape": "this-agent {userOp,tapeWalletRow,tx,receipt}",
+      "tx": "0x51e1a0bca3072577dbd2f6ef85088f0462181d5676a70833a2fc2c66659d3d3f",
+      "block": 56110011,
+      "expectedWallet": "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1",
+      "handle": "AvgJoesCrypto",
+      "side": "sell",
+      "token": "0x39dbed3a2bd333467115de45665cc57f813c4571",
+      "symbol": "PONS",
+      "relay": "entrypoint",
+      "txTo": "0x4337084d9e255ff0702461cf8895ce9e3b5ff108",
+      "txFrom": "0x4337004ec9c1417f1c7a26ebd4b4fbed6acf9e5d",
+      "status": "0x1",
+      "logs": 23,
+      "erc20Transfers": 6,
+      "walletInTransfers": 1,
+      "walletRoles": [
+        "from@tradedToken"
+      ],
+      "userOpEvents": 2,
+      "userOpSenderMatchesWallet": true,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1",
+          "handle": "AvgJoesCrypto",
+          "side": "sell",
+          "token": "0x39dbed3a2bd333467115de45665cc57f813c4571",
+          "symbol": "PONS"
+        }
+      ]
+    },
+    {
+      "file": "receipt-AvgJoesCrypto-ed063087.json",
+      "shape": "concurrent-writer {transaction,receipt}",
+      "tx": "0xed063087fb7e07ec536463ebb7540bdb0b77a0f54c730515e318c265522b0edf",
+      "block": 56100321,
+      "expectedWallet": "0x39b337121494b10cffe3e581ab3281b2d62c5b08",
+      "handle": "kyle",
+      "side": "buy",
+      "token": "0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+      "symbol": "DJT",
+      "relay": "other",
+      "txTo": "0x87f85bd5feedad14d8850c20b9250ad9bd283a12",
+      "txFrom": "0x45b6263367a3c3c33720f02937d20d50b5a7613c",
+      "status": "0x1",
+      "logs": 181,
+      "erc20Transfers": 60,
+      "walletInTransfers": 1,
+      "walletRoles": [
+        "to@tradedToken"
+      ],
+      "userOpEvents": 0,
+      "userOpSenderMatchesWallet": null,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1",
+          "handle": "AvgJoesCrypto",
+          "side": "buy",
+          "token": "0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+          "symbol": "DJT"
+        },
+        {
+          "wallet": "0x39b337121494b10cffe3e581ab3281b2d62c5b08",
+          "handle": "kyle",
+          "side": "buy",
+          "token": "0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+          "symbol": "DJT"
+        }
+      ]
+    },
+    {
+      "file": "receipt-FartmanSacks-9f90bee8.json",
+      "shape": "concurrent-writer {transaction,receipt}",
+      "tx": "0x9f90bee8fac0f58bb94e9906ce1c1afdf63a2cf46497decea56e0b8983188a4e",
+      "block": 56100537,
+      "expectedWallet": "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1",
+      "handle": "AvgJoesCrypto",
+      "side": "buy",
+      "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "symbol": "MU",
+      "relay": "other",
+      "txTo": "0xca11bde05977b3631167028862be2a173976ca11",
+      "txFrom": "0xe1f7f5a42019d5128687ce74fcec77215bf9ece7",
+      "status": "RECEIPT MISSING (concurrent writer, tx only)",
+      "logs": 0,
+      "erc20Transfers": 0,
+      "walletInTransfers": 0,
+      "walletRoles": [],
+      "userOpEvents": 0,
+      "userOpSenderMatchesWallet": null,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0x7f6e4e1e59be05dc717c8e5429154a7408609ee2",
+          "handle": "FartmanSacks",
+          "side": "buy",
+          "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "symbol": "MU"
+        },
+        {
+          "wallet": "0x03ba951f72e59899ac8dab30cb5624dbe5d52bb8",
+          "handle": "Rowdy",
+          "side": "buy",
+          "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "symbol": "MU"
+        },
+        {
+          "wallet": "0x3ecbecb8e47702249842c29cc5aed564ad1fa84b",
+          "handle": "andy",
+          "side": "buy",
+          "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "symbol": "MU"
+        },
+        {
+          "wallet": "0x44fbe0006661d6d17188f1f6d42b32b5577179f7",
+          "handle": "SolSwizzle",
+          "side": "buy",
+          "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "symbol": "MU"
+        },
+        {
+          "wallet": "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1",
+          "handle": "AvgJoesCrypto",
+          "side": "buy",
+          "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "symbol": "MU"
+        }
+      ]
+    },
+    {
+      "file": "receipt-MEADGod-1a408fc3.json",
+      "shape": "concurrent-writer {transaction,receipt}",
+      "tx": "0x1a408fc334d5748a75528e30018c856b181b3fbd95e498b8446288a0288dfb72",
+      "block": 56103549,
+      "expectedWallet": "0xf89f3858bc7bac05a83ec284e3e9acdb58bf892a",
+      "handle": "MEADGod",
+      "side": "buy",
+      "token": "0x39dbed3a2bd333467115de45665cc57f813c4571",
+      "symbol": "PONS",
+      "relay": "relayB",
+      "txTo": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
+      "txFrom": "0x728f51950ff096dc03a48f5e83f45ac8bb75f500",
+      "status": "0x1",
+      "logs": 21,
+      "erc20Transfers": 8,
+      "walletInTransfers": 1,
+      "walletRoles": [
+        "to@tradedToken"
+      ],
+      "userOpEvents": 0,
+      "userOpSenderMatchesWallet": null,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0xf89f3858bc7bac05a83ec284e3e9acdb58bf892a",
+          "handle": "MEADGod",
+          "side": "buy",
+          "token": "0x39dbed3a2bd333467115de45665cc57f813c4571",
+          "symbol": "PONS"
+        }
+      ]
+    },
+    {
+      "file": "receipt-RugDalio-968fd999.json",
+      "shape": "concurrent-writer {transaction,receipt}",
+      "tx": "0x968fd999fe49e2cdc7aab74b1bae94e87e4dec9cbc9fbd487eddee8756fbbdb1",
+      "block": 56100575,
+      "expectedWallet": "0xeb0f432beecf10dcc828fc1e36a3386caf634637",
+      "handle": "0xleo",
+      "side": "buy",
+      "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "symbol": "MU",
+      "relay": "other",
+      "txTo": "0xca11bde05977b3631167028862be2a173976ca11",
+      "txFrom": "0xe1f7f5a42019d5128687ce74fcec77215bf9ece7",
+      "status": "RECEIPT MISSING (concurrent writer, tx only)",
+      "logs": 0,
+      "erc20Transfers": 0,
+      "walletInTransfers": 0,
+      "walletRoles": [],
+      "userOpEvents": 0,
+      "userOpSenderMatchesWallet": null,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0xaf3a73c19118409936bdea72fd975c7539f85359",
+          "handle": "RugDalio",
+          "side": "buy",
+          "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "symbol": "MU"
+        },
+        {
+          "wallet": "0x8e4f5d00a5f4d7877a0f66b98fdf9d40323bc52a",
+          "handle": "brrrgrrrz",
+          "side": "buy",
+          "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "symbol": "MU"
+        },
+        {
+          "wallet": "0xb02208d1b27811480cf6171bccc2b7af9513cddb",
+          "handle": "notanicecat69",
+          "side": "buy",
+          "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "symbol": "MU"
+        },
+        {
+          "wallet": "0xeb0f432beecf10dcc828fc1e36a3386caf634637",
+          "handle": "0xleo",
+          "side": "buy",
+          "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+          "symbol": "MU"
+        }
+      ]
+    },
+    {
+      "file": "receipt-pingucharts-4c50db06.json",
+      "shape": "concurrent-writer {transaction,receipt}",
+      "tx": "0x4c50db06f514b82bbfe429c0aefb20372ef7b320099f1517bc6894b88aa7ce32",
+      "block": 56103845,
+      "expectedWallet": "0x281d6b1de357372bcba4f190748a6cedc655f0fd",
+      "handle": "pingucharts",
+      "side": "buy",
+      "token": "0x8b3e3ba1a55b939f93f0a205f94520b9468e17f8",
+      "symbol": "RIDE",
+      "relay": "relayB",
+      "txTo": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
+      "txFrom": "0xcc4bc7882d5ec4a3716e589ab3d816b61ae47a1a",
+      "status": "0x1",
+      "logs": 33,
+      "erc20Transfers": 11,
+      "walletInTransfers": 1,
+      "walletRoles": [
+        "to@tradedToken"
+      ],
+      "userOpEvents": 0,
+      "userOpSenderMatchesWallet": null,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0x281d6b1de357372bcba4f190748a6cedc655f0fd",
+          "handle": "pingucharts",
+          "side": "buy",
+          "token": "0x8b3e3ba1a55b939f93f0a205f94520b9468e17f8",
+          "symbol": "RIDE"
+        }
+      ]
+    },
+    {
+      "file": "receipt-stigstigstig_-1ce1f61a.json",
+      "shape": "concurrent-writer {transaction,receipt}",
+      "tx": "0x1ce1f61aba9d075c16dbd94f616d5315a4adc767ab8dacf1afe76539f1e1f52d",
+      "block": 56107137,
+      "expectedWallet": "0x662053fd75f1f7da7e524d884b96552a13d2800b",
+      "handle": "stigstigstig_",
+      "side": "buy",
+      "token": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+      "symbol": "USO",
+      "relay": "other",
+      "txTo": "0xca11bde05977b3631167028862be2a173976ca11",
+      "txFrom": "0xe1f7f5a42019d5128687ce74fcec77215bf9ece7",
+      "status": "0x1",
+      "logs": 353,
+      "erc20Transfers": 148,
+      "walletInTransfers": 1,
+      "walletRoles": [
+        "to@tradedToken"
+      ],
+      "userOpEvents": 0,
+      "userOpSenderMatchesWallet": null,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0x662053fd75f1f7da7e524d884b96552a13d2800b",
+          "handle": "stigstigstig_",
+          "side": "buy",
+          "token": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+          "symbol": "USO"
+        }
+      ]
+    },
+    {
+      "file": "receipt-unipcs-c13a06f4.json",
+      "shape": "concurrent-writer {transaction,receipt}",
+      "tx": "0xc13a06f4f5a38e15dd345febf1c7ae586256f82e3d56d968b53fb3c74f720b07",
+      "block": 56105936,
+      "expectedWallet": "0x28a92ff139536c780b3d8b172e68bd2d32a666a6",
+      "handle": "DipWheeler",
+      "side": "buy",
+      "token": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "symbol": "SPCX",
+      "relay": "other",
+      "txTo": "0xca11bde05977b3631167028862be2a173976ca11",
+      "txFrom": "0xe1f7f5a42019d5128687ce74fcec77215bf9ece7",
+      "status": "0x1",
+      "logs": 366,
+      "erc20Transfers": 148,
+      "walletInTransfers": 1,
+      "walletRoles": [
+        "to@tradedToken"
+      ],
+      "userOpEvents": 0,
+      "userOpSenderMatchesWallet": null,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0x0a6ebed0155edb4b21d92ad02897a626cd90119e",
+          "handle": "unipcs",
+          "side": "buy",
+          "token": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+          "symbol": "COIN"
+        },
+        {
+          "wallet": "0x28a92ff139536c780b3d8b172e68bd2d32a666a6",
+          "handle": "DipWheeler",
+          "side": "buy",
+          "token": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+          "symbol": "SPCX"
+        }
+      ]
+    },
+    {
+      "file": "receipt-unipcs-c3791de1.json",
+      "shape": "concurrent-writer {transaction,receipt}",
+      "tx": "0xc3791de1f2197f9f44bb91cd185a6f58279397225bf53c1b525eca8ac8fe2bef",
+      "block": 56105579,
+      "expectedWallet": "0x0a6ebed0155edb4b21d92ad02897a626cd90119e",
+      "handle": "unipcs",
+      "side": "buy",
+      "token": "0x385f4f8ae47651ce5f58f5265395a669f8281e18",
+      "symbol": "MEME",
+      "relay": "relayB",
+      "txTo": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
+      "txFrom": "0x4381045063b19a615a272733fa6b5f169b622646",
+      "status": "0x1",
+      "logs": 21,
+      "erc20Transfers": 9,
+      "walletInTransfers": 1,
+      "walletRoles": [
+        "to@tradedToken"
+      ],
+      "userOpEvents": 0,
+      "userOpSenderMatchesWallet": null,
+      "allTapeFillsInTx": [
+        {
+          "wallet": "0x0a6ebed0155edb4b21d92ad02897a626cd90119e",
+          "handle": "unipcs",
+          "side": "buy",
+          "token": "0x385f4f8ae47651ce5f58f5265395a669f8281e18",
+          "symbol": "MEME"
+        }
+      ]
+    }
+  ],
+  "multiFillNote": "18 of 90 distinct tape txs carry fills for 2-5 different tape wallets (bundled relays: Multicall3 0xca11bde0 from 0xe1f7f5a4, and 0xe0c0c31d/0x87f85bd5 from 0x45b62633). Join wallet->fill per ERC-20 Transfer, never per tx; expectedWallet below is the FIRST tape row for that tx, allTapeFillsInTx lists every one."
+}

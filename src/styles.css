@@ -834,3 +834,16 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .launch-table td .chip { margin:0 3px 0 0; vertical-align:middle; }
 .launch-table td small .chip { font-size:7px; padding:0 3px; }
 .launch-table td b + .chip { margin-left:4px; }
+
+/* R3 FOMO: tape panel in the radar slot, board tab in the watch panel, FOMO windows under the flow side outputs. */
+.fomo-tape th:first-child,.fomo-board-table th:first-child { width:40%; }
+.fomo-tape a,.fomo-board-table a { color:var(--amber2); text-decoration:none; }
+.fomo-tape a:hover,.fomo-board-table a:hover { color:var(--accent); text-decoration:underline; }
+.fomo-board { display:flex; flex-direction:column; }
+.fomo-board-head { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:5px 7px; border-bottom:1px solid var(--line); }
+.fomo-board-head .tabs { flex:1 1 auto; }
+.fomo-board-head .pm { flex:1 0 100%; margin-left:0; }
+.fomo-board-table td small { display:inline; margin-left:5px; }
+.fomo-note { padding:3px 7px; }
+.flow-fomo { display:flex; flex-direction:column; gap:2px; }
+.flow-fomo-title { margin-left:0; }
