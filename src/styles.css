@@ -823,3 +823,14 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .trade-links > a { display:block; margin:10px 11px 0; padding:9px 10px; border:1px solid var(--line2); color:var(--amber2); font-size:11px; font-weight:600; letter-spacing:.06em; text-decoration:none; background:var(--surface); }
 .trade-links > a:hover { border-color:var(--accent); }
 .trade-links > a small { display:block; margin-top:3px; color:var(--muted); font-size:9px; font-weight:400; letter-spacing:0; }
+/* LAUNCHES tab (WatchPanel): fifth tab spans the 2-column tab grid; chips bar + 4-column table. */
+.watch-tabs button:last-child { grid-column:1 / -1; }
+.launch-bar { display:flex; align-items:center; flex-wrap:wrap; gap:4px; padding:5px 8px; border-bottom:1px solid var(--line); background:var(--panel-hi); }
+.launch-bar button { min-height:22px; border:1px solid var(--line2); padding:2px 6px; background:var(--surface); color:var(--muted); font-size:9px; font-weight:700; letter-spacing:.6px; }
+.launch-bar button.on { color:var(--amber); border-color:var(--accent); background:var(--accent-soft); }
+.launch-bar .pm { margin-left:auto; }
+.launch-table th:first-child { width:auto; }
+.launch-table th:nth-child(2) { width:34%; }
+.launch-table td .chip { margin:0 3px 0 0; vertical-align:middle; }
+.launch-table td small .chip { font-size:7px; padding:0 3px; }
+.launch-table td b + .chip { margin-left:4px; }

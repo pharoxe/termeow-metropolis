@@ -136,3 +136,55 @@ export type MarketResponse = {
   stale?: boolean;
   error?: string;
 };
+
+// ---- Launches (GET /api/launches) ----
+
+/**
+ * One launchpad token on either chain as the launch index knows it. Nulls mean "not exposed by any source yet";
+ * `tracked` is populated only from an external tracked-trader population (label it, e.g. "robinhoodtrenches").
+ */
+export type LaunchRow = {
+  chain: Chain;
+  launchpad: string;
+  token: string;
+  symbol: string | null;
+  name: string | null;
+  image: string | null;
+  creator: string | null;
+  curve: string | null;
+  pool: string | null;
+  createdAt: number;
+  tx: string;
+  graduatedAt: number | null;
+  priceUsd: number | null;
+  marketCapUsd: number | null;
+  liquidityUsd: number | null;
+  volume24Usd: number | null;
+  change24Pct: number | null;
+  /** When priceUsd/marketCapUsd were last refreshed by a pricing source (ms); null until any source has priced the row. */
+  pricedAt: number | null;
+  curveBuys: number;
+  curveSells: number;
+  curveNetUsd: number | null;
+  tracked: {
+    buyers: number;
+    usdIn: number;
+    usdOut: number;
+    firstBuyer: { handle: string; followers: number | null; at: number } | null;
+    honeypot: boolean | null;
+  } | null;
+  sources: string[];
+  observedAt: number;
+};
+
+export type LaunchesResponse = {
+  launches: LaunchRow[];
+  window: string;
+  chain: "all" | Chain;
+  observedAt: number;
+  sources: Array<{ name: string; lastOkAt: number | null; lastError: string | null }>;
+  /** True when the list hit the route cap: older rows inside `window` were cut and only the newest are returned. */
+  truncated?: boolean;
+  stale?: boolean;
+  error?: string;
+};

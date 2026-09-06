@@ -363,6 +363,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           market={{ provider: mergedProvider } as OnchainMarket}
           selected={instrument.address}
           onSpot={focusSolana}
+          onInstrument={focusInstrument}
           trenches={trenchRows}
           onTrenchSort={setTrenchSort}
         />

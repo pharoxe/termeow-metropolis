@@ -8,6 +8,7 @@ import { systemRouter } from "./routes/system.js";
 import { onchainRouter } from "./routes/onchain.js";
 import { flowRouter } from "./routes/flow.js";
 import { marketRouter } from "./routes/market.js";
+import { launchesRouter } from "./routes/launches.js";
 import { clawpumpMcp } from "./clawpump/mcp.js";
 import { errorMessage, UpstreamError } from "./lib/http.js";
 
@@ -21,6 +22,7 @@ app.use("/api", systemRouter);
 app.use("/api/onchain", onchainRouter);
 app.use("/api/flow", flowRouter);
 app.use("/api/market", marketRouter);
+app.use("/api/launches", launchesRouter);
 
 if (config.nodeEnv === "production") {
   const dist = path.resolve(process.cwd(), "dist");

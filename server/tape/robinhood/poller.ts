@@ -37,6 +37,15 @@ export type RawLog = {
 
 export type LogsHandler = (logs: RawLog[], headBlock: number) => void;
 
+/**
+ * One extra eth_getLogs leg appended to this poller's batch: `topics` follows the eth_getLogs shape (position i matches
+ * any listed topic; null is a wildcard). Its logs reach the handler through the same window and dedupe path. RPC budget
+ * note: legs only ride for free on a *shared* poller; a consumer that constructs its own RobinhoodLogPoller (the launch
+ * stream in server/launch/service.ts does) runs a second independent 2s eth_blockNumber + eth_getLogs loop against the
+ * 429-prone public RPC.
+ */
+export type ExtraLeg = { addresses: string[]; topics: Array<string[] | null> };
+
 export type PollerOptions = {
   rpcUrl: string;
   intervalMs?: number;
@@ -135,6 +144,7 @@ export class RobinhoodLogPoller {
   private readonly now: () => number;
   private readonly log: (m: string) => void;
   private filter: Filter = { addresses: [], poolIds: new Set() };
+  private extraLegs: ExtraLeg[] = [];
   private handler: LogsHandler | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private controller: AbortController | null = null;
@@ -168,6 +178,16 @@ export class RobinhoodLogPoller {
     const pools = new Set(poolIds.map((id) => id.toLowerCase()));
     const contracts = new Set(addresses.map((address) => address.toLowerCase()));
     this.filter = { addresses: [...contracts], poolIds: pools };
+  }
+
+  /** Extra legs appended to every poll (same window, batch, dedupe and ordering). Empty (the default) changes nothing. */
+  setExtraLegs(legs: ExtraLeg[]): void {
+    this.extraLegs = legs
+      .filter((leg) => leg.addresses.length > 0)
+      .map((leg) => ({
+        addresses: [...new Set(leg.addresses.map((address) => address.toLowerCase()))],
+        topics: leg.topics.map((position) => (position === null ? null : position.map((topic) => topic.toLowerCase())))
+      }));
   }
 
   start(onLogs: LogsHandler): void {
@@ -233,7 +253,7 @@ export class RobinhoodLogPoller {
   }
 
   private hasFilter(): boolean {
-    return this.filter.addresses.length > 0 || this.filter.poolIds.size > 0;
+    return this.filter.addresses.length > 0 || this.filter.poolIds.size > 0 || this.extraLegs.length > 0;
   }
   private async pollSequential(): Promise<PollResult> {
     const head = this.parseHead(await this.call("eth_blockNumber", []));
@@ -294,6 +314,7 @@ export class RobinhoodLogPoller {
     const legs: Array<Record<string, unknown>> = [];
     if (this.filter.addresses.length > 0) legs.push({ ...range, address: this.filter.addresses, topics: [POOL_SWAP_TOPICS] });
     if (this.filter.poolIds.size > 0) legs.push({ ...range, address: [this.poolManager], topics: [[V4_SWAP_TOPIC], [...this.filter.poolIds]] });
+    for (const leg of this.extraLegs) legs.push({ ...range, address: leg.addresses, topics: leg.topics });
     return legs;
   }
 
@@ -312,9 +333,24 @@ export class RobinhoodLogPoller {
 
   /** Residual guard: the node already filters by address/topic0/topic1, but a node that ignores topic1 must not leak foreign v4 swaps. */
   private matches(log: RawLog): boolean {
+    return this.matchesSwap(log) || this.matchesExtra(log);
+  }
+
+  private matchesSwap(log: RawLog): boolean {
     const topic0 = log.topics[0]?.toLowerCase();
     if (topic0 === V4_SWAP_TOPIC) return this.filter.poolIds.has((log.topics[1] ?? "").toLowerCase());
     return topic0 === V2_SWAP_TOPIC || topic0 === V3_SWAP_TOPIC;
+  }
+
+  /** A log satisfies an extra leg when its address is listed and every constrained topic position holds one of the listed topics. */
+  private matchesExtra(log: RawLog): boolean {
+    if (this.extraLegs.length === 0) return false;
+    const address = log.address.toLowerCase();
+    return this.extraLegs.some(
+      (leg) =>
+        leg.addresses.includes(address) &&
+        leg.topics.every((position, i) => position === null || position.includes((log.topics[i] ?? "").toLowerCase()))
+    );
   }
 
   private remember(key: string): void {

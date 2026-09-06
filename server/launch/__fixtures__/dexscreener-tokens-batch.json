@@ -1,0 +1,119 @@
+[
+  {
+    "chainId": "robinhood",
+    "dexId": "uniswap",
+    "labels": [
+      "v4"
+    ],
+    "url": "https://dexscreener.com/robinhood/0x051d1b7815553a7c4164e875b065e2d60462a968256cb75dd19c93731b43f654",
+    "pairAddress": "0x051d1b7815553a7c4164e875b065e2d60462a968256cb75dd19c93731b43f654",
+    "baseToken": {
+      "address": "0x8f5Ef8C3D77C1B89fda82Fc910eDE9f809DE524B",
+      "name": "Make Everyone an Owner",
+      "symbol": "MEAO"
+    },
+    "quoteToken": {
+      "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "name": "Global Dollar",
+      "symbol": "USDG"
+    },
+    "priceNative": "0.000004009",
+    "priceUsd": "0.000004013",
+    "txns": {
+      "m5": {
+        "buys": 0,
+        "sells": 1
+      },
+      "h1": {
+        "buys": 542,
+        "sells": 678
+      },
+      "h6": {
+        "buys": 542,
+        "sells": 678
+      },
+      "h24": {
+        "buys": 542,
+        "sells": 678
+      }
+    },
+    "volume": {
+      "h24": 65463.48,
+      "h6": 65463.48,
+      "h1": 65463.48,
+      "m5": 9.66
+    },
+    "priceChange": {
+      "m5": -0.75,
+      "h1": -90.12,
+      "h6": -90.12,
+      "h24": -90.12
+    },
+    "liquidity": {
+      "usd": 5151.22,
+      "base": 641676895,
+      "quote": 2572.9778
+    },
+    "fdv": 4014,
+    "marketCap": 4014,
+    "pairCreatedAt": 1788702725000,
+    "info": null
+  },
+  {
+    "chainId": "robinhood",
+    "dexId": "flapsh",
+    "labels": null,
+    "url": "https://dexscreener.com/robinhood/0x88dccc7c8b5264973a89c55a75c0cedde11ca2ff",
+    "pairAddress": "0x88Dccc7c8B5264973A89C55a75C0cEdde11cA2FF",
+    "baseToken": {
+      "address": "0xa29042272cC55fb939e0165509Ee124447767777",
+      "name": "Rob",
+      "symbol": "ROB"
+    },
+    "quoteToken": {
+      "address": "0xfB5b5778d45AE47F15323fb59B666c655174A79C",
+      "name": "Robinhood Markets (Ondo Tokenized)",
+      "symbol": "HOODon"
+    },
+    "priceNative": "0.00000003329",
+    "priceUsd": "0.000004177",
+    "txns": {
+      "m5": {
+        "buys": 0,
+        "sells": 0
+      },
+      "h1": {
+        "buys": 0,
+        "sells": 3
+      },
+      "h6": {
+        "buys": 45,
+        "sells": 56
+      },
+      "h24": {
+        "buys": 45,
+        "sells": 56
+      }
+    },
+    "volume": {
+      "h24": 10025.11,
+      "h6": 10025.11,
+      "h1": 222.67,
+      "m5": 0
+    },
+    "priceChange": {
+      "h1": -9.5,
+      "h6": -17.41,
+      "h24": -17.41
+    },
+    "liquidity": {
+      "usd": 8917.99,
+      "base": 1067417744,
+      "quote": 35.5393
+    },
+    "fdv": 4177,
+    "marketCap": 4177,
+    "pairCreatedAt": 1788696634000,
+    "info": null
+  }
+]

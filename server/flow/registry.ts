@@ -7,6 +7,8 @@ export const TIER_A_CAP = 4;
 const SHARE_EPSILON = 1e-9;
 const PUMP_PREFIX = "pumpfun:";
 const PUMP_VENUES = new Set(["pumpfun", "pumpswap", "pumpamm"]);
+/** Source label of a launchpad curve pseudo-pair; such rows are always Tier A and never count toward the cap. */
+export const LAUNCHPAD_SOURCE = "launchpad";
 
 export type RegistryPool = {
   dex: string;
@@ -22,6 +24,8 @@ export type RegistryInput = {
   geckoPools: RegistryPool[];
   clawTopPools: unknown;
   pumpPool: string | null;
+  /** Curve-phase pseudo-pairs from the launch service (Robinhood launchpads); optional, default none. */
+  launchpadPools?: RegistryPool[];
 };
 
 export type RegistryResult = { pairs: PairRow[]; observedAt: number; stale: boolean; error?: string };
@@ -31,6 +35,8 @@ export type RegistryDeps = {
   geckoTokenPools: (chain: Chain, address: string) => Promise<RegistryPool[]>;
   clawTopPools: () => Promise<unknown>;
   pumpPool: () => string | null;
+  /** Optional: launch-service pseudo-pairs for a token still on its bonding curve, so it has trade-level flow before a DEX pool. */
+  launchpadPairs?: (chain: Chain, address: string) => RegistryPool[];
 };
 
 const EMPTY_TXNS: PairRow["txns"] = { m5: null, h1: null, h6: null, h24: null };
@@ -81,6 +87,10 @@ export function clawPools(raw: unknown): RegistryPool[] {
 
 function isPumpPair(pair: string): boolean {
   return pair.startsWith(PUMP_PREFIX);
+}
+
+export function isLaunchpadRow(row: PairRow): boolean {
+  return row.sources.includes(LAUNCHPAD_SOURCE);
 }
 
 /** Pool rows on the pump.fun bonding curve or PumpSwap AMM: the very tape the pump pseudo-pair polls. */
@@ -146,6 +156,7 @@ function withPumpShare(rows: PairRow[]): PairRow[] {
 /**
  * Smallest volume-sorted prefix reaching TIER_A_SHARE, capped at TIER_A_CAP; the pump pseudo-pair is always Tier A
  * and, when present, stands in for every pump-venue pool row (those stay Tier B so their prints are not ingested twice).
+ * Launchpad pseudo-pairs are likewise always Tier A and outside the cap (their prints come from the launch service).
  */
 function withTiers(rows: PairRow[]): PairRow[] {
   const sorted = [...rows].sort(byVolumeDesc);
@@ -153,18 +164,18 @@ function withTiers(rows: PairRow[]): PairRow[] {
   const tierA = new Set<string>();
   let cumulative = pump?.share24 ?? 0;
   for (const row of sorted) {
-    if (isPumpPair(row.pairAddress) || (pump && isPumpVenue(row.dex))) continue;
+    if (isPumpPair(row.pairAddress) || isLaunchpadRow(row) || (pump && isPumpVenue(row.dex))) continue;
     if (tierA.size >= TIER_A_CAP || cumulative >= TIER_A_SHARE - SHARE_EPSILON || row.share24 === null) break;
     tierA.add(row.pairAddress);
     cumulative += row.share24;
   }
   return sorted.map((row) => ({
     ...row,
-    tier: isPumpPair(row.pairAddress) || tierA.has(row.pairAddress) ? "A" : "B"
+    tier: isPumpPair(row.pairAddress) || isLaunchpadRow(row) || tierA.has(row.pairAddress) ? "A" : "B"
   }));
 }
 
-/** Union DexScreener, Gecko, Claw and the pump pseudo-pair into one shared/tiered registry. */
+/** Union DexScreener, Gecko, Claw, the pump pseudo-pair and launchpad pseudo-pairs into one shared/tiered registry. */
 export function buildRegistry(input: RegistryInput): PairRow[] {
   const { chain, address } = input;
   const gecko = input.geckoPools.map((pool) => poolRow(chain, address, pool, "geckoterminal"));
@@ -172,7 +183,8 @@ export function buildRegistry(input: RegistryInput): PairRow[] {
   const pump = input.pumpPool
     ? [poolRow(chain, address, { dex: "pumpfun", pairAddress: input.pumpPool, liquidityUsd: null, volume24Usd: null }, "pumpfun")]
     : [];
-  return withTiers(withPumpShare(withShares(unionRows([...input.dexPairs, ...gecko, ...claw, ...pump]))));
+  const launchpad = (input.launchpadPools ?? []).map((pool) => poolRow(chain, address, pool, LAUNCHPAD_SOURCE));
+  return withTiers(withPumpShare(withShares(unionRows([...input.dexPairs, ...gecko, ...claw, ...pump, ...launchpad]))));
 }
 
 type CacheEntry = { pairs: PairRow[]; observedAt: number };
@@ -268,7 +280,7 @@ async function fresh(key: string, chain: Chain, address: string, deps: RegistryD
   const errors = gatherErrors(outcomes);
   if (outcomes.allRejected) throw new Error(errors.join("; "));
   const retained = lastGood.get(key) ?? {};
-  const pairs = buildRegistry({ chain, address, ...retainedRows(outcomes, retained), pumpPool: deps.pumpPool() });
+  const pairs = buildRegistry({ chain, address, ...retainedRows(outcomes, retained), pumpPool: deps.pumpPool(), launchpadPools: deps.launchpadPairs?.(chain, address) ?? [] });
   lastGood.set(key, rememberRows(outcomes, retained));
   const entry = { pairs, observedAt: Date.now() };
   cache.set(key, entry);

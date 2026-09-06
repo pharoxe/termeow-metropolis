@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PairRow } from "../../shared/wire.js";
 import {
+  LAUNCHPAD_SOURCE,
   buildRegistry,
   clawPools,
   getRegistry,
+  isLaunchpadRow,
   resetRegistryCache,
   type RegistryDeps,
   type RegistryPool
@@ -173,6 +175,40 @@ describe("buildRegistry tiering", () => {
   });
 });
 
+describe("buildRegistry launchpad pseudo-pairs", () => {
+  const CURVE = "pons:0x9a6d239adb8ccf1e9eb8f0722cfac6bbda410b7b";
+  const launchpad: RegistryPool = { dex: "pons", pairAddress: CURVE, liquidityUsd: null, volume24Usd: null };
+
+  it("forces a launchpad pair to Tier A with the launchpad source and no share, outside the cap", () => {
+    const pairs = buildRegistry({
+      chain: "robinhood",
+      address: "0xtoken",
+      dexPairs: ["a", "b", "c", "d", "e"].map((address) => dexRow(address, 10, { chain: "robinhood" })),
+      geckoPools: [],
+      clawTopPools: null,
+      pumpPool: null,
+      launchpadPools: [launchpad]
+    });
+    const curve = byAddress(pairs, CURVE);
+    expect(curve).toMatchObject({ tier: "A", dex: "pons", baseMint: "0xtoken", quoteMint: null, share24: null, sources: [LAUNCHPAD_SOURCE] });
+    expect(isLaunchpadRow(curve)).toBe(true);
+    expect(pairs.filter((pair) => pair.tier === "A" && pair.pairAddress !== CURVE)).toHaveLength(4);
+    expect(pairs.filter((pair) => pair.tier === "B")).toHaveLength(1);
+  });
+
+  it("is the only Tier A row for a curve-phase token with no DEX pool yet", () => {
+    const pairs = buildRegistry({ chain: "robinhood", address: "0xtoken", dexPairs: [], geckoPools: [], clawTopPools: null, pumpPool: null, launchpadPools: [launchpad] });
+    expect(pairs.map((pair) => [pair.pairAddress, pair.tier])).toEqual([[CURVE, "A"]]);
+  });
+
+  it("changes nothing when launchpadPools is omitted or empty", () => {
+    const without = build([dexRow("a", 60), dexRow("b", 40)]);
+    const empty = buildRegistry({ chain: "solana", address: MINT, dexPairs: [dexRow("a", 60), dexRow("b", 40)], geckoPools: [], clawTopPools: null, pumpPool: null, launchpadPools: [] });
+    expect(empty).toEqual(without);
+    expect(without.some(isLaunchpadRow)).toBe(false);
+  });
+});
+
 describe("getRegistry", () => {
   function deps(overrides: Partial<RegistryDeps> = {}): RegistryDeps {
     return {
@@ -210,6 +246,13 @@ describe("getRegistry", () => {
     expect(x).toBe(y);
     expect(d.getTokenPairs).toHaveBeenCalledTimes(1);
     expect(d.geckoTokenPools).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks the optional launchpadPairs dep for the token and unions its rows", async () => {
+    const launchpadPairs = vi.fn((): RegistryPool[] => [{ dex: "bags", pairAddress: "bags:0xamm", liquidityUsd: null, volume24Usd: null }]);
+    const result = await getRegistry("robinhood", "0xToken", deps({ pumpPool: () => null, launchpadPairs }));
+    expect(launchpadPairs).toHaveBeenCalledWith("robinhood", "0xToken");
+    expect(byAddress(result.pairs, "bags:0xamm")).toMatchObject({ tier: "A", sources: [LAUNCHPAD_SOURCE] });
   });
 
   it("keys robinhood addresses case-insensitively", async () => {

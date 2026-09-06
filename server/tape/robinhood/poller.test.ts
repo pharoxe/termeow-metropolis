@@ -460,4 +460,42 @@ describe("RobinhoodLogPoller", () => {
     expect(onLogs).toHaveBeenLastCalledWith([good], HEAD + 2);
     expect(poller.stats()).toMatchObject({ logs: 2 + SEEN_RING, dropped: 2 });
   });
+
+  it("rides extra legs on the same window and batch; their logs reach onLogs deduped and filtered like the pool legs", async () => {
+    const PONS_FACTORY = "0x7ed598bcef8bd9edd8c97a195c6d13f40801ec7e";
+    const TOKEN_LAUNCHED = "0x8d4aad4953d0ca700d468f3753aa14432d1b35b43ec6409f051fb6aa43a89607";
+    const swap = mkLog(HEAD - 1, "0xaa", 1, V3_POOL, V3_SWAP_TOPIC);
+    const launch = mkLog(HEAD - 2, "0xbb", 3, PONS_FACTORY, TOKEN_LAUNCHED);
+    const otherFactoryEvent = mkLog(HEAD - 2, "0xcc", 4, PONS_FACTORY, "0x" + "e".repeat(64));
+    const node = fakeNode({ head: HEAD, logs: [swap, launch, otherFactoryEvent] });
+    const { poller, onLogs } = build(node);
+    poller.setFilter([V3_POOL], []);
+    poller.setExtraLegs([{ addresses: [PONS_FACTORY.toUpperCase()], topics: [[TOKEN_LAUNCHED.toUpperCase()]] }]);
+    poller.start(onLogs);
+    await tick();
+
+    expect(node.logsCalls()).toEqual([
+      { fromBlock: hex(HEAD - 25), toBlock: hex(HEAD), address: [V3_POOL], topics: [POOL_SWAP_TOPICS] },
+      { fromBlock: hex(HEAD - 25), toBlock: hex(HEAD), address: [PONS_FACTORY], topics: [[TOKEN_LAUNCHED]] }
+    ]);
+    expect(onLogs).toHaveBeenCalledWith([launch, swap], HEAD);
+    expect(poller.stats()).toMatchObject({ logs: 2, dropped: 0, rpcCalls: 3 });
+
+    const later = mkLog(HEAD + 1, "0xdd", 0, PONS_FACTORY, TOKEN_LAUNCHED);
+    node.chain.logs = [swap, launch, later];
+    node.chain.raw = [otherFactoryEvent];
+    node.chain.head = HEAD + 1;
+    await tick(DEFAULT_INTERVAL_MS);
+    expect(node.calls.at(-1)!.batched).toBe(true);
+    expect(node.calls.at(-1)!.requests.map((req) => req.method)).toEqual(["eth_blockNumber", "eth_getLogs", "eth_getLogs"]);
+    expect(node.logsCalls().at(-1)).toEqual({ fromBlock: hex(HEAD - 5), toBlock: hex(HEAD + DEFAULT_MAX_RANGE), address: [PONS_FACTORY], topics: [[TOKEN_LAUNCHED]] });
+    expect(onLogs).toHaveBeenLastCalledWith([later], HEAD + 1);
+    expect(poller.stats()).toMatchObject({ logs: 3, dropped: 4, rpcCalls: 4 });
+
+    poller.setExtraLegs([]);
+    node.chain.head = HEAD + 2;
+    await tick(DEFAULT_INTERVAL_MS);
+    expect(node.calls.at(-1)!.requests.map((req) => req.method)).toEqual(["eth_blockNumber", "eth_getLogs"]);
+    expect(node.logsCalls().at(-1)!.address).toEqual([V3_POOL]);
+  });
 });

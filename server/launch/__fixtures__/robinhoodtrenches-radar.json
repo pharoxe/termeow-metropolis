@@ -1,0 +1,222 @@
+[
+  {
+    "token": "0x6f35bc749c16968d764c23f2f2e049ca80d68976",
+    "symbol": "ZORDI",
+    "name": "zOrdinals.fun",
+    "is_stock": 0,
+    "first_ts": 1788705438,
+    "buyers": 1,
+    "usd_in": 425.723356,
+    "mark": 0.001034,
+    "liquidity": 93738.95,
+    "pair_created_at": 1788480956,
+    "pair_url": "https://dexscreener.com/robinhood/0x77579758389d931f6a78368ce9be551711eb3b1d61adc841fb7a746ff5867620",
+    "change24": 1653,
+    "pool_age": 224792,
+    "age_at_first_buy": 224482,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "Binkieee",
+      "followers": 151246,
+      "ts": 1788497293
+    }
+  },
+  {
+    "token": "0xc83b3eef751e0731184d3a7d028c64f342416a7d",
+    "symbol": "BTC",
+    "name": "Buy The Cat",
+    "is_stock": 0,
+    "first_ts": 1788705040,
+    "buyers": 6,
+    "usd_in": 637.076194,
+    "mark": 5.502e-24,
+    "liquidity": 0,
+    "pair_created_at": 1788704889,
+    "pair_url": "https://dexscreener.com/robinhood/0x752fe15331a0a846c4dafb5c6cb1d5adbb34ae06014d0b6ad2213975cbd458e5",
+    "change24": -100,
+    "pool_age": 859,
+    "age_at_first_buy": 151,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "unipcs",
+      "followers": 514576,
+      "ts": 1788705040
+    }
+  },
+  {
+    "token": "0xc8742a70135705f677cc89aa1f0f9705bdcb6bd0",
+    "symbol": "JBI",
+    "name": "JUST BUY IT",
+    "is_stock": 0,
+    "first_ts": 1788705010,
+    "buyers": 5,
+    "usd_in": 490,
+    "mark": 0.00001144,
+    "liquidity": 4.9,
+    "pair_created_at": 1788704823,
+    "pair_url": "https://dexscreener.com/robinhood/0xd97702cbd7e5c93e4e3cbf64e86e728ffe917b1b",
+    "change24": 373,
+    "pool_age": 925,
+    "age_at_first_buy": 187,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "unipcs",
+      "followers": 514576,
+      "ts": 1788705010
+    }
+  },
+  {
+    "token": "0x3b4a0048a00787a644932cd648faa043410c163e",
+    "symbol": "SIRIUS",
+    "name": "The Dogestar",
+    "is_stock": 0,
+    "first_ts": 1788704948,
+    "buyers": 1,
+    "usd_in": 448.888489,
+    "mark": 0.002516,
+    "liquidity": 128935.4,
+    "pair_created_at": 1788081732,
+    "pair_url": "https://dexscreener.com/robinhood/0x3206ce1c4d3f9fa25cfab95de7e743f61912fcb03efa6b3bff02cc577dcda22b",
+    "change24": -20.83,
+    "pool_age": 624016,
+    "age_at_first_buy": 623216,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "MaGica_Conch",
+      "followers": 15463,
+      "ts": 1788082055
+    }
+  },
+  {
+    "token": "0x3f715bc151715259b28b528896cb35b815d827f2",
+    "symbol": "HOOKED",
+    "name": "Hooked Ethereum",
+    "is_stock": 0,
+    "first_ts": 1788704926,
+    "buyers": 3,
+    "usd_in": 50.590483168292934,
+    "mark": 0.00005584,
+    "liquidity": 12319.84,
+    "pair_created_at": 1788704870,
+    "pair_url": "https://dexscreener.com/robinhood/0x8a91b2827987deafa5bf7e9e039615b976de0943",
+    "change24": 508,
+    "pool_age": 878,
+    "age_at_first_buy": 56,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "Quanterty",
+      "followers": 262657,
+      "ts": 1788704926
+    }
+  },
+  {
+    "token": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+    "symbol": "USO",
+    "name": "United States Oil Fund • Robinhood Token",
+    "is_stock": 1,
+    "first_ts": 1788704912,
+    "buyers": 1,
+    "usd_in": 13.402515958055217,
+    "mark": 143.47,
+    "liquidity": 772577.63,
+    "pair_created_at": 1784281508,
+    "pair_url": "https://dexscreener.com/robinhood/0x02175608f1b5e6b5ed221ccfdc7be197d111d915",
+    "change24": 0.97,
+    "pool_age": 4424240,
+    "age_at_first_buy": 4423404,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "downhorrndously",
+      "followers": 19761,
+      "ts": 1788131302
+    }
+  },
+  {
+    "token": "0x1590d70563190aa62709bd4ff7a2d192de570991",
+    "symbol": "ROUNDTRIP",
+    "name": "Roundtrip",
+    "is_stock": 0,
+    "first_ts": 1788704689,
+    "buyers": 1,
+    "usd_in": 198.523391,
+    "mark": 0.00006014,
+    "liquidity": 22623.95,
+    "pair_created_at": 1788704689,
+    "pair_url": "https://dexscreener.com/robinhood/0xf153433d6d72e98e5a7469f676c9567cda0c12e811cb410243d0bce00dd77a7b",
+    "change24": 15.37,
+    "pool_age": 1059,
+    "age_at_first_buy": 0,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "fmpumpguy",
+      "followers": 65621,
+      "ts": 1788704689
+    }
+  },
+  {
+    "token": "0x1409f68d7a63f2222741e632f78100887043f001",
+    "symbol": "DIDDY",
+    "name": "Baby Oil",
+    "is_stock": 0,
+    "first_ts": 1788704467,
+    "buyers": 1,
+    "usd_in": 448.573546,
+    "mark": 0.00006529,
+    "liquidity": 28871.15,
+    "pair_created_at": 1788206888,
+    "pair_url": "https://dexscreener.com/robinhood/0x9ed805960412f705164bdfa95abb0b8b93da19392ab4413c74d82eb7d1adbf4d",
+    "change24": -15.48,
+    "pool_age": 498860,
+    "age_at_first_buy": 497579,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "31337___",
+      "followers": 38780,
+      "ts": 1788210131
+    }
+  },
+  {
+    "token": "0xade76ad1f5249e7d90a04837568ebf386f0ac201",
+    "symbol": "IBM",
+    "name": "I BUY MEMES",
+    "is_stock": 0,
+    "first_ts": 1788704393,
+    "buyers": 2,
+    "usd_in": 1346.661308,
+    "mark": 0.00008361,
+    "liquidity": 32478.83,
+    "pair_created_at": 1788508845,
+    "pair_url": "https://dexscreener.com/robinhood/0x9255db3b7a91b412448e14e136e2eddea785980e63d8194216028624393c4e83",
+    "change24": -64.95,
+    "pool_age": 196903,
+    "age_at_first_buy": 195548,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "rasmr",
+      "followers": 56977,
+      "ts": 1788509836
+    }
+  },
+  {
+    "token": "0xc4d7e84a5c96af7088d81bf5bbae1bc5dc42a19d",
+    "symbol": "fomocat",
+    "name": "fomocat",
+    "is_stock": 0,
+    "first_ts": 1788703642,
+    "buyers": 20,
+    "usd_in": 84221.5675580392,
+    "mark": 0.0001404,
+    "liquidity": 26503.28,
+    "pair_created_at": 1788703518,
+    "pair_url": "https://dexscreener.com/robinhood/0xd644edf0727e63da2f917f1d874fcfb23a3a7ad2",
+    "change24": 9212,
+    "pool_age": 2230,
+    "age_at_first_buy": 124,
+    "fresh": true,
+    "first_buyer": {
+      "handle": "Quanterty",
+      "followers": 262657,
+      "ts": 1788703642
+    }
+  }
+]

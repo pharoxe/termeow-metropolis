@@ -14,8 +14,9 @@ import {
 } from "../flow/aggregate.js";
 import { flowCollector } from "../flow/collector.js";
 import { FlowLedger } from "../flow/ledger.js";
-import { getRegistry, type RegistryResult } from "../flow/registry.js";
+import { getRegistry, isLaunchpadRow, type RegistryResult } from "../flow/registry.js";
 import { sourceChips, type SourcesLike } from "../flow/sources.js";
+import { getLaunchService } from "../launch/service.js";
 import { errorMessage } from "../lib/http.js";
 import { getTokenPairs, sumTxns } from "../sources/dexscreener.js";
 import { geckoTokenPools } from "../sources/gecko.js";
@@ -154,7 +155,8 @@ export async function buildTokenFlowResponse(params: FlowParams, deps: FlowRoute
   const observedAt = deps.now();
   const registry = await loadRegistry(params, deps);
   if ("failure" in registry) return emptyResponse(params, observedAt, registry.failure);
-  deps.collector.subscribe(params.chain, params.address, registry.pairs);
+  // Launchpad pseudo-pairs are fed by the launch service; the collector must not poll Gecko or resolve pools for them.
+  deps.collector.subscribe(params.chain, params.address, registry.pairs.filter((pair) => !isLaunchpadRow(pair)));
   const flow = tokenFlow({
     ledger: deps.collector.ledger,
     chain: params.chain,
@@ -199,7 +201,8 @@ function liveRegistry(chain: Chain, address: string): Promise<RegistryResult> {
     getTokenPairs,
     geckoTokenPools: (network, token) => geckoTokenPools(network, token),
     clawTopPools: async () => cachedClawTopPools(address),
-    pumpPool: () => (address.endsWith("pump") ? pumpPoolFor(address) : null)
+    pumpPool: () => (address.endsWith("pump") ? pumpPoolFor(address) : null),
+    launchpadPairs: (network, token) => getLaunchService().curvePairsFor(network, token)
   });
 }
 

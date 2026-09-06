@@ -1,0 +1,62 @@
+{
+  "note": "eth_getBlockByNumber(hash-only) — one block per pad plus the scan window edges; ms/block derived from from→head",
+  "msPerBlock": 100.7,
+  "blocks": {
+    "pons": {
+      "number": 56028519,
+      "numberHex": "0x356ed67",
+      "timestamp": 1788702836,
+      "iso": "2026-09-06T13:53:56.000Z",
+      "hash": "0x40823272b1c35c7196ce789a010d46febeb17dbd4fbe07454782b65940996184"
+    },
+    "poolstrade": {
+      "number": 56029578,
+      "numberHex": "0x356f18a",
+      "timestamp": 1788702944,
+      "iso": "2026-09-06T13:55:44.000Z",
+      "hash": "0x23664e8f36b12516f1f36c0237f1fbfe777b8762b4700d325c328d535bde2842"
+    },
+    "poolstrade-original": {
+      "number": 56035247,
+      "numberHex": "0x35707af",
+      "timestamp": 1788703514,
+      "iso": "2026-09-06T14:05:14.000Z",
+      "hash": "0xd36496bfc56689b0c15566e35a89c8875c126614143e1834bf204b884d7ce2d6"
+    },
+    "flap": {
+      "number": 56028786,
+      "numberHex": "0x356ee72",
+      "timestamp": 1788702863,
+      "iso": "2026-09-06T13:54:23.000Z",
+      "hash": "0x1f8378d599e279ba74b91c8fc63c407012db461a0f1f4ef8c0430ded023b8bda"
+    },
+    "trench": {
+      "number": 56028769,
+      "numberHex": "0x356ee61",
+      "timestamp": 1788702862,
+      "iso": "2026-09-06T13:54:22.000Z",
+      "hash": "0xc45d8c5ff0ac253e294fb388c9ce35210df3f16746172a2eda3e646645783fe6"
+    },
+    "bags": {
+      "number": 56032311,
+      "numberHex": "0x356fc37",
+      "timestamp": 1788703218,
+      "iso": "2026-09-06T14:00:18.000Z",
+      "hash": "0x7e9054c6934866829a75e86a5b94bb06804fbfce884f93d3f16dc93144c71a5c"
+    },
+    "from": {
+      "number": 56028501,
+      "numberHex": "0x356ed55",
+      "timestamp": 1788702835,
+      "iso": "2026-09-06T13:53:55.000Z",
+      "hash": "0x4c1be6f9a53b82825b28379d9759594d9d42956f63fc6db890e502dd90420313"
+    },
+    "head": {
+      "number": 56056952,
+      "numberHex": "0x3575c78",
+      "timestamp": 1788705701,
+      "iso": "2026-09-06T14:41:41.000Z",
+      "hash": "0x63fc2bac60c15877d45d0e6949170aabaebbbb68d440203bb0619854ddd333ae"
+    }
+  }
+}

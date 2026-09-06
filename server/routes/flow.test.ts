@@ -109,6 +109,19 @@ describe("buildTokenFlowResponse", () => {
     expect(response.counts).toEqual({ m5: { buys: 2, sells: 1 }, h1: null, h6: null, h24: null });
   });
 
+  it("subscribes the collector without launchpad pseudo-pairs while aggregating their ledger prints", async () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    const CURVE = "pons:0xcurve";
+    ledger.ingest([{ ...print(CURVE, "c1", NOW - FIVE_MIN + 1000, "buy", 40), source: "own" }]);
+    const curve = row(CURVE, "A", null, { dex: "pons", sources: ["launchpad"], volume24Usd: null, txns: { m5: null, h1: null, h6: null, h24: null } });
+    const d = deps({ registry: async () => ({ pairs: [row(POOL, "A", 1), curve], observedAt: NOW, stale: false }) }, ledger);
+    const response = await buildTokenFlowResponse(params(), d);
+    expect(d.subscribe).toHaveBeenCalledWith("solana", MINT, [row(POOL, "A", 1)]);
+    expect(response.pairs.map((pair) => pair.pairAddress)).toEqual([POOL, CURVE]);
+    expect(response.bars.map((bar) => bar.delta)).toEqual([40]);
+    expect(response.tape?.[0]).toMatchObject({ pair: CURVE, dex: "pons", usd: 40 });
+  });
+
   it("anchors cvd at the session start when anchor=session", async () => {
     const ledger = new FlowLedger({ now: () => NOW });
     ledger.ingest([print(POOL, "early", NOW - 30 * MINUTE_MS, "buy", 500), print(POOL, "in", NOW - FIVE_MIN + 1000, "sell", 100)]);
