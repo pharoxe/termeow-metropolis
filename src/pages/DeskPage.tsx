@@ -1,23 +1,24 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { api } from "../api/client";
 import type { Candle, OnchainMarket, PublicConfig } from "../types";
 import { MarketChart, type IndicatorSet, type MarketChartHandle } from "../components/MarketChart";
 import { IndicatorBar } from "../components/IndicatorBar";
 import { SpotTradeTicket } from "../components/SpotTradeTicket";
 import { PerpTradeTicket } from "../components/PerpTradeTicket";
-import { SessionPermission } from "../auth/SessionPermission";
 import { AuthControls } from "../auth/AuthControls";
 import { money, pct, signedMoney } from "../lib/format";
 import { atr, macd, rsi } from "../lib/indicators";
 import { extractSolanaMint, MINT_RE } from "../lib/mint";
 import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
-import { AuditChips, BothSidesPanel, MarketStrips, ResearchPanel, SocialPanel, ToolHealth, WatchPanel, venueSpreadHint } from "../components/DeskPanels";
+import { AuditChips, BothSidesPanel, MarketStrips, ResearchPanel, SocialPanel, WatchPanel } from "../components/DeskPanels";
 import { ThemeToggle, useTheme } from "../components/ThemeToggle";
 import { FeatureSection } from "../features/WorkspaceFeatures";
 import SpecularButton from "../components/effects/SpecularButton";
 import Grainient from "../components/effects/Grainient";
 import { AccountScreen } from "../components/AccountScreens";
 import { AgenticAnalysisPanel } from "../components/AgenticAnalysis";
+import { SfxToggle, useNotifications } from "../components/NotificationSystem";
 
 type Mode = "spot" | "perp";
 type ChartUnit = "price" | "mcap";
@@ -70,8 +71,33 @@ function flowClass(bias: string) {
   return "";
 }
 
+function providerImageUrl(value: unknown): string | null {
+  const imageKeys = new Set(["token_image_url", "image_url", "imageUrl", "logo_url", "logoUrl", "icon_url", "iconUrl", "image", "logo", "icon"]);
+  const visit = (current: unknown, depth = 0): string | null => {
+    if (!current || depth > 6) return null;
+    if (Array.isArray(current)) {
+      for (const item of current) { const found = visit(item, depth + 1); if (found) return found; }
+      return null;
+    }
+    if (typeof current !== "object") return null;
+    for (const [key, child] of Object.entries(current as Row)) {
+      if (imageKeys.has(key) && typeof child === "string" && /^https?:\/\//i.test(child)) return child;
+    }
+    for (const child of Object.values(current as Row)) { const found = visit(child, depth + 1); if (found) return found; }
+    return null;
+  };
+  return visit(value);
+}
+
+function TokenIcon({ symbol, src }: { symbol: string; src: string | null }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  return <span className={`asset-icon${src && !failed ? " has-image" : ""}`}>{src && !failed ? <img src={src} alt="" onError={() => setFailed(true)} /> : (symbol || "T").slice(0, 1)}</span>;
+}
+
 export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfig; initialMode?: Mode }) {
   const [theme, setTheme] = useTheme();
+  const { notify } = useNotifications();
   const [section, setSection] = useState("Trade");
   const [searchOpen, setSearchOpen] = useState(false);
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -82,15 +108,14 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
   const [chartExpanded, setChartExpanded] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const chartRef = useRef<MarketChartHandle>(null);
+  const lastNotifiedMint = useRef("");
+  const lastNotifiedError = useRef("");
   const [indicators, setIndicators] = useState(initialIndicators);
   const [board, setBoard] = useState<Row>({});
   const [spot, setSpot] = useState<OnchainMarket | null>(null);
   const [perps, setPerps] = useState<Row[]>([]);
   const [perpResult, setPerpResult] = useState<Row>({});
   const [account, setAccount] = useState<Row>({});
-  const [source, setSource] = useState("default");
-  const [sourceCandles, setSourceCandles] = useState<Candle[] | null>(null);
-  const [sourceNote, setSourceNote] = useState("");
   const [error, setError] = useState("");
   const [trenchSort, setTrenchSort] = useState<"hot" | "new" | "mcap" | "volume">("hot");
   const [trenches, setTrenches] = useState<Row>({});
@@ -160,38 +185,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
     });
   }, [mode, perpSymbol]);
 
-  useEffect(() => {
-    setSource("default");
-    setSourceCandles(null);
-    setSourceNote("");
-  }, [mint, mode, interval]);
-
-  useEffect(() => {
-    if (mode !== "spot" || source === "default" || !source) return;
-    let active = true;
-    api.candles(source, interval.toLowerCase())
-      .then((value) => {
-        if (!active) return;
-        const next = value.candles || [];
-        if (next.length > 0) {
-          setSourceCandles(next);
-          setSourceNote("");
-          return;
-        }
-        setSourceCandles(null);
-        setSource("default");
-        setSourceNote("No OHLCV on that venue — showing default series.");
-      })
-      .catch(() => {
-        if (!active) return;
-        setSourceCandles(null);
-        setSource("default");
-        setSourceNote("No OHLCV on that venue — showing default series.");
-      });
-    return () => { active = false; };
-  }, [mode, source, interval]);
-
-  const tradePair = mode === "spot" ? (source !== "default" && source ? source : spot?.mint === mint ? spot?.pairAddress || "" : "") : "";
+  const tradePair = mode === "spot" && spot?.mint === mint ? spot?.pairAddress || "" : "";
   useEffect(() => {
     if (!tradePair) {
       setCvdState(null);
@@ -242,11 +236,20 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
   const asks = array(orderbook.asks);
   const accountData = object(account.data);
   const feed = spot?.mint === mint ? spot : null;
-  const dexPairs = array(object(feed?.provider).dex_pairs);
+  useEffect(() => {
+    if (!feed || lastNotifiedMint.current === feed.mint) return;
+    lastNotifiedMint.current = feed.mint;
+    notify({ title: `${feed.symbol} ONLINE`, message: "Chart, project intelligence, pools, and social flow are synchronized.", tone: "success" });
+  }, [feed, notify]);
+  useEffect(() => {
+    if (!error || lastNotifiedError.current === error) return;
+    lastNotifiedError.current = error;
+    notify({ title: "FEED DEGRADED", message: error, tone: "warning" });
+  }, [error, notify]);
   const trenchRows = array(trenches.tokens);
   const focusedTrench = trenchRows.find((item) => String(item.mintAddress) === mint) || null;
-  const healthMarket = feed ? { ...feed, provider: { ...object(feed.provider), trenches, holders } } : feed;
   const mergedProvider = { ...board, ...object(feed?.provider) };
+  const tokenIconUrl = providerImageUrl([focusedTrench, feed?.provider]);
   const analysisProvider = { ...mergedProvider, holders, trenches };
   const clawSentiment = String(object(mergedProvider.get_indicators).sentiment || "").trim();
   const regimeLabel = clawSentiment ? clawSentiment.toUpperCase() : "—";
@@ -254,12 +257,10 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
   const deltaUsd = liveCvd ? liveCvd.buyUsdRecent - liveCvd.sellUsdRecent : null;
   const spanLabel = tapeSpanLabel(liveCvd?.spanMs ?? 0);
   const flowBias = liveCvd?.flow || "flat";
-  const arb = object(object(feed?.provider).arbitrage);
   const scale = feed ? mcapScale(feed) : { mcap: null, supply: null, source: null as "mcap" | "fdv" | null };
   const hasMcap = Boolean(scale.source && scale.supply);
   const useMcap = mode === "spot" && chartUnit === "mcap" && hasMcap;
-  const venueCandles = source !== "default" && sourceCandles && sourceCandles.length > 0 ? sourceCandles : null;
-  const rawSpotCandles = venueCandles || feed?.candles;
+  const rawSpotCandles = feed?.candles;
   const candles = useMemo(() => {
     if (mode === "perp") return perpCandles;
     return useMcap ? scaleCandlesToMcap(rawSpotCandles || [], scale.supply) : (rawSpotCandles || []);
@@ -272,11 +273,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
   const chartSub = mode === "spot" && hasMcap ? (useMcap ? money(feed?.priceUsd) : money(scale.mcap, true)) : null;
   const cvdValue = cvdState && !cvdState.failed ? cvdState.cvd : null;
   const cvdSeries = cvdState && !cvdState.failed ? cvdState.series : undefined;
-  const sourceLabel = mode === "perp"
-    ? "PHOENIX"
-    : source === "default"
-      ? (feed?.dex || feed?.source || "GECKO")
-      : String(dexPairs.find((item) => String(item.pair) === source)?.dex || "POOL");
+  const sourceLabel = mode === "perp" ? "PHOENIX" : (feed?.dex || feed?.source || "GECKO");
 
   const technicals = useMemo(() => {
     if (!candles.length) return null;
@@ -294,6 +291,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
 
   const focusSpot = (nextMint: string, symbol?: string) => {
     if (!MINT_RE.test(nextMint)) return;
+    if (nextMint !== mint) notify({ title: `OPENING ${symbol?.toUpperCase() || "TOKEN"}`, message: "Loading the selected contract and its live market context.", tone: "info" });
     setMode("spot");
     setMint(nextMint);
     setSpot((current) => (current?.mint === nextMint ? current : null));
@@ -301,6 +299,7 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
     setError("");
   };
   const focusPerp = (symbol: string) => {
+    notify({ title: `OPENING ${symbol}`, message: "Switching to the Phoenix perpetual market.", tone: "info" });
     setMode("perp");
     setPerpSymbol(symbol);
     setQuery(symbol);
@@ -349,13 +348,15 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
   const mintLabel = `${mint.slice(0, 4)}…${mint.slice(-4)}`;
   const spotLoading = mode === "spot" && !feed;
   const scannerSearch = <div className="scanner-search">
-    <button type="button" className="scanner-search-head" aria-label={searchOpen ? "Close market search" : "Discover markets"} aria-expanded={searchOpen} aria-controls="scanner-search-field" onClick={() => setSearchOpen((open) => !open)}><span>Discover markets</span><span className="search-icon" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
-    </span></button>
-    {searchOpen && <form id="scanner-search-field" className="command-form" onSubmit={event => { event.preventDefault(); void submitQuery(); }}>
-      <input autoFocus className="command-input" value={query} aria-label="Paste Solana contract address" placeholder="Paste contract address" spellCheck={false} autoComplete="off" onPaste={openPastedContract} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key === "Escape") setSearchOpen(false); }} />
-      <button className="search-submit" type="submit">Open</button>
-    </form>}
+    <AnimatePresence initial={false} mode="wait">
+      {!searchOpen ? <motion.button key="scanner-closed" type="button" className="scanner-search-head" aria-label="Discover markets" aria-expanded="false" aria-controls="scanner-search-field" initial={{ opacity: 0, scaleX: 0.22 }} animate={{ opacity: 1, scaleX: 1 }} exit={{ opacity: 0, scaleX: 0.22 }} transition={{ type: "spring", stiffness: 520, damping: 32 }} style={{ transformOrigin: "right center" }} onClick={() => setSearchOpen(true)}><span>Discover markets</span><span className="search-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+      </span></motion.button> : <motion.form key="scanner-open" id="scanner-search-field" className="command-form" initial={{ opacity: 0, scaleX: 0.2 }} animate={{ opacity: 1, scaleX: 1 }} exit={{ opacity: 0, scaleX: 0.2 }} transition={{ type: "spring", stiffness: 520, damping: 31 }} style={{ transformOrigin: "right center" }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false); }} onSubmit={event => { event.preventDefault(); void submitQuery(); }}>
+        <input autoFocus className="command-input" value={query} aria-label="Paste Solana contract address" placeholder="Paste contract address" spellCheck={false} autoComplete="off" onPaste={openPastedContract} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key === "Escape") setSearchOpen(false); }} />
+        <button className="search-submit" type="submit" aria-label="Open token"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
+        <button className="search-close" type="button" aria-label="Close market search" onClick={() => setSearchOpen(false)}>×</button>
+      </motion.form>}
+    </AnimatePresence>
   </div>;
 
   return (
@@ -365,29 +366,25 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">▦</span><strong>termeow</strong><b>sol</b>
         </div>
-        <nav className="primary-navigation" aria-label="Main navigation">{["Trade", "Portfolio", "Referrals", "Leaderboard"].map(item => <button key={item} aria-current={section === item ? "page" : undefined} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
+        <nav className="primary-navigation" aria-label="Main navigation">{["Trade", "Automation", "Portfolio", "Referrals", "Leaderboard"].map(item => <button key={item} aria-current={section === item ? "page" : undefined} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
         <nav className="mode-switch" aria-label="Trading product">
-          <SpecularButton size="sm" radius={4} tint="#39ff88" tintOpacity={mode === "spot" ? 0.16 : 0} textColor="var(--text)" lineColor="#8affb4" autoAnimate={mode === "spot"} className={mode === "spot" ? "active" : ""} onClick={() => { setMode("spot"); setSection("Trade"); }}>ONCHAIN</SpecularButton>
-          <SpecularButton size="sm" radius={4} tint="#39ff88" tintOpacity={mode === "perp" ? 0.16 : 0} textColor="var(--text)" lineColor="#8affb4" autoAnimate={mode === "perp"} className={mode === "perp" ? "active" : ""} onClick={() => { setMode("perp"); setSection("Trade"); }}>PERPS</SpecularButton>
+          <SpecularButton size="sm" radius={4} tint="#39ff88" tintOpacity={mode === "spot" ? 0.16 : 0} textColor="var(--text)" lineColor="#8affb4" autoAnimate={mode === "spot"} className={mode === "spot" ? "active" : ""} onClick={() => { setMode("spot"); setSection("Trade"); notify({ title: "ONCHAIN DESK", message: "Spot execution and Solana intelligence are active.", tone: "info" }); }}>ONCHAIN</SpecularButton>
+          <SpecularButton size="sm" radius={4} tint="#39ff88" tintOpacity={mode === "perp" ? 0.16 : 0} textColor="var(--text)" lineColor="#8affb4" autoAnimate={mode === "perp"} className={mode === "perp" ? "active" : ""} onClick={() => { setMode("perp"); setSection("Trade"); notify({ title: "PERPS DESK", message: "Phoenix perpetual markets are active.", tone: "info" }); }}>PERPS</SpecularButton>
         </nav>
         <ThemeToggle theme={theme} onChange={setTheme} />
+        <SfxToggle />
         <AuthControls />
       </header>
       {feed && <MarketStrips market={feed} onPick={focusSpot} />}
-      {section !== "Trade" && <AccountScreen section={section as "Portfolio" | "Referrals" | "Leaderboard"} onBack={() => setSection("Trade")} />}
+      {section !== "Trade" && <AccountScreen section={section as "Automation" | "Portfolio" | "Referrals" | "Leaderboard"} onBack={() => setSection("Trade")} />}
       <div className="desk-grid" style={section !== "Trade" ? {display:"none"} : undefined}>
         <WatchPanel
           search={scannerSearch}
           market={{ provider: mergedProvider } as OnchainMarket}
-          perps={perps}
-          mode={mode}
           selected={mode === "perp" ? perpSymbol : mint}
           onSpot={focusSpot}
-          onPerp={focusPerp}
           trenches={trenchRows}
-          trenchSort={trenchSort}
           onTrenchSort={setTrenchSort}
-          holders={holders}
         />
         <section className={`panel chart-panel${chartExpanded ? " chart-expanded" : ""}`}>
           <div className="ph chart-head">
@@ -401,27 +398,14 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
               )}
               {mode === "spot" && <span className="intervals">{intervals.map((item) => <button key={item} className={interval === item ? "on" : ""} onClick={() => setIntervalValue(item)}>{item}</button>)}</span>}
             </div>
-            <span className="intervals sources chart-head-mid">
-              {mode === "spot" ? (
-                <>
-                  <button className={source === "default" ? "on" : ""} onClick={() => { setSource("default"); setSourceCandles(null); setSourceNote(""); }}>{String(feed?.dex || "GECKO")}</button>
-                  {dexPairs.slice(0, 6).map((item) => {
-                    const pair = String(item.pair || "");
-                    if (!pair || pair === String(feed?.pairAddress || "")) return null;
-                    const hint = venueSpreadHint(item.price_usd, feed?.priceUsd, arb.implied_rate, arb.output_price_usd);
-                    return <button key={pair} className={source === pair ? "on" : ""} onClick={() => { setSource(pair); setSourceCandles(null); setSourceNote(""); }}>{String(item.dex || "POOL")}{hint ? <i className="venue-bps">{hint}</i> : null}</button>;
-                  })}
-                </>
-              ) : <button className="on">PHOENIX</button>}
-            </span>
             <div className="chart-head-right">
               <span className="chart-hero">
-                <b className="chart-price">{money(chartPrice, chartPriceCompact)}</b>
+                <b className={`chart-price${useMcap ? " mcap-value" : ""}`}>{money(chartPrice, chartPriceCompact)}</b>
                 <i className={(chartChange || 0) < 0 ? "dn" : "up"}>{pct(chartChange)}</i>
                 {chartUnitLabel && <em className={chartUnitLabel === "NO MCAP" ? "chart-unit warn" : "chart-unit"}>{chartUnitLabel}</em>}
-                {chartSub && <small className="chart-sub">{chartSub}</small>}
+                {chartSub && <small className={`chart-sub${!useMcap ? " mcap-value" : ""}`}>{chartSub}</small>}
               </span>
-              <span className="chart-meta">{candles.length} BARS · {sourceLabel} · {mode === "perp" ? "1H" : interval}{sourceNote ? ` · ${sourceNote}` : ""}</span>
+              <span className="chart-meta">{candles.length} BARS · {sourceLabel} · {mode === "perp" ? "1H" : interval}</span>
             </div>
           </div>
           <IndicatorBar value={indicators} onChange={setIndicators} />
@@ -431,11 +415,11 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
             <button type="button" title="Zoom out" aria-label="Zoom chart out" onClick={() => chartRef.current?.zoomOut()}>−</button>
             <button type="button" title="Restore the close candle view" onClick={() => chartRef.current?.resetView()}>RESET</button>
             <button type="button" title="Jump to the latest candle" onClick={() => chartRef.current?.goToRealtime()}>LIVE</button>
-            {mode === "spot" && <button type="button" className="analyze-trigger" title="Synthesize token data into executable trade setups" disabled={!feed || !feed.candles.length} onClick={() => setAnalysisOpen(true)}>✦ ANALYZE</button>}
+            {mode === "spot" && <button type="button" className="analyze-trigger" title="Synthesize token data into executable trade setups" disabled={!feed || !feed.candles.length} onClick={() => { setAnalysisOpen(true); notify({ title: `ANALYZING ${feed?.symbol || "TOKEN"}`, message: "Synthesizing momentum, CVD, liquidity, whale flow, and project intelligence.", tone: "success" }); }}>✦ ANALYZE</button>}
             <button type="button" title={chartExpanded ? "Exit expanded chart" : "Expand chart"} aria-pressed={chartExpanded} onClick={() => setChartExpanded((expanded) => !expanded)}>{chartExpanded ? "CLOSE" : "EXPAND"}</button>
           </div>
           {spotLoading ? (
-            <div className="integration-empty chart-loading"><span className="loader" /><h2>LOADING {mintLabel}</h2><p>{error || "Fetching chart, intel, holders, and social for this contract."}</p></div>
+            <div className="integration-empty chart-loading"><span className="notification-pixel chart-loader" aria-hidden="true"><i /><i /><i /><i /></span><h2>LOADING {mintLabel}</h2><p>{error || "Fetching chart, intel, holders, and social for this contract."}</p></div>
           ) : candles.length ? <MarketChart ref={chartRef} candles={candles} indicators={indicators} cvdSeries={cvdSeries} compactAxis={useMcap} theme={theme} /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{error || "No OHLCV on Gecko for this mint's pools."}</p></div>}
           <div className="chart-readout">
             <span>RSI14 <b>{technicals?.rsi?.toFixed(2) || "—"}</b></span>
@@ -458,33 +442,18 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
           {mode === "spot" && feed ? (
             <>
               <div className="instrument-slab">
-                <div><span className="asset-icon">{(feed.symbol || "T").slice(0, 1)}</span><span><b>{scale.source ? money(scale.mcap, true) : money(feed.priceUsd)}</b><small>{feed.symbol}/USD {scale.source ? money(feed.priceUsd) : ""} · {feed.name} · SOLANA SPOT</small><AuditChips market={feed} /></span></div>
-                <span className={feed.degraded ? "feed-state warning" : "feed-state"}>{feed.degraded ? "PARTIAL" : "LIVE"} · 45S</span>
+                <div><TokenIcon symbol={feed.symbol} src={tokenIconUrl} /><span><b className={scale.source ? "mcap-value" : ""}>{scale.source ? money(scale.mcap, true) : money(feed.priceUsd)}</b><small>{feed.symbol}/USD {scale.source ? money(feed.priceUsd) : ""} · {feed.name} · SOLANA SPOT</small><AuditChips market={feed} /></span></div>
               </div>
-              <ToolHealth market={healthMarket || feed} />
-              <FeatureSection id="execution"><SpotTradeTicket key={mint} config={config} mint={mint} symbol={feed.symbol} />
-              <SessionPermission />
-              </FeatureSection>
-              <BothSidesPanel
-                market={feed}
-                trades={liveCvd?.trades || []}
-                flow={flowBias}
-                buyCount={liveCvd?.buyCount || 0}
-                sellCount={liveCvd?.sellCount || 0}
-                buyCountRecent={liveCvd?.buyCountRecent || 0}
-                sellCountRecent={liveCvd?.sellCountRecent || 0}
-                spanLabel={spanLabel}
-              />
+              <FeatureSection id="execution" className="trade-execution-section"><SpotTradeTicket key={mint} config={config} mint={mint} symbol={feed.symbol} /></FeatureSection>
+              <FeatureSection id="research"><ResearchPanel market={feed} /></FeatureSection>
             </>
           ) : mode === "spot" ? (
             <>
               <div className="instrument-slab">
                 <div><span className="asset-icon">…</span><span><b>LOADING {mintLabel}</b><small>{mint} · SOLANA SPOT</small></span></div>
-                <span className="feed-state warning">SYNC · 45S</span>
               </div>
-              <FeatureSection id="execution"><SpotTradeTicket key={mint} config={config} mint={mint} symbol="TOKEN" />
-              <SessionPermission />
-              </FeatureSection>
+              <FeatureSection id="execution" className="trade-execution-section"><SpotTradeTicket key={mint} config={config} mint={mint} symbol="TOKEN" /></FeatureSection>
+              <FeatureSection id="research"><section className="panel project-info-panel"><div className="ph"><span className="pt">PROJECT INFORMATION</span><span className="pm">LOADING</span></div><p className="empty-copy">Fetching project intelligence for this contract.</p></section></FeatureSection>
             </>
           ) : (
             <>
@@ -499,20 +468,20 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
                   <div><dt>OI CAP LOTS</dt><dd>{String(perpMarket.openInterestCapBaseLots || "—")}</dd></div>
                 </dl>
               </section>
-              <FeatureSection id="execution"><PerpTradeTicket key={perpSymbol} config={config} symbol={perpSymbol} />
+              <FeatureSection id="execution" className="trade-execution-section"><PerpTradeTicket key={perpSymbol} config={config} symbol={perpSymbol} />
               <section className="panel account-board"><div className="ph"><span className="pt">AGENT ACCOUNT</span><span className="pm">READ ONLY</span></div><pre>{Object.keys(accountData).length ? JSON.stringify(accountData, null, 2) : "No initialized Phoenix account state returned."}</pre></section>
               </FeatureSection>
             </>
           )}
         </aside>
-        <FeatureSection id={mode === "spot" ? "social" : "flow"} className="radar-panel">
+        <FeatureSection id={mode === "spot" ? "social" : "flow"} className="radar-panel" meta={mode === "spot" ? <span className="social-live"><i /> LIVE</span> : undefined}>
         {mode === "spot" && feed ? <SocialPanel
           market={{ ...feed, provider: mergedProvider }}
           trench={focusedTrench}
           flow={{ bias: flowBias, buyCount: liveCvd?.buyCountRecent || 0, sellCount: liveCvd?.sellCountRecent || 0, spanLabel }}
+          onPick={focusSpot}
         /> : mode === "spot" ? (
           <section className="panel radar-panel social-panel">
-            <div className="ph"><span className="pt">SOCIAL</span><span className="pm">LOADING {mintLabel}</span></div>
             <p className="empty-copy">Fetching KOL, narrative, and social links for this mint.</p>
           </section>
         ) : (
@@ -523,13 +492,21 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
           </section>
         )}
         </FeatureSection>
-        <FeatureSection id="research" className="research-panel">
-        {mode === "spot" && feed ? <ResearchPanel market={feed} /> : mode === "spot" ? (
-          <section className="panel research-panel">
-            <div className="ph"><span className="pt">NEWS · RESEARCH</span><span className="pm">LOADING {mintLabel}</span></div>
-            <p className="empty-copy">Fetching intel for this contract.</p>
+        {mode === "spot" && feed ? <BothSidesPanel
+          market={feed}
+          trades={liveCvd?.trades || []}
+          flow={flowBias}
+          buyCount={liveCvd?.buyCount || 0}
+          sellCount={liveCvd?.sellCount || 0}
+          buyCountRecent={liveCvd?.buyCountRecent || 0}
+          sellCountRecent={liveCvd?.sellCountRecent || 0}
+          spanLabel={spanLabel}
+        /> : mode === "spot" ? (
+          <section className="panel sides-panel flow-panel research-panel">
+            <div className="ph"><span className="pt">LIQUIDITY &amp; ORDER FLOW</span><span className="pm">LOADING {mintLabel}</span></div>
+            <p className="empty-copy">Fetching pool and tape intelligence for this contract.</p>
           </section>
-        ) : (
+        ) : <FeatureSection id="research" className="research-panel">
           <section className="panel research-panel">
             <div className="ph"><span className="pt">CONTRACT · FUNDING · LIQUIDATION</span><span className="pm">PHOENIX ISOLATED PERPS</span></div>
             <div className="radar-grid">
@@ -539,11 +516,9 @@ export function DeskPage({ config, initialMode = "spot" }: { config: PublicConfi
               <div><small>MAX LIQ SIZE LOTS</small><strong>{String(perpMarket.maxLiquidationSizeBaseLots || "—")}</strong></div>
             </div>
           </section>
-        )}
-        </FeatureSection>
+        </FeatureSection>}
       </div>
       {feed && <AgenticAnalysisPanel open={analysisOpen} market={feed} candles={feed.candles} cvd={liveCvd} provider={analysisProvider} onClose={() => setAnalysisOpen(false)} />}
-      {error && <div className="toast-inline">REFRESH DEGRADED · {error}</div>}
     </main>
   );
 }

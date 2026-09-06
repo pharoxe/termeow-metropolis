@@ -4,11 +4,10 @@ import type { OnchainMarket, PublicConfig } from "../types";
 import { MarketChart, type IndicatorSet } from "../components/MarketChart";
 import { IndicatorBar } from "../components/IndicatorBar";
 import { SpotTradeTicket } from "../components/SpotTradeTicket";
-import { SessionPermission } from "../auth/SessionPermission";
 import { money, pct, signedMoney } from "../lib/format";
 import { atr, macd, rsi } from "../lib/indicators";
 import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
-import { BothSidesPanel, MarketStrips, ResearchPanel, SignalRadar, ToolHealth, WatchPanel } from "../components/DeskPanels";
+import { BothSidesPanel, MarketStrips, ResearchPanel, SignalRadar, WatchPanel } from "../components/DeskPanels";
 
 const initialIndicators: IndicatorSet = {
   ema: true,
@@ -97,7 +96,7 @@ export function OnchainPage({ config }: { config: PublicConfig }) {
             <span className="pt">ANSEM/USD</span>
             <span className={scale.source ? "chip" : "chip warn"}>{scale.source ? "MCAP" : "PRICE (NO MCAP)"}</span>
             <span className="intervals">{["1M", "5M", "15M", "1H", "4H", "1D"].map((item) => <button key={item} className={interval === item ? "on" : ""} onClick={() => setIntervalValue(item)}>{item}</button>)}</span>
-            <span className="chart-price">{money(scale.source ? scale.mcap : market.priceUsd, compactLevels)} <i className={(market.change24hPct || 0) < 0 ? "dn" : "up"}>{pct(market.change24hPct)}</i></span>
+            <span className={`chart-price${scale.source ? " mcap-value" : ""}`}>{money(scale.source ? scale.mcap : market.priceUsd, compactLevels)} <i className={(market.change24hPct || 0) < 0 ? "dn" : "up"}>{pct(market.change24hPct)}</i></span>
             <span className="pm">{market.candles.length} BARS · SOURCE {interval}</span>
           </div>
           <IndicatorBar value={indicators} onChange={setIndicators} />
@@ -116,13 +115,10 @@ export function OnchainPage({ config }: { config: PublicConfig }) {
         </section>
         <aside className="execution-rail">
           <div className="instrument-slab">
-            <div><span className="asset-icon">A</span><span><b>{scale.source ? money(scale.mcap, true) : money(market.priceUsd)}</b><small>{market.symbol}/USD {scale.source ? money(market.priceUsd) : ""} · {market.name} · SOLANA SPOT</small></span></div>
-            <span className={market.degraded ? "feed-state warning" : "feed-state"}>{market.degraded ? "PARTIAL" : "LIVE"} · 45S</span>
+            <div><span className="asset-icon">A</span><span><b className={scale.source ? "mcap-value" : ""}>{scale.source ? money(scale.mcap, true) : money(market.priceUsd)}</b><small>{market.symbol}/USD {scale.source ? money(market.priceUsd) : ""} · {market.name} · SOLANA SPOT</small></span></div>
           </div>
-          <ToolHealth market={market} />
           <BothSidesPanel market={market} />
           <SpotTradeTicket config={config} />
-          <SessionPermission />
           <section className="panel agent-placeholder">
             <div className="ph"><span className="pt">THESIS AGENT</span><span className="pm">MARKET CONTEXT</span></div>
             <p>ClawPump evidence and order-preview tools are available in the workspace.</p>

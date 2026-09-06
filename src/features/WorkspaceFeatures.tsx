@@ -1,12 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from "react";
 
 // Add a definition here, then wrap its surface in FeatureSection.
 export const FEATURES = [
   { id: "flow", title: "Order flow", description: "Live trade tape and buy / sell activity." },
   { id: "pools", title: "LP pool info", description: "Pool liquidity, venues and distribution." },
-  { id: "social", title: "Social trading insights", description: "KOL signals, token narratives and social links." },
+  { id: "social", title: "Live Feed", description: "Live theses, smart-wallet signals, volume spikes and social links." },
   { id: "execution", title: "Trade execution", description: "Wallet-signed spot orders and agentic perp execution. Every trade still requires approval." },
-  { id: "research", title: "Market research", description: "News, market context and contract information." }
+  { id: "research", title: "Project information", description: "Narrative, project context, sources and contract information." }
 ] as const;
 export type FeatureId = typeof FEATURES[number]["id"];
 const KEY = "termeow-workspace-v1";
@@ -45,14 +45,14 @@ export function WorkspaceFeatures({ children }: PropsWithChildren) {
   </Context.Provider>;
 }
 
-export function FeatureSection({ id, className = "", children }: PropsWithChildren<{ id: FeatureId; className?: string }>) {
+export function FeatureSection({ id, className = "", meta, children }: PropsWithChildren<{ id: FeatureId; className?: string; meta?: ReactNode }>) {
   const { selected } = useWorkspaceFeatures();
   const enabled = selected.includes(id);
   const [expanded, setExpanded] = useState(enabled);
   useEffect(() => setExpanded(enabled), [enabled]);
   const feature = FEATURES.find(item => item.id === id)!;
   return <section className={`feature-section ${className} ${expanded ? "is-expanded" : "is-collapsed"}`}>
-    <button className="feature-disclosure" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span>{feature.title}</span><span aria-hidden="true">{expanded ? "−" : "+"}</span></button>
+    <button className="feature-disclosure" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span>{feature.title}</span>{meta}<span aria-hidden="true">{expanded ? "−" : "+"}</span></button>
     <div hidden={!expanded}>{children}</div>
   </section>;
 }

@@ -5,6 +5,7 @@ import { analyzeToken, type AgentTradeSetup } from "../lib/agenticAnalysis";
 import { magicBlockSessionAdapter } from "../lib/agenticExecution";
 import { money, pct, signedMoney } from "../lib/format";
 import SpecularButton from "./effects/SpecularButton";
+import { useNotifications } from "./NotificationSystem";
 
 type Props = {
   open: boolean;
@@ -17,6 +18,7 @@ type Props = {
 
 export function AgenticAnalysisPanel({ open, market, candles, cvd, provider, onClose }: Props) {
   const { connected } = useWallet();
+  const { notify } = useNotifications();
   const [selected, setSelected] = useState<AgentTradeSetup | null>(null);
   const [notional, setNotional] = useState("100");
   const [slippage, setSlippage] = useState("50");
@@ -56,8 +58,11 @@ export function AgenticAnalysisPanel({ open, market, candles, cvd, provider, onC
         maxSlippageBps: Number(slippage)
       });
       setExecutionMessage(`Submitted · ${result.signature}`);
+      notify({ title: "AGENT TRADE SUBMITTED", message: `${market.symbol} execution was submitted successfully.`, tone: "success" });
     } catch (reason) {
-      setExecutionMessage(reason instanceof Error ? reason.message : String(reason));
+      const message = reason instanceof Error ? reason.message : String(reason);
+      setExecutionMessage(message);
+      notify({ title: "SESSION KEY REQUIRED", message, tone: "warning" });
     }
   };
 

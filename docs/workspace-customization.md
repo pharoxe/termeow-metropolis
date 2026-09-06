@@ -11,7 +11,8 @@ New features begin collapsed for existing users until selected. Choices change
 initial panel visibility only; they do not authorize transactions or remove access.
 Preferences currently belong to this browser, not a server-side user account.
 
-IBM Plex Mono is bundled for consistent rendering across platforms and zoom levels.
-After obtaining the appropriate Proto Mono webfont license, place its WOFF2 in
-`public/fonts/`, add an `@font-face` declaration in `src/styles.css`, and replace
-the IBM Plex Mono family declarations.
+Home Video is bundled locally under CC0 and is the primary data font. Silkscreen
+remains the display face for headings, navigation, and buttons. Home Video Bold
+is reserved for live-feed tickers, Symbol/Signal tickers, and market-cap/FDV
+figures. The OpenType files live in `public/fonts/`; matching `@font-face`
+declarations and fallbacks are defined in `src/styles.css`.

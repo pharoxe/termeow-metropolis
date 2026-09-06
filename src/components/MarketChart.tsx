@@ -91,7 +91,7 @@ export const MarketChart = forwardRef<MarketChartHandle, { candles: Candle[]; in
       width,
       height,
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: palette.background }, textColor: palette.text, fontFamily: "IBM Plex Mono, monospace" },
+      layout: { background: { type: ColorType.Solid, color: palette.background }, textColor: palette.text, fontFamily: "Home Video, monospace" },
       grid: { vertLines: { color: palette.grid }, horzLines: { color: palette.grid } },
       crosshair: { vertLine: { color: palette.crosshair }, horzLine: { color: palette.crosshair } },
       rightPriceScale: { borderColor: palette.border },
