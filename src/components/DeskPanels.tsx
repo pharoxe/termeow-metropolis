@@ -7,10 +7,11 @@ import { mcapScale, rowMarketCap, rowTokenPrice } from "../lib/mcap";
 import { coverageChipLabel } from "../lib/flowSeries";
 import type { FlowCoverage, TokenFlowResponse } from "../../shared/wire";
 import { FlowSideOutputs } from "./FlowSideOutputs";
+import { LighterMarketsTable } from "./LighterPanel";
 import { useNotifications } from "./NotificationSystem";
 
 type Row = Record<string, unknown>;
-type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW";
+type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW" | "LIGHTER";
 type TrenchSort = "hot" | "new" | "mcap" | "volume";
 
 function record(value: unknown): Row {
@@ -103,11 +104,13 @@ export function MarketStrips({ market, onPick }: { market: OnchainMarket; onPick
 }
 
 export function WatchPanel({
-  market, selected, onSpot, trenches = [], onTrenchSort, search
+  market, selected, onSpot, trenches = [], onTrenchSort, search, onLighter, lighterSelected = null
 }: {
   market?: OnchainMarket | null;
   selected?: string;
   onSpot?: (mint: string, symbol?: string) => void;
+  onLighter?: (marketId: number, symbol: string) => void;
+  lighterSelected?: number | null;
   trenches?: Row[];
   onTrenchSort?: (sort: TrenchSort) => void;
   search?: ReactNode;
@@ -135,10 +138,13 @@ export function WatchPanel({
     <section className="panel watch-panel">
       {search}
       <div className="ph">
-        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
+        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW", "LIGHTER"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
+        {tab === "LIGHTER" && <span className="pm">LIGHTER · PERPS · ROBINHOOD WALLET</span>}
       </div>
       <div className="panel-scroll">
-        {tab === "TRENDING" || tab === "NEW" ? (
+        {tab === "LIGHTER" ? (
+          <LighterMarketsTable selected={lighterSelected} onPick={onLighter} />
+        ) : tab === "TRENDING" || tab === "NEW" ? (
           <table className="terminal-table"><thead><tr><th>TOKEN / SOCIAL</th><th className="r">MCAP / VOL</th></tr></thead><tbody>{sourceRows.slice(0, 48).map((item) => {
             const mint = String(item.mintAddress || "");
             return <tr className={mint && mint === selected ? "selected" : ""} key={mint || String(item.symbol)} onClick={() => pickSpot(item)}>
@@ -155,7 +161,7 @@ export function WatchPanel({
             return <tr className={mint && mint === selected ? "selected" : ""} key={String(item.contract || item.symbol || index)} onClick={() => pickSpot(item)}><td><b>{clean(item.symbol || item.name)}</b><small>{clean(item.signal || item.name)}{item.chain && String(item.chain) !== "sol" ? ` · ${String(item.chain).toUpperCase()}` : ""}</small></td><td className="r"><b className="mcap-value">{cap != null ? compact(cap) : "—"}</b>{px != null ? <small>{money(px)}</small> : null}</td><td className={`r ${change == null ? "" : changeClass(change)}`}>{change == null ? "—" : pct(change)}</td></tr>;
           })}</tbody></table>
         )}
-        {!sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
+        {tab !== "LIGHTER" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
       </div>
     </section>
   );

@@ -1,0 +1,48 @@
+{
+  "code": 200,
+  "total": 244,
+  "order_book_stats": [
+    {
+      "symbol": "SKHY",
+      "last_trade_price": 177.26,
+      "daily_trades_count": 452,
+      "daily_base_token_volume": 695.3841,
+      "daily_quote_token_volume": 122389.91255200001,
+      "daily_price_change": 0.9625790283077975
+    },
+    {
+      "symbol": "CTR",
+      "last_trade_price": 0.00974,
+      "daily_trades_count": 8,
+      "daily_base_token_volume": 95182,
+      "daily_quote_token_volume": 930.120903,
+      "daily_price_change": -2.404809619238477
+    },
+    {
+      "symbol": "HYUNDAI",
+      "last_trade_price": 0,
+      "daily_trades_count": 0,
+      "daily_base_token_volume": 0,
+      "daily_quote_token_volume": 0,
+      "daily_price_change": 0
+    },
+    {
+      "symbol": "NVDA",
+      "last_trade_price": 231.527,
+      "daily_trades_count": 4125,
+      "daily_base_token_volume": 9236.832,
+      "daily_quote_token_volume": 2134823.971691,
+      "daily_price_change": 0.19040447969812235
+    },
+    {
+      "symbol": "MINIMAX",
+      "last_trade_price": 46.93,
+      "daily_trades_count": 10,
+      "daily_base_token_volume": 24.26,
+      "daily_quote_token_volume": 1138.263218,
+      "daily_price_change": -0.5235602094240838
+    }
+  ],
+  "daily_usd_volume": 766796504.4069183,
+  "daily_trades_count": 1314441
+}

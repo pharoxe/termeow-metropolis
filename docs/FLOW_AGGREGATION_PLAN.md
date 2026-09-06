@@ -144,6 +144,9 @@ Touched: `MarketChart.tsx`, `DeskPage.tsx`, `FlowPanel.tsx`, `styles.css`.
 Tests: aggregation helpers; snapshot of series construction with fixtures.
 
 ### F5 — Optional paid or push upgrades (flags, default off)
+
+**Status 2026-09-06:** shipped keyless parts only. Lighter perp order book, taker-side tape and flow windows are live under `/api/lighter/*` and the LIGHTER watch tab (verified: 233 markets, stream book within one poll, trades and flow bars advancing). The Robinhood poller now scopes v4 logs by poolId server-side (drop ratio 99% → 0%), which is the keyless substitute for a websocket. Not built, pending credentials that do not exist in this environment: PumpPortal push (needs a key funded with 0.02 SOL), Solana Tracker push, Bitquery, Alchemy Robinhood websocket. They stay flags in the plan, not code.
+
 - `PUMPPORTAL_API_KEY` (0.02 SOL) → push for pump venues.
 - `SOLANATRACKER_API_KEY` → all-venue push on Solana.
 - `BITQUERY_TOKEN` → market-wide Robinhood push and launchpad feeds.

@@ -5,7 +5,9 @@ export const V2_SWAP_TOPIC = "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5
 export const V3_SWAP_TOPIC = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67";
 export const V4_SWAP_TOPIC = "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f";
 export const SWAP_TOPICS = [V2_SWAP_TOPIC, V3_SWAP_TOPIC, V4_SWAP_TOPIC];
-/** Uniswap v4 PoolManager; its Swap logs carry the poolId as topic1, so v4 pools are filtered client-side. */
+/** topic0 filter of the v2/v3 leg; the v4 leg asks the PoolManager for V4_SWAP_TOPIC with tracked poolIds as topic1. */
+export const POOL_SWAP_TOPICS = [V2_SWAP_TOPIC, V3_SWAP_TOPIC];
+/** Uniswap v4 PoolManager; its Swap logs carry the poolId as topic1, which eth_getLogs filters server-side. */
 export const V4_POOL_MANAGER = "0x8366a39cc670b4001a1121b8f6a443a643e40951";
 
 export const DEFAULT_INTERVAL_MS = 2_000;
@@ -18,6 +20,7 @@ export const BACKOFF_MIN_MS = 2_000;
 export const BACKOFF_MAX_MS = 30_000;
 export const SEEN_RING = 5_000;
 export const REQUEST_TIMEOUT_MS = 15_000;
+const LOGS_PER_BLOCK_SLOT = 0x100000; // ordering slot per block when merging legs; logIndex never approaches it
 
 /** One eth_getLogs entry as the node returns it; `blockTimestamp` is 0x0 on this chain and deliberately not modelled. */
 export type RawLog = {
@@ -51,7 +54,7 @@ export type PollerStats = {
   polls: number;
   /** Logs handed to the handler. */
   logs: number;
-  /** Logs discarded: reorg-overlap duplicates, `removed`, malformed, or v4 logs for poolIds outside the filter. */
+  /** Logs discarded: reorg-overlap duplicates, `removed`, malformed, or the client-side residue of v4 logs whose topic1 is not a tracked poolId. */
   dropped: number;
   errors: number;
   lastError: string | null;
@@ -64,6 +67,7 @@ export type PollerStats = {
 type RpcRequest = { jsonrpc: "2.0"; id: number; method: string; params: unknown[] };
 type RpcReply = { id?: unknown; result?: unknown; error?: { message?: string; code?: number } };
 type BlockWindow = { from: number; to: number };
+/** `addresses` are v2/v3 pool contracts; `poolIds` are v4 pools, queried on the PoolManager by topic1. */
 type Filter = { addresses: string[]; poolIds: Set<string> };
 type BatchMode = "try" | "on" | "off";
 type PollResult = { head: number; window: BlockWindow; logs: unknown[] };
@@ -104,11 +108,22 @@ function isRateLimit(error: unknown): boolean {
   return error instanceof UpstreamError && error.status === 429;
 }
 
+/** Sort key for (block, logIndex); malformed rows sort first and are dropped by accept(). */
+function position(value: unknown): number {
+  return isRawLog(value) ? (parseHex(value.blockNumber) ?? 0) * LOGS_PER_BLOCK_SLOT + (parseHex(value.logIndex) ?? 0) : -1;
+}
+
+/** Each leg returns one node-ordered page; merged legs go back into block/logIndex order so the handler sees a single tape. */
+function mergePages(pages: unknown[][]): unknown[] {
+  return pages.length < 2 ? (pages[0] ?? []) : pages.flat().sort((a, b) => position(a) - position(b));
+}
+
 /**
  * HTTP-only eth_getLogs poller for Robinhood Chain (no public websocket). One timer loop, never overlapping:
- * eth_blockNumber then eth_getLogs over [cursor - reorgDepth, min(head, cursor + maxRange)], batched into one
- * JSON-RPC array once the RPC is known to accept batches. The reorg overlap is collapsed by a tx:logIndex ring, so a
- * log is delivered at most once. Every failure lands in stats() and backs the loop off 2s -> 30s; nothing throws.
+ * eth_blockNumber then one eth_getLogs per leg over [cursor - reorgDepth, min(head, cursor + maxRange)] — v2/v3 pool
+ * addresses, and the v4 PoolManager with tracked poolIds as topic1 so untracked v4 swaps never leave the node — batched
+ * into one JSON-RPC array once the RPC accepts batches. The reorg overlap is collapsed by a tx:logIndex ring, so a log
+ * is delivered at most once. Every failure lands in stats() and backs the loop off 2s -> 30s; nothing throws.
  */
 export class RobinhoodLogPoller {
   private readonly rpcUrl: string;
@@ -148,11 +163,10 @@ export class RobinhoodLogPoller {
     this.log = opts.log ?? ((m) => console.warn(m));
   }
 
-  /** v2/v3 pool contracts plus the PoolManager when any v4 poolId is tracked. Leaves the cursor untouched. */
+  /** v2/v3 pool contracts and v4 poolIds, each driving its own eth_getLogs leg. Leaves the cursor untouched. */
   setFilter(addresses: string[], poolIds: string[]): void {
     const pools = new Set(poolIds.map((id) => id.toLowerCase()));
     const contracts = new Set(addresses.map((address) => address.toLowerCase()));
-    if (pools.size > 0) contracts.add(this.poolManager);
     this.filter = { addresses: [...contracts], poolIds: pools };
   }
 
@@ -213,23 +227,28 @@ export class RobinhoodLogPoller {
 
   private async poll(): Promise<void> {
     this.counters.polls += 1;
-    const useBatch = this.cursor !== null && this.batchMode !== "off" && this.filter.addresses.length > 0;
+    const useBatch = this.cursor !== null && this.batchMode !== "off" && this.hasFilter();
     const result = useBatch ? await this.pollBatched(this.cursor as number) : await this.pollSequential();
     this.settle(result);
   }
 
+  private hasFilter(): boolean {
+    return this.filter.addresses.length > 0 || this.filter.poolIds.size > 0;
+  }
   private async pollSequential(): Promise<PollResult> {
     const head = this.parseHead(await this.call("eth_blockNumber", []));
     const window = this.window(head);
-    if (this.filter.addresses.length === 0) return { head, window, logs: [] };
-    const logs = this.parseLogs(await this.call("eth_getLogs", [this.logsParams(window)]));
-    return { head, window, logs };
+    const legs = this.logsLegs(window);
+    const pages: unknown[][] = [];
+    for (const params of legs) pages.push(this.parseLogs(await this.call("eth_getLogs", [params])));
+    return { head, window, logs: mergePages(pages) };
   }
 
   /** The head is unknown before the batch returns, so toBlock is cursor + maxRange; the node clamps it to its head. */
   private async pollBatched(cursor: number): Promise<PollResult> {
     const requested = { from: Math.max(cursor - this.reorgDepth, 0), to: cursor + this.maxRange };
-    const requests = [this.request("eth_blockNumber", []), this.request("eth_getLogs", [this.logsParams(requested)])];
+    const legs = this.logsLegs(requested).map((params) => this.request("eth_getLogs", [params]));
+    const requests = [this.request("eth_blockNumber", []), ...legs];
     let results: unknown[];
     try {
       results = this.batchResults(await this.post(requests), requests);
@@ -241,7 +260,8 @@ export class RobinhoodLogPoller {
     }
     this.batchMode = "on";
     const head = this.parseHead(results[0]);
-    return { head, window: this.window(head), logs: this.parseLogs(results[1]) };
+    const pages = results.slice(1).map((page) => this.parseLogs(page));
+    return { head, window: this.window(head), logs: mergePages(pages) };
   }
 
   private settle(result: PollResult): void {
@@ -268,8 +288,13 @@ export class RobinhoodLogPoller {
     return { from, to };
   }
 
-  private logsParams(window: BlockWindow): Record<string, unknown> {
-    return { fromBlock: hex(window.from), toBlock: hex(window.to), address: this.filter.addresses, topics: [SWAP_TOPICS] };
+  /** One eth_getLogs filter per leg; a leg with nothing tracked is skipped rather than sent empty. */
+  private logsLegs(window: BlockWindow): Array<Record<string, unknown>> {
+    const range = { fromBlock: hex(window.from), toBlock: hex(window.to) };
+    const legs: Array<Record<string, unknown>> = [];
+    if (this.filter.addresses.length > 0) legs.push({ ...range, address: this.filter.addresses, topics: [POOL_SWAP_TOPICS] });
+    if (this.filter.poolIds.size > 0) legs.push({ ...range, address: [this.poolManager], topics: [[V4_SWAP_TOPIC], [...this.filter.poolIds]] });
+    return legs;
   }
 
   private accept(raw: unknown[]): RawLog[] {
@@ -285,6 +310,7 @@ export class RobinhoodLogPoller {
     return fresh;
   }
 
+  /** Residual guard: the node already filters by address/topic0/topic1, but a node that ignores topic1 must not leak foreign v4 swaps. */
   private matches(log: RawLog): boolean {
     const topic0 = log.topics[0]?.toLowerCase();
     if (topic0 === V4_SWAP_TOPIC) return this.filter.poolIds.has((log.topics[1] ?? "").toLowerCase());

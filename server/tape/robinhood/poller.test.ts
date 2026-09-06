@@ -6,9 +6,9 @@ import {
   CATCHUP_DELAY_MS,
   DEFAULT_INTERVAL_MS,
   DEFAULT_MAX_RANGE,
+  POOL_SWAP_TOPICS,
   RobinhoodLogPoller,
   SEEN_RING,
-  SWAP_TOPICS,
   V2_SWAP_TOPIC,
   V3_SWAP_TOPIC,
   V4_POOL_MANAGER,
@@ -47,7 +47,7 @@ function mkLog(block: number, tx: string, logIndex: number, address: string, top
 }
 
 /**
- * Stub node: filters logs by block range / address / topic0 the way geth does (toBlock beyond the head is clamped),
+ * Stub node: filters logs by block range / address / topic0 / topic1 the way geth does (toBlock beyond the head is clamped),
  * appends `raw` entries unfiltered, answers batches only when `batch` is true, and returns 429 for the next `rateLimit` HTTP requests.
  */
 function fakeNode(initial: { head: number; logs?: RawLog[]; batch?: boolean }) {
@@ -61,9 +61,11 @@ function fakeNode(initial: { head: number; logs?: RawLog[]; batch?: boolean }) {
     if (from > to) return { jsonrpc: "2.0", id: req.id, error: { code: -32000, message: "invalid block range" } };
     const addresses = new Set(filter.address.map((a) => a.toLowerCase()));
     const topics = new Set(filter.topics[0] ?? []);
+    const topic1 = filter.topics[1] ? new Set(filter.topics[1].map((t) => t.toLowerCase())) : null;
     const result = chain.logs.filter((log) => {
       const block = Number.parseInt(log.blockNumber, 16);
-      return block >= from && block <= to && addresses.has(log.address.toLowerCase()) && topics.has(log.topics[0]!);
+      const inRange = block >= from && block <= to && addresses.has(log.address.toLowerCase()) && topics.has(log.topics[0]!);
+      return inRange && (topic1 === null || topic1.has((log.topics[1] ?? "").toLowerCase()));
     });
     return { jsonrpc: "2.0", id: req.id, result: [...result, ...chain.raw] };
   };
@@ -121,7 +123,7 @@ describe("RobinhoodLogPoller", () => {
     expect(node.calls).toHaveLength(2);
     expect(node.calls.map((call) => call.batched)).toEqual([false, false]);
     expect(node.calls[0]!.requests[0]!.method).toBe("eth_blockNumber");
-    expect(node.logsCalls()).toEqual([{ fromBlock: hex(HEAD - 25), toBlock: hex(HEAD), address: [V3_POOL], topics: [SWAP_TOPICS] }]);
+    expect(node.logsCalls()).toEqual([{ fromBlock: hex(HEAD - 25), toBlock: hex(HEAD), address: [V3_POOL], topics: [POOL_SWAP_TOPICS] }]);
     expect(onLogs).toHaveBeenCalledTimes(1);
     expect(onLogs).toHaveBeenCalledWith([wanted], HEAD);
     expect(poller.stats()).toEqual({
@@ -243,7 +245,7 @@ describe("RobinhoodLogPoller", () => {
     await tick();
     node.chain.head = HEAD + 250;
     await tick(DEFAULT_INTERVAL_MS);
-    expect(node.logsCalls().at(-1)).toEqual({ fromBlock: hex(HEAD - 5), toBlock: hex(HEAD + 100), address: [V3_POOL], topics: [SWAP_TOPICS] });
+    expect(node.logsCalls().at(-1)).toEqual({ fromBlock: hex(HEAD - 5), toBlock: hex(HEAD + 100), address: [V3_POOL], topics: [POOL_SWAP_TOPICS] });
     expect(poller.stats().cursor).toBe(HEAD + 100);
     await tick(CATCHUP_DELAY_MS);
     expect(node.logsCalls().at(-1)).toMatchObject({ fromBlock: hex(HEAD + 95), toBlock: hex(HEAD + 200) });
@@ -251,7 +253,7 @@ describe("RobinhoodLogPoller", () => {
     expect(node.logsCalls().at(-1)).toMatchObject({ fromBlock: hex(HEAD + 195), toBlock: hex(HEAD + 250) });
   });
 
-  it("adds the PoolManager for v4 pools and keeps only its Swap logs whose topic1 is a tracked poolId", async () => {
+  it("splits v4 into its own PoolManager leg with tracked poolIds as topic1, so foreign v4 swaps never arrive", async () => {
     const receipt = JSON.parse(readFileSync(new URL("./__fixtures__/v4-0x70b5b746-0xa72a4c2f.json", import.meta.url), "utf8")) as { logs: RawLog[] };
     const block = Number.parseInt(receipt.logs[0]!.blockNumber, 16);
     const v3Log = mkLog(block, "0xdd", 1, V3_POOL, V3_SWAP_TOPIC);
@@ -261,15 +263,41 @@ describe("RobinhoodLogPoller", () => {
     poller.start(onLogs);
     await tick();
 
-    expect(node.logsCalls()[0]!.address).toEqual([V3_POOL, V4_POOL_MANAGER]);
+    expect(node.calls.map((call) => call.batched)).toEqual([false, false, false]);
+    expect(node.logsCalls()).toEqual([
+      { fromBlock: hex(block - 25), toBlock: hex(block), address: [V3_POOL], topics: [POOL_SWAP_TOPICS] },
+      { fromBlock: hex(block - 25), toBlock: hex(block), address: [V4_POOL_MANAGER], topics: [[V4_SWAP_TOPIC], [FATCOIN_POOL_ID]] }
+    ]);
     const delivered = onLogs.mock.calls[0]![0] as RawLog[];
     expect(delivered.map((log) => [log.topics[0], log.logIndex])).toEqual([
-      [V4_SWAP_TOPIC, "0x25"],
-      [V3_SWAP_TOPIC, "0x1"]
+      [V3_SWAP_TOPIC, "0x1"],
+      [V4_SWAP_TOPIC, "0x25"]
     ]);
-    expect(delivered[0]!.topics[1]).toBe(FATCOIN_POOL_ID);
+    expect(delivered[1]!.topics[1]).toBe(FATCOIN_POOL_ID);
     expect(delivered.some((log) => log.topics[1] === OTHER_POOL_ID)).toBe(false);
-    expect(poller.stats()).toMatchObject({ logs: 2, dropped: 4 });
+    expect(poller.stats()).toMatchObject({ logs: 2, dropped: 0, rpcCalls: 3 });
+
+    node.chain.head = block + 1;
+    await tick(DEFAULT_INTERVAL_MS);
+    expect(node.calls.at(-1)!.batched).toBe(true);
+    expect(node.calls.at(-1)!.requests.map((req) => req.method)).toEqual(["eth_blockNumber", "eth_getLogs", "eth_getLogs"]);
+    expect(node.logsCalls().slice(-2).map((filter) => filter.address)).toEqual([[V3_POOL], [V4_POOL_MANAGER]]);
+    expect(poller.stats()).toMatchObject({ rpcCalls: 4 });
+  });
+
+  it("still drops a foreign-poolId v4 log client-side when a node ignores the topic1 filter", async () => {
+    const tracked = mkLog(HEAD, "0xaa", 1, V4_POOL_MANAGER, V4_SWAP_TOPIC, FATCOIN_POOL_ID);
+    const foreign = mkLog(HEAD, "0xbb", 2, V4_POOL_MANAGER, V4_SWAP_TOPIC, OTHER_POOL_ID);
+    const node = fakeNode({ head: HEAD, logs: [tracked] });
+    node.chain.raw = [foreign];
+    const { poller, onLogs } = build(node);
+    poller.setFilter([], [FATCOIN_POOL_ID]);
+    poller.start(onLogs);
+    await tick();
+
+    expect(node.logsCalls()).toEqual([{ fromBlock: hex(HEAD - 25), toBlock: hex(HEAD), address: [V4_POOL_MANAGER], topics: [[V4_SWAP_TOPIC], [FATCOIN_POOL_ID]] }]);
+    expect(onLogs).toHaveBeenCalledWith([tracked], HEAD);
+    expect(poller.stats()).toMatchObject({ logs: 1, dropped: 1 });
   });
 
   it("omits the PoolManager when no poolIds are tracked and skips eth_getLogs while the filter is empty", async () => {
@@ -284,6 +312,7 @@ describe("RobinhoodLogPoller", () => {
     poller.setFilter([V2_POOL], []);
     node.chain.head = HEAD + 1;
     await tick(DEFAULT_INTERVAL_MS);
+    expect(node.logsCalls()).toHaveLength(1);
     expect(node.logsCalls()[0]!.address).toEqual([V2_POOL]);
   });
 
@@ -376,7 +405,10 @@ describe("RobinhoodLogPoller", () => {
     expect(poller.stats().cursor).toBe(HEAD);
     node.chain.head = HEAD + 2;
     await tick(DEFAULT_INTERVAL_MS);
-    expect(node.logsCalls().at(-1)).toMatchObject({ fromBlock: hex(HEAD - 5), address: [V2_POOL, V4_POOL_MANAGER] });
+    expect(node.logsCalls().slice(-2)).toEqual([
+      { fromBlock: hex(HEAD - 5), toBlock: hex(HEAD + DEFAULT_MAX_RANGE), address: [V2_POOL], topics: [POOL_SWAP_TOPICS] },
+      { fromBlock: hex(HEAD - 5), toBlock: hex(HEAD + DEFAULT_MAX_RANGE), address: [V4_POOL_MANAGER], topics: [[V4_SWAP_TOPIC], [FATCOIN_POOL_ID]] }
+    ]);
     expect(poller.stats().cursor).toBe(HEAD + 2);
   });
 

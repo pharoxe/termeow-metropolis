@@ -1,5 +1,5 @@
 import type { OnchainMarket, PublicConfig } from "../types";
-import type { Chain, TokenFlowResponse } from "../../shared/wire";
+import type { Chain, LighterBook, LighterFlowResponse, LighterMarketsResponse, LighterTradesResponse, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -20,6 +20,10 @@ export const api = {
   trades: (pair: string) => request<import("../types").PoolCvd>(`/api/onchain/trades/${pair}`),
   flowToken: (chain: Chain, address: string, interval: string, anchor: TokenFlowResponse["anchor"] = "window") =>
     request<TokenFlowResponse>(`/api/flow/token/${chain}/${address}?interval=${encodeURIComponent(interval)}&anchor=${anchor}`),
+  lighterMarkets: () => request<LighterMarketsResponse>("/api/lighter/markets"),
+  lighterBook: (marketId: number, depth: number) => request<LighterBook>(`/api/lighter/${marketId}/book?depth=${depth}`),
+  lighterTrades: (marketId: number, limit: number) => request<LighterTradesResponse>(`/api/lighter/${marketId}/trades?limit=${limit}`),
+  lighterFlow: (marketId: number, interval: string) => request<LighterFlowResponse>(`/api/lighter/${marketId}/flow?interval=${encodeURIComponent(interval)}`),
   search: (q: string) => request<Record<string, unknown>>(`/api/onchain/search?q=${encodeURIComponent(q)}`),
   trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
   board: () => request<Record<string, unknown>>("/api/onchain/board"),

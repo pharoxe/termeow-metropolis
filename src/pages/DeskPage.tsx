@@ -13,6 +13,7 @@ import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
 import type { TokenFlowResponse } from "../../shared/wire";
 import { buildChartFlowInput } from "../lib/flowPanel";
 import { AuditChips, BothSidesPanel, MarketStrips, ResearchPanel, SocialPanel, WatchPanel } from "../components/DeskPanels";
+import { LighterPanel } from "../components/LighterPanel";
 import { ThemeToggle, useTheme } from "../components/ThemeToggle";
 import { FeatureSection } from "../features/WorkspaceFeatures";
 import Grainient from "../components/effects/Grainient";
@@ -117,6 +118,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   } | null>(null);
   const [flowState, setFlowState] = useState<TokenFlowResponse | null>(null);
   const [chartUnit, setChartUnit] = useState<ChartUnit>(readChartUnit);
+  const [lighter, setLighter] = useState<{ marketId: number; symbol: string } | null>(null);
   const selectChartUnit = (unit: ChartUnit) => {
     setChartUnit(unit);
     persistChartUnit(unit);
@@ -277,6 +279,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     setSpot((current) => (current?.mint === nextMint ? current : null));
     setQuery(symbol ? symbol.toUpperCase() : nextMint);
     setError("");
+    setLighter(null);
   };
   const submitQuery = async () => {
     const text = query.trim();
@@ -357,11 +360,14 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           onSpot={focusSpot}
           trenches={trenchRows}
           onTrenchSort={setTrenchSort}
+          onLighter={(marketId, symbol) => setLighter({ marketId, symbol })}
+          lighterSelected={lighter?.marketId ?? null}
         />
         <section className={`panel chart-panel${chartExpanded ? " chart-expanded" : ""}`}>
           <div className="ph chart-head">
             <div className="chart-head-left">
-              <span className="pt">{chartTitle}</span>
+              <span className="pt">{lighter ? `LIGHTER ${lighter.symbol}` : chartTitle}</span>
+              {lighter && <button type="button" className="lighter-close" title="Back to the spot chart" onClick={() => setLighter(null)}>CLOSE</button>}
               <span className="unit-toggle" role="group" aria-label="Chart unit">
                   <button type="button" className={!useMcap ? "on" : ""} onClick={() => selectChartUnit("price")}>PRICE</button>
                   <button type="button" className={useMcap ? "on" : ""} disabled={!hasMcap} onClick={() => selectChartUnit("mcap")}>MCAP</button>
@@ -388,7 +394,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
             <button type="button" title="Jump to the latest candle" onClick={() => chartRef.current?.goToRealtime()}>LIVE</button>
             <button type="button" title={chartExpanded ? "Exit expanded chart" : "Expand chart"} aria-pressed={chartExpanded} onClick={() => setChartExpanded((expanded) => !expanded)}>{chartExpanded ? "CLOSE" : "EXPAND"}</button>
           </div>
-          {spotLoading ? (
+          {lighter ? <LighterPanel marketId={lighter.marketId} symbol={lighter.symbol} /> : spotLoading ? (
             <div className="integration-empty chart-loading"><span className="notification-pixel chart-loader" aria-hidden="true"><i /><i /><i /><i /></span><h2>LOADING {mintLabel}</h2><p>{error || "Fetching chart, intel, holders, and social for this contract."}</p></div>
           ) : candles.length ? <MarketChart ref={chartRef} candles={candles} indicators={indicators} cvdSeries={cvdSeries} flow={chartFlow} compactAxis={useMcap} theme={theme} /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{error || "No OHLCV on Gecko for this mint's pools."}</p></div>}
           <div className="chart-readout">

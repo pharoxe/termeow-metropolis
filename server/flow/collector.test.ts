@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { FlowPrint, PairRow } from "../../shared/wire.js";
+import type { Chain, FlowPrint, PairRow } from "../../shared/wire.js";
 import { UpstreamError } from "../lib/http.js";
 import type { PumpTradesPage, WalkPumpOptions, WalkPumpResult } from "../sources/pumpfun.js";
 import type { RobinhoodOwnTapeStats } from "../tape/robinhood/ownTape.js";
@@ -72,7 +72,7 @@ function harness(overrides: Partial<CollectorDeps> = {}) {
   let now = START;
   const ledger = new FlowLedger({ now: () => now });
   const log = vi.fn();
-  const geckoPoolTrades = vi.fn(async (_chain: "solana" | "robinhood", pool: string) => [print(pool, `g-${pool}-${now}`, now, "geckoterminal")]);
+  const geckoPoolTrades = vi.fn(async (_chain: Chain, pool: string) => [print(pool, `g-${pool}-${now}`, now, "geckoterminal")]);
   const fetchPumpTradesPage = vi.fn(async (mint: string): Promise<PumpTradesPage> => ({
     prints: [print(`pumpfun:${mint}`, `p-${now}`, now, "pumpfun")],
     nextCursor: null,
