@@ -182,3 +182,91 @@ describe("SwapCandleCache.ensure", () => {
     expect(cache.peek(OTHER)).not.toBeNull();
   });
 });
+
+describe("SwapCandleCache snapshot/restore", () => {
+  it("serializes pools whose first fill finished (a pool mid-first-fill is left out, one mid-top-up is kept) with the cache clock as collectedAt", async () => {
+    let finish: () => void = () => undefined;
+    const f = fakes(async (pool, run) => {
+      if (pool.pair === OTHER.pair) {
+        run.onChunk?.(chunk([point(990_000)]));
+        await new Promise<void>((resolve) => { finish = resolve; });
+      }
+      return result([point(980_000), point(990_000)]);
+    });
+    const cache = new SwapCandleCache({ ...f, now: () => NOW });
+    await cache.ensure(POOL, 60_000, 100);
+    void cache.ensure(OTHER, 60_000, 10);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const snapshot = cache.snapshot();
+    expect(snapshot.collectedAt).toBe(NOW);
+    expect(snapshot.pools.map((pool) => pool.key)).toEqual([poolCacheKey(POOL)]);
+    expect(snapshot.pools[0]).toMatchObject({ pool: POOL, fromBlock: 980_000, toBlock: 990_000, stoppedBy: "depth", trimmed: 0 });
+    expect(snapshot.pools[0].points.map((p) => p.block)).toEqual([980_000, 990_000]);
+    expect("backfilling" in snapshot.pools[0]).toBe(false);
+    finish();
+
+    // a slow top-up must not empty the file: the pool stays in the snapshot with the points it holds
+    let now = NOW;
+    let release: () => void = () => undefined;
+    const slow = fakes(async () => result([point(980_000), point(990_000)]), async (_pool, fromBlock) => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      return result([], { fromBlock: fromBlock + 1, toBlock: fromBlock, chunks: 0, stoppedBy: "head" });
+    });
+    const held = new SwapCandleCache({ ...slow, now: () => now, topUpMinMs: 1 });
+    await held.ensure(POOL, 60_000, 100);
+    now += 10;
+    const mid = await held.ensure(POOL, 60_000, 10);
+    expect(mid.backfilling).toBe(true);
+    expect(held.snapshot().pools.map((pool) => [pool.key, pool.points.length, pool.toBlock])).toEqual([[poolCacheKey(POOL), 2, 990_000]]);
+    release();
+  });
+
+  it("restores pools as stale-headed entries carrying the snapshot's age, never over a pool this process already holds", async () => {
+    const source = new SwapCandleCache({ ...fakes(async () => result([point(980_000), point(990_000)])), now: () => NOW });
+    await source.ensure(POOL, 60_000, 100);
+    const snapshot = source.snapshot();
+    const json = JSON.parse(JSON.stringify(snapshot)) as typeof snapshot;
+
+    const target = new SwapCandleCache({ ...fakes(async () => result([point(999_000)])), now: () => NOW + 120_000 });
+    expect(target.restore(json)).toEqual({ pools: 1, points: 2, skipped: 0 });
+    const state = target.peek(POOL);
+    expect(state).toMatchObject({ toBlock: 990_000, fromBlock: 980_000, toppedUpAt: null, backfilling: false, error: null, updatedAt: NOW + 120_000 });
+    expect(state?.restored).toEqual({ at: NOW + 120_000, ageMs: 120_000, points: 2, toBlock: 990_000, headTime: point(990_000).time });
+    expect(state?.points).toEqual([point(980_000), point(990_000)]);
+    // a second restore does not replace the live entry; a key that does not match its ref is refused
+    expect(target.restore(json)).toEqual({ pools: 0, points: 0, skipped: 1 });
+    expect(target.restore({ collectedAt: NOW, pools: [{ ...json.pools[0], key: "bogus" }] })).toEqual({ pools: 0, points: 0, skipped: 1 });
+    // the per-pool point cap applies on the way in, counted as trimmed
+    const capped = new SwapCandleCache({ ...fakes(async () => result([])), now: () => NOW, maxPoints: 1 });
+    expect(capped.restore(json)).toEqual({ pools: 1, points: 1, skipped: 0 });
+    expect(capped.peek(POOL)).toMatchObject({ trimmed: 1, restored: expect.objectContaining({ points: 1 }) });
+  });
+
+  it("tops a restored pool up from its cached head on the first read and keeps the restored mark", async () => {
+    const source = new SwapCandleCache({ ...fakes(async () => result([point(980_000), point(990_000)])), now: () => NOW });
+    await source.ensure(POOL, 60_000, 100);
+    const f = fakes(async () => result([point(1)]), async (_pool, fromBlock) => result([point(990_010)], { fromBlock: fromBlock + 1, toBlock: 990_010, stoppedBy: "head" }));
+    const target = new SwapCandleCache({ ...f, now: () => NOW + 60_000 });
+    target.restore(source.snapshot());
+    const state = await target.ensure(POOL, 60_000, 100);
+    expect(f.backfill).not.toHaveBeenCalled();
+    expect(f.topUp).toHaveBeenCalledWith(POOL, 990_000 - REORG_RESCAN_BLOCKS, expect.any(Function));
+    // the rescan window below the restored head is replaced by what the chain reports there now (990_000 was not re-reported)
+    expect(state.points.map((p) => p.block)).toEqual([980_000, 990_010]);
+    expect(state).toMatchObject({ toBlock: 990_010, toppedUpAt: NOW + 60_000, restored: expect.objectContaining({ points: 2, toBlock: 990_000 }) });
+  });
+
+  it("fills a restored pool afresh, dropping the restored mark, when the gap to the head exceeds the top-up cap", async () => {
+    const source = new SwapCandleCache({ ...fakes(async () => result([point(650_000)])), now: () => NOW });
+    await source.ensure(POOL, 60_000, 100);
+    const f = fakes(async () => result([point(999_000)]), async (_pool, fromBlock) => result([], { fromBlock: fromBlock + 1, toBlock: fromBlock, chunks: 0, stoppedBy: "error", error: "gap of 1200000 blocks exceeds 1000000" }));
+    const target = new SwapCandleCache({ ...f, now: () => NOW + 60_000 });
+    target.restore(source.snapshot());
+    const state = await target.ensure(POOL, 60_000, 100);
+    expect(f.topUp).toHaveBeenCalledTimes(1);
+    expect(f.backfill).toHaveBeenCalledTimes(1);
+    expect(state.points.map((p) => p.block)).toEqual([999_000]);
+    expect(state.restored).toBeNull();
+    expect(state.toBlock).toBe(999_000);
+  });
+});

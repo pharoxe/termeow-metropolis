@@ -1,4 +1,5 @@
 import { UpstreamError, errorMessage } from "../../lib/http.js";
+import { getLogsLane, type LogsLane } from "./logsLane.js";
 import { robinhoodRpcFetch } from "./rpcPool.js";
 
 /** Uniswap Swap event signatures observed on Robinhood Chain (chain id 4663) via eth_getLogs, 2026-09-06. */
@@ -58,6 +59,11 @@ export type PollerOptions = {
   fetchImpl?: typeof fetch;
   now?: () => number;
   log?: (m: string) => void;
+  /**
+   * Shared logs-lane budget every tick waits on (see logsLane.ts): undefined means the process lane when the transport
+   * is the shared pool, none when a caller injected its own fetchImpl (tests); null opts out explicitly.
+   */
+  lane?: LogsLane | null;
 };
 
 export type PollerStats = {
@@ -146,6 +152,7 @@ export class RobinhoodLogPoller {
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
   private readonly log: (m: string) => void;
+  private readonly lane: LogsLane | null;
   private filter: Filter = { addresses: [], poolIds: new Set() };
   private extraLegs: ExtraLeg[] = [];
   private handler: LogsHandler | null = null;
@@ -174,6 +181,7 @@ export class RobinhoodLogPoller {
     this.fetchImpl = opts.fetchImpl ?? robinhoodRpcFetch;
     this.now = opts.now ?? (() => Date.now());
     this.log = opts.log ?? ((m) => console.warn(m));
+    this.lane = opts.lane !== undefined ? opts.lane : opts.fetchImpl ? null : getLogsLane();
   }
 
   /** v2/v3 pool contracts and v4 poolIds, each driving its own eth_getLogs leg. Leaves the cursor untouched. */
@@ -232,7 +240,10 @@ export class RobinhoodLogPoller {
     this.inFlight = true;
     let ok = false;
     try {
-      await this.poll();
+      // The lane serialises every eth_getLogs in the process and spaces them by its adaptive gap; a stop() while
+      // waiting for the slot skips the poll (the slot is released untouched).
+      if (this.lane) await this.lane.run("routine", () => (this.running ? this.poll() : Promise.resolve()));
+      else await this.poll();
       ok = true;
     } catch (error) {
       if (this.running) this.fail(error);
@@ -242,10 +253,12 @@ export class RobinhoodLogPoller {
     this.schedule(this.nextDelay(ok));
   }
 
+  /** Caught up: the configured interval or the lane's current gap, whichever is longer; catching up or backing off: as before, the lane still spaces the requests. */
   private nextDelay(ok: boolean): number {
-    if (!ok) return this.delayMs;
+    const laneGap = this.lane?.gapMs() ?? 0;
+    if (!ok) return Math.max(this.delayMs, laneGap);
     const behind = this.cursor !== null && this.head !== null && this.cursor < this.head;
-    return behind ? CATCHUP_DELAY_MS : this.intervalMs;
+    return behind ? CATCHUP_DELAY_MS : Math.max(this.intervalMs, laneGap);
   }
 
   private async poll(): Promise<void> {

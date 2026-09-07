@@ -1,5 +1,6 @@
 import { config } from "../../config.js";
 import { EndpointPool, type EndpointPoolStats } from "./endpoints.js";
+import { getLogsLane } from "./logsLane.js";
 
 /**
  * The one Robinhood Chain endpoint pool per process, built from config.robinhood.rpcUrls on first use so tests that
@@ -10,7 +11,10 @@ import { EndpointPool, type EndpointPoolStats } from "./endpoints.js";
 let pool: EndpointPool | null = null;
 
 export function getRobinhoodRpcPool(): EndpointPool {
-  if (!pool) pool = new EndpointPool({ urls: config.robinhood.rpcUrls });
+  if (!pool) {
+    // The pool reports logs-lane 429s and lane-wide blocks to the shared lane; callers pace themselves through it.
+    pool = new EndpointPool({ urls: config.robinhood.rpcUrls, logsLane: getLogsLane() });
+  }
   return pool;
 }
 

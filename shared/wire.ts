@@ -176,6 +176,10 @@ export type CandleSourceInfo = {
   quoteUsd: number | null;
   /** Own-tape prints merged outside the backfilled range (forming bar; older ring prints while a fill is still shallow). */
   live: number;
+  /** Chain: when this process put the underlying swaps back from a restart snapshot; absent/null when they were fetched here. */
+  restoredAt?: number | null;
+  /** Chain: age of that snapshot's data at response time (file age at restore plus the time since), ms; absent/null otherwise. */
+  snapshotAgeMs?: number | null;
 };
 
 /**

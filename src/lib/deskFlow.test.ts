@@ -196,6 +196,12 @@ describe("R6 candle provenance and no-candles reason", () => {
     expect(candleSourceMeta(market(), "market")).toBeNull();
     expect(candleSourceMeta(market({ candleSource: chainInfo, stale: true }), "market")).toBe("CHAIN SWAPS · 1,840 BARS · FROM 07 Sep 17:02 IST · STALE HEAD");
   });
+  it("marks a series standing on restored swaps with the snapshot data's age as the server reports it", () => {
+    const restored = { ...chainInfo, restoredAt: NOW - 300_000, snapshotAgeMs: 720_000 };
+    expect(candleSourceMeta(market({ candleSource: restored }), "market")).toBe("CHAIN SWAPS · 1,840 BARS · FROM 07 Sep 17:02 IST · RESTORED · 12m OLD");
+    expect(candleSourceMeta(market({ candleSource: { ...restored, coverage: { ...restored.coverage, backfilling: true, complete: false } }, stale: true }), "market")).toBe("CHAIN SWAPS · 1,840 BARS · FROM 07 Sep 17:02 IST · BACKFILLING · RESTORED · 12m OLD · STALE HEAD");
+    expect(candleSourceMeta(market({ candleSource: { ...chainInfo, restoredAt: null, snapshotAgeMs: null } }), "market")).toBe("CHAIN SWAPS · 1,840 BARS · FROM 07 Sep 17:02 IST");
+  });
   it("names the route's own reason for an empty chart and the running backfill", () => {
     expect(noCandlesReason(market({ candles: [], notes: ["DexScreener pairs stale: x", "OHLCV unavailable: GeckoTerminal backoff active after 429"] }), "")).toBe("OHLCV unavailable: GeckoTerminal backoff active after 429");
     expect(noCandlesReason(market({ candles: [], notes: [], candleSource: { ...chainInfo, coverage: { ...chainInfo.coverage, bars: 0, prints: 120, backfilling: true, complete: false } } }), "")).toBe("Chain swap backfill running (120 swaps so far) · bars appear on the next read.");

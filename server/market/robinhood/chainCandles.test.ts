@@ -62,6 +62,7 @@ function state(points: TimedSwapPoint[], overrides: Partial<PoolCandleState> = {
     updatedAt: NOW,
     toppedUpAt: NOW,
     trimmed: 0,
+    restored: null,
     ...overrides
   };
 }
@@ -112,6 +113,29 @@ describe("chainCandlesFor", () => {
     expect(early.stale).toBe(false);
   });
 
+  it("says when the bars stand on restored swaps: candleSource.restoredAt, the snapshot's age now, and a note counting the restored bars", async () => {
+    // restored 12 min after a snapshot that was 3 min old; the response is built 5 min after the restore, so the data is 8 min old now
+    const restored = { at: NOW - 5 * MINUTE, ageMs: 3 * MINUTE, points: 2, toBlock: 1_000_000, headTime: NOW - 9.5 * MINUTE };
+    const pending = await chainCandlesFor(ROW, "5m", deps(state([point(10, 400), point(9.5, 401)], { fromTime: NOW - 11 * MINUTE, restored, backfilling: true })));
+    expect(pending.candleSource).toMatchObject({ restoredAt: NOW - 5 * MINUTE, snapshotAgeMs: 8 * MINUTE });
+    expect(pending.notes).toContain("1 bars (2 swaps) restored from a snapshot 8 min old; topping up");
+
+    const toppedUp = await chainCandlesFor(ROW, "5m", deps(state([point(10, 400), point(9.5, 401), point(2, 402)], { fromTime: NOW - 11 * MINUTE, restored, toBlock: 1_000_200 })));
+    expect(toppedUp.notes).toContain("1 bars (2 swaps) restored from a snapshot 8 min old; topped up through block 1000200");
+    expect(toppedUp.candleSource.coverage.bars).toBe(2);
+
+    const idle = await chainCandlesFor(ROW, "5m", deps(state([point(10, 400)], { restored: { ...restored, points: 1 }, error: "upstream returned 429" })));
+    expect(idle.notes).toContain("1 bars (1 swaps) restored from a snapshot 8 min old; top-up pending; head not current");
+    expect(idle.stale).toBe(true);
+
+    const young = await chainCandlesFor(ROW, "5m", deps(state([point(10, 400)], { restored: { ...restored, at: NOW - 10_000, ageMs: 6_000, points: 1 }, backfilling: true })));
+    expect(young.notes).toContain("1 bars (1 swaps) restored from a snapshot 16 s old; topping up");
+
+    const fresh = await chainCandlesFor(ROW, "5m", deps(state([point(10, 400)])));
+    expect(fresh.candleSource).toMatchObject({ restoredAt: null, snapshotAgeMs: null });
+    expect(fresh.notes.some((note) => /restored/.test(note))).toBe(false);
+  });
+
   it("merges only own-tape prints: GeckoTerminal trade prints sharing the ring never enter the chain-swaps series", async () => {
     const ring = [print(0.2, 999, "0xgecko", "geckoterminal"), print(0.3, 405, "0xown"), print(0.4, 777, "0xpump", "pumpfun")];
     expect(ownPrints(ring).map((p) => p.tx)).toEqual(["0xown"]);
@@ -150,7 +174,7 @@ describe("chainCandlesFor", () => {
     expect(result.candleSource.coverage.complete).toBe(false);
     expect(result.stale).toBe(true);
     expect(result.notes).toEqual(expect.arrayContaining([
-      expect.stringMatching(/capped at 240,000 blocks/),
+      expect.stringMatching(/capped at 1,000,000 blocks \(~28\.0 h\)/),
       expect.stringMatching(/chain backfill error: upstream returned 429 \(series may be partial; head not current\)/),
       expect.stringMatching(/1 chunk\(s\) lacked a readable block anchor/),
       expect.stringMatching(/5 oldest swaps dropped/)

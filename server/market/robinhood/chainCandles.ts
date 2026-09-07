@@ -1,8 +1,8 @@
 import type { CandleSourceInfo, FlowPrint, MarketCandle, PairRow } from "../../../shared/wire.js";
 import type { EvmPoolRef } from "../../tape/robinhood/pools.js";
-import { backfillSpanMs, DEFAULT_BARS } from "./swapBackfill.js";
+import { backfillSpanMs, DEFAULT_BARS, MAX_BACKFILL_BLOCKS } from "./swapBackfill.js";
 import type { PoolCandleState, SwapCandleCache } from "./swapCache.js";
-import { CANDLE_SOURCE_CHAIN, intervalMsOf, pointTicks, printTicks, ticksToCandles, type CandleTick } from "./swapCandles.js";
+import { BLOCK_MS, CANDLE_SOURCE_CHAIN, intervalMsOf, pointTicks, printTicks, ticksToCandles, type CandleTick } from "./swapCandles.js";
 
 /**
  * Assembles one candle series for a Robinhood pool from the swap cache (history) plus the own tape's ring prints
@@ -17,6 +17,14 @@ export const CHAIN_TIMING = "block timestamps: two eth_getBlockByNumber anchors 
  * below it the chart would collapse from hundreds of Gecko bars to the handful the first chunks hold and grow back.
  */
 export const MIN_FILL_SHARE = 0.5;
+/**
+ * Prefixes of the errors thrown below while a first fill is still running (the caller falls back to GeckoTerminal and
+ * quotes them in a note). The market route re-reads such an answer on its short TTL, so a fill that finishes at 10 s is
+ * not hidden behind a 45 s cached fallback.
+ */
+export const CHAIN_FILL_PENDING_PREFIXES: readonly string[] = ["chain backfill in progress", "chain backfill found no swaps yet"];
+/** The cap note derives from the real constant: the wire never states a depth other than the one scanned. */
+const CAP_NOTE = `backfill depth capped at ${MAX_BACKFILL_BLOCKS.toLocaleString("en-US")} blocks (~${((MAX_BACKFILL_BLOCKS * BLOCK_MS) / 3_600_000).toFixed(1)} h); older bars not fetched`;
 const OWN_SOURCE: FlowPrint["source"] = "own";
 
 export type ChainCandlesResult = {
@@ -74,13 +82,29 @@ function chainNotes(state: PoolCandleState, live: number, quoteUsd: number, pool
     `candles from ${pool.kind} Swap logs of ${pool.pair} (${state.points.length} swaps, ${state.chunks} chunks, ${state.anchors} block anchors; times interpolated between anchors; ${priceBasis})`,
     `USD via current ${pool.quote} price ${quoteUsd} (DexScreener), not a historical quote series`
   ];
-  if (state.stoppedBy === "cap") notes.push("backfill depth capped at 240,000 blocks (~6.7 h); older bars not fetched");
+  if (state.stoppedBy === "cap") notes.push(CAP_NOTE);
   if (state.estimatedChunks > 0) notes.push(`${state.estimatedChunks} chunk(s) lacked a readable block anchor; their times are extrapolated at 100.9 ms/block`);
   if (state.error) notes.push(`chain backfill error: ${state.error} (series may be partial; head not current)`);
   if (state.backfilling) notes.push("backfill in progress: older bars arrive on the next read");
   if (state.trimmed > 0) notes.push(`${state.trimmed} oldest swaps dropped by the per-pool cap`);
   if (live > 0) notes.push(`${live} own-tape print(s) merged outside the backfilled range (forming bar; older ring prints until the fill reaches them; execution price, not pool price)`);
   return notes;
+}
+
+/** Age of restored data right now: the snapshot's age when applied plus the time since. */
+function restoredAgeMs(state: PoolCandleState, now: number): number | null {
+  return state.restored ? state.restored.ageMs + Math.max(0, now - state.restored.at) : null;
+}
+
+/** "113 bars (3,024 swaps) restored from a snapshot 12 min old; topping up" when the history came from server/persist. */
+function restoredNote(state: PoolCandleState, candles: MarketCandle[], now: number): string[] {
+  const mark = state.restored;
+  if (!mark) return [];
+  const bars = mark.headTime === null ? 0 : candles.filter((candle) => candle.time <= (mark.headTime as number)).length;
+  const ageMs = restoredAgeMs(state, now) ?? 0;
+  const age = ageMs < 60_000 ? `${Math.round(ageMs / 1000)} s` : `${Math.round(ageMs / 60_000)} min`;
+  const head = state.toBlock !== null && state.toBlock > mark.toBlock ? `topped up through block ${state.toBlock}` : state.backfilling ? "topping up" : "top-up pending; head not current";
+  return [`${bars} bars (${mark.points} swaps) restored from a snapshot ${age} old; ${head}`];
 }
 
 /** ms of history a fill vouches for, measured from now back to the oldest scanned block (0 before the first chunk). */
@@ -122,9 +146,11 @@ export async function chainCandlesFor(row: PairRow, interval: string, deps: Chai
       coverage: coverageOf(candles, state.points.length, reached && !state.backfilling && state.error === null, state.backfilling),
       timing: CHAIN_TIMING,
       quoteUsd,
-      live: live.length
+      live: live.length,
+      restoredAt: state.restored?.at ?? null,
+      snapshotAgeMs: restoredAgeMs(state, now)
     },
-    notes: chainNotes(state, live.length, quoteUsd, pool),
+    notes: [...chainNotes(state, live.length, quoteUsd, pool), ...restoredNote(state, candles, now)],
     stale
   };
 }

@@ -2,6 +2,7 @@ import type { PairRow } from "../../../shared/wire.js";
 import { config } from "../../config.js";
 import { flowCollector } from "../../flow/collector.js";
 import { BlockTimeCache } from "../../tape/robinhood/blocks.js";
+import { getLogsLane, type LaneKind, type LogsLane } from "../../tape/robinhood/logsLane.js";
 import { poolResolveStatus, resolvePoolRef } from "../../tape/robinhood/pools.js";
 import { EvmQuotePrice } from "../../tape/robinhood/price.js";
 import { evmRpc, hexToNumber } from "../../tape/robinhood/rpc.js";
@@ -19,11 +20,19 @@ const CHAIN = "robinhood" as const;
 type Live = { cache: SwapCandleCache; blocks: BlockTimeCache; prices: EvmQuotePrice; rpc: BackfillRpc };
 
 let live: Live | null = null;
+let onCache: ((cache: SwapCandleCache) => void) | null = null;
 
-function liveRpc(blocks: BlockTimeCache): BackfillRpc {
+/** Restart persistence hook (server/persist/live.ts): runs once on the swap cache right after construction, before its first read (at once when it already exists). */
+export function setSwapCacheHook(hook: ((cache: SwapCandleCache) => void) | null): void {
+  onCache = hook;
+  if (live && hook) hook(live.cache);
+}
+
+/** Every eth_getLogs waits for a slot on the shared logs lane; `kind` decides whether it may jump queued poller ticks. */
+function liveRpc(blocks: BlockTimeCache, lane: LogsLane, kind: LaneKind): BackfillRpc {
   const rpcUrl = config.robinhood.rpcUrl;
   return {
-    getLogs: (filter) => evmRpc(rpcUrl, "eth_getLogs", [filter]),
+    getLogs: (filter) => lane.run(kind, () => evmRpc(rpcUrl, "eth_getLogs", [filter])),
     blockNumber: async () => hexToNumber(await evmRpc(rpcUrl, "eth_blockNumber", [])),
     blockTime: (block) => blocks.timeMs(block)
   };
@@ -32,12 +41,19 @@ function liveRpc(blocks: BlockTimeCache): BackfillRpc {
 function getLive(): Live {
   if (live) return live;
   const blocks = new BlockTimeCache({ rpcUrl: config.robinhood.rpcUrl });
-  const rpc = liveRpc(blocks);
+  const lane = getLogsLane();
+  const rpc = liveRpc(blocks, lane, "routine");
+  const priority = liveRpc(blocks, lane, "priority");
   const cache = new SwapCandleCache({
-    backfill: (pool, run) => backfillSwaps(pool, run, rpc),
+    // The first fill of a pool (no continuation toBlock) takes priority slots so a paste shows bars under live load;
+    // deeper continuations and top-ups queue behind poller ticks like any other logs request.
+    backfill: (pool, run) => {
+      return backfillSwaps(pool, run, run.toBlock === undefined ? priority : rpc);
+    },
     topUp: (pool, fromBlock, onChunk) => topUpSwaps(pool, fromBlock, rpc, { onChunk })
   });
   live = { cache, blocks, prices: new EvmQuotePrice({ chain: CHAIN }), rpc };
+  onCache?.(cache);
   return live;
 }
 

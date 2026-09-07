@@ -15,6 +15,7 @@ import {
   V4_SWAP_TOPIC,
   type RawLog
 } from "./poller.js";
+import { LogsLane } from "./logsLane.js";
 
 const RPC = "https://rpc.mainnet.chain.robinhood.com/";
 const START = 1_800_000_000_000;
@@ -497,5 +498,93 @@ describe("RobinhoodLogPoller", () => {
     await tick(DEFAULT_INTERVAL_MS);
     expect(node.calls.at(-1)!.requests.map((req) => req.method)).toEqual(["eth_blockNumber", "eth_getLogs"]);
     expect(node.logsCalls().at(-1)!.address).toEqual([V3_POOL]);
+  });
+});
+
+describe("RobinhoodLogPoller on a shared logs lane", () => {
+  const LANE_GAP = 5_000;
+  function makeLane() {
+    return new LogsLane({ minGapMs: LANE_GAP, maxGapMs: 30_000, backfillGapMs: LANE_GAP, now: () => Date.now(), log: vi.fn() });
+  }
+
+  it("ticks no faster than the lane gap even with a 2 s interval, and two pollers never start within the gap of each other", async () => {
+    const lane = makeLane();
+    const nodeA = fakeNode({ head: HEAD });
+    const nodeB = fakeNode({ head: HEAD });
+    const a = build(nodeA, { lane });
+    const b = build(nodeB, { lane });
+    a.poller.setFilter([V3_POOL], []);
+    b.poller.setFilter([V2_POOL], []);
+    a.poller.start(a.onLogs);
+    b.poller.start(b.onLogs);
+    await tick();
+    // A's first (sequential) tick holds the one slot; B waits for the gap
+    expect(nodeA.calls).toHaveLength(2);
+    expect(nodeB.calls).toHaveLength(0);
+    await tick(LANE_GAP - 1);
+    expect(nodeB.calls).toHaveLength(0);
+    await tick(1);
+    expect(nodeB.calls).toHaveLength(2);
+    expect(nodeA.calls).toHaveLength(2);
+
+    await tick(60_000);
+    const starts = [...new Set([...nodeA.calls, ...nodeB.calls].map((call) => call.at))].sort((x, y) => x - y);
+    const diffs = starts.slice(1).map((at, i) => at - starts[i]!);
+    expect(Math.min(...diffs)).toBeGreaterThanOrEqual(LANE_GAP);
+    // 65 s of lane time at one start per 5 s: 13 slots shared by the two pollers, none faster than the 2 s interval would allow
+    expect(starts).toHaveLength(14);
+    expect(a.poller.stats().errors + b.poller.stats().errors).toBe(0);
+  });
+
+  it("follows the lane's widened gap after a 429 and a caller-supplied fetchImpl gets no lane unless one is passed", async () => {
+    const lane = makeLane();
+    const node = fakeNode({ head: HEAD });
+    const { poller, onLogs } = build(node, { lane });
+    poller.setFilter([V3_POOL], []);
+    poller.start(onLogs);
+    await tick();
+    lane.report429();
+    lane.report429();
+    expect(lane.gapMs()).toBe(4 * LANE_GAP);
+    await tick(4 * LANE_GAP - 1);
+    expect(node.calls).toHaveLength(2);
+    await tick(1);
+    expect(node.calls).toHaveLength(3);
+
+    const plain = build(fakeNode({ head: HEAD }));
+    plain.poller.setFilter([V3_POOL], []);
+    plain.poller.start(plain.onLogs);
+    await tick();
+    await tick(DEFAULT_INTERVAL_MS);
+    expect(plain.poller.stats().polls).toBe(2);
+  });
+
+  it("a priority backfill on the same lane takes the slot ahead of a waiting tick, and stop() while waiting skips the poll", async () => {
+    const lane = makeLane();
+    const node = fakeNode({ head: HEAD });
+    const { poller, onLogs } = build(node, { lane });
+    poller.setFilter([V3_POOL], []);
+    poller.start(onLogs);
+    await tick();
+    expect(node.calls).toHaveLength(2);
+    const order: string[] = [];
+    await tick(LANE_GAP - 1);
+    void lane.run("priority", async () => {
+      order.push("backfill");
+    });
+    await tick(1);
+    expect(order).toEqual(["backfill"]);
+    expect(node.calls).toHaveLength(2);
+    // the tick that was queued behind the backfill now waits one more gap
+    await tick(LANE_GAP - 1);
+    expect(node.calls).toHaveLength(2);
+    await tick(1);
+    expect(node.calls).toHaveLength(3);
+
+    await tick(1);
+    poller.stop();
+    await tick(2 * LANE_GAP);
+    expect(node.calls).toHaveLength(3);
+    expect(lane.stats().queued).toEqual({ routine: 0, priority: 0 });
   });
 });

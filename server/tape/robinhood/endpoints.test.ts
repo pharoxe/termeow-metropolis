@@ -5,11 +5,15 @@ import {
   ENDPOINT_BACKOFF_MS,
   ENDPOINT_USER_AGENT,
   EndpointPool,
+  FAIL_STREAK_DECAY_MS,
+  LOGS_FORBIDDEN_RETRY_MS,
   NO_LOGS_HOSTS,
+  LOGS_RANGE_CAPS,
+  NO_SPECULATIVE_TOBLOCK_HOSTS,
   ROBINHOOD_CHAIN_ID,
   SLOW_P50_MS,
   endpointKey,
-  laneOf
+  shapeOf
 } from "./endpoints.js";
 
 const A = "https://robinhood-rpc.publicnode.com";
@@ -218,26 +222,26 @@ describe("EndpointPool chain-id gate", () => {
 
 describe("EndpointPool lanes", () => {
   it("classifies eth_getLogs (single or batched) as the logs lane", () => {
-    expect(laneOf(JSON.stringify({ method: "eth_blockNumber", params: [] }))).toBe("other");
-    expect(laneOf(JSON.stringify({ method: "eth_getLogs", params: [{}] }))).toBe("logs");
-    expect(laneOf(JSON.stringify([{ method: "eth_blockNumber" }, { method: "eth_getLogs" }]))).toBe("logs");
-    expect(laneOf(JSON.stringify([{ method: "eth_blockNumber" }]))).toBe("other");
-    expect(laneOf(undefined)).toBe("other");
-    expect(laneOf("not json")).toBe("other");
+    expect(shapeOf(JSON.stringify({ method: "eth_blockNumber", params: [] })).lane).toBe("other");
+    expect(shapeOf(JSON.stringify({ method: "eth_getLogs", params: [{}] })).lane).toBe("logs");
+    expect(shapeOf(JSON.stringify([{ method: "eth_blockNumber" }, { method: "eth_getLogs" }])).lane).toBe("logs");
+    expect(shapeOf(JSON.stringify([{ method: "eth_blockNumber" }])).lane).toBe("other");
+    expect(shapeOf(undefined).lane).toBe("other");
+    expect(shapeOf("not json").lane).toBe("other");
   });
 
   it("never sends eth_getLogs to a measured head-only host while still using it for eth_blockNumber", async () => {
     expect(NO_LOGS_HOSTS.has("robinhood-rpc.publicnode.com")).toBe(true);
-    const net = fakeNet({ [A]: always(ok("0xa")), [B]: always(ok("0xb")) });
+    const net = fakeNet({ [A]: always(ok("0xa")), [C]: always(ok("0xc")) });
     const clock = { now: T0 };
-    const { pool } = makePool(net, [A, B], clock);
+    const { pool } = makePool(net, [A, C], clock);
     const head = await pool.fetch(A, rpcInit("eth_blockNumber"));
     expect(await head.json()).toMatchObject({ result: "0xa" });
     const batch: RequestInit = { method: "POST", body: JSON.stringify([{ jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] }, { jsonrpc: "2.0", id: 2, method: "eth_getLogs", params: [{ fromBlock: "0x1", toBlock: "0x2" }] }]) };
     const logs = await pool.fetch(A, batch);
-    expect(await logs.json()).toMatchObject({ result: "0xb" });
+    expect(await logs.json()).toMatchObject({ result: "0xc" });
     expect(net.methods(A)).toEqual(["eth_chainId", "eth_blockNumber"]);
-    expect(net.methods(B)).toEqual(["eth_chainId", "eth_blockNumber+eth_getLogs"]);
+    expect(net.methods(C)).toEqual(["eth_chainId", "eth_blockNumber+eth_getLogs"]);
     expect(pool.stats().endpoints.map((e) => e.logs)).toEqual([false, true]);
   });
 
@@ -257,6 +261,90 @@ describe("EndpointPool lanes", () => {
     expect(net.methods(own).filter((m) => m === "eth_getLogs")).toHaveLength(1);
     // once the block expires it is eligible for the head lane again, still marked logs-incapable
     expect(pool.stats().endpoints[0]).toMatchObject({ ok: true, logs: false, enabled: true });
+  });
+});
+
+describe("EndpointPool recovery", () => {
+  it("re-probes a 403-suspended host for logs after LOGS_FORBIDDEN_RETRY_MS instead of dropping it for the process", async () => {
+    const own = "https://my-node.example.test/rpc";
+    let forbid = true;
+    const net = fakeNet({
+      [own]: (method) => (method === "eth_chainId" ? CHAIN_OK : method === "eth_getLogs" && forbid ? { status: 403, text: "edge blip" } : ok("0xown")),
+      [C]: always(ok("0xc"))
+    });
+    const clock = { now: T0 };
+    const { pool, log } = makePool(net, [own, C], clock);
+    const logs = rpcInit("eth_getLogs", [{ fromBlock: "0x1", toBlock: "0x2" }]);
+    await pool.fetch(own, logs);
+    expect(pool.stats().endpoints[0].logs).toBe(false);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("403 to eth_getLogs"));
+    clock.now += LOGS_FORBIDDEN_RETRY_MS - 1;
+    await pool.fetch(own, logs);
+    expect(net.methods(own).filter((m) => m === "eth_getLogs")).toHaveLength(1);
+    expect(pool.laneFreeAt("logs")).toBe(0); // C is free
+    forbid = false;
+    clock.now += 1;
+    expect(pool.stats().endpoints[0].logs).toBe(true);
+    const served = await pool.fetch(own, logs);
+    expect(await served.json()).toMatchObject({ result: "0xown" });
+    expect(net.methods(own).filter((m) => m === "eth_getLogs")).toHaveLength(2);
+  });
+
+  it("reports when a lane frees from a 403 suspension, not only from a backoff block", async () => {
+    const own = "https://my-node.example.test/rpc";
+    const net = fakeNet({ [own]: (method) => (method === "eth_chainId" ? CHAIN_OK : { status: 403, text: "no" }) });
+    const clock = { now: T0 };
+    const { pool } = makePool(net, [own], clock);
+    await pool.fetch(own, rpcInit("eth_getLogs", [{ fromBlock: "0x1", toBlock: "0x2" }]));
+    expect(pool.laneFreeAt("logs")).toBe(T0 + LOGS_FORBIDDEN_RETRY_MS);
+    expect(pool.laneFreeAt("other")).toBe(T0 + ENDPOINT_BACKOFF_MS);
+  });
+
+  it("spreads a same-tick fan-out over the pool by requests in flight instead of piling every call on one endpoint", async () => {
+    const clock = { now: T0 };
+    const gates: Array<() => void> = [];
+    const slowNet = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(init?.body).includes("eth_chainId")) return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x1237" }), { status: 200 });
+      await new Promise<void>((resolve) => gates.push(resolve));
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: String(input) }), { status: 200 });
+    });
+    const pool = new EndpointPool({ urls: [A, B, C], fetchImpl: slowNet as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
+    // nothing verified yet: the reservation is taken before the chain check, so the fan-out still spreads
+    const fanOut = Promise.all(Array.from({ length: 6 }, () => pool.fetch(A, rpcInit("eth_blockNumber"))));
+    await vi.waitFor(() => expect(gates).toHaveLength(6));
+    expect(pool.stats().endpoints.map((e) => e.calls)).toEqual([2, 2, 2]);
+    gates.splice(0).forEach((open) => open());
+    await fanOut;
+    // settled: a later single call ranks on index order again, so all reservations were released
+    const single = pool.fetch(A, rpcInit("eth_blockNumber"));
+    await vi.waitFor(() => expect(gates).toHaveLength(1));
+    expect(pool.stats().endpoints.map((e) => e.calls)).toEqual([3, 2, 2]);
+    gates.shift()?.();
+    await single;
+  });
+
+  it("stops counting a failure streak against an endpoint after FAIL_STREAK_DECAY_MS and restarts its backoff from the base", async () => {
+    const clock = { now: T0 };
+    let failB = true;
+    const net = fakeNet({
+      [A]: always(ok("0xa")),
+      [B]: (method) => (method === "eth_chainId" ? CHAIN_OK : failB ? { status: 503, text: "boom" } : ok("0xb"))
+    });
+    const { pool } = makePool(net, [B, A], clock); // B first in configured order
+    const blockNumbersAt = (url: string) => net.methods(url).filter((m) => m === "eth_blockNumber").length;
+    await pool.fetch(B, rpcInit("eth_blockNumber")); // B 503s (streak 1, blocked 20 s, next backoff 40 s), A serves the failover
+    failB = false;
+    clock.now += ENDPOINT_BACKOFF_MS;
+    await pool.fetch(B, rpcInit("eth_blockNumber"));
+    expect(blockNumbersAt(B)).toBe(1); // unblocked but its recent streak still ranks it behind clean A
+    clock.now += FAIL_STREAK_DECAY_MS;
+    await pool.fetch(B, rpcInit("eth_blockNumber"));
+    expect(blockNumbersAt(B)).toBe(2); // decayed: ties A on streak and wins on configured order again
+    failB = true;
+    const blocked = await pool.fetch(B, rpcInit("eth_blockNumber"));
+    expect(await blocked.json()).toMatchObject({ result: "0xa" });
+    // the block after a decayed streak starts from the base backoff, not from the 40 s the old streak had reached
+    expect(pool.stats().endpoints[0].blockedUntil).toBe(new Date(clock.now + ENDPOINT_BACKOFF_MS).toISOString());
   });
 });
 
@@ -360,5 +448,95 @@ describe("EndpointPool stats", () => {
     expect(pool.has(A)).toBe(true);
     expect(pool.has(`${B}/`)).toBe(true);
     expect(pool.has("https://rpc.example.test")).toBe(false);
+  });
+});
+
+const hex = (n: number) => `0x${n.toString(16)}`;
+const logsInit = (from: number, to: number): RequestInit => rpcInit("eth_getLogs", [{ fromBlock: hex(from), toBlock: hex(to), address: [] }]);
+/** A poller tick: eth_blockNumber and eth_getLogs in one batch, toBlock = cursor + 400 before the head is known. */
+const tickInit = (cursor: number): RequestInit => ({
+  method: "POST",
+  body: JSON.stringify([
+    { jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] },
+    { jsonrpc: "2.0", id: 2, method: "eth_getLogs", params: [{ fromBlock: hex(cursor - 5), toBlock: hex(cursor + 400) }] }
+  ])
+});
+const getLogsCalls = (net: ReturnType<typeof fakeNet>, url: string) => net.methods(url).filter((m) => m.includes("eth_getLogs"));
+
+describe("EndpointPool logs routing by request shape", () => {
+  it("reads lane, widest block span and the speculative-toBlock flag from a body", () => {
+    expect(shapeOf(JSON.stringify({ method: "eth_blockNumber", params: [] }))).toEqual({ lane: "other", range: 0, speculative: false });
+    expect(shapeOf(String(logsInit(1, 500_000).body))).toEqual({ lane: "logs", range: 500_000, speculative: false });
+    expect(shapeOf(String(tickInit(1_000).body))).toEqual({ lane: "logs", range: 406, speculative: true });
+    expect(shapeOf(JSON.stringify({ method: "eth_getLogs", params: [{ fromBlock: "0x1", toBlock: "latest" }] }))).toEqual({ lane: "logs", range: 0, speculative: false });
+    expect(shapeOf("not json")).toEqual({ lane: "other", range: 0, speculative: false });
+  });
+
+  it("sends a backfill span to the largest-range endpoint and never to a host whose cap it exceeds", async () => {
+    expect(LOGS_RANGE_CAPS.get("rpc-robinhood.blockmachine.io")).toBe(9_999);
+    const net = fakeNet({ [A]: always(ok("0xa")), [B]: always(ok("0xb")), [C]: always(ok("0xc")) });
+    const clock = { now: T0 };
+    const { pool } = makePool(net, [A, B, C], clock);
+    const response = await pool.fetch(A, logsInit(1, 500_000));
+    expect(await response.json()).toMatchObject({ result: "0xc" });
+    expect(getLogsCalls(net, B)).toEqual([]);
+    // official 429s: blockmachine cannot serve 500k blocks, so the caller gets the 429 back instead of a doomed -32602 detour
+    const netBlocked = fakeNet({ [A]: always(ok("0xa")), [B]: always(ok("0xb")), [C]: always(RATE_LIMITED) });
+    const { pool: blocked } = makePool(netBlocked, [A, B, C], clock);
+    const refused = await blocked.fetch(A, logsInit(1, 500_000));
+    expect(refused.status).toBe(429);
+    expect(getLogsCalls(netBlocked, B)).toEqual([]);
+  });
+
+  it("sends a small single eth_getLogs (top-up, shrunk chunk) to the smallest-cap endpoint that fits, keeping the largest for ticks and backfills", async () => {
+    const net = fakeNet({ [A]: always(ok("0xa")), [B]: always(ok("0xb")), [C]: always(ok("0xc")) });
+    const clock = { now: T0 };
+    const { pool } = makePool(net, [A, B, C], clock);
+    const small = await pool.fetch(A, logsInit(1_000, 1_405));
+    expect(await small.json()).toMatchObject({ result: "0xb" });
+    const atThreshold = await pool.fetch(A, logsInit(1, 2_000));
+    expect(await atThreshold.json()).toMatchObject({ result: "0xb" });
+    // 9,999 blocks fit blockmachine's cap but exceed the backfill threshold: a backfill span goes to the largest range first
+    const wide = await pool.fetch(A, logsInit(1, 9_999));
+    expect(await wide.json()).toMatchObject({ result: "0xc" });
+    const overCap = await pool.fetch(A, logsInit(1, 10_000));
+    expect(await overCap.json()).toMatchObject({ result: "0xc" });
+    expect(getLogsCalls(net, B)).toHaveLength(2);
+    expect(getLogsCalls(net, C)).toHaveLength(2);
+  });
+
+  it("never sends a batched tick (speculative toBlock) to blockmachine, so one 429 on the tick endpoint does not also stall small getLogs there", async () => {
+    expect(NO_SPECULATIVE_TOBLOCK_HOSTS.has("rpc-robinhood.blockmachine.io")).toBe(true);
+    const net = fakeNet({ [A]: always(ok("0xa")), [B]: always(ok("0xb")), [C]: always(ok("0xc")) });
+    const clock = { now: T0 };
+    const { pool } = makePool(net, [A, B, C], clock);
+    const tick = await pool.fetch(A, tickInit(1_000));
+    expect(await tick.json()).toMatchObject({ result: "0xc" });
+    expect(getLogsCalls(net, B)).toEqual([]);
+    expect(getLogsCalls(net, C)).toEqual(["eth_blockNumber+eth_getLogs"]);
+    // the pool is not consulted for the head-only host either way
+    expect(getLogsCalls(net, A)).toEqual([]);
+  });
+
+  it("reports logs-lane 429s, clean answers and lane-wide blocks to the lane reporter, and nothing for the other lane", async () => {
+    const reporter = { report429: vi.fn(), reportOk: vi.fn(), holdUntil: vi.fn() };
+    const net = fakeNet({ [A]: always(ok("0xa")), [C]: script([RATE_LIMITED]) });
+    const clock = { now: T0 };
+    const pool = new EndpointPool({ urls: [A, C], fetchImpl: net.fetchImpl, now: () => clock.now, log: vi.fn(), logsLane: reporter });
+    await pool.fetch(A, rpcInit("eth_blockNumber"));
+    expect(reporter.reportOk).not.toHaveBeenCalled();
+    const refused = await pool.fetch(A, logsInit(1, 405));
+    expect(refused.status).toBe(429);
+    expect(reporter.report429).toHaveBeenCalledTimes(1);
+    // C was the only logs endpoint: the lane is told to hold until C's block expires
+    expect(reporter.holdUntil).toHaveBeenLastCalledWith(T0 + ENDPOINT_BACKOFF_MS);
+    expect(pool.laneFreeAt("logs")).toBe(T0 + ENDPOINT_BACKOFF_MS);
+    expect(pool.laneFreeAt("other")).toBe(0);
+    await expect(pool.fetch(A, logsInit(1, 405))).rejects.toMatchObject({ status: 429 });
+    expect(reporter.holdUntil).toHaveBeenCalledTimes(2);
+    clock.now += ENDPOINT_BACKOFF_MS;
+    await pool.fetch(A, logsInit(1, 405));
+    expect(reporter.reportOk).toHaveBeenCalledTimes(1);
+    expect(reporter.report429).toHaveBeenCalledTimes(1);
   });
 });

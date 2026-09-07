@@ -42,6 +42,13 @@ const envSchema = z.object({
   ROBINHOOD_RPC_URL: optionalUrl,
   /** Comma-separated pool; ROBINHOOD_RPC_URL, when set, is prepended. Routing/backoff: tape/robinhood/endpoints.ts. */
   ROBINHOOD_RPC_URLS: urlList(DEFAULT_ROBINHOOD_RPC_URLS),
+  /**
+   * Logs-lane budget (tape/robinhood/logsLane.ts), measured 2026-09-07 22:00 IST on the official RPC with the real
+   * 8-leg poller batch: 2 s and 5 s cadences drew 429s, 10 s drew none. Two pollers share the gap, so 5 s here is
+   * ~10 s per poller (50 blocks of 0.1 s per tick, still continuous inside the 400-block window).
+   */
+  ROBINHOOD_LOGS_MIN_GAP_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().min(0).default(5_000)),
+  ROBINHOOD_LOGS_MAX_GAP_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().min(0).default(30_000)),
   SNAPSHOT_DIR: z.preprocess(emptyAsUndefined, z.string().default(".cache/termeow")),
   SNAPSHOT_INTERVAL_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().positive().default(30_000)),
   PRIVY_APP_ID: optionalString,
@@ -92,7 +99,11 @@ export const config = {
   },
   robinhood: {
     rpcUrl: env.ROBINHOOD_RPC_URL ?? LEGACY_ROBINHOOD_RPC_URL,
-    rpcUrls: [...new Set([...(env.ROBINHOOD_RPC_URL ? [env.ROBINHOOD_RPC_URL] : []), ...env.ROBINHOOD_RPC_URLS])]
+    rpcUrls: [...new Set([...(env.ROBINHOOD_RPC_URL ? [env.ROBINHOOD_RPC_URL] : []), ...env.ROBINHOOD_RPC_URLS])],
+    logsLane: {
+      minGapMs: env.ROBINHOOD_LOGS_MIN_GAP_MS,
+      maxGapMs: env.ROBINHOOD_LOGS_MAX_GAP_MS
+    }
   },
   /** Restart persistence (server/persist): per-component JSON snapshots, relative to cwd unless absolute. */
   snapshot: {

@@ -196,7 +196,8 @@ const shortIst = (ms: number | null | undefined): string => formatIst(ms, "minut
 
 /**
  * Chart meta for the market series: "CHAIN SWAPS · 1,840 BARS · FROM 07 Sep 09:12 IST" (plus BACKFILLING / PARTIAL when
- * the fill is not complete, STALE HEAD when the last top-up failed) or "GECKOTERMINAL · FALLBACK · 200 BARS"; null for
+ * the fill is not complete, RESTORED · <age> OLD when the swaps came back from a restart snapshot, STALE HEAD when the
+ * last top-up failed) or "GECKOTERMINAL · FALLBACK · 200 BARS"; null for
  * own-tape series (they carry their own label) and for the legacy path without candleSource.
  */
 export function candleSourceMeta(market: MarketResponse | null, source: CandleSource): string | null {
@@ -208,6 +209,8 @@ export function candleSourceMeta(market: MarketResponse | null, source: CandleSo
   if (info.coverage.fromMs != null) parts.push(`FROM ${shortIst(info.coverage.fromMs)}`);
   if (info.coverage.backfilling) parts.push("BACKFILLING");
   else if (info.kind === "chain swaps" && !info.coverage.complete) parts.push("PARTIAL");
+  // the server reports the snapshot data's age at response time; the label ages with the next poll, not a local clock
+  if (info.restoredAt != null) parts.push(`RESTORED · ${durationLabel(info.snapshotAgeMs ?? 0)} OLD`);
   if (info.kind === "chain swaps" && market?.stale) parts.push("STALE HEAD");
   if (info.live > 0) parts.push(`${info.live} LIVE PRINTS`);
   return parts.join(" · ");

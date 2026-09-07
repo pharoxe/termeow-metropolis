@@ -7,7 +7,9 @@ import { REORG_RESCAN_BLOCKS, type BackfillResult, type BackfillStop, type Chunk
  * topped up forward on read and deepened backward when a request wants more depth. A top-up re-reads the last
  * REORG_RESCAN_BLOCKS below the cached head and replaces what the cache held there, so an orphaned or lag-omitted swap
  * does not persist. One RPC operation per pool at a time; a reader waits at most `waitMs` for it and then takes
- * whatever is there. Nothing here is persisted: a restart backfills afresh.
+ * whatever is there. snapshot()/restore() serialize the settled pools for server/persist (component "swap-candles"):
+ * a restored pool carries a `restored` mark (when, and how old the snapshot was) and its head is treated as stale, so
+ * the first read tops it up from the cached head; a gap wider than the top-up cap resets it and fills afresh.
  */
 export const DEFAULT_MAX_POOLS = 16;
 export const DEFAULT_MAX_POINTS = 50_000;
@@ -34,7 +36,32 @@ export type PoolCandleState = {
   toppedUpAt: number | null;
   /** Points dropped by the per-pool cap (the oldest go first). */
   trimmed: number;
+  /** Set while the pool's history came back from a snapshot rather than from this process's own backfill. */
+  restored: RestoredMark | null;
 };
+
+/** When the snapshot was applied, how old its data was then, and how far the restored points reached. */
+export type RestoredMark = { at: number; ageMs: number; points: number; toBlock: number; headTime: number | null };
+
+/** A settled pool as the snapshot carries it: bounds known, no run in flight. */
+export type PoolCandleSnapshot = {
+  key: string;
+  pool: EvmPoolRef;
+  points: TimedSwapPoint[];
+  fromBlock: number;
+  fromTime: number;
+  toBlock: number;
+  spanMs: number;
+  stoppedBy: BackfillStop;
+  chunks: number;
+  anchors: number;
+  estimatedChunks: number;
+  trimmed: number;
+};
+
+/** `collectedAt` is the cache's clock at snapshot(); restore() measures the data's age from it. Pools oldest-read first. */
+export type SwapCacheSnapshot = { collectedAt: number; pools: PoolCandleSnapshot[] };
+export type SwapCacheRestoreCounts = { pools: number; points: number; skipped: number };
 
 export type BackfillFn = (pool: EvmPoolRef, run: { spanMs: number; toBlock?: number; onChunk?: (chunk: ChunkResult) => void }) => Promise<BackfillResult>;
 export type TopUpFn = (pool: EvmPoolRef, fromBlock: number, onChunk?: (chunk: ChunkResult) => void) => Promise<BackfillResult>;
@@ -73,8 +100,20 @@ function emptyState(pool: EvmPoolRef, now: number): PoolCandleState {
     error: null,
     updatedAt: now,
     toppedUpAt: null,
-    trimmed: 0
+    trimmed: 0,
+    restored: null
   };
+}
+
+/**
+ * The settled part of a state, or null until its first fill has finished (no bounds, no stop reason). A top-up or a
+ * deepening run in flight is fine: chunks land with their bounds, so the points are continuous to `toBlock` at every
+ * step; leaving such a pool out would let a save during a slow top-up wipe the last good file.
+ */
+function settled(state: PoolCandleState): PoolCandleSnapshot | null {
+  if (state.fromBlock === null || state.fromTime === null || state.toBlock === null || state.stoppedBy === null) return null;
+  const { key, pool, points, fromBlock, fromTime, toBlock, spanMs, stoppedBy, chunks, anchors, estimatedChunks, trimmed } = state;
+  return { key, pool, points, fromBlock, fromTime, toBlock, spanMs, stoppedBy, chunks, anchors, estimatedChunks, trimmed };
 }
 
 /** Union of two point lists, deduped by tx:logIndex, ascending, capped from the oldest end. */
@@ -138,6 +177,49 @@ export class SwapCandleCache {
     const pending = this.running.get(key) ?? this.start(key, state, spanMs);
     if (pending) await race(pending, waitMs);
     return this.view(key);
+  }
+
+  /** Settled pools in recency order (least recently read first) for server/persist; a pool still in its first fill is left out. */
+  snapshot(): SwapCacheSnapshot {
+    const pools: PoolCandleSnapshot[] = [];
+    for (const state of this.entries.values()) {
+      const pool = settled(state);
+      if (pool) pools.push(pool);
+    }
+    return { collectedAt: this.now(), pools };
+  }
+
+  /**
+   * Puts snapshot pools back as stale-headed, marked entries: the next read tops each up from its cached head (or resets
+   * it when the gap exceeds the cap). A pool this process already holds is not overwritten; a pool whose key does not
+   * match its ref is skipped. Never throws.
+   */
+  restore(snapshot: SwapCacheSnapshot): SwapCacheRestoreCounts {
+    const now = this.now();
+    const ageMs = Math.max(0, now - snapshot.collectedAt);
+    let pools = 0;
+    let points = 0;
+    let skipped = 0;
+    for (const saved of snapshot.pools) {
+      if (saved.key !== poolCacheKey(saved.pool) || this.entries.has(saved.key)) {
+        skipped += 1;
+        continue;
+      }
+      const merged = mergePoints([], saved.points, this.maxPoints);
+      const headTime = merged.points[merged.points.length - 1]?.time ?? null;
+      this.entries.set(saved.key, {
+        ...emptyState(saved.pool, now),
+        ...saved,
+        points: merged.points,
+        trimmed: saved.trimmed + merged.trimmed,
+        updatedAt: now,
+        restored: { at: now, ageMs, points: merged.points.length, toBlock: saved.toBlock, headTime }
+      });
+      pools += 1;
+      points += merged.points.length;
+    }
+    this.evict();
+    return { pools, points, skipped };
   }
 
   /** Testing hook. */

@@ -8,6 +8,7 @@ import { emptyMarketResponse } from "../market/envelope.js";
 import { ROBINHOOD_MARKET_SOURCE, assembleRobinhoodMarket } from "../market/robinhood.js";
 import { liveChainCandles } from "../market/robinhood/live.js";
 import { adaptSolanaMarket } from "../market/solana.js";
+import { lastGoodOverEmpty, marketCacheTtlMs } from "./marketCachePolicy.js";
 import { getTokenPairs, rawTokenPairs } from "../sources/dexscreener.js";
 import { GECKO_OHLCV_INTERVALS, geckoPoolOhlcv, type GeckoOhlcvInterval } from "../sources/gecko.js";
 
@@ -65,17 +66,18 @@ function robinhoodFallback(key: string, params: MarketParams, deps: MarketRouteD
   return emptyMarketResponse(params.chain, params.address, params.interval, deps.now(), ROBINHOOD_MARKET_SOURCE, message);
 }
 
-/** 45s TTL per (address, interval), in-flight dedupe, last-good on failure. */
+/** 45s TTL per (address, interval) (5 s while a chain fill is pending), in-flight dedupe, last-good on failure or on a candle-less answer. */
 function robinhoodMarket(params: MarketParams, deps: MarketRouteDeps): Promise<MarketResponse> {
   const key = `${params.address}:${params.interval}`;
   const cached = robinhoodCache.get(key);
-  const ttl = cached?.candleSource?.coverage.backfilling ? MARKET_BACKFILLING_TTL_MS : MARKET_CACHE_TTL_MS;
-  if (cached && deps.now() - cached.observedAt < ttl) return Promise.resolve(cached);
+  if (cached && deps.now() - cached.observedAt < marketCacheTtlMs(cached, MARKET_CACHE_TTL_MS, MARKET_BACKFILLING_TTL_MS)) return Promise.resolve(cached);
   const pending = robinhoodInflight.get(key);
   if (pending) return pending;
   const request = deps
     .assembleRobinhoodMarket(params.address, params.interval)
     .then((market) => {
+      const kept = lastGoodOverEmpty(robinhoodCache.get(key), market);
+      if (kept) return kept;
       robinhoodCache.set(key, market);
       return market;
     })

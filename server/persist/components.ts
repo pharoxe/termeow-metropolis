@@ -95,7 +95,7 @@ const ledgerSnapshotSchema = z.object({
   pairs: z.array(z.object({ key: z.string().min(1), recent: z.array(printSchema), firstPrintAt: finiteOrNull }))
 });
 
-function parseWith<T>(schema: z.ZodType<T>): (data: unknown) => T | null {
+export function parseWith<T>(schema: z.ZodType<T>): (data: unknown) => T | null {
   return (data) => {
     const result = schema.safeParse(data);
     return result.success ? result.data : null;
@@ -103,7 +103,7 @@ function parseWith<T>(schema: z.ZodType<T>): (data: unknown) => T | null {
 }
 
 /** Keeps the last `cap` items (owners emit oldest first, so the tail is the freshest). */
-function tail<T>(items: T[], cap: number): { items: T[]; truncated: number } {
+export function tail<T>(items: T[], cap: number): { items: T[]; truncated: number } {
   return items.length <= cap ? { items, truncated: 0 } : { items: items.slice(items.length - cap), truncated: items.length - cap };
 }
 
