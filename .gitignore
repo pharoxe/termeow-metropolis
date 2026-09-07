@@ -16,3 +16,4 @@ __pycache__/
 *.bak-*
 .DS_Store
 terminal-v-source.tar.gz
+.gstack/
