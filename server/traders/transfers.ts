@@ -7,12 +7,22 @@ import { ENTRY_POINT } from "./service.js";
 const ENTRY_POINT_LOWER = ENTRY_POINT.toLowerCase();
 
 /**
- * Wallets per eth_getLogs topic OR-list. Measured 2026-09-06: a 147-address list at topics[2] over 6,000 blocks answered
- * in 1.14 s (19 logs) and the same list at topics[1] in 0.59 s; the public RPC accepts lists this long.
+ * Wallets per eth_getLogs topic OR-list. Measured 2026-09-07 (r5/rpc-topiclist-probes.json): single legs of 150, 300,
+ * 600 and 1,000 padded addresses all answered 200 in 0.6-1.5 s (~69 B of body per address, 69 kB at 1,000); no
+ * topic-list or body-size error was ever returned, so the ceiling is ABOVE 1,000. 500 keeps a 2x margin under the
+ * largest list proven to work.
  */
-export const TRANSFER_CHUNK = 150;
-/** Chunks per direction the poller batch carries; wallets past chunk * maxChunks are counted as overflow, never silently dropped. */
-export const TRANSFER_MAX_CHUNKS = 4;
+export const TRANSFER_CHUNK = 500;
+/**
+ * Chunks per direction the poller batch carries; wallets past chunk * maxChunks are counted as overflow, never silently
+ * dropped, and the order in which they fill the slots is the caller's (TraderService.transferWallets: seeded/named,
+ * then most recent fill, then most recently verified). 3 x 500 x 2 directions = 6 legs of ~35 kB = ~207 kB of
+ * transfer legs; with the launch stream's own legs (~20 kB in the r5 probe = 296,744 B minus 4 x 69,198 B; unmeasured at 400 emitters) the batch stays under the 297 kB / 7-leg
+ * body measured OK at 2.9 s (r5/rpc-batch-probe.json). Larger bodies are unmeasured and the batch fails all-or-nothing.
+ */
+export const TRANSFER_MAX_CHUNKS = 3;
+/** Wallets the legs can carry at these sizes (1,500); the population past it is overflow. */
+export const TRANSFER_WATCH_CAP = TRANSFER_CHUNK * TRANSFER_MAX_CHUNKS;
 /** Pair id for a FOMO fill whose pool is unknown (chain-wide Transfer decode): "fomo:<token>". */
 export const FOMO_PAIR_PREFIX = "fomo:";
 /**

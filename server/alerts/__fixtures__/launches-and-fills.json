@@ -1,0 +1,433 @@
+{
+ "meta": {
+  "capturedAt": {
+   "utc": "2026-09-07T12:37:18.938Z",
+   "ist": "2026-09-07 18:07:18.938 IST"
+  },
+  "server": "dev server API :9301, branch solana-desk @ f4db12c",
+  "endpoints": [
+   "GET /api/launches?chain=robinhood&window=24h (300 rows, route cap LAUNCHES_LIMIT=300, truncated=true)",
+   "GET /api/fomo/tape?chain=robinhood&limit=200 sampled 26x over ~4.5 min (FOMO_TAPE_MAX=200 covers only ~5-8 min of fills), merged on tx+wallet+side+token",
+   "GET /api/flow/token/robinhood/<token> fomo block for the high-follower tokens",
+   "GET /api/fomo/status"
+  ],
+  "coverage": {
+   "populationLabel": "FOMO wallets seen by this server",
+   "classified": 1519,
+   "seeded": 147,
+   "handles": 147,
+   "transferLegs": 8,
+   "watchedWallets": 600,
+   "overflowWallets": 917,
+   "note": "every FOMO number is 'watching 600 of 1517 known wallets'; only 147 wallets carry a robinhoodtrenches handle/followers"
+  },
+  "clocks": {
+   "newestFillBlockTime": {
+    "utc": "2026-09-07T11:37:07.000Z",
+    "ist": "2026-09-07 17:07:07.000 IST"
+   },
+   "deliveryLagAtCaptureMs": 3611938,
+   "note": "fill.time is the block timestamp (BlockTimeCache.timeMs); launch createdAt is estimateBlockTimeMs(block, headBlock, now) at 100.7 ms/block; both are chain time. At capture the newest fill trailed the wall clock by ~60 min (public RPC 429 backlog: blocks.failures=74, untimed=74). An alert must compute launch age as fill.time - createdAt and carry delivery lag (now - fill.time) separately; never fire on wall-clock age."
+  },
+  "uniqueFillsMerged": 266,
+  "tokensInBothFeeds": 3,
+  "allOverlapTokensUnnamed": false,
+  "disclaimers": [
+   "Only one handle (DopamineFeenFr1, 64,149 followers) with followers>=10,000 traded in the live book window; the 5-fill requirement is met by 6 fills of that one wallet, not 5 distinct handles.",
+   "No graduation event was observed for any token in this capture; graduatedAt is null everywhere (raw LaunchSwept/PoolGraduated logs live in server/launch/__fixtures__).",
+   "Fills with usd null are bundled multi-wallet segments (honest null); keep them null.",
+   "All three overlap tokens are unnamed Pons launches (symbol null in both feeds): an alert must be able to name a token by address alone."
+  ]
+ },
+ "tokens": [
+  {
+   "token": "0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
+   "launch": {
+    "chain": "robinhood",
+    "launchpad": "pons",
+    "token": "0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
+    "symbol": null,
+    "name": null,
+    "image": null,
+    "creator": "0x2ec3bbecca08c5a17c1833a7e05c973f2e69b130",
+    "curve": "0xb997479f04668e5e359a05bc1f2f78852fcbad2d",
+    "pool": null,
+    "createdAt": 1788780502664,
+    "tx": "0xfff868bddb7fbb8579d932a2f8bb0db04511932ff5b957e01772e3ffb30b6ec4",
+    "graduatedAt": null,
+    "priceUsd": null,
+    "marketCapUsd": null,
+    "liquidityUsd": null,
+    "volume24Usd": null,
+    "change24Pct": null,
+    "pricedAt": null,
+    "curveBuys": 84,
+    "curveSells": 79,
+    "curveNetUsd": null,
+    "tracked": null,
+    "sources": [
+     "rpc:robinhood"
+    ],
+    "observedAt": 1788783528449
+   },
+   "fills": [
+    {
+     "chain": "robinhood",
+     "token": "0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
+     "pair": "fomo:0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
+     "dex": "",
+     "tx": "0x26a3c28dcf70b6988249cdc73a0f748a5a76b86199dd5e75dd08e3cf9966688f",
+     "time": 1788780594000,
+     "side": "buy",
+     "usd": 14.076028,
+     "trader": {
+      "address": "0x5903b6c2fb5327f4f11a3d0a1f53c9546fd8e768",
+      "kind": "fomo",
+      "handle": null,
+      "followers": null
+     },
+     "symbol": "C4T",
+     "price": 0.000005594358029383662,
+     "usdVia": "hub_leg"
+    },
+    {
+     "chain": "robinhood",
+     "token": "0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
+     "pair": "fomo:0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
+     "dex": "",
+     "tx": "0xdc1a414e2e9fd33685e2009b0801811e36f9a30b6924c8c5d18aa60cc8a85102",
+     "time": 1788780727000,
+     "side": "sell",
+     "usd": 13.199564,
+     "trader": {
+      "address": "0x5903b6c2fb5327f4f11a3d0a1f53c9546fd8e768",
+      "kind": "fomo",
+      "handle": null,
+      "followers": null
+     },
+     "symbol": "C4T",
+     "price": 0.000005246017331577027,
+     "usdVia": "hub_leg"
+    }
+   ],
+   "firstFomoBuy": {
+    "tx": "0x26a3c28dcf70b6988249cdc73a0f748a5a76b86199dd5e75dd08e3cf9966688f",
+    "wallet": "0x5903b6c2fb5327f4f11a3d0a1f53c9546fd8e768",
+    "handle": null,
+    "time": 1788780594000,
+    "launchAgeMs": 91336,
+    "launchAgeSeconds": 91,
+    "isFirstFillOfTokenInTape": true,
+    "usd": 14.076028,
+    "usdVia": "hub_leg"
+   }
+  },
+  {
+   "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+   "launch": {
+    "chain": "robinhood",
+    "launchpad": "pons",
+    "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+    "symbol": null,
+    "name": null,
+    "image": null,
+    "creator": "0xd6ebcbb3c3f2f9f675f1f7f32d17fd55dbe7c0ed",
+    "curve": "0x9284ebae1cf9fa01c861143f91f6e1ecc8635b96",
+    "pool": null,
+    "createdAt": 1788780519320,
+    "tx": "0x650b512bd691e2f381ee9324c04627469f9d8a55d6718492b1875ad12d3357a3",
+    "graduatedAt": null,
+    "priceUsd": null,
+    "marketCapUsd": null,
+    "liquidityUsd": null,
+    "volume24Usd": null,
+    "change24Pct": null,
+    "pricedAt": null,
+    "curveBuys": 133,
+    "curveSells": 79,
+    "curveNetUsd": 3177.301349999997,
+    "tracked": null,
+    "sources": [
+     "rpc:robinhood"
+    ],
+    "observedAt": 1788784598558
+   },
+   "fills": [
+    {
+     "chain": "robinhood",
+     "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+     "pair": "fomo:0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+     "dex": "",
+     "tx": "0x06e818376990d1a67537e1fedf3adf4d4334f4a00f9fcd113dc4d2321fcdb3b4",
+     "time": 1788780644000,
+     "side": "sell",
+     "usd": 7.827158,
+     "trader": {
+      "address": "0xa1b4b11abda5924e945d09c9a5f4d169b537faff",
+      "kind": "fomo",
+      "handle": null,
+      "followers": null
+     },
+     "symbol": "Giko",
+     "price": 0.000008435355219223468,
+     "usdVia": "hub_leg"
+    },
+    {
+     "chain": "robinhood",
+     "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+     "pair": "fomo:0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+     "dex": "",
+     "tx": "0x36140083e5c5af5fa0fe4f3be774cac5998a43a686810962ecc7e7c94e718730",
+     "time": 1788780927000,
+     "side": "buy",
+     "usd": 34.146113,
+     "trader": {
+      "address": "0x30c6562dde5fbd9050ece2d4169d1fe7b681f37f",
+      "kind": "fomo",
+      "handle": null,
+      "followers": null
+     },
+     "symbol": "Giko",
+     "price": 0.00001440578012935756,
+     "usdVia": "hub_leg"
+    },
+    {
+     "chain": "robinhood",
+     "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+     "pair": "fomo:0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+     "dex": "",
+     "tx": "0x40b7eaf42d6a170381ec8dc7c9beff34be13c3f1ac934b0972a94f0153456d82",
+     "time": 1788780988000,
+     "side": "buy",
+     "usd": 4.219192,
+     "trader": {
+      "address": "0x30c6562dde5fbd9050ece2d4169d1fe7b681f37f",
+      "kind": "fomo",
+      "handle": null,
+      "followers": null
+     },
+     "symbol": "Giko",
+     "price": 0.000016274737129757854,
+     "usdVia": "hub_leg"
+    }
+   ],
+   "firstFomoBuy": {
+    "tx": "0x36140083e5c5af5fa0fe4f3be774cac5998a43a686810962ecc7e7c94e718730",
+    "wallet": "0x30c6562dde5fbd9050ece2d4169d1fe7b681f37f",
+    "handle": null,
+    "time": 1788780927000,
+    "launchAgeMs": 407680,
+    "launchAgeSeconds": 408,
+    "isFirstFillOfTokenInTape": false,
+    "usd": 34.146113,
+    "usdVia": "hub_leg"
+   }
+  },
+  {
+   "token": "0x85cbb08468de217650fe1f684f4961a88808ff93",
+   "launch": {
+    "chain": "robinhood",
+    "launchpad": "pons",
+    "token": "0x85cbb08468de217650fe1f684f4961a88808ff93",
+    "symbol": null,
+    "name": null,
+    "image": null,
+    "creator": "0xded214192212c73c6e56f7a52a50e3dba6b2747a",
+    "curve": "0xa1cbf517525576990bd132f5eadb9f08f836f227",
+    "pool": null,
+    "createdAt": 1788780619109,
+    "tx": "0x522ef74c3bb5b1b4e236c1a42e4babb8c1ffef92e26b0a6f6da565d21cfc8c58",
+    "graduatedAt": null,
+    "priceUsd": null,
+    "marketCapUsd": null,
+    "liquidityUsd": null,
+    "volume24Usd": null,
+    "change24Pct": null,
+    "pricedAt": null,
+    "curveBuys": 3,
+    "curveSells": 0,
+    "curveNetUsd": 86.4780350430947,
+    "tracked": null,
+    "sources": [
+     "rpc:robinhood"
+    ],
+    "observedAt": 1788783303830
+   },
+   "fills": [
+    {
+     "chain": "robinhood",
+     "token": "0x85cbb08468de217650fe1f684f4961a88808ff93",
+     "pair": "fomo:0x85cbb08468de217650fe1f684f4961a88808ff93",
+     "dex": "",
+     "tx": "0x728c7806a0389031d9eb405edd5c637131f79ff707dc3cad2adecba3bed639d8",
+     "time": 1788780655000,
+     "side": "buy",
+     "usd": 64.094576,
+     "trader": {
+      "address": "0x7ab2095bd7cc0a479a31d69eae96f4eef7a26ca8",
+      "kind": "fomo",
+      "handle": null,
+      "followers": null
+     },
+     "symbol": "TOKENS",
+     "price": 0.000004293752985990775,
+     "usdVia": "hub_leg"
+    }
+   ],
+   "firstFomoBuy": {
+    "tx": "0x728c7806a0389031d9eb405edd5c637131f79ff707dc3cad2adecba3bed639d8",
+    "wallet": "0x7ab2095bd7cc0a479a31d69eae96f4eef7a26ca8",
+    "handle": null,
+    "time": 1788780655000,
+    "launchAgeMs": 35891,
+    "launchAgeSeconds": 36,
+    "isFirstFillOfTokenInTape": true,
+    "usd": 64.094576,
+    "usdVia": "hub_leg"
+   }
+  }
+ ],
+ "highFollowerFills": [
+  {
+   "chain": "robinhood",
+   "token": "0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "pair": "fomo:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "dex": "",
+   "tx": "0xf12d2d357d7d4db9d24ec7f94188761de58f657f3fff86dc47db11e0fb745c6a",
+   "time": 1788780420000,
+   "side": "sell",
+   "usd": 987.308396,
+   "trader": {
+    "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
+    "kind": "fomo",
+    "handle": "DopamineFeenFr1",
+    "followers": 64149
+   },
+   "symbol": "PARE",
+   "price": 0.019637018248080434,
+   "usdVia": "hub_leg",
+   "capturedVia": "GET /api/flow/token/robinhood/0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d fomo block (book fills older than the 200-row tape cap)"
+  },
+  {
+   "chain": "robinhood",
+   "token": "0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "pair": "fomo:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "dex": "",
+   "tx": "0x6bb42b0b4d966abc018d2aa23346b3fa9355c789a3d157de495888b564a742a1",
+   "time": 1788780423000,
+   "side": "sell",
+   "usd": 953.147561,
+   "trader": {
+    "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
+    "kind": "fomo",
+    "handle": "DopamineFeenFr1",
+    "followers": 64149
+   },
+   "symbol": "PARE",
+   "price": 0.01895757812280405,
+   "usdVia": "hub_leg",
+   "capturedVia": "GET /api/flow/token/robinhood/0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d fomo block (book fills older than the 200-row tape cap)"
+  },
+  {
+   "chain": "robinhood",
+   "token": "0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "pair": "fomo:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "dex": "",
+   "tx": "0x7f1543c52442ce6111b3566669c697e15e0d1b8110197a90aa88505a3f8e8364",
+   "time": 1788780425000,
+   "side": "sell",
+   "usd": 980.36663,
+   "trader": {
+    "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
+    "kind": "fomo",
+    "handle": "DopamineFeenFr1",
+    "followers": 64149
+   },
+   "symbol": "PARE",
+   "price": 0.01949895035949752,
+   "usdVia": "hub_leg",
+   "capturedVia": "GET /api/flow/token/robinhood/0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d fomo block (book fills older than the 200-row tape cap)"
+  },
+  {
+   "chain": "robinhood",
+   "token": "0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
+   "pair": "fomo:0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
+   "dex": "",
+   "tx": "0x80f40a97bf4c0698816e5c39f9d0133cd4670045745bf71a4cc7a167b0cd53e2",
+   "time": 1788780660000,
+   "side": "buy",
+   "usd": 993.440382,
+   "trader": {
+    "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
+    "kind": "fomo",
+    "handle": "DopamineFeenFr1",
+    "followers": 64149
+   },
+   "symbol": "HOODSHOP",
+   "price": 0.0007425764972203132,
+   "usdVia": "hub_leg",
+   "capturedVia": "GET /api/fomo/tape?chain=robinhood&limit=200"
+  },
+  {
+   "chain": "robinhood",
+   "token": "0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "pair": "fomo:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "dex": "",
+   "tx": "0xd5d629ab42f94c98de72f905ca657f3da5f3d99f1eb9b3b0f74f21915a143dea",
+   "time": 1788780735000,
+   "side": "sell",
+   "usd": 986.379074,
+   "trader": {
+    "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
+    "kind": "fomo",
+    "handle": "DopamineFeenFr1",
+    "followers": 64149
+   },
+   "symbol": "PARE",
+   "price": 0.02015187318218294,
+   "usdVia": "hub_leg",
+   "capturedVia": "GET /api/fomo/tape?chain=robinhood&limit=200"
+  },
+  {
+   "chain": "robinhood",
+   "token": "0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
+   "pair": "fomo:0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
+   "dex": "",
+   "tx": "0x228f9cddc3586ce492a0ccdc69a84a85d74abb27b83937e2dc3f8db92684dc19",
+   "time": 1788780807000,
+   "side": "sell",
+   "usd": 671.137774,
+   "trader": {
+    "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
+    "kind": "fomo",
+    "handle": "DopamineFeenFr1",
+    "followers": 64149
+   },
+   "symbol": "HOODSHOP",
+   "price": 0.0005016618474536282,
+   "usdVia": "hub_leg",
+   "capturedVia": "GET /api/fomo/tape?chain=robinhood&limit=200"
+  }
+ ],
+ "highFollowerLaunchRows": [],
+ "earlierProcessHighFollowerFills": [
+  {
+   "chain": "robinhood",
+   "token": "0x0521c5d59aac8c063224525bc44a0d38f02275c8",
+   "pair": "fomo:0x0521c5d59aac8c063224525bc44a0d38f02275c8",
+   "dex": "",
+   "tx": "0x341f6f466a56568fb97630e1e151654e173ab22efdd411e216f6575720e752d8",
+   "time": 1788778128000,
+   "side": "buy",
+   "usd": null,
+   "trader": {
+    "address": "0x0a6ebed0155edb4b21d92ad02897a626cd90119e",
+    "kind": "seeded",
+    "handle": "unipcs",
+    "followers": 514576
+   },
+   "symbol": "CAPITALCAT",
+   "capturedVia": "GET /api/fomo/tape on the dev server at 2026-09-07T10:54Z (16:24 IST), an EARLIER PROCESS of the same server; not in the live book any more (book restarted ~11:27Z)"
+  }
+ ]
+}

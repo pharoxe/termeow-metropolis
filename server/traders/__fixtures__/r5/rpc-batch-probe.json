@@ -1,0 +1,97 @@
+{
+ "capturedAt": "2026-09-07T12:33:45.997Z",
+ "rpc": "https://rpc.mainnet.chain.robinhood.com",
+ "headBlock": 56837307,
+ "range": {
+  "fromBlock": "0x36344b6",
+  "toBlock": "0x363464b"
+ },
+ "largestN": 1000,
+ "chunks": 2,
+ "legsInBatch": 7,
+ "baseLegs": 3,
+ "transferLegs": 4,
+ "emitterStandIns": 400,
+ "syntheticAddresses": 1199,
+ "httpStatus": 200,
+ "latencyMs": 2943,
+ "requestBytes": 296744,
+ "responseBytes": 450815,
+ "batchIsArray": true,
+ "topLevelError": null,
+ "attempts": [
+  {
+   "attempt": 1,
+   "status": 200,
+   "ms": 2943,
+   "resBytes": 450815
+  }
+ ],
+ "perReply": [
+  {
+   "id": 1,
+   "method": "eth_blockNumber",
+   "topicListLen": null,
+   "addresses": 0,
+   "logs": null,
+   "result": "0x36344c0",
+   "error": null
+  },
+  {
+   "id": 2,
+   "method": "eth_getLogs",
+   "topicListLen": null,
+   "addresses": 7,
+   "logs": 0,
+   "error": null
+  },
+  {
+   "id": 3,
+   "method": "eth_getLogs",
+   "topicListLen": null,
+   "addresses": 2,
+   "logs": 0,
+   "error": null
+  },
+  {
+   "id": 4,
+   "method": "eth_getLogs",
+   "topicListLen": null,
+   "addresses": 400,
+   "logs": 0,
+   "error": null
+  },
+  {
+   "id": 5,
+   "method": "eth_getLogs",
+   "topicListLen": 1000,
+   "addresses": 0,
+   "logs": 299,
+   "error": null
+  },
+  {
+   "id": 6,
+   "method": "eth_getLogs",
+   "topicListLen": 1000,
+   "addresses": 0,
+   "logs": 413,
+   "error": null
+  },
+  {
+   "id": 7,
+   "method": "eth_getLogs",
+   "topicListLen": 1000,
+   "addresses": 0,
+   "logs": 0,
+   "error": null
+  },
+  {
+   "id": 8,
+   "method": "eth_getLogs",
+   "topicListLen": 1000,
+   "addresses": 0,
+   "logs": 0,
+   "error": null
+  }
+ ]
+}

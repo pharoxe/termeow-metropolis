@@ -246,8 +246,16 @@ export type FomoFill = {
   usdVia?: "wallet_leg" | "hub_leg";
 };
 
-/** Optional FOMO block on TokenFlowResponse: `population` = FOMO wallets seen by this server, `handles` = robinhoodtrenches handles known; seeded fills ride in `fills` tagged "seeded", `windows` sum verified-FOMO fills only. */
-export type TokenFlowFomo = { fills: FomoFill[]; windows: FlowWindow[]; population: number; handles: number };
+/**
+ * How much of the FOMO population the transfer legs actually watch (R5): `watched` = wallets inside the legs right now,
+ * `population` = wallets this server should watch (FOMO seen here plus seeded wallets awaiting their 7702 check),
+ * `label` = "watching 1,200 of 1,377 FOMO wallets · 147 named". Fills can only come from watched wallets, so any FOMO
+ * count on the same response is a count over `watched`, not over `population`. Zeros with the same shape on failure.
+ */
+export type FomoCoverage = { watched: number; population: number; label: string };
+
+/** Optional FOMO block on TokenFlowResponse: `population` = FOMO wallets seen by this server, `handles` = robinhoodtrenches handles known, `coverage` = how many of them the legs watch; seeded fills ride in `fills` tagged "seeded", `windows` sum verified-FOMO fills only. */
+export type TokenFlowFomo = { fills: FomoFill[]; windows: FlowWindow[]; population: number; handles: number; coverage: FomoCoverage };
 
 // ---- Trader identity (R3: server/traders) ----
 
@@ -271,6 +279,8 @@ export type FomoTapeResponse = {
   fills: FomoFill[];
   population: number;
   handles: number;
+  /** R5: which share of `population` the transfer legs watch; the tape can only show fills of watched wallets. */
+  coverage: FomoCoverage;
   observedAt: number;
   stale?: boolean;
   error?: string;
@@ -307,7 +317,109 @@ export type FomoBoardResponse = {
   populationLabel: string;
   /** Oldest fill still in the ring when the window reaches past it (numbers are truncated, not lifetime); null otherwise. */
   truncatedAt: number | null;
+  /** R5: which share of `population` the transfer legs watch; unwatched wallets cannot rank. */
+  coverage: FomoCoverage;
   observedAt: number;
+  stale?: boolean;
+  error?: string;
+};
+
+// ---- Alerts (GET /api/alerts) ----
+
+export type AlertRule = "first_fomo_buy" | "big_handle_entry" | "graduation";
+
+/** The fill an alert names; `usd` null when the fill was unpriced (bundled segment), `usdVia` says where a price came from. */
+export type AlertFillEvidence = {
+  tx: string;
+  wallet: string;
+  /** Verbatim from the book at firing: "fomo" (7702 check passed here) or "seeded" (listed, check pending) — never relabelled. */
+  kind: TraderKind | null;
+  handle: string | null;
+  followers: number | null;
+  side: Side;
+  usd: number | null;
+  usdVia?: "wallet_leg" | "hub_leg";
+};
+
+/**
+ * First verified-FOMO buy THIS SERVER RECORDED of a token whose launch row is younger than the rule's freshness window at
+ * the fill's chain time. "First" is book arrival order, not chain order: fills the public RPC could not time are dropped
+ * upstream (TransferFeed untimed counter) and the pool-print path can land a later block before the transfer path.
+ */
+export type FirstFomoBuyEvidence = {
+  launchpad: string;
+  /** Launch row createdAt (ms). For rpc:robinhood rows this is estimateBlockTimeMs (~100.7 ms/block from the poll head), not a block timestamp. */
+  createdAt: number;
+  createdAtEstimated: boolean;
+  /** fill.time - createdAt, chain time on both sides; never a wall-clock age. */
+  launchAgeMs: number;
+  launchTx: string;
+  fill: AlertFillEvidence;
+};
+
+/**
+ * A wallet with followers >= the rule's floor took its first fill (per the book) in this token; the side is whatever it was.
+ * `bookSince` = the book's oldest fill time (chain ms) at firing: "first" means no earlier fill since then, not ever (the
+ * book is a process-scoped ring that restarts empty); null when the book held no other fill.
+ */
+export type BigHandleEntryEvidence = AlertFillEvidence & { handle: string; followers: number; bookSince: number | null };
+
+/** A decoded graduation event (Pons LaunchSwept / PoolGraduated) for a token with verified-FOMO fills in the book. */
+export type GraduationEvidence = {
+  launchpad: string;
+  pool: string | null;
+  launchTx: string;
+  /** The graduation tx is not carried through the launch index; null until it is. */
+  graduationTx: string | null;
+  /** Verified-FOMO fills of the token in the book at firing (ring-bounded: fills already evicted are not counted). */
+  fomoFills: number;
+};
+
+type AlertBase = {
+  /** rule:chain:token[:wallet] — stable, the client's dedupe key. */
+  id: string;
+  chain: Chain;
+  /** Chain time of the event (fill block time, graduation block time), ms. */
+  time: number;
+  /** When this server saw the event (wall clock), ms; observedAt - time is the delivery lag (public RPC 429 backlog reached ~60 min on 2026-09-07). */
+  observedAt: number;
+  token: string;
+  /** Null until something on this server (launch index, erc20Meta) knows it; alert text must name the token by address. */
+  symbol: string | null;
+  /** FOMO coverage as of firing: fills can only come from watched wallets. */
+  coverage: FomoCoverage;
+};
+
+export type AlertRow = AlertBase &
+  (
+    | { rule: "first_fomo_buy"; evidence: FirstFomoBuyEvidence }
+    | { rule: "big_handle_entry"; evidence: BigHandleEntryEvidence }
+    | { rule: "graduation"; evidence: GraduationEvidence }
+  );
+
+/** Which chains a rule can fire on with real evidence; a chain absent here (Solana for every FOMO rule) gets an empty list, never a stand-in. */
+export type AlertRuleInfo = { rule: AlertRule; chains: Chain[]; description: string };
+
+/** Engine bookkeeping on every answer, so "nothing qualified" and "engine erroring" are distinguishable from the wire. */
+export type AlertEngineStats = {
+  seen: { fills: number; launches: number; graduations: number };
+  fired: Record<AlertRule, number>;
+  /** Events a rule looked at and declined (not fresh, not first, no FOMO fills, duplicate id). */
+  suppressed: Record<AlertRule, number>;
+  errors: number;
+  lastError: string | null;
+};
+
+export type AlertsResponse = {
+  chain: FomoChainScope;
+  /** Newest first (by observedAt). */
+  alerts: AlertRow[];
+  observedAt: number;
+  ring: { size: number; max: number };
+  coverage: FomoCoverage;
+  rules: AlertRuleInfo[];
+  /** Null only on the failure branch. */
+  engine: AlertEngineStats | null;
   stale?: boolean;
   error?: string;
 };

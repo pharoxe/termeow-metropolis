@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { FomoTapeResponse } from "../../shared/wire";
 import { api } from "../api/client";
 import type { InstrumentRef } from "../lib/address";
-import { FOMO_TAPE_POLL_MS, fomoHeaderLabel, fomoTapeRow } from "../lib/fomoPanel";
+import { FOMO_TAPE_POLL_MS, fomoCoverageLabel, fomoTapeRow } from "../lib/fomoPanel";
 
 /**
  * Radar "FOMO tape": newest FOMO-wallet fills across every token this server tracks, polled from /api/fomo/tape.
@@ -35,7 +35,7 @@ export function FomoTapePanel({ onInstrument }: { onInstrument?: (ref: Instrumen
     <section className="panel radar-panel social-panel">
       <div className="ph">
         <span className="pt">FOMO TAPE</span>
-        <span className="pm">{fomoHeaderLabel(feed?.population ?? 0, feed?.handles ?? 0)}</span>
+        <span className="pm">{fomoCoverageLabel(feed?.coverage)}</span>
       </div>
       <div className="panel-scroll">
         {failure ? <p className="empty-copy">FOMO tape degraded · {failure}</p> : null}

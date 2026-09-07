@@ -1,6 +1,6 @@
 import type { TokenFlowFomo, TokenFlowResponse } from "../../shared/wire";
 import { largePrintRow, sinceAnchorLine, sourceChipState, windowRow } from "../lib/flowPanel";
-import { fomoHeaderLabel, fomoWindowRows } from "../lib/fomoPanel";
+import { fomoCoverageLabel, fomoWindowRows } from "../lib/fomoPanel";
 
 const WINDOW_COLUMNS = ["WINDOW", "BUY", "SELL", "NET", "PRINTS", "AGGR"];
 
@@ -9,7 +9,7 @@ function FomoWindows({ fomo }: { fomo: TokenFlowFomo }) {
   const rows = fomoWindowRows(fomo);
   return (
     <div className="flow-fomo">
-      <span className="pm flow-fomo-title">{fomoHeaderLabel(fomo.population, fomo.handles)}</span>
+      <span className="pm flow-fomo-title">{fomoCoverageLabel(fomo.coverage)}</span>
       {rows.length ? (
         <table className="terminal-table flow-windows">
           <tbody>

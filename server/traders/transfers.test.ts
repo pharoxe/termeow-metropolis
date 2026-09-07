@@ -10,6 +10,7 @@ import {
   QUOTE_TOKENS,
   TRANSFER_CHUNK,
   TRANSFER_MAX_CHUNKS,
+  TRANSFER_WATCH_CAP,
   buildTransferLegs,
   decodeTransferFills,
   decodeTxTransfers,
@@ -32,6 +33,8 @@ function fixture<T>(name: string): T {
 const LOGS = fixture<Fixture>("transfer-logs");
 const TAPE = fixture<TapeRow[]>("trenches-tape");
 const TRADERS = fixture<Array<{ address: string }>>("trenches-traders");
+/** 801 real Robinhood Chain addresses harvested 2026-09-07 for the r5 topic-list probes (tape + board + traders list). */
+const REAL_WALLETS = JSON.parse(readFileSync(new URL("./__fixtures__/r5/wallets-real.json", import.meta.url), "utf8")) as string[];
 const META = fixture<{ tokenMeta: Array<{ token: string; decimals: number }> }>("getlogs-cost").tokenMeta;
 const USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168";
 const WETH = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
@@ -213,16 +216,32 @@ describe("decodeTransferFills synthetic rules", () => {
 });
 
 describe("buildTransferLegs", () => {
-  it("emits a to-leg and a from-leg per chunk of 150, lowercased and padded, capped at 4 chunks with the overflow counted", () => {
-    const wallets = Array.from({ length: 700 }, (_, i) => `0xA${(i + 1).toString(16).padStart(39, "0")}`);
-    const built = buildTransferLegs(wallets);
-    expect(built).toMatchObject({ wallets: TRANSFER_CHUNK * TRANSFER_MAX_CHUNKS, overflow: 100 });
-    expect(built.legs).toHaveLength(8);
+  it("carries the 801 real r5 wallets in 2 chunks x 2 directions = 4 legs, lowercased and padded, no overflow", () => {
+    expect(REAL_WALLETS).toHaveLength(801);
+    const built = buildTransferLegs(REAL_WALLETS);
+    expect(built).toMatchObject({ wallets: 801, overflow: 0 });
+    expect(built.legs).toHaveLength(4);
     expect(built.legs[0]).toEqual({ addresses: [], topics: [[TRANSFER_TOPIC], null, expect.any(Array)] });
     expect(built.legs[1]).toEqual({ addresses: [], topics: [[TRANSFER_TOPIC], expect.any(Array)] });
-    expect((built.legs[0].topics[2] as string[])[0]).toBe(padTopic(wallets[0]));
-    expect(built.legs[0].topics[2]).toHaveLength(150);
-    expect(built.legs[7].topics[1]).toHaveLength(150);
+    expect((built.legs[0].topics[2] as string[])[0]).toBe(padTopic(REAL_WALLETS[0]));
+    expect(built.legs[0].topics[2]).toHaveLength(TRANSFER_CHUNK);
+    expect(built.legs[2].topics[2]).toHaveLength(301);
+    expect(built.legs[3].topics[1]).toHaveLength(301);
+    // Every leg stays under the measured single-leg envelope (1,000 addresses, 69 kB).
+    for (const leg of built.legs) expect(JSON.stringify(leg).length).toBeLessThan(69_198);
+  });
+
+  it("keeps the first TRANSFER_WATCH_CAP wallets in caller order and counts the rest as overflow (priority is the caller's job)", () => {
+    const synthetic = Array.from({ length: 1_600 - REAL_WALLETS.length }, (_, i) => `0xA${(i + 1).toString(16).padStart(39, "0")}`);
+    const wallets = [...REAL_WALLETS, ...synthetic];
+    const built = buildTransferLegs(wallets);
+    expect(built).toMatchObject({ wallets: TRANSFER_WATCH_CAP, overflow: 100 });
+    expect(built.legs).toHaveLength(TRANSFER_MAX_CHUNKS * 2);
+    const watched = built.legs.filter((_, i) => i % 2 === 0).flatMap((leg) => leg.topics[2] as string[]);
+    expect(watched).toEqual(wallets.slice(0, TRANSFER_WATCH_CAP).map(padTopic));
+    expect(built.legs[5].topics[1]).toHaveLength(TRANSFER_CHUNK);
+    // Transfer legs alone stay ~207 kB, under the 296,744 B batch body measured OK (r5/rpc-batch-probe.json).
+    expect(JSON.stringify(built.legs).length).toBeLessThan(220_000);
   });
 
   it("dedupes case variants and yields no legs for an empty population", () => {

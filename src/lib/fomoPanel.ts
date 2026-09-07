@@ -1,4 +1,4 @@
-import type { Chain, FlowWindow, FomoBoardRow, FomoBoardWindow, FomoFill, TokenFlowFomo, TraderKind } from "../../shared/wire";
+import type { Chain, FlowWindow, FomoBoardRow, FomoBoardWindow, FomoCoverage, FomoFill, TokenFlowFomo, TraderKind } from "../../shared/wire";
 import type { InstrumentRef } from "./address";
 import { EM_DASH, printAgeLabel, windowRow, type WindowRow } from "./flowPanel";
 import { money, shortAddress, signedMoney } from "./format";
@@ -155,13 +155,17 @@ export function fomoBoardRowView(row: FomoBoardRow, now: number): FomoBoardRowVi
 /** Alias kept for the board tab. */
 export const fomoBoardRow = fomoBoardRowView;
 
-/** "FOMO WALLETS · 12 SEEN · 5 NAMED": both populations are this server's, never all of fomo.family. */
-export function fomoHeaderLabel(population: number, handles: number): string {
-  return `FOMO WALLETS · ${population} SEEN · ${handles} NAMED`;
-}
+/** Shown when a response carries no coverage (old server, failed request): a count without coverage is never read as complete. */
+export const COVERAGE_UNKNOWN = "FOMO COVERAGE UNKNOWN";
 
-/** Alias kept for the tape panel and the side block. */
-export const fomoHeader = fomoHeaderLabel;
+/**
+ * R5 header for every FOMO surface (tape, board, flow block): the server's own "watching N of M FOMO wallets · K named",
+ * uppercased for the panel chrome. Fills can only come from the N watched wallets, so this label travels with every FOMO count.
+ */
+export function fomoCoverageLabel(coverage: FomoCoverage | null | undefined): string {
+  const label = coverage?.label?.trim();
+  return label ? label.toUpperCase() : COVERAGE_UNKNOWN;
+}
 
 /** Population line under the board header, always carrying the server's own label. */
 export function populationNote(population: number, label: string): string {

@@ -57,12 +57,17 @@ const STATUS: TraderServiceStatus = {
   lastError: null
 };
 
+/** Shape TraderService.coverage() answers: legs watching 2 of a 3-wallet population, 1 named. */
+const COVERAGE = { watched: 2, population: 3, label: "watching 2 of 3 FOMO wallets · 1 named" };
+const EMPTY_COVERAGE = { watched: 0, population: 0, label: "watching 0 of 0 FOMO wallets · 0 named" };
+
 function traders(book = seeded()): FomoTradersLike & { population: Set<string> } {
   const handles: Record<string, HandleEntry> = { [FOMO_A]: { handle: "alpha", followers: 42, profileUrl: "https://fomo.family/profile/alpha", source: "traders" } };
   return {
     book,
     population: new Set([FOMO_A, FOMO_B]),
     handles: { get: (address) => handles[address] ?? null, stats: () => ({ entries: 1 }) },
+    coverage: () => COVERAGE,
     dexOf: (_chain, pair) => (pair.startsWith("pons:") ? "pons" : "uniswap"),
     status: () => STATUS
   };
@@ -87,7 +92,7 @@ describe("buildFomoTapeResponse", () => {
   it("lists FOMO and seeded fills newest first with dex, symbol, handle and followers, never the other-kind fill", () => {
     const response = buildFomoTapeResponse({ chain: "all", limit: 10 }, deps());
     expect(response.error).toBeUndefined();
-    expect(response).toMatchObject({ chain: "all", population: 2, handles: 1, observedAt: NOW });
+    expect(response).toMatchObject({ chain: "all", population: 2, handles: 1, coverage: COVERAGE, observedAt: NOW });
     expect(response.fills.map((f) => f.tx)).toEqual(["0x2", "0x5", "0x1", "0x3"]);
     expect(response.fills[1].trader).toEqual({ address: SEEDED, kind: "seeded", handle: "unipcs", followers: null });
     expect(response.fills.some((f) => f.trader.address === OTHER)).toBe(false);
@@ -114,7 +119,7 @@ describe("buildFomoTapeResponse", () => {
       throw new Error("ring exploded");
     };
     const response = buildFomoTapeResponse({ chain: "all", limit: 10 }, deps({ traders: broken }));
-    expect(response).toMatchObject({ fills: [], population: 0, handles: 0, stale: true, error: "tape: ring exploded", observedAt: NOW });
+    expect(response).toMatchObject({ fills: [], population: 0, handles: 0, coverage: EMPTY_COVERAGE, stale: true, error: "tape: ring exploded", observedAt: NOW });
   });
 });
 
@@ -122,7 +127,7 @@ describe("buildFomoBoardResponse", () => {
   it("ranks FOMO wallets by net flow over the window with the population label and profile links", () => {
     const response = buildFomoBoardResponse({ chain: "all", window: "24h" }, deps());
     expect(response.error).toBeUndefined();
-    expect(response).toMatchObject({ chain: "all", window: "24h", population: 2, populationLabel: FOMO_POPULATION_LABEL, observedAt: NOW });
+    expect(response).toMatchObject({ chain: "all", window: "24h", population: 2, populationLabel: FOMO_POPULATION_LABEL, coverage: COVERAGE, observedAt: NOW });
     expect(response.rows.map((row) => [row.wallet, row.netUsd, row.kind])).toEqual([
       [SEEDED, 250, "seeded"],
       [FOMO_B, 100, "fomo"],
@@ -149,7 +154,7 @@ describe("buildFomoBoardResponse", () => {
     broken.book.rank = () => {
       throw new Error("no rank");
     };
-    expect(buildFomoBoardResponse({ chain: "robinhood", window: "1h" }, deps({ traders: broken }))).toMatchObject({ rows: [], population: 0, truncatedAt: null, stale: true, error: "board: no rank" });
+    expect(buildFomoBoardResponse({ chain: "robinhood", window: "1h" }, deps({ traders: broken }))).toMatchObject({ rows: [], population: 0, truncatedAt: null, coverage: EMPTY_COVERAGE, stale: true, error: "board: no rank" });
   });
 });
 

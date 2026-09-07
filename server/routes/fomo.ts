@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { Chain, FomoBoardResponse, FomoBoardRow, FomoFill, FomoTapeResponse } from "../../shared/wire.js";
+import type { Chain, FomoBoardResponse, FomoBoardRow, FomoCoverage, FomoFill, FomoTapeResponse } from "../../shared/wire.js";
 import { getLaunchService } from "../launch/service.js";
 import { errorMessage } from "../lib/http.js";
 import type { ChainScope, RankOptions, TapeOptions, TraderRow, TraderTapeRow } from "../traders/book.js";
+import { emptyCoverage } from "../traders/coverage.js";
 import { FOMO_PROFILE_BASE, type HandleEntry } from "../traders/handles.js";
 import { FOMO_POPULATION_LABEL, TAPE_KINDS, getTraderService, toFomoFill, type TraderServiceStatus } from "../traders/service.js";
 
@@ -29,6 +30,8 @@ export type FomoTradersLike = {
   };
   population: { size: number };
   handles: { get(address: string): HandleEntry | null; stats(): { entries: number } };
+  /** R5: watched-vs-population coverage, computed once in TraderService.coverage(). */
+  coverage(): FomoCoverage;
   dexOf(chain: Chain, pair: string): string;
   status(): TraderServiceStatus;
 };
@@ -81,9 +84,9 @@ export function buildFomoTapeResponse(query: FomoTapeQuery, deps: FomoRouteDeps)
   const observedAt = deps.now();
   const base = { chain: query.chain, observedAt };
   try {
-    return { ...base, fills: tapeFills(deps, query), population: deps.traders.population.size, handles: deps.traders.handles.stats().entries };
+    return { ...base, fills: tapeFills(deps, query), population: deps.traders.population.size, handles: deps.traders.handles.stats().entries, coverage: deps.traders.coverage() };
   } catch (error) {
-    return { ...base, fills: [], population: 0, handles: 0, stale: true, error: `tape: ${errorMessage(error)}` };
+    return { ...base, fills: [], population: 0, handles: 0, coverage: emptyCoverage(), stale: true, error: `tape: ${errorMessage(error)}` };
   }
 }
 
@@ -99,9 +102,9 @@ export function buildFomoBoardResponse(query: FomoBoardQuery, deps: FomoRouteDep
   const base = { chain: query.chain, window: query.window, populationLabel: FOMO_POPULATION_LABEL, observedAt };
   try {
     const rows = deps.traders.book.rank(query.chain, windowMs, { kind: TAPE_KINDS }).map((row) => toBoardRow(deps.traders, row));
-    return { ...base, rows, population: deps.traders.population.size, truncatedAt: truncatedAt(deps.traders.book.oldestFillAt(), windowMs, observedAt) };
+    return { ...base, rows, population: deps.traders.population.size, truncatedAt: truncatedAt(deps.traders.book.oldestFillAt(), windowMs, observedAt), coverage: deps.traders.coverage() };
   } catch (error) {
-    return { ...base, rows: [], population: 0, truncatedAt: null, stale: true, error: `board: ${errorMessage(error)}` };
+    return { ...base, rows: [], population: 0, truncatedAt: null, coverage: emptyCoverage(), stale: true, error: `board: ${errorMessage(error)}` };
   }
 }
 

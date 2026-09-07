@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FomoBoardResponse, FomoBoardWindow } from "../../shared/wire";
 import { api } from "../api/client";
-import { BOARD_WINDOWS, FOMO_BOARD_POLL_MS, fomoBoardRowView, populationNote, truncationNote } from "../lib/fomoPanel";
+import { BOARD_WINDOWS, FOMO_BOARD_POLL_MS, fomoBoardRowView, fomoCoverageLabel, populationNote, truncationNote } from "../lib/fomoPanel";
 
 const COLUMNS = ["WALLET", "FILLS", "BUY", "SELL", "NET", "W/L"];
 const DEFAULT_POPULATION_LABEL = "FOMO wallets seen by this server";
@@ -42,6 +42,7 @@ export function FomoBoardTab() {
         ))}</span>
         <span className="pm">{populationNote(feed?.population ?? 0, feed?.populationLabel ?? DEFAULT_POPULATION_LABEL)}</span>
       </div>
+      <p className="pm fomo-note" title="Unwatched wallets cannot rank: the transfer legs only carry the watched share of the population">{fomoCoverageLabel(feed?.coverage)}</p>
       {truncated ? <p className="pm fomo-note">{truncated}</p> : null}
       {failure ? <p className="empty-copy">Board degraded · {failure}</p> : null}
       {rows.length ? (

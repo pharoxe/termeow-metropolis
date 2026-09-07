@@ -1,0 +1,232 @@
+{
+ "capturedAt": "2026-09-07T12:33:13.701Z",
+ "rpc": "https://rpc.mainnet.chain.robinhood.com",
+ "headBlock": 56836895,
+ "range": {
+  "fromBlock": "0x36342bb",
+  "toBlock": "0x363431f"
+ },
+ "realAddresses": 801,
+ "results": [
+  {
+   "n": 150,
+   "direction": "topics[2] (to wallet)",
+   "syntheticAddresses": 0,
+   "label": "to-leg N=150",
+   "httpStatus": 200,
+   "latencyMs": 572,
+   "requestBytes": 10547,
+   "responseBytes": 1292,
+   "logs": 2,
+   "rpcError": null,
+   "transportError": null,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": 200,
+     "ms": 572,
+     "resBytes": 1292
+    }
+   ],
+   "sampleLogs": [
+    {
+     "address": "0x7fdcc669014afa2c33df27a96169f900b17f737d",
+     "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x000000000000000000000000b92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+      "0x0000000000000000000000005f0d0d89c580811410113ec59755ba7def6099a8"
+     ],
+     "data": "0x000000000000000000000000000000000000000000003b98f26c5e88226e602b",
+     "blockNumber": "0x36342d5",
+     "transactionHash": "0x0062a1f56c79435f12e7820da4b383416e700dfb4b18386de8246a105ece3ba8",
+     "transactionIndex": "0x5",
+     "blockHash": "0xd358a08c9a085309f5170d615e75dbd8f1b1439e869118769e2833f4ea19bee2",
+     "blockTimestamp": "0x0",
+     "logIndex": "0x2a",
+     "removed": false
+    },
+    {
+     "address": "0x350cadde605e083f58d286e8b3a6b086685fa1ec",
+     "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x000000000000000000000000b92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+      "0x0000000000000000000000002b5eb0db8c7d77493b7a9c02705339715e9332a4"
+     ],
+     "data": "0x0000000000000000000000000000000000000000000013ff483ba96793d0205c",
+     "blockNumber": "0x363430f",
+     "transactionHash": "0x18d29fab340857d66717a6493fd5a7b98effd2848a22cd51d09f3c0029ff5114",
+     "transactionIndex": "0x7",
+     "blockHash": "0x51afbf8adc908b5fb9c8c31530d5a40c81cec88a1c6cfcc6ac30f275c4a03ae2",
+     "blockTimestamp": "0x0",
+     "logIndex": "0x38",
+     "removed": false
+    }
+   ]
+  },
+  {
+   "n": 300,
+   "direction": "topics[2] (to wallet)",
+   "syntheticAddresses": 0,
+   "label": "to-leg N=300",
+   "httpStatus": 200,
+   "latencyMs": 1547,
+   "requestBytes": 20897,
+   "responseBytes": 1292,
+   "logs": 2,
+   "rpcError": null,
+   "transportError": null,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": 200,
+     "ms": 1547,
+     "resBytes": 1292
+    }
+   ],
+   "sampleLogs": [
+    {
+     "address": "0x7fdcc669014afa2c33df27a96169f900b17f737d",
+     "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x000000000000000000000000b92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+      "0x0000000000000000000000005f0d0d89c580811410113ec59755ba7def6099a8"
+     ],
+     "data": "0x000000000000000000000000000000000000000000003b98f26c5e88226e602b",
+     "blockNumber": "0x36342d5",
+     "transactionHash": "0x0062a1f56c79435f12e7820da4b383416e700dfb4b18386de8246a105ece3ba8",
+     "transactionIndex": "0x5",
+     "blockHash": "0xd358a08c9a085309f5170d615e75dbd8f1b1439e869118769e2833f4ea19bee2",
+     "blockTimestamp": "0x0",
+     "logIndex": "0x2a",
+     "removed": false
+    },
+    {
+     "address": "0x350cadde605e083f58d286e8b3a6b086685fa1ec",
+     "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x000000000000000000000000b92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+      "0x0000000000000000000000002b5eb0db8c7d77493b7a9c02705339715e9332a4"
+     ],
+     "data": "0x0000000000000000000000000000000000000000000013ff483ba96793d0205c",
+     "blockNumber": "0x363430f",
+     "transactionHash": "0x18d29fab340857d66717a6493fd5a7b98effd2848a22cd51d09f3c0029ff5114",
+     "transactionIndex": "0x7",
+     "blockHash": "0x51afbf8adc908b5fb9c8c31530d5a40c81cec88a1c6cfcc6ac30f275c4a03ae2",
+     "blockTimestamp": "0x0",
+     "logIndex": "0x38",
+     "removed": false
+    }
+   ]
+  },
+  {
+   "n": 600,
+   "direction": "topics[2] (to wallet)",
+   "syntheticAddresses": 0,
+   "label": "to-leg N=600",
+   "httpStatus": 200,
+   "latencyMs": 1014,
+   "requestBytes": 41597,
+   "responseBytes": 854490,
+   "logs": 1363,
+   "rpcError": null,
+   "transportError": null,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": 200,
+     "ms": 1014,
+     "resBytes": 854490
+    }
+   ],
+   "sampleLogs": [
+    {
+     "address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+     "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x00000000000000000000000065050a9b7e5075a2ba5ced7b1b64ee66262c40dc",
+      "0x000000000000000000000000d4eb21209c4d6093f80b5b84f5c45cc093ea14a3"
+     ],
+     "data": "0x000000000000000000000000000000000000000000000000043ee33ce524eb77",
+     "blockNumber": "0x36342bb",
+     "transactionHash": "0x489b2ae90bbdf4df47ed502e3a8355c1ed62d2a55b17daff8770ddab5facb807",
+     "transactionIndex": "0x4",
+     "blockHash": "0x67c8c31be24a65d43a739bc4b66eefe976fac0d654e39a7591519e4393f3d453",
+     "blockTimestamp": "0x0",
+     "logIndex": "0xa",
+     "removed": false
+    },
+    {
+     "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+     "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x00000000000000000000000065050a9b7e5075a2ba5ced7b1b64ee66262c40dc",
+      "0x00000000000000000000000052e65b17fb6e5ba00ed806f37afcd2daa50271ca"
+     ],
+     "data": "0x00000000000000000000000000000000000000000000000000000000043b69d3",
+     "blockNumber": "0x36342bb",
+     "transactionHash": "0x489b2ae90bbdf4df47ed502e3a8355c1ed62d2a55b17daff8770ddab5facb807",
+     "transactionIndex": "0x4",
+     "blockHash": "0x67c8c31be24a65d43a739bc4b66eefe976fac0d654e39a7591519e4393f3d453",
+     "blockTimestamp": "0x0",
+     "logIndex": "0xe",
+     "removed": false
+    }
+   ]
+  },
+  {
+   "n": 1000,
+   "direction": "topics[2] (to wallet)",
+   "syntheticAddresses": 199,
+   "label": "to-leg N=1000",
+   "httpStatus": 200,
+   "latencyMs": 935,
+   "requestBytes": 69198,
+   "responseBytes": 1121574,
+   "logs": 1789,
+   "rpcError": null,
+   "transportError": null,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": 200,
+     "ms": 935,
+     "resBytes": 1121574
+    }
+   ],
+   "sampleLogs": [
+    {
+     "address": "0xfb19cc1be75c3af5da541fb9298430576022196a",
+     "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x00000000000000000000000058982e2ee7d5c96b1e1bd421c113ffd58ad89869",
+      "0x00000000000000000000000065050a9b7e5075a2ba5ced7b1b64ee66262c40dc"
+     ],
+     "data": "0x00000000000000000000000000000000000000000004d4004394c71c7a30551b",
+     "blockNumber": "0x36342bb",
+     "transactionHash": "0x489b2ae90bbdf4df47ed502e3a8355c1ed62d2a55b17daff8770ddab5facb807",
+     "transactionIndex": "0x4",
+     "blockHash": "0x67c8c31be24a65d43a739bc4b66eefe976fac0d654e39a7591519e4393f3d453",
+     "blockTimestamp": "0x0",
+     "logIndex": "0x3",
+     "removed": false
+    },
+    {
+     "address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+     "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x000000000000000000000000764e45ff1b57cbecc1e3d0f004f5c4e4ae7c209a",
+      "0x00000000000000000000000065050a9b7e5075a2ba5ced7b1b64ee66262c40dc"
+     ],
+     "data": "0x000000000000000000000000000000000000000000000000043ee33ce524eb77",
+     "blockNumber": "0x36342bb",
+     "transactionHash": "0x489b2ae90bbdf4df47ed502e3a8355c1ed62d2a55b17daff8770ddab5facb807",
+     "transactionIndex": "0x4",
+     "blockHash": "0x67c8c31be24a65d43a739bc4b66eefe976fac0d654e39a7591519e4393f3d453",
+     "blockTimestamp": "0x0",
+     "logIndex": "0x6",
+     "removed": false
+    }
+   ]
+  }
+ ]
+}

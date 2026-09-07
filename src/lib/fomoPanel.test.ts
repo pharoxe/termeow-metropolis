@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { FomoBoardRow, FomoFill } from "../../shared/wire";
 import {
   BOARD_WINDOWS,
+  COVERAGE_UNKNOWN,
   FOMO_PROFILE_BASE,
   WILSON_MIN_CLOSED,
   fomoBoardRowView,
-  fomoHeaderLabel,
+  fomoCoverageLabel,
   fomoTapeRow,
   fomoWindowRows,
   followersLabel,
@@ -132,8 +133,10 @@ describe("fomoBoardRowView", () => {
 });
 
 describe("labels and windows", () => {
-  it("names both populations in the header", () => {
-    expect(fomoHeaderLabel(128, 47)).toBe("FOMO WALLETS · 128 SEEN · 47 NAMED");
+  it("renders the server's coverage label on every FOMO header and never a bare count without it", () => {
+    expect(fomoCoverageLabel({ watched: 600, population: 1519, label: "watching 600 of 1,519 FOMO wallets · 147 named" })).toBe("WATCHING 600 OF 1,519 FOMO WALLETS · 147 NAMED");
+    expect(fomoCoverageLabel(undefined)).toBe(COVERAGE_UNKNOWN);
+    expect(fomoCoverageLabel({ watched: 0, population: 0, label: "  " })).toBe(COVERAGE_UNKNOWN);
   });
 
   it("tags seeded rows with their provenance and never tags verified FOMO rows", () => {
@@ -163,6 +166,7 @@ describe("labels and windows", () => {
       fills: [],
       population: 1,
       handles: 1,
+      coverage: { watched: 1, population: 1, label: "watching 1 of 1 FOMO wallets · 1 named" },
       windows: [{ label: "1m", buyUsd: 100, sellUsd: 40, net: 60, buys: 2, sells: 1, unpriced: 1, aggressor: 0.714 }]
     });
     expect(rows).toEqual([{ label: "1M", buy: "$100", sell: "$40", net: "+$60", netTone: "up", prints: "3 (1u)", aggr: "71%" }]);

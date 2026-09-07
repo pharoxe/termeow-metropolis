@@ -1,4 +1,4 @@
-import type { Chain, FlowPrint, FomoFill, TraderKind, TraderRef } from "../../shared/wire.js";
+import type { Chain, FlowPrint, FomoCoverage, FomoFill, TraderKind, TraderRef } from "../../shared/wire.js";
 import { config } from "../config.js";
 import { FlowLedger, type LedgerStats } from "../flow/ledger.js";
 import type { StreamPollerLike } from "../launch/robinhood/stream.js";
@@ -13,6 +13,9 @@ import { AccountClassifier } from "./identity.js";
 import { LruMap } from "./lru.js";
 import { ReceiptFetcher } from "./receipts.js";
 import type { TransferFeedStats } from "./transferFeed.js";
+import { alertSink } from "../alerts/sink.js";
+import { buildCoverage } from "./coverage.js";
+import { orderWatchList } from "./watchOrder.js";
 
 /**
  * Receipt + eth_getCode lookups past this pass the batch through unannotated (the general ledger never waits); a lookup
@@ -307,7 +310,8 @@ export class TraderService {
       this.pairMeta.set(pairMetaKey(print.chain, print.pair), { token: normalizeAddress(print.chain, info.token), dex: info.dex });
       if (trader.kind === "fomo") {
         fomo.push(print);
-        this.book.record(toTraderFill(print, trader, info.token));
+        const fill = toTraderFill(print, trader, info.token);
+        if (this.book.record(fill) === "accepted") alertSink.fill(fill);
       } else if (opts.includeOther) {
         other += 1;
         this.book.record(toTraderFill(print, trader, info.token));
@@ -384,13 +388,27 @@ export class TraderService {
     return added;
   }
 
-  /** Wallets the transfer legs watch: classified FOMO (most recent first), then seeded ones not yet proven "other". */
+  /**
+   * Wallets the transfer legs should watch, in watch order: classified FOMO plus seeded ones not yet
+   * proven "other"; seeded/named first, then most recent fill in the book, then most recently verified. The legs cap
+   * the list (TRANSFER_WATCH_CAP) from the front, so the order decides who is overflow.
+   */
   transferWallets(): string[] {
-    const out = new Set<string>([...this.population.values()].reverse());
-    for (const entry of this.seeded.values()) {
-      if (this.classifier.peek(entry.address) !== "other") out.add(entry.address);
-    }
-    return [...out];
+    const verified = [...this.population.values()].reverse();
+    const verifiedRank = new Map(verified.map((wallet, index) => [wallet, index]));
+    const seeded = [...this.seeded.values()].filter((entry) => this.classifier.peek(entry.address) !== "other").map((entry) => entry.address);
+    return orderWatchList([...verified, ...seeded], {
+      priority: (wallet) => this.seeded.has(wallet) || this.handles.get(wallet) !== null,
+      lastFillAt: (wallet) => this.book.stats("robinhood", wallet)?.lastSeenAt ?? null,
+      verifiedRank: (wallet) => verifiedRank.get(wallet) ?? null
+    });
+  }
+
+  /** R5 coverage every FOMO route carries: legs' watched count against transferWallets(), seeded-pending named apart, plus the named handles. */
+  coverage(): FomoCoverage {
+    const wallets = this.transferWallets();
+    const seeded = wallets.filter((wallet) => !this.population.has(wallet)).length;
+    return buildCoverage({ watched: this.transfers?.stats().wallets ?? 0, population: wallets.length, seeded, named: this.handles.stats().entries });
   }
 
   populationVersion(): number {
@@ -433,6 +451,7 @@ export class TraderService {
       this.pairMeta.set(pairMetaKey(fill.chain, fill.pair), { token: fill.token, dex: "" });
       if (fill.kind === "fomo") fomo.push(toFomoPrint(fill));
       else this.counters.transferUnproven += 1;
+      alertSink.fill(fill);
     }
     if (fomo.length) this.fomoLedger.ingest(fomo);
     this.counters.transferFills += result.accepted;

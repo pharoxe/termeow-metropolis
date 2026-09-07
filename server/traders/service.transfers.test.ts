@@ -12,6 +12,7 @@ import {
   TAPE_KINDS,
   TraderService,
   type ClassifierLike,
+  type TransferFeedHandle,
   type HandlesLike,
   type ReceiptsLike
 } from "./service.js";
@@ -288,5 +289,33 @@ describe("HandleBook -> seed wiring", () => {
     const h = service({});
     expect(h.svc.seed(seeded[0], SEED_PROVENANCE_TRENCHES)).toBe(147);
     expect(h.svc.transferWallets()).toHaveLength(147);
+  });
+});
+
+describe("TraderService watch order and coverage (R5)", () => {
+  function attach(svc: TraderService, wallets: number, overflow: number): void {
+    const stats = { wallets, overflow } as unknown as ReturnType<TransferFeedHandle["stats"]>;
+    svc.attachTransfers({ wrapPoller: (poller) => poller, stats: () => stats });
+  }
+
+  it("orders transferWallets seeded/named first, then by last fill, then by verification recency", async () => {
+    const h = service({ [W1]: "fomo", [W2]: "fomo", [W3]: "fomo", [UNIPCS]: "fomo" }, new FakeHandles({ [W3]: { handle: "named", followers: 1, profileUrl: null, source: "traders" } }));
+    // Verified in this order: W1, W2, W3 (W3 most recent). W3 is also named; UNIPCS is seeded but unverified.
+    for (const wallet of [W1, W2, W3]) await h.svc.discover([wallet]);
+    h.svc.seed([UNIPCS], SEED_PROVENANCE_TRENCHES);
+    expect(h.svc.recordTransferFills([fill(W1, "fomo", { tx: "0xa", time: NOW - 500 })])).toMatchObject({ accepted: 1 });
+    // W3 (named) and UNIPCS (seeded) lead; among them neither filled, W3 is verified so it ranks first. Then W1 (filled), then W2.
+    expect(h.svc.transferWallets()).toEqual([W3, UNIPCS, W1, W2]);
+  });
+
+  it("coverage() reads watched from the attached feed against transferWallets(), names the handles, and never calls a seeded-pending wallet FOMO", async () => {
+    const h = service({ [W1]: "fomo", [W2]: "fomo" }, new FakeHandles({ [W1]: { handle: "one", followers: 1, profileUrl: null, source: "traders" } }));
+    expect(h.svc.coverage()).toEqual({ watched: 0, population: 0, label: "watching 0 of 0 FOMO wallets · 1 named" });
+    await h.svc.discover([W1, W2]);
+    attach(h.svc, 2, 0);
+    expect(h.svc.coverage()).toEqual({ watched: 2, population: 2, label: "watching 2 of 2 FOMO wallets · 1 named" });
+    h.svc.seed([POORGOAT], SEED_PROVENANCE_TRENCHES);
+    attach(h.svc, 2, 1);
+    expect(h.svc.coverage()).toEqual({ watched: 2, population: 3, label: "watching 2 of 3 wallets · 2 FOMO · 1 seeded pending · 1 named" });
   });
 });

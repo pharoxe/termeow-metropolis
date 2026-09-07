@@ -11,6 +11,7 @@ import { flowCandlesRouter } from "./routes/flowCandles.js";
 import { marketRouter } from "./routes/market.js";
 import { launchesRouter } from "./routes/launches.js";
 import { fomoRouter } from "./routes/fomo.js";
+import { liveAlertsRouter } from "./routes/alerts.js";
 import { clawpumpMcp } from "./clawpump/mcp.js";
 import { errorMessage, UpstreamError } from "./lib/http.js";
 
@@ -27,6 +28,7 @@ app.use("/api/flow", flowCandlesRouter);
 app.use("/api/market", marketRouter);
 app.use("/api/launches", launchesRouter);
 app.use("/api/fomo", fomoRouter);
+app.use("/api/alerts", liveAlertsRouter());
 
 if (config.nodeEnv === "production") {
   const dist = path.resolve(process.cwd(), "dist");

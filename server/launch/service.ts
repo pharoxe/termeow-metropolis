@@ -15,6 +15,8 @@ import { TRENCHES_SOURCE, fetchTrenchTokens, type TrenchTokensResult, type Trenc
 import { BlockTimeCache } from "../tape/robinhood/blocks.js";
 import { RobinhoodLogPoller } from "../tape/robinhood/poller.js";
 import { EvmQuotePrice } from "../tape/robinhood/price.js";
+import { AlertingLaunchIndex } from "../alerts/launchIndex.js";
+import { alertSink } from "../alerts/sink.js";
 import { withTraderHooks } from "../traders/launchHooks.js";
 import { getTraderService } from "../traders/service.js";
 import { DEXSCREENER_TOKENS_SOURCE, PUMPPORTAL_SOURCE, profileUpsert, solanaLaunchUpsert, tokenBatchUpsert, trenchUpsert } from "./enrich.js";
@@ -112,7 +114,7 @@ export class LaunchService {
 
   constructor(deps: LaunchServiceDeps = {}) {
     this.deps = deps;
-    this.index = deps.index ?? new LaunchIndex();
+    this.index = deps.index ?? new AlertingLaunchIndex(alertSink);
     this.now = deps.now ?? (() => Date.now());
     this.log = deps.log ?? ((msg) => console.warn(msg));
   }

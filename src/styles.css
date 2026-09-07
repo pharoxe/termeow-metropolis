@@ -848,3 +848,8 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .fomo-note { padding:3px 7px; }
 .flow-fomo { display:flex; flex-direction:column; gap:2px; }
 .flow-fomo-title { margin-left:0; }
+
+/* ALERTS watch tab (R5): rule badge + IST clock, token, evidence line; row click focuses the instrument. */
+.alert-table td small { display:block; }
+.alert-table td .chip { margin:0 4px 0 0; vertical-align:middle; }
+.alert-table .alert-lag { color:var(--red); }

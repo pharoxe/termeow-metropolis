@@ -10,12 +10,13 @@ import type { TapeRow } from "../lib/instrument";
 import { biasTone } from "../lib/deskFlow";
 import type { InstrumentRef } from "../lib/address";
 import { FlowSideOutputs } from "./FlowSideOutputs";
+import { AlertsTab } from "./AlertsTab";
 import { FomoBoardTab } from "./FomoBoardTab";
 import { LaunchesTab } from "./LaunchesTab";
 import { useNotifications } from "./NotificationSystem";
 
 type Row = Record<string, unknown>;
-type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW" | "LAUNCHES" | "FOMO";
+type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW" | "LAUNCHES" | "FOMO" | "ALERTS";
 type TrenchSort = "hot" | "new" | "mcap" | "volume";
 
 function record(value: unknown): Row {
@@ -135,10 +136,10 @@ export function WatchPanel({
     <section className="panel watch-panel">
       {search}
       <div className="ph">
-        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW", "LAUNCHES", "FOMO"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
+        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW", "LAUNCHES", "FOMO", "ALERTS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
       </div>
       <div className="panel-scroll">
-        {tab === "FOMO" ? <FomoBoardTab /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
+        {tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
           <table className="terminal-table"><thead><tr><th>TOKEN / SOCIAL</th><th className="r">MCAP / VOL</th></tr></thead><tbody>{sourceRows.slice(0, 48).map((item) => {
             const mint = String(item.mintAddress || "");
             return <tr className={mint && mint === selected ? "selected" : ""} key={mint || String(item.symbol)} onClick={() => pickSpot(item)}>
@@ -155,7 +156,7 @@ export function WatchPanel({
             return <tr className={mint && mint === selected ? "selected" : ""} key={String(item.contract || item.symbol || index)} onClick={() => pickSpot(item)}><td><b>{clean(item.symbol || item.name)}</b><small>{clean(item.signal || item.name)}{item.chain && String(item.chain) !== "sol" ? ` · ${String(item.chain).toUpperCase()}` : ""}</small></td><td className="r"><b className="mcap-value">{cap != null ? compact(cap) : "—"}</b>{px != null ? <small>{money(px)}</small> : null}</td><td className={`r ${change == null ? "" : changeClass(change)}`}>{change == null ? "—" : pct(change)}</td></tr>;
           })}</tbody></table>
         )}
-        {tab !== "LAUNCHES" && tab !== "FOMO" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
+        {tab !== "LAUNCHES" && tab !== "FOMO" && tab !== "ALERTS" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { Chain, FlowBar, FomoFill, PairRow, TapePrint, TokenFlowFomo, TokenFlowResponse } from "../../shared/wire.js";
+import type { Chain, FlowBar, FomoCoverage, FomoFill, PairRow, TapePrint, TokenFlowFomo, TokenFlowResponse } from "../../shared/wire.js";
 import { peekMarketProvider } from "../clawpump/market.js";
 import {
   FLOW_INTERVALS,
@@ -75,6 +75,8 @@ export type FlowTradersLike = {
   fomoLedger: FomoLedgerLike;
   population: { size: number };
   handles: { stats(): { entries: number } };
+  /** R5: watched-vs-population coverage, computed once in TraderService.coverage(). */
+  coverage(): FomoCoverage;
   dexOf(chain: Chain, pair: string): string;
 };
 
@@ -142,7 +144,7 @@ export function fomoBlock(traders: FlowTradersLike, params: FlowParams, pairs: P
   const dexOf = (pair: string) => dexByPair.get(pair) ?? traders.dexOf(params.chain, pair);
   const fromBook = traders.fillsForToken(params.chain, params.address, FOMO_MERGE_LIMIT).map((fill) => ({ ...fill, dex: dexByPair.get(fill.pair) ?? fill.dex }));
   const merged = mergeFomoFills(fromBook, ledgerFomoFills(traders.fomoLedger, params.chain, params.address, pairs, dexOf));
-  return { fills: merged.slice(0, FOMO_TAPE_LIMIT), windows: fomoWindowsFromFills(merged.filter((fill) => fill.trader.kind === "fomo"), observedAt), population: traders.population.size, handles: traders.handles.stats().entries };
+  return { fills: merged.slice(0, FOMO_TAPE_LIMIT), windows: fomoWindowsFromFills(merged.filter((fill) => fill.trader.kind === "fomo"), observedAt), population: traders.population.size, handles: traders.handles.stats().entries, coverage: traders.coverage() };
 }
 
 /** Newest Tier A prints across pairs from the ledger ring, dex from the PairRow, time desc, at most `limit`. Unpriced prints keep usd null. */

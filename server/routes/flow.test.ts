@@ -281,6 +281,7 @@ describe("FOMO block and trader on the tape", () => {
       fomoLedger: new FlowLedger({ now: () => NOW }),
       population: { size: 94 },
       handles: { stats: () => ({ entries: 0 }) },
+      coverage: () => ({ watched: 60, population: 94, label: "watching 60 of 94 FOMO wallets · 0 named" }),
       dexOf: () => ""
     };
   }
@@ -291,7 +292,7 @@ describe("FOMO block and trader on the tape", () => {
     const robinhoodRow = row(EVM_POOL, "A", 1, { chain: "robinhood", dex: "uniswap", baseMint: EVM_TOKEN });
     const d = deps({ traders: traders(), registry: vi.fn(async () => ({ pairs: [robinhoodRow], observedAt: NOW - 1000, stale: false })) });
     const robinhood = await buildTokenFlowResponse(params({ chain: "robinhood", address: EVM_TOKEN }), d);
-    expect(robinhood.fomo).toMatchObject({ fills: [], population: 94, handles: 0 });
+    expect(robinhood.fomo).toMatchObject({ fills: [], population: 94, handles: 0, coverage: { watched: 60, population: 94, label: "watching 60 of 94 FOMO wallets · 0 named" } });
   });
 
   it("carries seeded fills on the block tagged seeded but sums the FOMO windows over verified fills only", async () => {

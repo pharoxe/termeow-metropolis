@@ -1,5 +1,5 @@
 import type { PublicConfig } from "../types";
-import type { Chain, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, TokenFlowResponse } from "../../shared/wire";
+import type { AlertRule, AlertsResponse, Chain, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -33,6 +33,14 @@ export const api = {
   },
   fomoBoard: (params: { chain?: FomoChainScope; window?: FomoBoardWindow } = {}) =>
     request<FomoBoardResponse>(`/api/fomo/board?${new URLSearchParams({ chain: params.chain ?? "all", window: params.window ?? "24h" }).toString()}`),
+  /** Alert ring (newest first); `since` = the last observedAt seen, `rule` narrows to one rule. 200 + error/stale on failure. */
+  alerts: (params: { chain?: FomoChainScope; since?: number; rule?: AlertRule; limit?: number } = {}) => {
+    const search = new URLSearchParams({ chain: params.chain ?? "all" });
+    if (params.since != null) search.set("since", String(params.since));
+    if (params.rule) search.set("rule", params.rule);
+    if (params.limit) search.set("limit", String(params.limit));
+    return request<AlertsResponse>(`/api/alerts?${search.toString()}`);
+  },
   search: (q: string) => request<Record<string, unknown>>(`/api/onchain/search?q=${encodeURIComponent(q)}`),
   trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
   board: () => request<Record<string, unknown>>("/api/onchain/board"),
