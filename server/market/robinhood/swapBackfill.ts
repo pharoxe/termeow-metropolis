@@ -12,9 +12,17 @@ import { BLOCK_MS, decodeSwapPoints, interpolateBlockTime, timePoints, type Bloc
  * block) read through the block-time cache; every other swap in the chunk is placed by linear interpolation, and the
  * result says so. Never one eth_getBlockByNumber per log.
  */
-export const DEFAULT_CHUNK_BLOCKS = 10_000;
-/** ~6.7 h of 0.1 s blocks: the deepest a first backfill goes before the route stops paying for older bars. */
-export const MAX_BACKFILL_BLOCKS = 240_000;
+/**
+ * Measured 2026-09-07 on the official endpoint with a real PoolManager+poolId filter: 400k blocks in 1.6 s (627 logs),
+ * 1M blocks in 3.0 s (1,668 logs), 3M blocks "log query timed out". 10k-block chunks needed 24+ calls per pool and
+ * 429-walled the logs lane; one 500k call replaces them. Endpoints with a smaller cap (blockmachine: max_step 9,999)
+ * answer -32602 and getLogsPaged shrinks the chunk for the rest of that run.
+ */
+export const DEFAULT_CHUNK_BLOCKS = 500_000;
+/** ~1.2 d of 0.1 s blocks (two default chunks): the deepest a first backfill goes before the route stops paying for older bars. */
+export const MAX_BACKFILL_BLOCKS = 1_000_000;
+/** After a chunk shrink to a small-range endpoint, a run still ends after this many calls (stoppedBy "cap", partial). */
+export const MAX_CHUNKS_PER_RUN = 12;
 export const DEFAULT_CHUNK_GAP_MS = 1_500;
 /** The official RPC sends a bare 429 with no retry-after; 20 s was the wait that worked on 2026-09-06 and 2026-09-07. */
 export const RETRY_429_MS = 20_000;
@@ -238,7 +246,7 @@ export async function backfillSwaps(pool: EvmPoolRef, run: BackfillRun, rpc: Bac
       run.onChunk?.({ ...chunk, fromTime: result.fromTime });
       if (from === 0) return { ...result, stoppedBy: "genesis" };
       if (result.fromTime <= floorTime) return { ...result, stoppedBy: "depth" };
-      if (scanned >= maxBlocks) return { ...result, stoppedBy: "cap" };
+      if (scanned >= maxBlocks || result.chunks >= MAX_CHUNKS_PER_RUN) return { ...result, stoppedBy: "cap" };
       to = from - 1;
       await sleep(run.gapMs ?? DEFAULT_CHUNK_GAP_MS);
     }

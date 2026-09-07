@@ -41,8 +41,8 @@ function point(minutesAgo: number, price: number, tx = `0x${minutesAgo}`): Timed
 function print(minutesAgo: number, price: number | undefined, tx: string, source: FlowPrint["source"] = "own"): FlowPrint {
   return { chain: "robinhood", pair: POOL.ledgerPair, tx, time: NOW - minutesAgo * MINUTE, side: "sell", usd: price === undefined ? null : 50, source, ...(price === undefined ? {} : { price }) };
 }
-/** The 1m request asks for 24,216,000 ms (the block cap); a fill this deep has passed MIN_FILL_SHARE. */
-const DEEP_ENOUGH_MS = 24_216_000 * MIN_FILL_SHARE;
+/** The 1m request asks for 100,900,000 ms (the block cap); a fill this deep has passed MIN_FILL_SHARE. */
+const DEEP_ENOUGH_MS = 100_900_000 * MIN_FILL_SHARE;
 
 function state(points: TimedSwapPoint[], overrides: Partial<PoolCandleState> = {}): PoolCandleState {
   return {
@@ -95,7 +95,7 @@ describe("chainCandlesFor", () => {
   it("builds one 'chain swaps' series from cached swaps x quote USD plus live prints ticking the forming bar", async () => {
     const d = deps(state([point(10, 400), point(9.5, 401), point(2, 402)], { fromTime: NOW - 11 * MINUTE }), { quoteUsd: async () => 1, livePrints: () => [print(0.2, 405, "0xlive"), print(5, 380, "0xinside")] });
     const result = await chainCandlesFor(ROW, "5m", d);
-    expect(d.ensure).toHaveBeenCalledWith(POOL, 2_000 * 5 * MINUTE > 24_216_000 ? 24_216_000 : 2_000 * 5 * MINUTE, undefined);
+    expect(d.ensure).toHaveBeenCalledWith(POOL, 2_000 * 5 * MINUTE > 100_900_000 ? 100_900_000 : 2_000 * 5 * MINUTE, undefined);
     expect(result.candles).toHaveLength(2);
     expect(result.candles[0]).toMatchObject({ open: 400, high: 401, low: 400, close: 401, volume: 200 });
     // the 402 swap and the 405 live print share the newest 5m bucket only if aligned; check the last bar closes on the live print
@@ -133,9 +133,9 @@ describe("chainCandlesFor", () => {
 
   it("hands a first fill shallower than MIN_FILL_SHARE back to the Gecko fallback instead of collapsing the chart to a few bars", async () => {
     const inFlight = deps(state([], { backfilling: true, fromBlock: null, fromTime: null, toBlock: null, stoppedBy: null, chunks: 0, anchors: 0 }));
-    await expect(chainCandlesFor(ROW, "1m", inFlight)).rejects.toThrow(/chain backfill in progress: 0 of 404 min fetched \(0 swaps so far\)/);
+    await expect(chainCandlesFor(ROW, "1m", inFlight)).rejects.toThrow(/chain backfill in progress: 0 of 1682 min fetched \(0 swaps so far\)/);
     const shallow = state([point(2, 402), point(1, 403), point(0.5, 404)], { fromTime: NOW - 3 * MINUTE, backfilling: true, stoppedBy: null });
-    await expect(chainCandlesFor(ROW, "1m", deps(shallow, { livePrints: () => [print(0.1, 405, "0xlive")] }))).rejects.toThrow(/in progress: 3 of 404 min fetched \(3 swaps so far\)/);
+    await expect(chainCandlesFor(ROW, "1m", deps(shallow, { livePrints: () => [print(0.1, 405, "0xlive")] }))).rejects.toThrow(/in progress: 3 of 1682 min fetched \(3 swaps so far\)/);
     // a deepening run after an earlier stop is not a first fill: its bars stay on screen while it runs
     const deepening = await chainCandlesFor(ROW, "1m", deps(state([point(2, 402)], { fromTime: NOW - 3 * MINUTE, backfilling: true, stoppedBy: "depth" })));
     expect(deepening.candles).toHaveLength(1);
