@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { config, integrationStatus } from "../config.js";
+import { snapshotStatus } from "../persist/live.js";
+import { robinhoodRpcStats } from "../tape/robinhood/rpcPool.js";
 
 export const systemRouter = Router();
 
@@ -9,7 +11,9 @@ systemRouter.get("/health", (_request, response) => {
     service: "terminal-v-solana",
     network: "solana-mainnet",
     integrations: integrationStatus(),
-    now: new Date().toISOString()
+    now: new Date().toISOString(),
+    ...snapshotStatus(),
+    robinhoodRpc: robinhoodRpcStats()
   });
 });
 

@@ -1,0 +1,309 @@
+{
+ "_captured": "2026-09-07 IST; 30 items total, 16 chainId=robinhood kept verbatim; no symbol/price/volume fields",
+ "items": [
+  {
+   "url": "https://dexscreener.com/robinhood/0x0592c583eafc5e96bd16f8a2f5d367358461f1a9",
+   "chainId": "robinhood",
+   "tokenAddress": "0x0592c583eafc5e96bd16f8a2f5d367358461f1a9",
+   "icon": "https://cdn.dexscreener.com/cms/images/WhLx9rwunD78k77I?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/xQnmffXj0qBecVeW?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x0592c583eafc5e96bd16f8a2f5d367358461f1a9?timestamp=1788788400000",
+   "description": "Onchain mortgage markets. Stablecoin yield, backed by real estate credit.",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://www.stableyield.mortgage/"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/Stable_YieldRH"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x65bff5da8fd12f493738d6f1310f7bf402af3022",
+   "chainId": "robinhood",
+   "tokenAddress": "0x65bff5da8fd12f493738d6f1310f7bf402af3022",
+   "icon": "https://cdn.dexscreener.com/cms/images/fzsSuVpTayRzc9QZ?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/JG0Uo0bMBsp5eehD?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x65bff5da8fd12f493738d6f1310f7bf402af3022?timestamp=1788788400000",
+   "description": "A Meme Coin just hit 100M on robinhood chain. zero tech. a jpeg and a group chat.\n\nrespect. but i'm a dev, and i can't watch that and not build.\n\nso here's \n$TECH\n. A TECH COIN. the meme is that it actually ships.\n\nhow it works:\n- you go on the site and type \"i want a tech that\u2026\"\n- holders vote, the queue ranks itself\n- i build the top one and it lands on the page live. no announcement, no roadmap pdf, you just see it appear\n\nday one already shipped:\n- swap any coin on robinhood chain, best route across venues, right on the site\n- staking, stake \n$TECH\n earn \n$TECH\n, no lock, rewards stream every second\n- the request board + votes\n- the live tech feed\n\nand yes, we pay 500 boosts after bonding. that's budgeted, not a maybe.\n\na meme did 100M with no tech. imagine one with a dev who can't stop committing.",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://www.atcoin.family/"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/i/communities/2015156261436768350"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0xd8f9a3ae97d7097a6e24fe84be69f7a8e3525edf",
+   "chainId": "robinhood",
+   "tokenAddress": "0xd8f9a3ae97d7097a6e24fe84be69f7a8e3525edf",
+   "icon": "https://cdn.dexscreener.com/cms/images/XPvALUkMGqoWbJuE?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/_NeZ8XdN1xMfxlbZ?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0xd8f9a3ae97d7097a6e24fe84be69f7a8e3525edf?timestamp=1788788400000",
+   "description": "The RWA Infrastructure for Internet Businesses",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://buildr.family/"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/buildrdotfamily"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x78e80660e9a832f60dbfad1462ee7d9aa3c9bc34",
+   "chainId": "robinhood",
+   "tokenAddress": "0x78E80660E9A832F60dBfad1462eE7d9aA3c9BC34",
+   "icon": "https://cdn.dexscreener.com/cms/images/3nuP2XIAHMKx5W__?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/vSAsUi1XXrK5DoD2?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x78e80660e9a832f60dbfad1462ee7d9aa3c9bc34?timestamp=1788788400000",
+   "description": "The first $TAO paired meme coin on Robinhood. \nHold $TWIF, Earn $TAO.",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://taowifhood.com/"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/TaoWifHood"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x6c430703fed402496fb9cc58d6487f14294a6d16",
+   "chainId": "robinhood",
+   "tokenAddress": "0x6c430703fed402496fb9cc58d6487f14294a6d16",
+   "icon": "https://cdn.dexscreener.com/cms/images/1xwIqHQrHGfkI2qP?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/mYYFQM966r-CwQ5F?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x6c430703fed402496fb9cc58d6487f14294a6d16?timestamp=1788788400000",
+   "description": "A virtual card that turns your everyday spending into curated ETF baskets and builds your assets over time.",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://revestcard.cc/"
+    },
+    {
+     "label": "Docs",
+     "url": "https://revestcard.cc/docs"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/useRevestCard"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x67bbed4295aa98b0399160079eef7b43c7a38eb9",
+   "chainId": "robinhood",
+   "tokenAddress": "0x67bbED4295aa98B0399160079eeF7b43c7a38eB9",
+   "icon": "https://cdn.dexscreener.com/cms/images/DcwsPeWMDVi8Q4J-?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/78BisNWcDWFcuD39?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x67bbed4295aa98b0399160079eef7b43c7a38eb9?timestamp=1788788400000",
+   "description": "Graphrun",
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0xc5771296bf209c8426b811c29c24f3bd639a570b",
+   "chainId": "robinhood",
+   "tokenAddress": "0xc5771296bf209c8426b811c29c24f3bd639a570b",
+   "icon": "https://cdn.dexscreener.com/cms/images/fmc6D1zRS0INfMBi?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/Tm0wJIr4uEKscm6i?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0xc5771296bf209c8426b811c29c24f3bd639a570b?timestamp=1788788400000",
+   "description": "Launch coins paired with materials. Gold, silver, oil and more. Built on Robinhood Chain.",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://www.materialpad.org/"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/materialpad"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x4dbb51a72ab680daddea5eb6a1e6c43552e9a5ee",
+   "chainId": "robinhood",
+   "tokenAddress": "0x4dBb51a72ab680DadDEA5Eb6A1e6c43552e9a5EE",
+   "icon": "https://cdn.dexscreener.com/cms/images/maVov8_39YZbI4La?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/c-lY0SeALIMi4mw_?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x4dbb51a72ab680daddea5eb6a1e6c43552e9a5ee?timestamp=1788788400000",
+   "description": "Infrastructure for living agents on Robinhood Chain.",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://autopons.ai/"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/autoponsai"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0xb37bb72725ff0e0a08be1b0942dab0d61f66cf05",
+   "chainId": "robinhood",
+   "tokenAddress": "0xb37bb72725ff0e0a08be1b0942dab0d61f66cf05",
+   "icon": "https://cdn.dexscreener.com/cms/images/pBbhy0MMJwz33Uh7?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/B6bqaOeVdeDCcgrz?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0xb37bb72725ff0e0a08be1b0942dab0d61f66cf05?timestamp=1788788400000",
+   "description": "The First parlay market on Robinhood Chain.\nBuild your picks. Combine outcomes. Play the market. Win USDG",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://www.useparlay.fun/"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/ParlayyDotFun"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0xd22183a69d60c6377c6b600c855699f84afa52c1",
+   "chainId": "robinhood",
+   "tokenAddress": "0xd22183a69d60c6377c6b600c855699f84afa52c1",
+   "icon": "https://cdn.dexscreener.com/cms/images/T7czsjxYOlJPZRZP?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/MXRXY3riNaeLeTNO?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0xd22183a69d60c6377c6b600c855699f84afa52c1?timestamp=1788788400000",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://scionpad.com/"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/scionpad"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x92e04a2812ce9bbc6ccc01f933a585d07441388d",
+   "chainId": "robinhood",
+   "tokenAddress": "0x92e04a2812ce9bbc6ccc01f933a585d07441388d",
+   "icon": "https://cdn.dexscreener.com/cms/images/6ISsW-0NpjFApRif?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/QKAvKC7X-9e_UqQH?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x92e04a2812ce9bbc6ccc01f933a585d07441388d?timestamp=1788788400000",
+   "description": "F1 on Pons. The first Grand Prix on Pons.\n\nWeekly rounds. A slice of the fees from every $F1 trade goes into the pot. At the chequered flag the top 10 wallets by balance are the grid, and the pot is paid in ETH on F1 points: 25, 18, 15, 12, 10, 8, 6, 4, 2, 1. Nothing to stake, nothing to claim. It lands in the wallet.\n\nLive grid, live pot, a season table, every payout a transaction you can check. The CA exists in two places only: the site homepage and the official X account.",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://www.f1onpons.com/"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/f1onpons"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0xffb6fdc59c5a47e414ee5869b050f249d7699152",
+   "chainId": "robinhood",
+   "tokenAddress": "0xffb6fdc59c5a47e414ee5869b050f249d7699152",
+   "icon": "https://cdn.dexscreener.com/cms/images/G2TZAqKqMB5q8VTr?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/cnlnDEQ4ZidZiJTP?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0xffb6fdc59c5a47e414ee5869b050f249d7699152?timestamp=1788788400000",
+   "description": "The Origin of Robinhood which placed around 13 years ago !",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://www.youtube.com/live/-5C6aQrTPYs?si=LQU0wQztDKVuDBb5"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/CryptoCutchy/status/2095992366557470832?s=20"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x8145424f55e2296aa83f4e98c8b24f30af6f2a95",
+   "chainId": "robinhood",
+   "tokenAddress": "0x8145424f55E2296Aa83F4e98C8b24f30af6f2A95",
+   "icon": "https://cdn.dexscreener.com/cms/images/3e6vx6jPi_d_jCiR?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/LBB-H60-TNXE_qRO?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x8145424f55e2296aa83f4e98c8b24f30af6f2a95?timestamp=1788788400000",
+   "description": "AI that generates websites for any Pons token",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://httpshosting.site/site/dr56yx5f"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/httpsdotfamily"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x791e750fa8b2237288a6fe6c47ea81c50093449a",
+   "chainId": "robinhood",
+   "tokenAddress": "0x791E750fa8B2237288A6FE6c47Ea81C50093449A",
+   "icon": "https://cdn.dexscreener.com/cms/images/fuJQbTbJm0PkBYY4?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/zoECNm9wb6na25gm?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x791e750fa8b2237288a6fe6c47ea81c50093449a?timestamp=1788788400000",
+   "description": "the first meme ever created by a cyborg using his thoughts by the power of using neuro technology.",
+   "links": [
+    {
+     "type": "twitter",
+     "url": "https://x.com/calicoinrh"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x3ecd371be00c7547dfc676e4c7a55b917f94576e",
+   "chainId": "robinhood",
+   "tokenAddress": "0x3Ecd371be00c7547dFC676e4C7A55b917f94576e",
+   "icon": "https://cdn.dexscreener.com/cms/images/p7QwLfRg4AI33mx5?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/qG3MueEUJ8KFLYLc?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x3ecd371be00c7547dfc676e4c7a55b917f94576e?timestamp=1788788400000",
+   "links": [
+    {
+     "type": "twitter",
+     "url": "https://x.com/Calico_RH"
+    }
+   ],
+   "cto": false
+  },
+  {
+   "url": "https://dexscreener.com/robinhood/0x8a13bb78161f55beaeaea0203b7e66113678be80",
+   "chainId": "robinhood",
+   "tokenAddress": "0x8a13Bb78161F55bEaEAEa0203B7e66113678Be80",
+   "icon": "https://cdn.dexscreener.com/cms/images/AThhF8ZaLtOj2wUo?width=64&height=64&fit=crop&quality=95&format=auto",
+   "header": "https://cdn.dexscreener.com/cms/images/m5Swa99yFcg4LS7M?width=600&height=200&fit=crop&quality=95&format=auto",
+   "openGraph": "https://cdn.dexscreener.com/token-images/og/robinhood/0x8a13bb78161f55beaeaea0203b7e66113678be80?timestamp=1788788400000",
+   "description": "Elon Musk posted about a new meme coin called XYZ, and its golden pixelated logo looks like a classic video game coin.",
+   "links": [
+    {
+     "label": "Website",
+     "url": "https://www.youtube.com/watch?v=mGLZRuqcYX0&t=63s"
+    },
+    {
+     "type": "twitter",
+     "url": "https://x.com/heisenberg83/status/2091409579586253062"
+    }
+   ],
+   "cto": false
+  }
+ ]
+}

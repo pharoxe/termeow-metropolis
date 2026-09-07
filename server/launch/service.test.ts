@@ -338,6 +338,7 @@ function service(overrides: Partial<ConstructorParameters<typeof LaunchService>[
     fetchBoosts: async () => [],
     fetchTokenBatches: async () => new Map() as TokenBatch,
     fetchTrenchTokens: async () => trenchResult([]),
+    erc20Meta: { resolve: async () => null },
     refreshMs: 60_000,
     ...overrides
   });
@@ -512,7 +513,7 @@ describe("LaunchService discovery and enrichment", () => {
     const byName = new Map(svc.status().sources.map((source) => [source.name, source]));
     expect(byName.get(ROBINHOOD_LAUNCH_SOURCE)).toEqual({ name: ROBINHOOD_LAUNCH_SOURCE, lastOkAt: NOW - 100, lastError: null });
     expect(byName.get(PUMPPORTAL_SOURCE)).toEqual({ name: PUMPPORTAL_SOURCE, lastOkAt: NOW - 50, lastError: null });
-    expect(svc.status().sources).toHaveLength(6);
+    expect(svc.status().sources).toHaveLength(7);
     svc.stop();
   });
 });

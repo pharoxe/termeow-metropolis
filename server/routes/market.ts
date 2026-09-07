@@ -6,11 +6,14 @@ import { getOnchainMarket } from "../clawpump/market.js";
 import { errorMessage } from "../lib/http.js";
 import { emptyMarketResponse } from "../market/envelope.js";
 import { ROBINHOOD_MARKET_SOURCE, assembleRobinhoodMarket } from "../market/robinhood.js";
+import { liveChainCandles } from "../market/robinhood/live.js";
 import { adaptSolanaMarket } from "../market/solana.js";
 import { getTokenPairs, rawTokenPairs } from "../sources/dexscreener.js";
 import { GECKO_OHLCV_INTERVALS, geckoPoolOhlcv, type GeckoOhlcvInterval } from "../sources/gecko.js";
 
 export const MARKET_CACHE_TTL_MS = 45_000;
+/** R6: while the chain backfill is still running the answer changes every few seconds, so it is re-read sooner. */
+export const MARKET_BACKFILLING_TTL_MS = 5_000;
 export const SOLANA_MARKET_SOURCE = "ClawPump + on-chain fallback";
 const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
@@ -66,7 +69,8 @@ function robinhoodFallback(key: string, params: MarketParams, deps: MarketRouteD
 function robinhoodMarket(params: MarketParams, deps: MarketRouteDeps): Promise<MarketResponse> {
   const key = `${params.address}:${params.interval}`;
   const cached = robinhoodCache.get(key);
-  if (cached && deps.now() - cached.observedAt < MARKET_CACHE_TTL_MS) return Promise.resolve(cached);
+  const ttl = cached?.candleSource?.coverage.backfilling ? MARKET_BACKFILLING_TTL_MS : MARKET_CACHE_TTL_MS;
+  if (cached && deps.now() - cached.observedAt < ttl) return Promise.resolve(cached);
   const pending = robinhoodInflight.get(key);
   if (pending) return pending;
   const request = deps
@@ -102,7 +106,7 @@ export function createMarketRouter(deps: MarketRouteDeps): Router {
 const liveDeps: MarketRouteDeps = {
   getOnchainMarket,
   assembleRobinhoodMarket: (address, interval) =>
-    assembleRobinhoodMarket(address, interval, { getTokenPairs, geckoPoolOhlcv, fetchDexPairsRaw: rawTokenPairs }),
+    assembleRobinhoodMarket(address, interval, { getTokenPairs, geckoPoolOhlcv, fetchDexPairsRaw: rawTokenPairs, chainCandles: liveChainCandles }),
   now: () => Date.now()
 };
 

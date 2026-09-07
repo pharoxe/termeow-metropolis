@@ -1,4 +1,5 @@
 import { errorMessage } from "../../lib/http.js";
+import { robinhoodRpcFetch } from "./rpcPool.js";
 
 export const RPC_TIMEOUT_MS = 15_000;
 const REVERT_CODE = 3;
@@ -42,7 +43,7 @@ export async function evmRpc(
   rpcUrl: string,
   method: string,
   params: unknown[],
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch = robinhoodRpcFetch,
   timeoutMs = RPC_TIMEOUT_MS
 ): Promise<unknown> {
   const controller = new AbortController();

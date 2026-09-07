@@ -43,4 +43,9 @@ export class LruMap<K, V> {
   values(): IterableIterator<V> {
     return this.entries.values();
   }
+
+  /** Oldest first (the LRU order), so re-inserting in this order rebuilds the same eviction order. */
+  entriesOldestFirst(): IterableIterator<[K, V]> {
+    return this.entries.entries();
+  }
 }

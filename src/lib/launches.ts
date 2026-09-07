@@ -93,6 +93,18 @@ export function fomoBuyer(row: Pick<LaunchRow, "tracked">, now: number): FomoBuy
   return { handle: `@${buyer.handle.replace(/^@/, "")}`, title: `@${buyer.handle} · ${followers} · first buy ${printAgeLabel(buyer.at, now)} ago · FOMO first buyer · ${FOMO_POPULATION}` };
 }
 
+/** Second line under the symbol: the name when a source gave one, else the sources that vouch for the row (never blank). */
+export function rowSubtitle(row: Pick<LaunchRow, "name" | "sources">): string {
+  const name = row.name?.trim();
+  if (name) return name;
+  return row.sources.length ? `no name yet · ${row.sources.join(" · ")}` : "no name yet";
+}
+
+/** Initial chain chip follows the ROBINHOOD/SOLANA toggle so the Robinhood rows are not buried under pump.fun ones. */
+export function defaultChip(network: "robinhood" | "solana"): ChainChip {
+  return network === "robinhood" ? "RH" : "ALL";
+}
+
 export function isHoneypot(row: Pick<LaunchRow, "tracked">): boolean {
   return row.tracked?.honeypot === true;
 }

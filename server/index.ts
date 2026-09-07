@@ -12,8 +12,12 @@ import { marketRouter } from "./routes/market.js";
 import { launchesRouter } from "./routes/launches.js";
 import { fomoRouter } from "./routes/fomo.js";
 import { liveAlertsRouter } from "./routes/alerts.js";
+import { discoverRouter } from "./routes/discover.js";
 import { clawpumpMcp } from "./clawpump/mcp.js";
 import { errorMessage, UpstreamError } from "./lib/http.js";
+import { installSnapshots } from "./persist/live.js";
+
+const snapshots = installSnapshots();
 
 const app = express();
 app.disable("x-powered-by");
@@ -29,6 +33,7 @@ app.use("/api/market", marketRouter);
 app.use("/api/launches", launchesRouter);
 app.use("/api/fomo", fomoRouter);
 app.use("/api/alerts", liveAlertsRouter());
+app.use("/api/discover", discoverRouter);
 
 if (config.nodeEnv === "production") {
   const dist = path.resolve(process.cwd(), "dist");
@@ -67,6 +72,7 @@ server.on("error", (error) => {
 });
 
 async function shutdown() {
+  snapshots.saveAll("shutdown");
   server.close();
   await clawpumpMcp.close();
   process.exit(0);

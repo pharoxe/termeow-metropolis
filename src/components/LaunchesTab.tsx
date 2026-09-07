@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import type { LaunchRow, LaunchesResponse } from "../../shared/wire";
 import { api } from "../api/client";
 import type { InstrumentRef } from "../lib/address";
+import { useFundingNetwork } from "../features/NetworkContext";
 import {
   CHAIN_CHIPS,
   LAUNCH_POLL_MS,
   chainLabel,
   coldCopy,
   curveCounts,
+  defaultChip,
   filterByChip,
   fomoBuyer,
   isHoneypot,
@@ -18,6 +20,7 @@ import {
   padLabel,
   priceAgeTitle,
   rowKey,
+  rowSubtitle,
   sortNewestFirst,
   symbolLabel,
   type ChainChip
@@ -27,10 +30,11 @@ type OpenLaunch = (ref: InstrumentRef, symbol?: string) => void;
 
 function LaunchRowItem({ row, now, selected, onOpen }: { row: LaunchRow; now: number; selected?: string; onOpen?: OpenLaunch }) {
   const buyer = fomoBuyer(row, now);
+  const selectedRow = row.chain === "robinhood" ? row.token.toLowerCase() === selected?.toLowerCase() : row.token === selected;
   return (
-    <tr className={row.token === selected ? "selected" : ""} title={row.token} onClick={() => onOpen?.({ chain: row.chain, address: row.token }, row.symbol ?? undefined)}>
+    <tr className={selectedRow ? "selected" : ""} title={row.token} onClick={() => onOpen?.({ chain: row.chain, address: row.token }, row.symbol ?? undefined)}>
       <td><b>{launchAge(row, now)}</b><small><span className="chip">{chainLabel(row.chain)}</span><span className="chip">{padLabel(row.launchpad)}</span>{row.graduatedAt ? <span className="chip good">GRAD</span> : null}</small></td>
-      <td><b>{symbolLabel(row)}</b>{isHoneypot(row) ? <span className="chip bad" title="honeypot flag · robinhoodtrenches">HONEYPOT</span> : null}<small>{row.name ?? "—"}</small></td>
+      <td><b>{symbolLabel(row)}</b>{isHoneypot(row) ? <span className="chip bad" title="honeypot flag · robinhoodtrenches">HONEYPOT</span> : null}<small title={row.sources.join(" · ")}>{rowSubtitle(row)}</small></td>
       <td className="r" title={priceAgeTitle(row, now)}><b className="mcap-value">{launchMcap(row)}</b><small>{launchPrice(row)}</small></td>
       <td className="r"><b>{curveCounts(row)}</b><small title={buyer?.title}>{buyer ? buyer.handle : "—"}</small></td>
     </tr>
@@ -39,7 +43,9 @@ function LaunchRowItem({ row, now, selected, onOpen }: { row: LaunchRow; now: nu
 
 /** WatchPanel LAUNCHES tab: polls /api/launches every 15s; chips filter chain, STOCKS reveals tokenised stocks. */
 export function LaunchesTab({ onOpen, selected }: { onOpen?: OpenLaunch; selected?: string }) {
-  const [chip, setChip] = useState<ChainChip>("ALL");
+  const { network } = useFundingNetwork();
+  const [chip, setChip] = useState<ChainChip>(() => defaultChip(network));
+  useEffect(() => { setChip(defaultChip(network)); }, [network]);
   const [stocks, setStocks] = useState(false);
   const [feed, setFeed] = useState<LaunchesResponse | null>(null);
   const [failure, setFailure] = useState("");

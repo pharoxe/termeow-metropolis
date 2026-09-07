@@ -1,5 +1,6 @@
 # live stores
 data/
+.cache/
 node_modules/
 dist/
 coverage/

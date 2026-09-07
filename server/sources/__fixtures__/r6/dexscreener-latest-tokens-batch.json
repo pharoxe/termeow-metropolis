@@ -1,0 +1,1841 @@
+{
+ "_captured": "2026-09-07 IST; GET /latest/dex/tokens/<10 comma-joined robinhood addresses> one call; 30 pairs for 9 distinct base tokens (1 address unlisted); info{} stripped",
+ "requested": [
+  "0xFd1c237B46D03a614EBd69a51455Dce3a0cE4487",
+  "0x56E82e94B1354C771f5901E4Af7eE4F1b08d4011",
+  "0xb5379Df00F8DDf88209eae1a69eA37087e83647e",
+  "0xBD2caaBa4dea522D4b0ec20f3deFeD6151B663Ae",
+  "0x96abd983C8EA716cE22c96d23c2B47e7d43f50Cd",
+  "0x69eD124e3D013B06e05aeeF5E6B784Ac4AB20197",
+  "0x78fC7E13BCCab8a7aedc5b8465C3442d6D7D9d64",
+  "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+  "0xD97460101c3aaD03a0E69E7A82587aA4CF1dACB8",
+  "0x3Ecd371be00c7547dFC676e4C7A55b917f94576e"
+ ],
+ "schemaVersion": "1.0.0",
+ "pairs": [
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xc0552ac30c13d77b9dfd3a04738670c7d041f98ebdd603485cce37de07751fc1",
+   "pairAddress": "0xc0552ac30c13d77b9dfd3a04738670c7d041f98ebdd603485cce37de07751fc1",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0x56E82e94B1354C771f5901E4Af7eE4F1b08d4011",
+    "name": "MarsCoin",
+    "symbol": "MARSCOIN"
+   },
+   "quoteToken": {
+    "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+    "name": "Space Exploration Technologies Corp. Class A Common Stock \u2022 Robinhood Token",
+    "symbol": "SPCX"
+   },
+   "priceNative": "0.0000003202",
+   "priceUsd": "0.00004838",
+   "txns": {
+    "m5": {
+     "buys": 5,
+     "sells": 1
+    },
+    "h1": {
+     "buys": 26,
+     "sells": 30
+    },
+    "h6": {
+     "buys": 325,
+     "sells": 221
+    },
+    "h24": {
+     "buys": 3201,
+     "sells": 2420
+    }
+   },
+   "volume": {
+    "h24": 493866.75,
+    "h6": 48584.02,
+    "h1": 3895.6,
+    "m5": 417.65
+   },
+   "priceChange": {
+    "m5": 6.26,
+    "h1": -17,
+    "h6": -52.63,
+    "h24": -11.13
+   },
+   "liquidity": {
+    "usd": 20757.61,
+    "base": 214497626,
+    "quote": 68.6939
+   },
+   "fdv": 48387,
+   "marketCap": 48387,
+   "pairCreatedAt": 1788703544000,
+   "boosts": {
+    "active": 500
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xd903709cfddf776aa8bd258544f0a3cbb5298b6a7a70018bfbce268d671b0526",
+   "pairAddress": "0xd903709cfddf776aa8bd258544f0a3cbb5298b6a7a70018bfbce268d671b0526",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xFd1c237B46D03a614EBd69a51455Dce3a0cE4487",
+    "name": "What can I lose",
+    "symbol": "WHATC"
+   },
+   "quoteToken": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "name": "Ether",
+    "symbol": "ETH"
+   },
+   "priceNative": "0.000000001733",
+   "priceUsd": "0.000004333",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 2
+    },
+    "h1": {
+     "buys": 2,
+     "sells": 6
+    },
+    "h6": {
+     "buys": 23,
+     "sells": 28
+    },
+    "h24": {
+     "buys": 18833,
+     "sells": 7924
+    }
+   },
+   "volume": {
+    "h24": 2720801.54,
+    "h6": 1295.01,
+    "h1": 291.01,
+    "m5": 24.02
+   },
+   "priceChange": {
+    "m5": -1.56,
+    "h1": -3.19,
+    "h6": -23.92,
+    "h24": -92.34
+   },
+   "liquidity": {
+    "usd": 6093.67,
+    "base": 703153141,
+    "quote": 1.2189
+   },
+   "fdv": 4333,
+   "marketCap": 4333,
+   "pairCreatedAt": 1788707145000,
+   "boosts": {
+    "active": 500
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x79a8e6e4b929d55f4028573513e5a4f77806c0ecd607e7c3d068b7a11cfa022f",
+   "pairAddress": "0x79a8e6e4b929d55f4028573513e5a4f77806c0ecd607e7c3d068b7a11cfa022f",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xb5379Df00F8DDf88209eae1a69eA37087e83647e",
+    "name": "Open Secure AI Alliance",
+    "symbol": "$OSAI"
+   },
+   "quoteToken": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "name": "Ether",
+    "symbol": "ETH"
+   },
+   "priceNative": "0.000000003419",
+   "priceUsd": "0.000008546",
+   "txns": {
+    "m5": {
+     "buys": 1,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 17,
+     "sells": 9
+    },
+    "h6": {
+     "buys": 441,
+     "sells": 708
+    },
+    "h24": {
+     "buys": 2505,
+     "sells": 934
+    }
+   },
+   "volume": {
+    "h24": 189548.09,
+    "h6": 90233.9,
+    "h1": 23.52,
+    "m5": 0
+   },
+   "priceChange": {
+    "m5": -0.36,
+    "h1": 0.7,
+    "h6": -98.54,
+    "h24": -16.27
+   },
+   "liquidity": {
+    "usd": 8420.2,
+    "base": 861465855,
+    "quote": 0.4231
+   },
+   "fdv": 8546,
+   "marketCap": 8546,
+   "pairCreatedAt": 1788724853000,
+   "boosts": {
+    "active": 500
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x24c65014991e23383da21f9081f99c6e4bc128bbd4075c1b7d67a7e44efa4f2e",
+   "pairAddress": "0x24c65014991e23383da21f9081f99c6e4bc128bbd4075c1b7d67a7e44efa4f2e",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+    "name": "GameStop \u2022 Robinhood Token",
+    "symbol": "GME"
+   },
+   "priceNative": "0.0001828",
+   "priceUsd": "0.003535",
+   "txns": {
+    "m5": {
+     "buys": 17,
+     "sells": 26
+    },
+    "h1": {
+     "buys": 265,
+     "sells": 304
+    },
+    "h6": {
+     "buys": 2035,
+     "sells": 2104
+    },
+    "h24": {
+     "buys": 12180,
+     "sells": 10785
+    }
+   },
+   "volume": {
+    "h24": 8077095.26,
+    "h6": 1420531.32,
+    "h1": 184473.27,
+    "m5": 17106.3
+   },
+   "priceChange": {
+    "m5": -7.61,
+    "h1": -14.35,
+    "h6": -27.82,
+    "h24": 902
+   },
+   "liquidity": {
+    "usd": 143498.72,
+    "base": 20291135,
+    "quote": 3711.2818
+   },
+   "fdv": 3535629,
+   "marketCap": 3535629,
+   "pairCreatedAt": 1788494850000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x2f2097955cefdf46143066a3c84833ebc566e74786e87ac2d5f481dc4eece28a",
+   "pairAddress": "0x2f2097955cefdf46143066a3c84833ebc566e74786e87ac2d5f481dc4eece28a",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0x96abd983C8EA716cE22c96d23c2B47e7d43f50Cd",
+    "name": "WHITEHAT",
+    "symbol": "WHITEHAT"
+   },
+   "quoteToken": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "name": "Ether",
+    "symbol": "ETH"
+   },
+   "priceNative": "0.00000006562",
+   "priceUsd": "0.0001640",
+   "txns": {
+    "m5": {
+     "buys": 47,
+     "sells": 3
+    },
+    "h1": {
+     "buys": 803,
+     "sells": 46
+    },
+    "h6": {
+     "buys": 910,
+     "sells": 58
+    },
+    "h24": {
+     "buys": 910,
+     "sells": 58
+    }
+   },
+   "volume": {
+    "h24": 39876.52,
+    "h6": 39876.52,
+    "h1": 17644.06,
+    "m5": 476.03
+   },
+   "priceChange": {
+    "m5": 0.8,
+    "h1": 95.06,
+    "h6": 1243,
+    "h24": 1243
+   },
+   "liquidity": {
+    "usd": 57978.04,
+    "base": 195859190,
+    "quote": 10.3409
+   },
+   "fdv": 164042,
+   "marketCap": 164042,
+   "pairCreatedAt": 1788784836000,
+   "boosts": {
+    "active": 500
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xc222b60a125472f974b2e9192413648bd678dbc5e1dbcca3d0bf349e99bb211a",
+   "pairAddress": "0xc222b60a125472f974b2e9192413648bd678dbc5e1dbcca3d0bf349e99bb211a",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xBD2caaBa4dea522D4b0ec20f3deFeD6151B663Ae",
+    "name": "NUTSAQ 100",
+    "symbol": "NUTSAQ"
+   },
+   "quoteToken": {
+    "address": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+    "name": "Invesco QQQ \u2022 Robinhood Token",
+    "symbol": "QQQ"
+   },
+   "priceNative": "0.00000001424",
+   "priceUsd": "0.00001036",
+   "txns": {
+    "m5": {
+     "buys": 1,
+     "sells": 1
+    },
+    "h1": {
+     "buys": 17,
+     "sells": 21
+    },
+    "h6": {
+     "buys": 369,
+     "sells": 325
+    },
+    "h24": {
+     "buys": 1598,
+     "sells": 1637
+    }
+   },
+   "volume": {
+    "h24": 194711.29,
+    "h6": 44185.03,
+    "h1": 2568.17,
+    "m5": 52.27
+   },
+   "priceChange": {
+    "m5": 2.29,
+    "h1": -1.8,
+    "h6": -17.15,
+    "h24": -74.13
+   },
+   "liquidity": {
+    "usd": 8284.48,
+    "base": 399650167,
+    "quote": 5.6919
+   },
+   "fdv": 10261,
+   "marketCap": 10261,
+   "pairCreatedAt": 1788762507000,
+   "boosts": {
+    "active": 500
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x549fab1f057cb58de436477227cfe2ca578879f4cafd02edd2e1d004c40dde5d",
+   "pairAddress": "0x549fab1f057cb58de436477227cfe2ca578879f4cafd02edd2e1d004c40dde5d",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xD97460101c3aaD03a0E69E7A82587aA4CF1dACB8",
+    "name": "cyberbeer",
+    "symbol": "cyberbeer"
+   },
+   "quoteToken": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "name": "Ether",
+    "symbol": "ETH"
+   },
+   "priceNative": "0.000000001530",
+   "priceUsd": "0.000003835",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 3
+    },
+    "h6": {
+     "buys": 2160,
+     "sells": 3173
+    },
+    "h24": {
+     "buys": 11909,
+     "sells": 9911
+    }
+   },
+   "volume": {
+    "h24": 1935061.38,
+    "h6": 232609,
+    "h1": 38.09,
+    "m5": 0
+   },
+   "priceChange": {
+    "h1": -1.96,
+    "h6": -95.14,
+    "h24": -92.58
+   },
+   "liquidity": {
+    "usd": 5741.37,
+    "base": 748390100,
+    "quote": 1.1453
+   },
+   "fdv": 3836,
+   "marketCap": 3836,
+   "pairCreatedAt": 1788761877000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x769f770670a866f111e63509388f00620588cb506b5a43bf6d29a2222decba14",
+   "pairAddress": "0x769f770670a866f111e63509388f00620588cb506b5a43bf6d29a2222decba14",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0x69eD124e3D013B06e05aeeF5E6B784Ac4AB20197",
+    "name": "kofuku",
+    "symbol": "KOFUKU"
+   },
+   "quoteToken": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "name": "Ether",
+    "symbol": "ETH"
+   },
+   "priceNative": "0.00000001837",
+   "priceUsd": "0.00004594",
+   "txns": {
+    "m5": {
+     "buys": 2,
+     "sells": 3
+    },
+    "h1": {
+     "buys": 49,
+     "sells": 68
+    },
+    "h6": {
+     "buys": 910,
+     "sells": 773
+    },
+    "h24": {
+     "buys": 910,
+     "sells": 773
+    }
+   },
+   "volume": {
+    "h24": 149345.08,
+    "h6": 149345.08,
+    "h1": 10823.83,
+    "m5": 261.65
+   },
+   "priceChange": {
+    "m5": 2.77,
+    "h1": -15.36,
+    "h6": -10.47,
+    "h24": -10.47
+   },
+   "liquidity": {
+    "usd": 19842.58,
+    "base": 215957123,
+    "quote": 3.969
+   },
+   "fdv": 38288,
+   "marketCap": 38288,
+   "pairCreatedAt": 1788769431000,
+   "boosts": {
+    "active": 110
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x1bb316b994abd0cce3db22c5bd83024b420f59e0ad6e54b298e340416f0f58c5",
+   "pairAddress": "0x1bb316b994abd0cce3db22c5bd83024b420f59e0ad6e54b298e340416f0f58c5",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0x3Ecd371be00c7547dFC676e4C7A55b917f94576e",
+    "name": "Calico Cat",
+    "symbol": "CALICO"
+   },
+   "quoteToken": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "name": "Ether",
+    "symbol": "ETH"
+   },
+   "priceNative": "0.000000001718",
+   "priceUsd": "0.000004296",
+   "txns": {
+    "m5": {
+     "buys": 12,
+     "sells": 2947
+    },
+    "h1": {
+     "buys": 6547,
+     "sells": 5863
+    },
+    "h6": {
+     "buys": 6547,
+     "sells": 5863
+    },
+    "h24": {
+     "buys": 6547,
+     "sells": 5863
+    }
+   },
+   "volume": {
+    "h24": 749398.82,
+    "h6": 749398.82,
+    "h1": 749398.82,
+    "m5": 5858.46
+   },
+   "priceChange": {
+    "m5": -87.27,
+    "h1": -91.8,
+    "h6": -91.8,
+    "h24": -91.8
+   },
+   "liquidity": {
+    "usd": 6067.96,
+    "base": 706192580,
+    "quote": 1.2137
+   },
+   "fdv": 4296,
+   "marketCap": 4296,
+   "pairCreatedAt": 1788785681000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xb40837244b8f80978fd90579db89a1cd3de651fbf9c4dea6f5346f611a2a67e3",
+   "pairAddress": "0xb40837244b8f80978fd90579db89a1cd3de651fbf9c4dea6f5346f611a2a67e3",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003643",
+   "priceUsd": "0.003644",
+   "txns": {
+    "m5": {
+     "buys": 1,
+     "sells": 12
+    },
+    "h1": {
+     "buys": 66,
+     "sells": 112
+    },
+    "h6": {
+     "buys": 551,
+     "sells": 554
+    },
+    "h24": {
+     "buys": 3206,
+     "sells": 2815
+    }
+   },
+   "volume": {
+    "h24": 2422289.27,
+    "h6": 638850.98,
+    "h1": 145978.34,
+    "m5": 13389.85
+   },
+   "priceChange": {
+    "m5": -7.3,
+    "h1": -12.06,
+    "h6": -25.71,
+    "h24": 905
+   },
+   "liquidity": {
+    "usd": 221528.4,
+    "base": 20432369,
+    "quote": 147020
+   },
+   "fdv": 3644293,
+   "marketCap": 3644293,
+   "pairCreatedAt": 1788500687000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x216421c5178cf0231d7fa4befab41702ef06a790573b701dc656732514fa7f25",
+   "pairAddress": "0x216421c5178cf0231d7fa4befab41702ef06a790573b701dc656732514fa7f25",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003086",
+   "priceUsd": "0.003086",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 6,
+     "sells": 3
+    }
+   },
+   "volume": {
+    "h24": 1146.57,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": 3.86
+   },
+   "liquidity": {
+    "usd": 4999.39,
+    "base": 0.001013,
+    "quote": 4999.9999
+   },
+   "fdv": 3086152,
+   "marketCap": 3086152,
+   "pairCreatedAt": 1788723447000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x2c5f3e95bdde97e8b886b0bc98efa947753918d0dade395650f068c305c417f1",
+   "pairAddress": "0x2c5f3e95bdde97e8b886b0bc98efa947753918d0dade395650f068c305c417f1",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003117",
+   "priceUsd": "0.003115",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 52,
+     "sells": 41
+    }
+   },
+   "volume": {
+    "h24": 5854.35,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": -17.15
+   },
+   "liquidity": {
+    "usd": 4899.53,
+    "base": 293672,
+    "quote": 3986.5306
+   },
+   "fdv": 3115829,
+   "marketCap": 3115829,
+   "pairCreatedAt": 1788723756000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xb7020453430fd8487bad89814f5b6985885f26e1db5c9b1f6e04d142d7de1de9",
+   "pairAddress": "0xb7020453430fd8487bad89814f5b6985885f26e1db5c9b1f6e04d142d7de1de9",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.004707",
+   "priceUsd": "0.004703",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 3,
+     "sells": 4
+    },
+    "h24": {
+     "buys": 3,
+     "sells": 4
+    }
+   },
+   "volume": {
+    "h24": 611.28,
+    "h6": 611.28,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h6": -2.78,
+    "h24": -2.78
+   },
+   "liquidity": {
+    "usd": 2993.07,
+    "base": 44510,
+    "quote": 2785.5502
+   },
+   "fdv": 4703931,
+   "marketCap": 4703931,
+   "pairCreatedAt": 1788767113000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x448a1a7916d9634425089155a5018720754f239fbba2f88ff11ccf7e73cefa88",
+   "pairAddress": "0x448a1a7916d9634425089155a5018720754f239fbba2f88ff11ccf7e73cefa88",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003673",
+   "priceUsd": "0.003678",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 3
+    },
+    "h1": {
+     "buys": 6,
+     "sells": 12
+    },
+    "h6": {
+     "buys": 6,
+     "sells": 12
+    },
+    "h24": {
+     "buys": 6,
+     "sells": 12
+    }
+   },
+   "volume": {
+    "h24": 475.52,
+    "h6": 475.52,
+    "h1": 475.52,
+    "m5": 79.32
+   },
+   "priceChange": {
+    "m5": -6.82,
+    "h1": -14.7,
+    "h6": -14.7,
+    "h24": -14.7
+   },
+   "liquidity": {
+    "usd": 1277.76,
+    "base": 59211,
+    "quote": 1058.6687
+   },
+   "fdv": 3678230,
+   "marketCap": 3678230,
+   "pairCreatedAt": 1788785088000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xf2fd48691c5b75935f9828417d12e4ce36cc2b2568ee6c1d0d6a56c4b22f2763",
+   "pairAddress": "0xf2fd48691c5b75935f9828417d12e4ce36cc2b2568ee6c1d0d6a56c4b22f2763",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003641",
+   "priceUsd": "0.003645",
+   "txns": {
+    "m5": {
+     "buys": 2,
+     "sells": 4
+    },
+    "h1": {
+     "buys": 25,
+     "sells": 51
+    },
+    "h6": {
+     "buys": 227,
+     "sells": 243
+    },
+    "h24": {
+     "buys": 1308,
+     "sells": 1322
+    }
+   },
+   "volume": {
+    "h24": 208096.1,
+    "h6": 40124.31,
+    "h1": 7820.55,
+    "m5": 793.41
+   },
+   "priceChange": {
+    "m5": -7.21,
+    "h1": -12.32,
+    "h6": -23.99,
+    "h24": 947
+   },
+   "liquidity": {
+    "usd": 22260.33,
+    "base": 829960,
+    "quote": 19210
+   },
+   "fdv": 3645587,
+   "marketCap": 3645587,
+   "pairCreatedAt": 1788508771000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xaaecff2a6f0ddad32285ae34e5520570e9ce2c691faf601904c9b0fd1b440bed",
+   "pairAddress": "0xaaecff2a6f0ddad32285ae34e5520570e9ce2c691faf601904c9b0fd1b440bed",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003911",
+   "priceUsd": "0.003916",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 2
+    },
+    "h1": {
+     "buys": 4,
+     "sells": 12
+    },
+    "h6": {
+     "buys": 28,
+     "sells": 41
+    },
+    "h24": {
+     "buys": 138,
+     "sells": 181
+    }
+   },
+   "volume": {
+    "h24": 8038.21,
+    "h6": 2209.12,
+    "h1": 290.42,
+    "m5": 34.55
+   },
+   "priceChange": {
+    "m5": -5.47,
+    "h1": -13.2,
+    "h6": -19.15,
+    "h24": 1079
+   },
+   "liquidity": {
+    "usd": 1128.2,
+    "base": 243014,
+    "quote": 176.2196
+   },
+   "fdv": 3916511,
+   "marketCap": 3916511,
+   "pairCreatedAt": 1788495137000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x1acd6951241744d2f44402c9d72151ac6b04bd58",
+   "pairAddress": "0x1AcD6951241744d2F44402c9D72151ac6b04bD58",
+   "labels": [
+    "v3"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "name": "WETH",
+    "symbol": "WETH"
+   },
+   "priceNative": "0.000001415",
+   "priceUsd": "0.003537",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 1
+    },
+    "h1": {
+     "buys": 12,
+     "sells": 11
+    },
+    "h6": {
+     "buys": 46,
+     "sells": 49
+    },
+    "h24": {
+     "buys": 75,
+     "sells": 71
+    }
+   },
+   "volume": {
+    "h24": 512.49,
+    "h6": 398.71,
+    "h1": 124.79,
+    "m5": 4.43
+   },
+   "priceChange": {
+    "m5": -11.68,
+    "h1": -15.38,
+    "h6": -28.56,
+    "h24": 16.16
+   },
+   "liquidity": {
+    "usd": 212.13,
+    "base": 20779,
+    "quote": 0.05546
+   },
+   "fdv": 3537363,
+   "marketCap": 3537363,
+   "pairCreatedAt": 1788735670000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xc3ff08161cf6e886111ea85d6a6e4a15c7203fe50ece048f7d2e29be2e552634",
+   "pairAddress": "0xc3ff08161cf6e886111ea85d6a6e4a15c7203fe50ece048f7d2e29be2e552634",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003519",
+   "priceUsd": "0.003520",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 3
+    },
+    "h1": {
+     "buys": 4,
+     "sells": 12
+    },
+    "h6": {
+     "buys": 71,
+     "sells": 73
+    },
+    "h24": {
+     "buys": 109,
+     "sells": 111
+    }
+   },
+   "volume": {
+    "h24": 1854.12,
+    "h6": 1119.18,
+    "h1": 119.75,
+    "m5": 16.43
+   },
+   "priceChange": {
+    "m5": -10.15,
+    "h1": -16.97,
+    "h6": -26.26,
+    "h24": 49.75
+   },
+   "liquidity": {
+    "usd": 297.11,
+    "base": 58268,
+    "quote": 91.9292
+   },
+   "fdv": 3520887,
+   "marketCap": 3520887,
+   "pairCreatedAt": 1788752906000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xa1ddd93d68d82600b250a45de77bbb3c0eeb814db39822bf50d6f95a87c9053b",
+   "pairAddress": "0xa1ddd93d68d82600b250a45de77bbb3c0eeb814db39822bf50d6f95a87c9053b",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.005264",
+   "priceUsd": "0.005260",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 6,
+     "sells": 6
+    },
+    "h6": {
+     "buys": 38,
+     "sells": 41
+    },
+    "h24": {
+     "buys": 38,
+     "sells": 41
+    }
+   },
+   "volume": {
+    "h24": 3776.74,
+    "h6": 3776.74,
+    "h1": 1050.64,
+    "m5": 0
+   },
+   "priceChange": {
+    "h1": 24.74,
+    "h6": -17.76,
+    "h24": -17.76
+   },
+   "liquidity": {
+    "usd": 956.3,
+    "base": 77281,
+    "quote": 550.07551
+   },
+   "fdv": 5260923,
+   "marketCap": 5260923,
+   "pairCreatedAt": 1788778231000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xc5b8320a0142f85f504232792a8edb8a314de8895922bef1cff86aa66a8e5f10",
+   "pairAddress": "0xc5b8320a0142f85f504232792a8edb8a314de8895922bef1cff86aa66a8e5f10",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0x3Ecd371be00c7547dFC676e4C7A55b917f94576e",
+    "name": "Calico Cat",
+    "symbol": "CALICO"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.00006999",
+   "priceUsd": "0.00006997",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 3,
+     "sells": 2
+    },
+    "h6": {
+     "buys": 3,
+     "sells": 2
+    },
+    "h24": {
+     "buys": 3,
+     "sells": 2
+    }
+   },
+   "volume": {
+    "h24": 39.67,
+    "h6": 39.67,
+    "h1": 39.67,
+    "m5": 0
+   },
+   "priceChange": {
+    "h1": 10.07,
+    "h6": 10.07,
+    "h24": 10.07
+   },
+   "liquidity": {
+    "usd": 199.95,
+    "base": 15.505,
+    "quote": 199.9989
+   },
+   "fdv": 69977,
+   "marketCap": 69977,
+   "pairCreatedAt": 1788786048000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xc6af56354a09944dd3bef1d8830e786c421384e72ffd6f008a1b4bc927b6c9a2",
+   "pairAddress": "0xc6af56354a09944dd3bef1d8830e786c421384e72ffd6f008a1b4bc927b6c9a2",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xFd1c237B46D03a614EBd69a51455Dce3a0cE4487",
+    "name": "What can I lose",
+    "symbol": "WHATC"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.001094",
+   "priceUsd": "0.001093",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 6,
+     "sells": 0
+    }
+   },
+   "volume": {
+    "h24": 99.21,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": 10.03
+   },
+   "liquidity": {
+    "usd": 234.92,
+    "base": 128586,
+    "quote": 94.2884
+   },
+   "fdv": 1093903,
+   "marketCap": 1093903,
+   "pairCreatedAt": 1788717493000,
+   "boosts": {
+    "active": 500
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xc75cbba3a2cf92552ab29f50daecee22970769683d6cd8e0d4ba42dcfb099309",
+   "pairAddress": "0xc75cbba3a2cf92552ab29f50daecee22970769683d6cd8e0d4ba42dcfb099309",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003668",
+   "priceUsd": "0.003666",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 17,
+     "sells": 10
+    }
+   },
+   "volume": {
+    "h24": 734.64,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": -0.23
+   },
+   "liquidity": {
+    "usd": 551.18,
+    "base": 48608,
+    "quote": 373.06523
+   },
+   "fdv": 3666867,
+   "marketCap": 3666867,
+   "pairCreatedAt": 1788736312000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xeac65a0be22ceb9ae7666583812c1e9510f20370b21a480f367091d1b6c2cbcf",
+   "pairAddress": "0xeac65a0be22ceb9ae7666583812c1e9510f20370b21a480f367091d1b6c2cbcf",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003122",
+   "priceUsd": "0.003121",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 6,
+     "sells": 5
+    }
+   },
+   "volume": {
+    "h24": 313.31,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": 1.68
+   },
+   "liquidity": {
+    "usd": 309.57,
+    "base": 84070,
+    "quote": 47.1699
+   },
+   "fdv": 3121462,
+   "marketCap": 3121462,
+   "pairCreatedAt": 1788731652000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xb50210facb3e922b355198693678b8afcb9d206413a8a6bb3fe959ebe78990ee",
+   "pairAddress": "0xb50210facb3e922b355198693678b8afcb9d206413a8a6bb3fe959ebe78990ee",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003507",
+   "priceUsd": "0.003508",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 4
+    },
+    "h1": {
+     "buys": 8,
+     "sells": 19
+    },
+    "h6": {
+     "buys": 33,
+     "sells": 46
+    },
+    "h24": {
+     "buys": 33,
+     "sells": 46
+    }
+   },
+   "volume": {
+    "h24": 1075.04,
+    "h6": 1075.04,
+    "h1": 355.54,
+    "m5": 45.08
+   },
+   "priceChange": {
+    "m5": -11.33,
+    "h1": -16.58,
+    "h6": -26.76,
+    "h24": -26.76
+   },
+   "liquidity": {
+    "usd": 476.65,
+    "base": 34219,
+    "quote": 356.4929
+   },
+   "fdv": 3508121,
+   "marketCap": 3508121,
+   "pairCreatedAt": 1788769447000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x12b3046d509cbc08d448efe90c06e8266acf4455a45bf7d74b66cf89e3dd82f3",
+   "pairAddress": "0x12b3046d509cbc08d448efe90c06e8266acf4455a45bf7d74b66cf89e3dd82f3",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.004462",
+   "priceUsd": "0.004466",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 2,
+     "sells": 3
+    }
+   },
+   "volume": {
+    "h24": 262.87,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": 3.58
+   },
+   "liquidity": {
+    "usd": 357.71,
+    "base": 48.4299,
+    "quote": 357.1654
+   },
+   "fdv": 4466437,
+   "marketCap": 4466437,
+   "pairCreatedAt": 1788729332000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x8f780f7ba2debe4710f4c7c725d0e97ba9cac67689c4828567cf71b8368318f4",
+   "pairAddress": "0x8f780f7ba2debe4710f4c7c725d0e97ba9cac67689c4828567cf71b8368318f4",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.004940",
+   "priceUsd": "0.004941",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 8,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 8,
+     "sells": 0
+    }
+   },
+   "volume": {
+    "h24": 164.47,
+    "h6": 164.47,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h6": 2.98,
+    "h24": 2.98
+   },
+   "liquidity": {
+    "usd": 935.19,
+    "base": 59208,
+    "quote": 642.3812
+   },
+   "fdv": 4941956,
+   "marketCap": 4941956,
+   "pairCreatedAt": 1788768375000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x4c6df09201dd74f5a9bb726570a97e5f439791e7f71dc2e583662270955b03ab",
+   "pairAddress": "0x4c6df09201dd74f5a9bb726570a97e5f439791e7f71dc2e583662270955b03ab",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.003977",
+   "priceUsd": "0.003975",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 4,
+     "sells": 3
+    }
+   },
+   "volume": {
+    "h24": 119.88,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": 2.6
+   },
+   "liquidity": {
+    "usd": 198.27,
+    "base": 6.7705,
+    "quote": 198.3679
+   },
+   "fdv": 3975236,
+   "marketCap": 3975236,
+   "pairCreatedAt": 1788723700000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x757e80dc6090e2dd9e8bb2f164bf8580d2e572d96b0c5b2ab6497f3b8e886c0f",
+   "pairAddress": "0x757e80dc6090e2dd9e8bb2f164bf8580d2e572d96b0c5b2ab6497f3b8e886c0f",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xD97460101c3aaD03a0E69E7A82587aA4CF1dACB8",
+    "name": "cyberbeer",
+    "symbol": "cyberbeer"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.0002310",
+   "priceUsd": "0.0002308",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 14,
+     "sells": 9
+    }
+   },
+   "volume": {
+    "h24": 220.57,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": 24.07
+   },
+   "liquidity": {
+    "usd": 54.01,
+    "base": 64500,
+    "quote": 39.1472
+   },
+   "fdv": 230855,
+   "marketCap": 230855,
+   "pairCreatedAt": 1788764186000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0xe0197d22db7dd0843a4243d1270db5df10adeb085a2aa6d672878dc08bc475d8",
+   "pairAddress": "0xe0197d22db7dd0843a4243d1270db5df10adeb085a2aa6d672878dc08bc475d8",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.002810",
+   "priceUsd": "0.002809",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 9,
+     "sells": 9
+    }
+   },
+   "volume": {
+    "h24": 201.16,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": -5.48
+   },
+   "liquidity": {
+    "usd": 164.03,
+    "base": 58396,
+    "quote": 0.001453
+   },
+   "fdv": 2809050,
+   "marketCap": 2809050,
+   "pairCreatedAt": 1788724434000,
+   "boosts": {
+    "active": 100
+   }
+  },
+  {
+   "chainId": "robinhood",
+   "dexId": "uniswap",
+   "url": "https://dexscreener.com/robinhood/0x9555d8db49da91d02efead2f4342c29ee834bef09489e32182a558474cce8f9b",
+   "pairAddress": "0x9555d8db49da91d02efead2f4342c29ee834bef09489e32182a558474cce8f9b",
+   "labels": [
+    "v4"
+   ],
+   "baseToken": {
+    "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+    "name": "Greatest Meme Ever",
+    "symbol": "GME"
+   },
+   "quoteToken": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "name": "Global Dollar",
+    "symbol": "USDG"
+   },
+   "priceNative": "0.004229",
+   "priceUsd": "0.004233",
+   "txns": {
+    "m5": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h1": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h6": {
+     "buys": 0,
+     "sells": 0
+    },
+    "h24": {
+     "buys": 5,
+     "sells": 7
+    }
+   },
+   "volume": {
+    "h24": 795.75,
+    "h6": 0,
+    "h1": 0,
+    "m5": 0
+   },
+   "priceChange": {
+    "h24": -5.99
+   },
+   "liquidity": {
+    "usd": 354,
+    "base": 82358,
+    "quote": 5.3064
+   },
+   "fdv": 4233906,
+   "marketCap": 4233906,
+   "pairCreatedAt": 1788729659000,
+   "boosts": {
+    "active": 100
+   }
+  }
+ ]
+}

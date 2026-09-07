@@ -853,3 +853,11 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .alert-table td small { display:block; }
 .alert-table td .chip { margin:0 4px 0 0; vertical-align:middle; }
 .alert-table .alert-lag { color:var(--red); }
+
+/* R6 desk integration: discovery tabs, feed health, toolbar status line */
+.discover-table th:first-child { width:46%; }
+.discover-sources { display:flex; flex-wrap:wrap; gap:3px; margin-top:2px; }
+.discover-sources .chip { font-size:7px; padding:0 3px; }
+.discover-coverage { margin:0; padding:4px 8px; border-bottom:1px solid var(--line); }
+.flow-health { display:flex; flex-wrap:wrap; gap:4px; margin:0; padding:4px 8px; }
+.chart-tool-status.system-status { margin-right:0; margin-left:8px; }

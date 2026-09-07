@@ -1,0 +1,405 @@
+{
+ "_fixture": "40 tape rows of GET /api/flow/token/robinhood/0x12d5ee7917ca430073c3a638ee1e6f0648a98a01 (PARE) captured 2026-09-07 19:10 IST, reshaped to FlowPrint (dex dropped, chain added)",
+ "prints": [
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x96cc82a6d1e556b11fe7c7160608cf2fc6af47cc20aa0ecbb74f92fde7b8ab22",
+   "time": 1788788375000,
+   "side": "sell",
+   "usd": 2448.9027309843527,
+   "source": "own",
+   "price": 0.020217538439431453
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xb24e7b451164c37021cc91faf939a180425818a74dee033aa1990f3a634d4405",
+   "time": 1788788329000,
+   "side": "sell",
+   "usd": 61.13313000616052,
+   "source": "own",
+   "price": 0.020357527499302367
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xea6c266a99b3daafe1d4ac2e72e9179943bb562530cdd5ef2f82f0f5f2143f84",
+   "time": 1788788310000,
+   "side": "sell",
+   "usd": 839.8570236372938,
+   "source": "own",
+   "price": 0.020463887574158356
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x4906ef1837cd05a503987d4701f80ded1a8a8ea2c40e795d7039fef79e0ffc99",
+   "time": 1788788310000,
+   "side": "sell",
+   "usd": 2455.0606247561814,
+   "source": "own",
+   "price": 0.02064104703924597
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xa4f58ac08edd7971940637ba4b6e68991b804e529ddec5fb9723e9e11e2c29a5",
+   "time": 1788788310000,
+   "side": "buy",
+   "usd": 9952.101215887125,
+   "source": "own",
+   "price": 0.02064104964750384
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x3abb1bafc5e2e461ace0ae32c3c54e6af9550211a7c1c5d3fd19b1a77fc9487d",
+   "time": 1788788307000,
+   "side": "sell",
+   "usd": 1293.7799347888429,
+   "source": "own",
+   "price": 0.01976093737785388
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x02cb4415278e0dde5fd5864045d439684a17cdc5e72e6366846118f533a8e923",
+   "tx": "0x3abb1bafc5e2e461ace0ae32c3c54e6af9550211a7c1c5d3fd19b1a77fc9487d",
+   "time": 1788788307000,
+   "side": "sell",
+   "usd": 694.370345,
+   "source": "own",
+   "price": 0.019699742776518
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x02cb4415278e0dde5fd5864045d439684a17cdc5e72e6366846118f533a8e923",
+   "tx": "0x331639159437e611c43221b61d9ccc799146e8d47fdae8c51b8f6bdc5eb83940",
+   "time": 1788788288000,
+   "side": "buy",
+   "usd": 25.665778,
+   "source": "own",
+   "price": 0.021016984125922036
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x1292b32fb75206293c564bf1c2be6929370315997e21c7eb3d8c432a087aaf0b",
+   "time": 1788788286000,
+   "side": "buy",
+   "usd": 24.99002074392456,
+   "source": "own",
+   "price": 0.020223423857320465
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x4938aceaabeecfe97b7e5722b1879b338943d85e412058425a00def3a46b8be9",
+   "time": 1788788283000,
+   "side": "sell",
+   "usd": 36.98190372759914,
+   "source": "own",
+   "price": 0.019822017799958246
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0x01773f89813c79ea92e8e88fc13f0b36f5aab9af8ec5c39aa2c68dc0af73d8bd",
+   "time": 1788788255000,
+   "side": "sell",
+   "usd": 1933.321734,
+   "source": "own",
+   "price": 0.019681897906939767
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0x3b1ff1e4db11a580ff2def98306af03444acad1f064dbd5f3a50c5c0bdb62ae0",
+   "time": 1788788240000,
+   "side": "sell",
+   "usd": 988.726802,
+   "source": "own",
+   "price": 0.019774536040000002
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0xd64023c2e7470946c4a223adb613be604d1c552af17b7d623544c16fae49d3de",
+   "time": 1788788221000,
+   "side": "sell",
+   "usd": 198.131952,
+   "source": "own",
+   "price": 0.0198131952
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xe5eb4d58700ad7300542e5bc4f2c301c06669fc5189bb810b915971ccfa9a516",
+   "time": 1788788202000,
+   "side": "sell",
+   "usd": 22.026968936902282,
+   "source": "own",
+   "price": 0.019898211025439858
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x6c8543d62ab9014e3e22c0912a3d1a266fd61544a051b58d1583f3fc9c197bf8",
+   "time": 1788788199000,
+   "side": "sell",
+   "usd": 121.45257358113386,
+   "source": "own",
+   "price": 0.01990617882911434
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0x6c8543d62ab9014e3e22c0912a3d1a266fd61544a051b58d1583f3fc9c197bf8",
+   "time": 1788788199000,
+   "side": "sell",
+   "usd": 484.022965,
+   "source": "own",
+   "price": 0.01983542206246381
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x982a2bd7cea4e4480f145561014a49c5aa53fa328878fc4ef6bf5ec8fe8ff214",
+   "time": 1788788194000,
+   "side": "buy",
+   "usd": 49.96987997473152,
+   "source": "own",
+   "price": 0.020314065438143566
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xcfca75621b07b05663c8c87effa2089402857c6c7b34d2e125ccd5b0ada02951",
+   "time": 1788788149000,
+   "side": "buy",
+   "usd": 752.5433824867405,
+   "source": "own",
+   "price": 0.020268952287823244
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x9eaa109fd72f8621e164cd460727d964320fa8cfb089d5cb126e83d79f9f2792",
+   "time": 1788788147000,
+   "side": "sell",
+   "usd": 1123.1426902625506,
+   "source": "own",
+   "price": 0.019889975682517137
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xaa1a8aece3777eb673cc515f0704453dabe119c629082f3a530b43faed7c9d5f",
+   "time": 1788788066000,
+   "side": "buy",
+   "usd": 297.991021287021,
+   "source": "geckoterminal",
+   "price": 0.020290670266388082
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x6b5f3e4a95c7dd7d5ff9c0d3cbdae1b1398f1959876ee5ecc3435d0f49c840bf",
+   "time": 1788788059000,
+   "side": "buy",
+   "usd": 160.332604615781,
+   "source": "geckoterminal",
+   "price": 0.020264944236418427
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0xd1c1d73fd337a2c931d0a8620c4162a05305d5037651ed3a35f8bf4beae9d207",
+   "time": 1788787997000,
+   "side": "sell",
+   "usd": 57.1556851819493,
+   "source": "geckoterminal",
+   "price": 0.020701836160072425
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x46ba8216b5d05ff33427b976663836ec5b34b3e261f374f9a5e773d776d3af85",
+   "tx": "0xf82c0aaaefca85745558616ab48949e2364c77a189ea291d36bf2484011f75c9",
+   "time": 1788787996000,
+   "side": "sell",
+   "usd": 273.38652754414,
+   "source": "geckoterminal",
+   "price": 0.02072045452105332
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0xf82c0aaaefca85745558616ab48949e2364c77a189ea291d36bf2484011f75c9",
+   "time": 1788787996000,
+   "side": "sell",
+   "usd": 321.413349109832,
+   "source": "geckoterminal",
+   "price": 0.020709799608499127
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x46ba8216b5d05ff33427b976663836ec5b34b3e261f374f9a5e773d776d3af85",
+   "tx": "0xb37364a3d532d96ea8b7681b0d4b978973c29fa68db88ce0a8e29df4c63e3a90",
+   "time": 1788787980000,
+   "side": "sell",
+   "usd": 945.002516970851,
+   "source": "geckoterminal",
+   "price": 0.02083887829704222
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xb37364a3d532d96ea8b7681b0d4b978973c29fa68db88ce0a8e29df4c63e3a90",
+   "time": 1788787980000,
+   "side": "sell",
+   "usd": 1002.94622070325,
+   "source": "geckoterminal",
+   "price": 0.019922410366485115
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0xb37364a3d532d96ea8b7681b0d4b978973c29fa68db88ce0a8e29df4c63e3a90",
+   "time": 1788787980000,
+   "side": "sell",
+   "usd": 1983.62050652481,
+   "source": "geckoterminal",
+   "price": 0.02072674420533623
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x46ba8216b5d05ff33427b976663836ec5b34b3e261f374f9a5e773d776d3af85",
+   "tx": "0x807ee5e220a0e253b0751011c1916d6de1944e48134b89bafbeb3a56eeeafa8d",
+   "time": 1788787964000,
+   "side": "sell",
+   "usd": 1313.70834742954,
+   "source": "geckoterminal",
+   "price": 0.020838878297042156
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x46ba8216b5d05ff33427b976663836ec5b34b3e261f374f9a5e773d776d3af85",
+   "tx": "0xab5bba840346fd8f14026296067d9c97dbf45048cba55b6f963880ef2aa35731",
+   "time": 1788787945000,
+   "side": "buy",
+   "usd": 1239.72873943042,
+   "source": "geckoterminal",
+   "price": 0.020534440732640578
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xb54aee8ec03e58cb8b3d90cffe39912ea0cf59f53389c3aaf42d0eeecd39d73f",
+   "time": 1788787924000,
+   "side": "sell",
+   "usd": 248.132550030587,
+   "source": "geckoterminal",
+   "price": 0.019992655093042953
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0xb54aee8ec03e58cb8b3d90cffe39912ea0cf59f53389c3aaf42d0eeecd39d73f",
+   "time": 1788787924000,
+   "side": "sell",
+   "usd": 285.867929062397,
+   "source": "geckoterminal",
+   "price": 0.020839460744219024
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xfe7994037140ce216cddef39ad9aa4edac42616c193d3d5aaf12f57d8d5ce92f",
+   "time": 1788787874000,
+   "side": "sell",
+   "usd": 594.974354198769,
+   "source": "geckoterminal",
+   "price": 0.02004368761355875
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0xfe7994037140ce216cddef39ad9aa4edac42616c193d3d5aaf12f57d8d5ce92f",
+   "time": 1788787874000,
+   "side": "sell",
+   "usd": 295.374316020524,
+   "source": "geckoterminal",
+   "price": 0.020858725288584984
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x46ba8216b5d05ff33427b976663836ec5b34b3e261f374f9a5e773d776d3af85",
+   "tx": "0x00b0e3d43fed4e116264b19e1276f80ccc41d736e972448aaf038fd93f7334c5",
+   "time": 1788787829000,
+   "side": "sell",
+   "usd": 101.915152219261,
+   "source": "geckoterminal",
+   "price": 0.02087375996772484
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0x66040b86b872fa97e334853efa09a6855f5ac7494c4ded1751a979e72ae20924",
+   "time": 1788787816000,
+   "side": "sell",
+   "usd": 19.6631313539324,
+   "source": "geckoterminal",
+   "price": 0.020873843260862186
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0x8b757c8e81fddbf47293ef3d21d7d19fe5083c57911c5b95da9b1eea57bc5328",
+   "time": 1788787812000,
+   "side": "sell",
+   "usd": 8.05124954125885,
+   "source": "geckoterminal",
+   "price": 0.020875442363029125
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x46ba8216b5d05ff33427b976663836ec5b34b3e261f374f9a5e773d776d3af85",
+   "tx": "0x869919cf93a7b358084283da8aeaa0408e8e59d957f9c716a770d14b888e7fa1",
+   "time": 1788787771000,
+   "side": "sell",
+   "usd": 1320.11161012815,
+   "source": "geckoterminal",
+   "price": 0.02097825742840968
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0x869919cf93a7b358084283da8aeaa0408e8e59d957f9c716a770d14b888e7fa1",
+   "time": 1788787771000,
+   "side": "sell",
+   "usd": 1645.05833309305,
+   "source": "geckoterminal",
+   "price": 0.020112790223701497
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0x70b5b746dc36c648893dafdf4b98d708a07673dfc1b3a0bb9dd70e36c0569f68",
+   "tx": "0xcbdbf651500cb7b1577becb40361e902e778cc342ecf95add8d0724853908406",
+   "time": 1788787771000,
+   "side": "buy",
+   "usd": 499.252594990194,
+   "source": "geckoterminal",
+   "price": 0.020455130421691763
+  },
+  {
+   "chain": "robinhood",
+   "pair": "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1",
+   "tx": "0x869919cf93a7b358084283da8aeaa0408e8e59d957f9c716a770d14b888e7fa1",
+   "time": 1788787771000,
+   "side": "sell",
+   "usd": 1707.3005355883,
+   "source": "geckoterminal",
+   "price": 0.020871618051454682
+  }
+ ]
+}

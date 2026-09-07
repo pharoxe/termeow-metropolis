@@ -12,27 +12,46 @@ export const GECKO_BUCKET_LIMIT = 25;
 export const GECKO_BUCKET_WINDOW_MS = 60_000;
 export const GECKO_MAX_WAIT_MS = 20_000;
 export const GECKO_BLOCK_MS = 20_000;
+/** Slots of the bucket only the focused class may take; discovery and background see a bucket of LIMIT - RESERVE. */
+export const GECKO_RESERVE_FOCUSED = 5;
 
-export type GeckoPriority = "high" | "low";
+/**
+ * Budget classes, served strictly in this order: `focused` (candles/pools of the instrument on screen), `discovery`
+ * (trending/new lists), `background` (pool-trade polling behind the own tape). "high"/"low" are the pre-R6 names.
+ */
+export type GeckoClass = "focused" | "discovery" | "background";
+export type GeckoPriority = GeckoClass | "high" | "low";
 export type GeckoGetOptions = { priority?: GeckoPriority };
 /** `token`: the focused token; when set, side and price are read relative to it (a pool may hold it as the quote leg). */
 export type GeckoTradesOptions = GeckoGetOptions & { token?: string };
 
+const CLASS_RANK: Record<GeckoClass, number> = { focused: 0, discovery: 1, background: 2 };
+
 type Waiter = {
-  priority: GeckoPriority;
+  cls: GeckoClass;
   enqueuedAt: number;
   resolve: () => void;
   reject: (error: Error) => void;
 };
-
 let geckoBlockedUntil = 0;
 let sent: number[] = [];
 let queue: Waiter[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let inflight = new Map<string, Promise<unknown>>();
 
+export function toGeckoClass(priority: GeckoPriority | undefined): GeckoClass {
+  if (priority === "low") return "background";
+  if (priority === "high" || priority === undefined) return "focused";
+  return priority;
+}
+
 export function isGeckoBlocked() {
   return Date.now() < geckoBlockedUntil;
+}
+
+/** Epoch ms until which every Gecko call is refused after an upstream 429; null when not blocked. */
+export function geckoBlockedUntilMs(now = Date.now()): number | null {
+  return geckoBlockedUntil > now ? geckoBlockedUntil : null;
 }
 
 export function noteGeckoError(error: unknown) {
@@ -45,7 +64,7 @@ export function resetGeckoBackoff() {
   geckoBlockedUntil = 0;
 }
 
-/** Testing hook: clears the token bucket, the FIFO queue and in-flight dedupe. */
+/** Testing hook: clears the token bucket, the class-ordered queue and in-flight dedupe. */
 export function resetGeckoBucket() {
   if (timer) clearTimeout(timer);
   timer = null;
@@ -68,26 +87,28 @@ function pruneSent(now: number) {
   sent = sent.filter((at) => at > now - GECKO_BUCKET_WINDOW_MS);
 }
 
-function estimateWait(now: number, ahead: number) {
+/** Slots this class may fill: the focused class sees the whole bucket, the others leave the reserve untouched. */
+function capacityFor(cls: GeckoClass): number {
+  return cls === "focused" ? GECKO_BUCKET_LIMIT : GECKO_BUCKET_LIMIT - GECKO_RESERVE_FOCUSED;
+}
+
+function estimateWait(now: number, ahead: number, cls: GeckoClass) {
   pruneSent(now);
-  const free = GECKO_BUCKET_LIMIT - sent.length;
+  const free = capacityFor(cls) - sent.length;
   if (ahead < free) return 0;
   const index = ahead - free;
   if (index >= sent.length) return Number.POSITIVE_INFINITY;
   return sent[index] + GECKO_BUCKET_WINDOW_MS - now;
 }
 
-function countAhead(priority: GeckoPriority) {
-  return priority === "high" ? queue.filter((waiter) => waiter.priority === "high").length : queue.length;
+/** Waiters served before a new one of `cls`: every waiter of an equal or higher class. */
+function countAhead(cls: GeckoClass) {
+  return queue.filter((waiter) => CLASS_RANK[waiter.cls] <= CLASS_RANK[cls]).length;
 }
 
 function enqueue(waiter: Waiter) {
-  if (waiter.priority === "low") {
-    queue = [...queue, waiter];
-    return;
-  }
-  const lastHigh = queue.reduce((index, item, position) => (item.priority === "high" ? position : index), -1);
-  queue = [...queue.slice(0, lastHigh + 1), waiter, ...queue.slice(lastHigh + 1)];
+  const last = queue.reduce((index, item, position) => (CLASS_RANK[item.cls] <= CLASS_RANK[waiter.cls] ? position : index), -1);
+  queue = [...queue.slice(0, last + 1), waiter, ...queue.slice(last + 1)];
 }
 
 function grant(waiter: Waiter, now: number) {
@@ -97,10 +118,11 @@ function grant(waiter: Waiter, now: number) {
   waiter.resolve();
 }
 
+/** The queue is class-ordered, so once the head cannot fit under its capacity nothing behind it can either. */
 function pump() {
   const now = Date.now();
   pruneSent(now);
-  while (queue.length && sent.length < GECKO_BUCKET_LIMIT) {
+  while (queue.length && sent.length < capacityFor(queue[0].cls)) {
     const [head, ...rest] = queue;
     queue = rest;
     grant(head, now);
@@ -115,20 +137,21 @@ function schedule(now: number) {
     timer = null;
     pump();
   }, delay);
+  timer.unref?.();
 }
 
-function acquire(priority: GeckoPriority): Promise<void> {
+function acquire(cls: GeckoClass): Promise<void> {
   const now = Date.now();
-  const wait = estimateWait(now, countAhead(priority));
+  const wait = estimateWait(now, countAhead(cls), cls);
   if (wait > GECKO_MAX_WAIT_MS) return Promise.reject(budgetError());
   return new Promise<void>((resolve, reject) => {
-    enqueue({ priority, enqueuedAt: now, resolve, reject });
+    enqueue({ cls, enqueuedAt: now, resolve, reject });
     pump();
   });
 }
 
-async function send<T>(url: string, priority: GeckoPriority): Promise<T> {
-  await acquire(priority);
+async function send<T>(url: string, cls: GeckoClass): Promise<T> {
+  await acquire(cls);
   try {
     return await fetchJson<T>(url, { headers: GECKO_HEADERS });
   } catch (error) {
@@ -139,11 +162,12 @@ async function send<T>(url: string, priority: GeckoPriority): Promise<T> {
 
 /** Rate-limited, deduped GET against the GeckoTerminal v2 API. `path` starts with "/networks/...". */
 export function geckoGet<T>(path: string, opts: GeckoGetOptions = {}): Promise<T> {
+  const cls = toGeckoClass(opts.priority);
   if (isGeckoBlocked()) return Promise.reject(blockedError());
   const url = `${GECKO_BASE_URL}${path}`;
   const existing = inflight.get(url);
   if (existing) return existing as Promise<T>;
-  const request = send<T>(url, opts.priority ?? "high").finally(() => {
+  const request = send<T>(url, cls).finally(() => {
     if (inflight.get(url) === request) inflight.delete(url);
   });
   inflight.set(url, request);

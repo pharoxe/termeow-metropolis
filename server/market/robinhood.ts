@@ -1,22 +1,30 @@
-import type { Chain, MarketResponse, PairRow } from "../../shared/wire.js";
+import type { CandleSourceInfo, Chain, MarketResponse, PairRow } from "../../shared/wire.js";
 import type { Candle } from "../types.js";
 import type { DexScreenerPair, RawTokenPairsResult, TokenPairsResult } from "../sources/dexscreener.js";
 import { GECKO_OHLCV_PAGE_LIMIT, type GeckoOhlcvInterval, type GeckoOhlcvOptions } from "../sources/gecko.js";
 import { errorMessage } from "../lib/http.js";
 import { UNKNOWN_SYMBOL, num, socialLinks, text, websiteLinks } from "./envelope.js";
+import type { ChainCandlesResult } from "./robinhood/chainCandles.js";
+import { CANDLE_SOURCE_GECKO } from "./robinhood/swapCandles.js";
 
 export const ROBINHOOD_MARKET_SOURCE = "dexscreener + geckoterminal";
 /** Same depth as the Solana path: at most two 1000-row pages, the second only when the first was full. */
 export const CANDLE_PAGES = 2;
 const CHAIN: Chain = "robinhood";
+/** Provenance notes the chain path always emits; they describe the series rather than a degradation. */
+const INFORMATIONAL_NOTE = /^(candles from |USD via current |\d+ own-tape print)/;
 
 export type RobinhoodMarketDeps = {
   getTokenPairs: (chain: Chain, address: string) => Promise<TokenPairsResult>;
   geckoPoolOhlcv: (network: Chain, pool: string, interval: GeckoOhlcvInterval, opts?: GeckoOhlcvOptions) => Promise<Candle[]>;
   /** Raw DexScreener token-pairs body for symbol/name/image/socials/priceUsd/change/fdv/mcap; metadata degrades when absent. */
   fetchDexPairsRaw?: (chain: Chain, address: string) => Promise<RawTokenPairsResult>;
+  /** R6: candles from the primary pool's own Swap logs ("chain swaps"); throws with a reason -> GeckoTerminal fallback, labelled. */
+  chainCandles?: (primary: PairRow, interval: GeckoOhlcvInterval) => Promise<ChainCandlesResult>;
   now?: () => number;
 };
+
+type LoadedCandles = { value: Candle[]; notes: string[]; source: string; candleSource?: CandleSourceInfo; stale?: boolean };
 
 type Loaded<T> = { value: T; note: string | null };
 
@@ -61,12 +69,26 @@ async function walkBackCandles(deps: RobinhoodMarketDeps, pool: string, interval
   return [...byTime.values()].sort((a, b) => a.time - b.time);
 }
 
-async function loadCandles(deps: RobinhoodMarketDeps, primary: PairRow | null, interval: GeckoOhlcvInterval): Promise<Loaded<Candle[]>> {
-  if (!primary) return { value: [], note: null };
+async function loadGeckoCandles(deps: RobinhoodMarketDeps, primary: PairRow, interval: GeckoOhlcvInterval, source: string, notes: string[]): Promise<LoadedCandles> {
   try {
-    return { value: await walkBackCandles(deps, primary.pairAddress, interval), note: null };
+    return { value: await walkBackCandles(deps, primary.pairAddress, interval), notes, source };
   } catch (error) {
-    return { value: [], note: `OHLCV unavailable: ${errorMessage(error)}` };
+    return { value: [], notes: [...notes, `OHLCV unavailable: ${errorMessage(error)}`], source };
+  }
+}
+
+/**
+ * R6 order: the pool's own swaps first (one series, "chain swaps"); GeckoTerminal only when that path throws, labelled
+ * "geckoterminal" with the reason. Without a chainCandles dep the legacy Gecko-only behaviour and label are unchanged.
+ */
+async function loadCandles(deps: RobinhoodMarketDeps, primary: PairRow | null, interval: GeckoOhlcvInterval): Promise<LoadedCandles> {
+  if (!primary) return { value: [], notes: ["No DexScreener pool with this token as base"], source: ROBINHOOD_MARKET_SOURCE };
+  if (!deps.chainCandles) return loadGeckoCandles(deps, primary, interval, ROBINHOOD_MARKET_SOURCE, []);
+  try {
+    const chain = await deps.chainCandles(primary, interval);
+    return { value: chain.candles, notes: chain.notes, source: chain.candleSource.kind, candleSource: chain.candleSource, stale: chain.stale };
+  } catch (error) {
+    return loadGeckoCandles(deps, primary, interval, CANDLE_SOURCE_GECKO, [`chain swaps unavailable: ${errorMessage(error)}; candles are GeckoTerminal pool OHLCV`]);
   }
 }
 
@@ -101,9 +123,8 @@ export async function assembleRobinhoodMarket(address: string, interval: GeckoOh
   const { pair, token } = rawRows(raw.value, address, primary);
   const notes = [
     registry.stale ? `DexScreener pairs stale: ${registry.error ?? "unknown"}` : null,
-    primary ? null : "No DexScreener pool with this token as base",
     raw.note,
-    candles.note
+    ...candles.notes
   ].filter((note): note is string => note !== null);
   return {
     instrument: instrumentOf(address, token),
@@ -117,8 +138,11 @@ export async function assembleRobinhoodMarket(address: string, interval: GeckoOh
     candles: candles.value,
     interval,
     observedAt: (deps.now ?? Date.now)(),
-    source: ROBINHOOD_MARKET_SOURCE,
-    degraded: notes.length > 0,
-    notes
+    source: candles.source,
+    degraded: notes.some((note) => !INFORMATIONAL_NOTE.test(note)),
+    notes,
+    ...(candles.candleSource ? { candleSource: candles.candleSource } : {}),
+    // a chain series whose last top-up failed ends at the last good head: say so on the wire, not only in a note
+    ...(candles.stale ? { stale: true } : {})
   };
 }

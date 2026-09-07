@@ -6,6 +6,23 @@ const optionalString = z.preprocess(emptyAsUndefined, z.string().min(1).optional
 const optionalUrl = z.preprocess(emptyAsUndefined, z.string().url().optional());
 const urlWithDefault = (fallback: string) => z.preprocess(emptyAsUndefined, z.string().url().default(fallback));
 
+/** Public Robinhood Chain (4663) JSON-RPC endpoints, measured 2026-09-07 19:20 IST, in eth_blockNumber latency order. */
+export const DEFAULT_ROBINHOOD_RPC_URLS = [
+  "https://robinhood-rpc.publicnode.com",
+  "https://rpc-robinhood.blockmachine.io",
+  "https://rpc.mainnet.chain.robinhood.com",
+  "https://robinhood.api.pocket.network",
+  "https://robinhood.rpc.blxrbdn.com",
+  "https://rpc.nodeflare.app/robinhood/public"
+] as const;
+const LEGACY_ROBINHOOD_RPC_URL = "https://rpc.mainnet.chain.robinhood.com";
+const urlList = (fallback: readonly string[]) => z.preprocess(
+  emptyAsUndefined,
+  z.string().default(fallback.join(","))
+    .transform((raw) => raw.split(",").map((part) => part.trim()).filter(Boolean))
+    .pipe(z.array(z.string().url()).min(1))
+);
+
 const envSchema = z.object({
   NODE_ENV: z.preprocess(emptyAsUndefined, z.enum(["development", "test", "production"]).default("development")),
   HOST: optionalString,
@@ -21,7 +38,12 @@ const envSchema = z.object({
   HELIUS_SOLANA_RPC_URL: optionalUrl,
   ALCHEMY_API_KEY: optionalString,
   ALCHEMY_SOLANA_RPC_URL: optionalUrl,
-  ROBINHOOD_RPC_URL: urlWithDefault("https://rpc.mainnet.chain.robinhood.com"),
+  /** Alias kept for one preferred endpoint: when set it leads the pool (and stays the snapshot fingerprint input). */
+  ROBINHOOD_RPC_URL: optionalUrl,
+  /** Comma-separated pool; ROBINHOOD_RPC_URL, when set, is prepended. Routing/backoff: tape/robinhood/endpoints.ts. */
+  ROBINHOOD_RPC_URLS: urlList(DEFAULT_ROBINHOOD_RPC_URLS),
+  SNAPSHOT_DIR: z.preprocess(emptyAsUndefined, z.string().default(".cache/termeow")),
+  SNAPSHOT_INTERVAL_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().positive().default(30_000)),
   PRIVY_APP_ID: optionalString,
   PRIVY_APP_SECRET: optionalString,
   ENABLE_MAINNET_EXECUTION: z.preprocess(emptyAsUndefined, z.string().default("false")),
@@ -69,7 +91,13 @@ export const config = {
     fallback: rpcUrl("alchemy")
   },
   robinhood: {
-    rpcUrl: env.ROBINHOOD_RPC_URL
+    rpcUrl: env.ROBINHOOD_RPC_URL ?? LEGACY_ROBINHOOD_RPC_URL,
+    rpcUrls: [...new Set([...(env.ROBINHOOD_RPC_URL ? [env.ROBINHOOD_RPC_URL] : []), ...env.ROBINHOOD_RPC_URLS])]
+  },
+  /** Restart persistence (server/persist): per-component JSON snapshots, relative to cwd unless absolute. */
+  snapshot: {
+    dir: env.SNAPSHOT_DIR,
+    intervalMs: env.SNAPSHOT_INTERVAL_MS
   },
   privy: {
     appId: env.PRIVY_APP_ID,

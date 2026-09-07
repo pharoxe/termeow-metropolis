@@ -7,6 +7,7 @@ import {
   chipChain,
   coldCopy,
   curveCounts,
+  defaultChip,
   filterByChip,
   fomoBuyer,
   isHoneypot,
@@ -18,6 +19,7 @@ import {
   padLabel,
   priceAgeTitle,
   rowKey,
+  rowSubtitle,
   sortNewestFirst,
   symbolLabel
 } from "./launches";
@@ -150,5 +152,17 @@ describe("cell formatting", () => {
     expect(rowKey(row())).toBe("robinhood:0xaaaa000000000000000000000000000000000001");
     expect(coldCopy([])).toBe("Waiting for launches · sources: none reported yet");
     expect(coldCopy([{ name: "rpc:robinhood" }, { name: "pumpportal" }])).toBe("Waiting for launches · sources: rpc:robinhood, pumpportal");
+  });
+});
+
+describe("R6 row completeness", () => {
+  it("never leaves the subtitle blank: name, else the vouching sources", () => {
+    expect(rowSubtitle(row())).toBe("Make Everyone An Owner");
+    expect(rowSubtitle(row({ name: null }))).toBe("no name yet · rpc:robinhood");
+    expect(rowSubtitle(row({ name: " ", sources: [] }))).toBe("no name yet");
+  });
+  it("starts on the RH chip when the Robinhood network is toggled", () => {
+    expect(defaultChip("robinhood")).toBe("RH");
+    expect(defaultChip("solana")).toBe("ALL");
   });
 });

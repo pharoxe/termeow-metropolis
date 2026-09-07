@@ -1,0 +1,146 @@
+{
+ "capturedAtIso": "2026-09-07T13:46:00.886Z",
+ "rpc": "https://rpc.mainnet.chain.robinhood.com",
+ "head": 56879919,
+ "fatcoinV4": {
+  "poolId": "0x46ba8216b5d05ff33427b976663836ec5b34b3e261f374f9a5e773d776d3af85",
+  "logAddress": "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+  "swapTopic": "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f",
+  "windowBlocks": [
+   56759919,
+   56879919
+  ],
+  "logsInWindow": 435,
+  "saved": 200,
+  "dataLayout": [
+   "amount0 int128",
+   "amount1 int128",
+   "sqrtPriceX96 uint160",
+   "liquidity uint128",
+   "tick int24",
+   "fee uint24"
+  ],
+  "topicsLayout": [
+   "Swap topic",
+   "poolId (indexed)",
+   "sender (indexed)"
+  ],
+  "pairName": "LLY/FATCOIN (Uniswap v4, hooked)",
+  "currency0": {
+   "address": "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01",
+   "symbol": "FATCOIN",
+   "decimals": 18,
+   "how": "lower address sorts first in v4 PoolKey; decimals() via eth_call"
+  },
+  "currency1": {
+   "address": "0x8005d266423c7ea827372c9c864491e5786600ea",
+   "symbol": "LLY",
+   "name": "Eli Lilly • Robinhood Token",
+   "decimals": 18
+  },
+  "dexscreener": {
+   "base": "LLY 0x8005d266423c7ea827372c9c864491e5786600ea",
+   "quote": "FATCOIN 0x12d5ee7917ca430073c3a638ee1e6f0648a98a01",
+   "priceUsd": "1149.96 (LLY)",
+   "priceNative": "58001.1940 FATCOIN per LLY",
+   "liquidityUsd": 542197.6,
+   "txns24": {
+    "buys": 1439,
+    "sells": 1762
+   },
+   "url": "https://api.dexscreener.com/latest/dex/pairs/robinhood/<poolId>"
+  },
+  "gecko": {
+   "base": "FATCOIN 0x12d5ee7917ca430073c3a638ee1e6f0648a98a01",
+   "quote": "LLY 0x8005d266423c7ea827372c9c864491e5786600ea",
+   "note": "Gecko and DexScreener DISAGREE on base/quote for this pool; Gecko OHLCV prices FATCOIN in USD"
+  },
+  "priceMath": {
+   "sqrtPriceX96": "currency1 per currency0 = sqrtPriceX96^2 / 2^192 * 10^(dec0 - dec1)",
+   "forThisPool": "LLY per FATCOIN; invert for FATCOIN per LLY",
+   "checkedAgainst": {
+    "v4LastLog": {
+     "block": 56879850,
+     "sqrtPriceX96": "328973652497907759442971916",
+     "llyPerFatcoin": 0.00001724102437717578,
+     "fatcoinPerLly": 58001.194019760915,
+     "tick": -109688
+    },
+    "geckoFatcoinLastCandle": {
+     "tsIso": "2026-09-07T13:45:00.000Z",
+     "close": 0.0204548012757545,
+     "volumeUsd": 1991.493531458135
+    },
+    "dexscreenerPriceNativeLlyInFatcoin": 58001.194,
+    "impliedFatcoinUsdFromDexscreener": 0.019826488399531914,
+    "geckoGldV3": {
+     "status": 200,
+     "ms": 1052,
+     "candles": 200,
+     "firstIso": "2026-09-07T08:38:00.000Z",
+     "lastIso": "2026-09-07T13:50:00.000Z",
+     "lastClose": 409.721848587496,
+     "baseToken": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+     "quoteToken": "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+    }
+   }
+  }
+ },
+ "gldV3": {
+  "pool": "0x7a6a053eccf1446a2633e05aa6d40d09381997ec",
+  "swapTopic": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+  "windowBlocks": [
+   56759919,
+   56879919
+  ],
+  "logsInWindow": 1831,
+  "saved": 200,
+  "token0": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+  "token1": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+  "decimals0": 6,
+  "decimals1": 18,
+  "fee": 3000,
+  "dexscreener": {
+   "base": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+   "quote": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+   "quoteSymbol": "USDG",
+   "priceUsd": 410.73
+  },
+  "dataLayout": [
+   "amount0 int256",
+   "amount1 int256",
+   "sqrtPriceX96 uint160",
+   "liquidity uint128",
+   "tick int24"
+  ],
+  "topicsLayout": [
+   "Swap topic",
+   "sender (indexed)",
+   "recipient (indexed)"
+  ]
+ },
+ "gecko": {
+  "fatcoinV4": {
+   "status": 200,
+   "ms": 1479,
+   "candles": 200,
+   "firstIso": "2026-09-07T09:18:00.000Z",
+   "lastIso": "2026-09-07T13:45:00.000Z",
+   "baseToken": "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01",
+   "quoteToken": "0x8005d266423c7ea827372c9c864491e5786600ea"
+  },
+  "gldV3": {
+   "status": 200,
+   "ms": 1052,
+   "candles": 200,
+   "firstIso": "2026-09-07T08:38:00.000Z",
+   "lastIso": "2026-09-07T13:50:00.000Z",
+   "lastClose": 409.721848587496,
+   "baseToken": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+   "quoteToken": "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+  },
+  "url": "https://api.geckoterminal.com/api/v2/networks/robinhood/pools/<pool>/ohlcv/minute?aggregate=1&limit=200",
+  "candleLayout": "[unixSec, open, high, low, close, volumeUsd] per ohlcv_list row",
+  "note": "candle rows are newest-first; timestamps are unix seconds at minute open; volume is USD"
+ }
+}

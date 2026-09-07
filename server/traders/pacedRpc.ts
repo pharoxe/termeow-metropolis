@@ -1,6 +1,7 @@
 import { createBackoff, type Backoff } from "../lib/backoff.js";
 import { UpstreamError, errorMessage } from "../lib/http.js";
 import { EvmRpcError } from "../tape/robinhood/rpc.js";
+import { robinhoodRpcFetch } from "../tape/robinhood/rpcPool.js";
 
 /** Robinhood public RPC (rpc.mainnet.chain.robinhood.com) 429s intermittently; 4 rps kept the capture stage under the limit. */
 export const DEFAULT_RPS = 4;
@@ -87,7 +88,7 @@ export class PacedRpc {
   constructor(opts: PacedRpcOptions) {
     this.rpcUrl = opts.rpcUrl;
     this.label = opts.label;
-    this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.fetchImpl = opts.fetchImpl ?? robinhoodRpcFetch;
     this.now = opts.now ?? (() => Date.now());
     const rps = opts.rps ?? DEFAULT_RPS;
     if (!Number.isFinite(rps) || rps <= 0) throw new Error(`${opts.label}: rps must be > 0, got ${String(rps)}`);

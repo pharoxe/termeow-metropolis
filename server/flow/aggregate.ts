@@ -23,6 +23,11 @@ export function intervalToMs(interval: FlowInterval): number {
   return INTERVAL_MS[interval];
 }
 
+/** ms for any interval label, null when it is not one of FLOW_INTERVALS (the market route shares these six labels). */
+export function intervalMsOf(interval: string): number | null {
+  return isFlowInterval(interval) ? INTERVAL_MS[interval] : null;
+}
+
 export type TokenFlowInput = {
   ledger: FlowLedger;
   chain: Chain;

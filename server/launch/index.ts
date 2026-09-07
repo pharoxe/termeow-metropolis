@@ -23,6 +23,9 @@ export type LaunchListQuery = {
 
 export type LaunchIndexOptions = { max?: number; now?: () => number };
 
+/** Restart persistence (server/persist): the rows as stored plus the stock-flag keys. */
+export type LaunchIndexSnapshot = { rows: LaunchRow[]; stocks: string[] };
+
 export type LaunchIndexStats = {
   rows: number;
   max: number;
@@ -171,6 +174,29 @@ export class LaunchIndex {
   /** Token addresses on `chain` created within `sinceMs`, newest first — the enrichment batch. */
   tokens(chain: Chain, sinceMs: number): string[] {
     return this.list({ chain, windowMs: sinceMs }).map((row) => row.token);
+  }
+
+  snapshot(): LaunchIndexSnapshot {
+    return { rows: [...this.rows.values()], stocks: [...this.stocks] };
+  }
+
+  /**
+   * Restart persistence: puts saved rows back as they were (observedAt/pricedAt untouched, so staleness stays truthful),
+   * bypassing upsert (no observedAt restamp, no alert emission in AlertingLaunchIndex). Rows already present win.
+   * Returns how many rows were added; the cap still applies afterwards.
+   */
+  restore(snapshot: LaunchIndexSnapshot): number {
+    const stocks = new Set(snapshot.stocks);
+    let added = 0;
+    for (const row of snapshot.rows) {
+      const key = launchKey(row.chain, row.token);
+      if (this.rows.has(key)) continue;
+      this.rows.set(key, row);
+      if (stocks.has(key)) this.stocks.add(key);
+      added += 1;
+    }
+    this.evict();
+    return added;
   }
 
   stats(): LaunchIndexStats {

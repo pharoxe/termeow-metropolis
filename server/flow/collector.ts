@@ -1,16 +1,24 @@
-import type { Chain, PairRow } from "../../shared/wire.js";
+import type { Chain, FeedHealth, PairRow } from "../../shared/wire.js";
 import { errorMessage } from "../lib/http.js";
-import { geckoPoolTrades } from "../sources/gecko.js";
+import { geckoBlockedUntilMs, geckoPoolTrades } from "../sources/gecko.js";
 import { fetchPumpTradesPage, walkPumpTradesBack, type WalkPumpResult } from "../sources/pumpfun.js";
 import { createRobinhoodOwnTapeFromConfig, type RobinhoodOwnTapeStats } from "../tape/robinhood/ownTape.js";
 import { createOwnTapeFromConfig, type OwnTapeStats } from "../tape/solana/ownTape.js";
 import { poolRefsFromRegistry, type PoolRef } from "../tape/solana/parseSwap.js";
+import { feedHealthOf, ownTapeHealthy } from "./feedHealth.js";
 import { FlowLedger, HOUR_MS, pairKey } from "./ledger.js";
 
 export const COLLECTOR_TICK_MS = 5_000;
+/** Gecko pool-trade cadence when Gecko is the only tape for a token (Solana, or a Robinhood own poller that is down). */
 export const GECKO_POLL_MS = 15_000;
-export const SUBSCRIPTION_TTL_MS = 10 * 60_000;
-export const MAX_SUBSCRIPTIONS = 8;
+/** Cadence on Robinhood while the own poller is healthy: the own tape is primary there, Gecko only cross-checks. */
+export const GECKO_POLL_SLOW_MS = 60_000;
+/** A token nobody asked about for this long is evicted (own tape untracked, Gecko polling stopped); its ledger data stays. */
+export const IDLE_MS = 90_000;
+/** Focused instruments only: the desk shows one, the candles route shares it, and a just-switched-away token may linger. */
+export const MAX_SUBSCRIPTIONS = 4;
+/** Registry snapshots remembered for evicted tokens so the flow route can still serve their ledger ring when the registry is down. */
+export const REMEMBERED_PAIRS_MAX = 64;
 export const BACKFILL_WINDOW_MS = 48 * HOUR_MS;
 export const BACKFILL_MAX_PAGES = 60;
 export const BACKFILL_PAGE_DELAY_MS = 500;
@@ -46,11 +54,13 @@ export type BackfillState = {
   result: WalkPumpResult | null;
   error: string | null;
 };
+type GeckoMode = "fast" | "slow";
 export type CollectorStatus = {
   subscribed: boolean;
   lastRequestedAt: number | null;
   tierAPairs: number;
   sources: Record<SourceName, SourceHealth> & { own: OwnSourceHealth };
+  feedHealth: FeedHealth;
   backfill: BackfillState | null;
   launchMs: number | null;
 };
@@ -76,6 +86,7 @@ type Subscription = {
   polledAt: Record<string, number>;
   sources: Record<SourceName, SourceHealth>;
   lastLoggedAt: Record<SourceName, number>;
+  geckoMode: GeckoMode;
 };
 
 function emptyHealth(): SourceHealth {
@@ -87,7 +98,7 @@ function emptySources(): Record<SourceName, SourceHealth> {
 }
 
 function newSubscription(chain: Chain, address: string, pairs: PairRow[], now: number): Subscription {
-  return { chain, address, pairs, lastRequestedAt: now, polledAt: {}, sources: emptySources(), lastLoggedAt: { pumpfun: 0, geckoterminal: 0 } };
+  return { chain, address, pairs, lastRequestedAt: now, polledAt: {}, sources: emptySources(), lastLoggedAt: { pumpfun: 0, geckoterminal: 0 }, geckoMode: "fast" };
 }
 
 function pumpMint(pair: PairRow): string | null {
@@ -96,6 +107,10 @@ function pumpMint(pair: PairRow): string | null {
 
 function tierA(pairs: PairRow[]): PairRow[] {
   return pairs.filter((pair) => pair.tier === "A");
+}
+
+function geckoPollMsFor(mode: GeckoMode): number {
+  return mode === "slow" ? GECKO_POLL_SLOW_MS : GECKO_POLL_MS;
 }
 
 function solanaChainTape(tape: OwnTapeLike): ChainTape {
@@ -121,7 +136,8 @@ function backfillDue(state: BackfillState | undefined, now: number): boolean {
 
 /**
  * Polls trade prints for subscribed tokens into one shared FlowLedger: the pump.fun pseudo-pair every tick,
- * other Tier A pools via GeckoTerminal every GECKO_POLL_MS (low priority). Never throws from a tick.
+ * other Tier A pools via GeckoTerminal (background class) every GECKO_POLL_MS, or every GECKO_POLL_SLOW_MS on
+ * Robinhood while the own poller is healthy. Tokens idle for IDLE_MS are evicted. Never throws from a tick.
  */
 export class FlowCollector {
   readonly ledger: FlowLedger;
@@ -137,6 +153,7 @@ export class FlowCollector {
   private ownFaults = new Map<Chain, OwnFault>();
   private ownLoggedAt = 0;
   private subs = new Map<string, Subscription>();
+  private rememberedPairs = new Map<string, PairRow[]>();
   private backfills = new Map<string, BackfillState>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
@@ -166,14 +183,24 @@ export class FlowCollector {
 
   status(chain: Chain, address: string): CollectorStatus {
     const sub = this.subs.get(pairKey(chain, address));
+    const now = this.now();
+    const sources = sub?.sources ?? emptySources();
+    const own = this.ownHealth(sub);
     return {
       subscribed: sub !== undefined,
       lastRequestedAt: sub?.lastRequestedAt ?? null,
       tierAPairs: sub ? tierA(sub.pairs).length : 0,
-      sources: { ...(sub?.sources ?? emptySources()), own: this.ownHealth(sub) },
+      sources: { ...sources, own },
+      feedHealth: feedHealthOf({ sources, own, geckoBlockedUntil: geckoBlockedUntilMs(now), now }),
       backfill: this.backfills.get(pairKey(chain, address)) ?? null,
       launchMs: this.launchMs(chain, address)
     };
+  }
+
+  /** Registry rows last handed to subscribe() for this token, kept after eviction; null when never subscribed. */
+  pairsOf(chain: Chain, address: string): PairRow[] | null {
+    const key = pairKey(chain, address);
+    return this.subs.get(key)?.pairs ?? this.rememberedPairs.get(key) ?? null;
   }
 
   /** Oldest pump print, known only when the backfill walked the whole feed to its end. */
@@ -197,14 +224,14 @@ export class FlowCollector {
     this.stopOwn();
   }
 
-  /** One polling round over every subscription requested within SUBSCRIPTION_TTL_MS. Safe to call directly. */
+  /** One polling round: evicts tokens idle past IDLE_MS, then polls every remaining subscription. Safe to call directly. */
   async tick(): Promise<void> {
     if (this.ticking) return;
     this.ticking = true;
     try {
       const now = this.now();
-      this.reapOwn(now);
-      await Promise.all(this.active(now).map((sub) => this.pollSubscription(sub, now)));
+      this.reapIdle(now);
+      await Promise.all([...this.subs.values()].map((sub) => this.pollSubscription(sub, now)));
     } finally {
       this.ticking = false;
     }
@@ -216,17 +243,29 @@ export class FlowCollector {
     this.timer.unref?.();
   }
 
-  private active(now: number): Subscription[] {
-    return [...this.subs.values()].filter((sub) => now - sub.lastRequestedAt <= SUBSCRIPTION_TTL_MS);
-  }
-
   private makeRoom(now: number): void {
     while (this.subs.size >= MAX_SUBSCRIPTIONS) {
       const victim = [...this.subs.entries()].sort((a, b) => a[1].lastRequestedAt - b[1].lastRequestedAt)[0];
       if (!victim) return;
-      this.subs.delete(victim[0]);
-      this.untrackOwn(victim[0], victim[1].chain, victim[1].address);
-      this.log(`flow collector: dropping ${victim[0]} (idle ${Math.round((now - victim[1].lastRequestedAt) / 1000)}s, cap ${MAX_SUBSCRIPTIONS})`);
+      this.evict(victim[0], victim[1], now, `cap ${MAX_SUBSCRIPTIONS}`);
+    }
+  }
+
+  /** Drops a subscription: own tape untracked, Gecko polling stops, the registry snapshot is remembered for the route. */
+  private evict(key: string, sub: Subscription, now: number, reason: string): void {
+    this.subs.delete(key);
+    this.remember(key, sub.pairs);
+    this.untrackOwn(key, sub.chain, sub.address);
+    this.log(`flow collector: dropping ${key} (idle ${Math.round((now - sub.lastRequestedAt) / 1000)}s, ${reason})`);
+  }
+
+  private remember(key: string, pairs: PairRow[]): void {
+    this.rememberedPairs.delete(key);
+    this.rememberedPairs.set(key, pairs);
+    while (this.rememberedPairs.size > REMEMBERED_PAIRS_MAX) {
+      const oldest = this.rememberedPairs.keys().next().value;
+      if (oldest === undefined) return;
+      this.rememberedPairs.delete(oldest);
     }
   }
 
@@ -261,16 +300,27 @@ export class FlowCollector {
 
   private pollSubscription(sub: Subscription, now: number): Promise<unknown> {
     const key = pairKey(sub.chain, sub.address);
+    const pollMs = this.geckoPollMs(key, sub, now);
     const tasks = tierA(sub.pairs).map((pair) => {
       const mint = pumpMint(pair);
       if (mint !== null) return this.pollPump(key, sub.chain, mint);
-      return this.geckoDue(sub, pair.pairAddress, now) ? this.pollGecko(key, sub, pair.pairAddress, now) : Promise.resolve();
+      return this.geckoDue(sub, pair.pairAddress, now, pollMs) ? this.pollGecko(key, sub, pair.pairAddress, now) : Promise.resolve();
     });
     return Promise.all(tasks);
   }
 
-  private geckoDue(sub: Subscription, pair: string, now: number): boolean {
-    return now - (sub.polledAt[pair] ?? Number.NEGATIVE_INFINITY) >= GECKO_POLL_MS;
+  /** Robinhood: slow cadence while the own poller is healthy (own tape primary), fast otherwise; Solana is always fast. */
+  private geckoPollMs(key: string, sub: Subscription, now: number): number {
+    const mode: GeckoMode = sub.chain === "robinhood" && ownTapeHealthy(this.ownHealth(sub), now) ? "slow" : "fast";
+    if (mode !== sub.geckoMode) {
+      this.patch(key, (current) => ({ ...current, geckoMode: mode }));
+      this.log(`flow collector: gecko cadence ${key}: ${mode} (${geckoPollMsFor(mode) / 1000}s, own tape ${mode === "slow" ? "healthy" : "down"})`);
+    }
+    return geckoPollMsFor(mode);
+  }
+
+  private geckoDue(sub: Subscription, pair: string, now: number, pollMs: number): boolean {
+    return now - (sub.polledAt[pair] ?? Number.NEGATIVE_INFINITY) >= pollMs;
   }
 
   private async pollPump(key: string, chain: Chain, mint: string): Promise<void> {
@@ -287,7 +337,7 @@ export class FlowCollector {
   private async pollGecko(key: string, sub: Subscription, pair: string, now: number): Promise<void> {
     this.patch(key, (sub) => ({ ...sub, polledAt: { ...sub.polledAt, [pair]: now } }));
     try {
-      const prints = await this.fetchGecko(sub.chain, pair, { priority: "low", token: sub.address });
+      const prints = await this.fetchGecko(sub.chain, pair, { priority: "background", token: sub.address });
       this.ledger.ingest(prints);
       this.ok(key, "geckoterminal");
     } catch (error) {
@@ -355,10 +405,10 @@ export class FlowCollector {
     this.withOwnTape(chain, (tape) => tape.untrack(address));
   }
 
-  /** Subscriptions past the TTL keep their ledger data but stop costing RPC budget on the own tape. */
-  private reapOwn(now: number): void {
+  /** Idle subscriptions keep their ledger data but stop costing Gecko budget and own-tape RPC. */
+  private reapIdle(now: number): void {
     for (const [key, sub] of this.subs) {
-      if (now - sub.lastRequestedAt > SUBSCRIPTION_TTL_MS) this.untrackOwn(key, sub.chain, sub.address);
+      if (now - sub.lastRequestedAt > IDLE_MS) this.evict(key, sub, now, `idle > ${IDLE_MS / 1000}s`);
     }
   }
 

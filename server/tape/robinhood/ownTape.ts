@@ -122,6 +122,17 @@ export function createRobinhoodOwnTapeFromConfig(ledger: FlowLedger, log?: (msg:
  * pool; a pool that fails is skipped and retried by the queue's own timer with a doubling delay. Nothing here throws
  * out of a handler.
  */
+const POOL_ID_IN_MESSAGE = /0x[0-9a-f]{40,64}/g;
+
+/** null when `message` names a pool address and none of `rows` is that pool; a message naming no pool is kept as is. */
+export function scopedError(message: string | null, rows: readonly PairRow[]): string | null {
+  if (message === null) return null;
+  const named = message.toLowerCase().match(POOL_ID_IN_MESSAGE);
+  if (!named) return message;
+  const own = new Set(rows.map((row) => row.pairAddress.toLowerCase()));
+  return named.some((id) => own.has(id)) ? message : null;
+}
+
 export class RobinhoodOwnTape {
   private readonly ledger: FlowLedger;
   private readonly log: (msg: string) => void;
@@ -183,19 +194,24 @@ export class RobinhoodOwnTape {
     this.applyFilter();
   }
 
-  /** Counters for one token, or summed over every tracked token when omitted. */
+  /**
+   * Counters for one token, or summed over every tracked token when omitted. Per token, a tape-wide error that names
+   * another token's pool (resolve failures carry the pool address) is not this token's error and is left out.
+   */
   stats(address?: string): RobinhoodOwnTapeStats {
     const state = address === undefined ? undefined : this.tokens.get(address.toLowerCase());
     const states = address === undefined ? [...this.tokens.values()] : state ? [state] : [];
+    const scope = state ? (message: string | null) => scopedError(message, state.rows) : (message: string | null) => message;
+    const resolve = this.resolveStatus();
     return {
       ...states.reduce(sumCounters, emptyCounters()),
       tokens: this.tokens.size,
       pools: this.index.size,
-      lastError: this.lastError,
+      lastError: scope(this.lastError),
       poller: this.poller.stats(),
       blocks: this.blocks.stats(),
       price: this.prices.status(),
-      resolve: this.resolveStatus()
+      resolve: { ...resolve, lastError: scope(resolve.lastError) }
     };
   }
 

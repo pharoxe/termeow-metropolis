@@ -1,0 +1,37 @@
+{
+ "source": "https://rpc.mainnet.chain.robinhood.com",
+ "capturedAtIso": "2026-09-07T13:45:40.140Z",
+ "head": 56879919,
+ "fatcoinV4": {
+  "first": {
+   "number": 56800228,
+   "timestampHex": "0x6a9ea08c",
+   "timestampSec": 1788780684,
+   "iso": "2026-09-07T11:31:24.000Z",
+   "hash": "0x5b726d172c6ccc44425e7c1ee2795bace2df4b9681a84b8bc716c05d987319fa"
+  },
+  "last": {
+   "number": 56879850,
+   "timestampHex": "0x6a9ebfea",
+   "timestampSec": 1788788714,
+   "iso": "2026-09-07T13:45:14.000Z",
+   "hash": "0x0e97e2d9cf7197ac31ccb851f032f0261f6cf8ee81c2789395d34eacb41afa53"
+  }
+ },
+ "gldV3": {
+  "first": {
+   "number": 56839045,
+   "timestampHex": "0x6a9eafd6",
+   "timestampSec": 1788784598,
+   "iso": "2026-09-07T12:36:38.000Z",
+   "hash": "0x35e05e8b3b74ebf4b39f208684ce14fa5486f10ad31eea696d70b3905658911b"
+  },
+  "last": {
+   "number": 56879561,
+   "timestampHex": "0x6a9ebfcd",
+   "timestampSec": 1788788685,
+   "iso": "2026-09-07T13:44:45.000Z",
+   "hash": "0x8bea499a218a37ff614a8b83a4df632d4436826d9b51ca69873cef1a9ae4bf6e"
+  }
+ }
+}

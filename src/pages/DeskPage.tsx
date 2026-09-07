@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react
 import { AnimatePresence, motion } from "motion/react";
 import { api } from "../api/client";
 import type { OnchainMarket, PublicConfig } from "../types";
+import type { SystemHealth } from "../../shared/wire";
 import { MarketChart, type ChartScaleMode, type IndicatorSet, type MarketChartHandle } from "../components/MarketChart";
 import { IndicatorBar } from "../components/IndicatorBar";
 import { ExecutionRail } from "../components/ExecutionRail";
@@ -19,8 +20,8 @@ import { parseIntervalMs } from "../lib/chartTime";
 import type { LiveCandleStats } from "../lib/liveCandle";
 import { analysisFlowFromWindows } from "../lib/agenticAnalysis";
 import {
-  LAUNCH_POLL_MS, OWN_TAPE_POLL_MS, biasTone, candleSeriesKey, eventMarkerInput, flowReadoutCells, hasLiveTape, launchRowFor,
-  livePrintsAfter, marketIntervalFor, ownTapeInterval, selectCandles, stableChartFlow, visibleIntervals, SUB_MINUTE_MARKET_INTERVAL, type StableFlow
+  LAUNCH_POLL_MS, OWN_TAPE_POLL_MS, biasTone, candleSeriesKey, candleSourceMeta, eventMarkerInput, flowReadoutCells, hasLiveTape, launchRowFor,
+  livePrintsAfter, marketIntervalFor, nextFlowState, noCandlesReason, ownTapeInterval, selectCandles, stableChartFlow, systemStatusLine, visibleIntervals, SUB_MINUTE_MARKET_INTERVAL, type StableFlow
 } from "../lib/deskFlow";
 import { DrawingToolbar, type DrawingsApi, type DrawingsSnapshot } from "../chart/drawings";
 import { BothSidesPanel, MarketStrips, SocialPanel, WatchPanel } from "../components/DeskPanels";
@@ -113,6 +114,8 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const [ownCandles, setOwnCandles] = useState<FlowCandlesResponse | null>(null);
   const [launchRows, setLaunchRows] = useState<LaunchRow[]>([]);
   const [liveStats, setLiveStats] = useState<LiveCandleStats | null>(null);
+  /** GET /api/health for the toolbar status line (RPC endpoint pool + snapshot age); null until answered. */
+  const [health, setHealth] = useState<SystemHealth | null>(null);
   const [drawingsApi, setDrawingsApi] = useState<DrawingsApi | null>(null);
   const [drawings, setDrawings] = useState<DrawingsSnapshot | null>(null);
   const [chartUnit, setChartUnit] = useState<ChartUnit>(readChartUnit);
@@ -191,6 +194,14 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     return () => { active = false; clearInterval(timer); };
   }, [instrument, ownInterval]);
 
+  useEffect(() => {
+    let active = true;
+    const load = () => api.health().then((value) => { if (active) setHealth(value); }).catch(() => { if (active) setHealth(null); });
+    load();
+    const timer = setInterval(load, 30_000);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
+
   // Launch index rows for the focused chain: launch/graduation markers come from the row whose token is the focused address, if any.
   useEffect(() => {
     setLaunchRows([]);
@@ -220,10 +231,10 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     let active = true;
     const load = () => api.flowToken(instrument.chain, instrument.address, marketIntervalFor(interval))
       .then((value) => {
-        if (active) setFlowState((previous) => (value.error && previous ? previous : value));
+        if (active) setFlowState((previous) => nextFlowState(previous, value));
       })
-      .catch(() => {
-        if (active) setFlowState(null);
+      .catch((reason) => {
+        if (active) setFlowState((previous) => nextFlowState(previous, null, reason instanceof Error ? reason.message : String(reason)));
       });
     load();
     const timer = setInterval(load, 15_000);
@@ -293,6 +304,9 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   );
   const fomoMeta = [fomo.markers.length - fomo.seeded > 0 ? `${fomo.markers.length - fomo.seeded} FOMO` : "", fomo.seeded ? `${fomo.seeded} SEEDED` : "", fomo.dropped ? `+${fomo.dropped} more` : "", fomo.beforeRange ? `${fomo.beforeRange} off-chart` : ""].filter(Boolean).join(" ");
   const sourceLabel = active.source === "own tape" ? "OWN TAPE" : feed?.primaryPair?.dex || feed?.source || "GECKO";
+  /** R6 provenance: which series the market candles are and how far the chain backfill reaches. */
+  const provenanceMeta = candleSourceMeta(feed, active.source);
+  const statusLine = systemStatusLine(health, Date.now());
 
   const technicals = useMemo(() => {
     if (!candles.length) return null;
@@ -422,13 +436,14 @@ export function DeskPage({ config }: { config: PublicConfig }) {
                 {chartUnitLabel && <em className={chartUnitLabel === "NO MCAP" ? "chart-unit warn" : "chart-unit"}>{chartUnitLabel}</em>}
                 {chartSub && <small className={`chart-sub${!useMcap ? " mcap-value" : ""}`}>{chartSub}</small>}
               </span>
-              <span className="chart-meta">{candles.length} BARS · {sourceLabel} · {activeInterval}{active.label ? ` · ${active.label}` : ""}{liveMeta ? ` · ${liveMeta}` : ""}{eventsMeta ? ` · ${eventsMeta}` : ""}{fomoMeta ? ` · ${fomoMeta}` : ""}</span>
+              <span className="chart-meta">{candles.length} BARS · {sourceLabel} · {activeInterval}{provenanceMeta ? ` · ${provenanceMeta}` : ""}{active.label ? ` · ${active.label}` : ""}{liveMeta ? ` · ${liveMeta}` : ""}{eventsMeta ? ` · ${eventsMeta}` : ""}{fomoMeta ? ` · ${fomoMeta}` : ""}</span>
               {active.note && <span className="chart-meta chart-note" role="status">{active.note}</span>}
             </div>
           </div>
           <IndicatorBar value={indicators} onChange={setIndicators} />
           <div className="chart-tools" role="toolbar" aria-label="Chart navigation tools">
             <span className="chart-tool-status" title="Drag to pan. Scroll or pinch to zoom.">PAN · CROSSHAIR</span>
+            {statusLine ? <span className="chart-tool-status system-status" title={statusLine.title}>{statusLine.text}</span> : null}
             <DrawingToolbar tool={drawings?.tool ?? null} count={drawings?.count ?? 0} onTool={(tool) => drawingsApi?.setTool(tool)} onClear={() => drawingsApi?.clear()} />
             <button type="button" title="Zoom in" aria-label="Zoom chart in" onClick={() => chartRef.current?.zoomIn()}>＋</button>
             <button type="button" title="Zoom out" aria-label="Zoom chart out" onClick={() => chartRef.current?.zoomOut()}>−</button>
@@ -456,7 +471,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
             legendLabel={chartTitle}
             drawingsKey={instrumentKey(instrument)}
             onDrawings={setDrawingsApi}
-          /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{error || "No OHLCV on Gecko for this token's pools."}</p></div>}
+          /> : <div className="integration-empty"><h2>NO CANDLES YET</h2><p>{noCandlesReason(feed, error)}</p></div>}
           <div className="chart-readout">
             <span>RSI14 <b>{technicals?.rsi?.toFixed(2) || "—"}</b></span>
             <span>MACD <b>{technicals?.macd?.toPrecision(4) || "—"}</b></span>

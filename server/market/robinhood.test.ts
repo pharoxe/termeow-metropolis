@@ -5,6 +5,7 @@ import type { Candle } from "../types.js";
 import { normalizePair, type DexScreenerPair } from "../sources/dexscreener.js";
 import { GECKO_OHLCV_PAGE_LIMIT } from "../sources/gecko.js";
 import { ROBINHOOD_MARKET_SOURCE, assembleRobinhoodMarket, primaryPairOf, type RobinhoodMarketDeps } from "./robinhood.js";
+import type { ChainCandlesResult } from "./robinhood/chainCandles.js";
 
 const FATCOIN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
 const PRIMARY = "0xa659efd0442e9bb12f94193422d29bce5799225fca316ea8dd59f98afaaa90e1";
@@ -129,5 +130,92 @@ describe("assembleRobinhoodMarket", () => {
 
   it("propagates a registry failure so the route can serve last-good", async () => {
     await expect(assembleRobinhoodMarket(FATCOIN, "5m", deps({ getTokenPairs: async () => { throw new Error("down"); } }))).rejects.toThrow("down");
+  });
+});
+
+function chainResult(kind: "chain swaps", candles: Candle[], notes: string[] = []): ChainCandlesResult {
+  return {
+    candles,
+    notes,
+    stale: false,
+    candleSource: {
+      kind,
+      backfilledFrom: kind === "chain swaps" ? { block: 56_800_228, time: 1_788_780_684_000 } : null,
+      coverage: { fromMs: candles[0]?.time ?? null, toMs: candles.at(-1)?.time ?? null, bars: candles.length, prints: candles.length, complete: kind === "chain swaps", backfilling: false },
+      timing: "test",
+      quoteUsd: kind === "chain swaps" ? 1 : null,
+      live: 0
+    }
+  };
+}
+
+describe("assembleRobinhoodMarket R6 chain-swap candles", () => {
+  it("serves the pool's own swaps under source 'chain swaps' with candleSource, never calling GeckoTerminal", async () => {
+    const chainCandles = vi.fn(async (_primary: PairRow, _interval: string) => chainResult("chain swaps", page(4, 1_788_699_900), ["candles from v4 Swap logs of 0xpool (4 swaps, 1 chunks, 2 block anchors; times interpolated between anchors)"]));
+    const d = deps({ chainCandles });
+    const market = await assembleRobinhoodMarket(FATCOIN, "1m", d);
+    expect(chainCandles).toHaveBeenCalledTimes(1);
+    expect(chainCandles.mock.calls[0][0]).toMatchObject({ pairAddress: PRIMARY });
+    expect(chainCandles.mock.calls[0][1]).toBe("1m");
+    expect(d.geckoPoolOhlcv).not.toHaveBeenCalled();
+    expect(market.source).toBe("chain swaps");
+    expect(market.candles).toHaveLength(4);
+    expect(market.candleSource).toMatchObject({ kind: "chain swaps", backfilledFrom: { block: 56_800_228 }, coverage: { bars: 4, complete: true } });
+    expect(market.notes).toEqual(["candles from v4 Swap logs of 0xpool (4 swaps, 1 chunks, 2 block anchors; times interpolated between anchors)"]);
+    // provenance notes describe the series; they are not a degradation
+    expect(market.degraded).toBe(false);
+    expect(market.priceUsd).toBe(0.02048);
+  });
+
+  it("falls back to GeckoTerminal only when the chain path throws, labelled 'geckoterminal' with the reason", async () => {
+    const d = deps({ chainCandles: vi.fn(async () => { throw new Error("quote 0x8005 has no USD price"); }) });
+    const market = await assembleRobinhoodMarket(FATCOIN, "5m", d);
+    expect(d.geckoPoolOhlcv).toHaveBeenCalledTimes(1);
+    expect(market.source).toBe("geckoterminal");
+    expect(market.candles).toHaveLength(3);
+    expect(market.candleSource).toBeUndefined();
+    expect(market.degraded).toBe(true);
+    expect(market.notes).toEqual(["chain swaps unavailable: quote 0x8005 has no USD price; candles are GeckoTerminal pool OHLCV"]);
+  });
+
+  it("reports both failures when the chain path throws and GeckoTerminal is in backoff", async () => {
+    const market = await assembleRobinhoodMarket(FATCOIN, "5m", deps({
+      chainCandles: vi.fn(async () => { throw new Error("chain backfill failed: upstream returned 429"); }),
+      geckoPoolOhlcv: vi.fn(async () => { throw new Error("GeckoTerminal backoff active after 429"); })
+    }));
+    expect(market.candles).toEqual([]);
+    expect(market.source).toBe("geckoterminal");
+    expect(market.notes).toEqual([
+      "chain swaps unavailable: chain backfill failed: upstream returned 429; candles are GeckoTerminal pool OHLCV",
+      "OHLCV unavailable: GeckoTerminal backoff active after 429"
+    ]);
+  });
+
+  it("marks a still-backfilling empty chain series as degraded-but-chain rather than falling back", async () => {
+    const running = chainResult("chain swaps", [], ["backfill in progress: older bars arrive on the next read"]);
+    running.candleSource.coverage = { ...running.candleSource.coverage, complete: false, backfilling: true };
+    const d = deps({ chainCandles: vi.fn(async () => running) });
+    const market = await assembleRobinhoodMarket(FATCOIN, "1m", d);
+    expect(d.geckoPoolOhlcv).not.toHaveBeenCalled();
+    expect(market.source).toBe("chain swaps");
+    expect(market.candles).toEqual([]);
+    expect(market.degraded).toBe(true);
+    expect(market.candleSource?.coverage.backfilling).toBe(true);
+  });
+
+  it("marks the response stale when the chain series' last top-up failed", async () => {
+    const stale = chainResult("chain swaps", page(2, 1_788_699_900), ["chain backfill error: upstream returned 429 (series may be partial; head not current)"]);
+    const market = await assembleRobinhoodMarket(FATCOIN, "1m", deps({ chainCandles: vi.fn(async () => ({ ...stale, stale: true })) }));
+    expect(market.stale).toBe(true);
+    expect(market.degraded).toBe(true);
+    const fresh = await assembleRobinhoodMarket(FATCOIN, "1m", deps({ chainCandles: vi.fn(async () => chainResult("chain swaps", page(2, 1_788_699_900))) }));
+    expect(fresh.stale).toBeUndefined();
+  });
+
+  it("keeps the legacy note when a token has no pool", async () => {
+    const market = await assembleRobinhoodMarket(FATCOIN, "1m", deps({ getTokenPairs: async () => ({ pairs: [], stale: false, observedAt: NOW }), chainCandles: vi.fn() }));
+    expect(market.notes).toEqual(["No DexScreener pool with this token as base"]);
+    expect(market.source).toBe(ROBINHOOD_MARKET_SOURCE);
+    expect(market.candleSource).toBeUndefined();
   });
 });

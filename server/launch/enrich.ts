@@ -7,6 +7,8 @@ import type { SolanaLaunch } from "./solana/pumpportal.js";
 
 export const PUMPPORTAL_SOURCE = "pumpportal";
 export const DEXSCREENER_TOKENS_SOURCE = "dexscreener tokens/v1";
+/** Symbol read from the token contract itself (erc20Meta symbol() eth_call); the contract carries no launch name field the desk reads. */
+export const ERC20_META_SOURCE = "erc20 symbol() via rpc";
 /** Launchpad recorded for a token first seen on a DexScreener profile/boost feed: the feed does not say where it launched. */
 export const DISCOVERY_LAUNCHPAD = "dexscreener-profile";
 
@@ -91,4 +93,14 @@ export function trenchUpsert(row: TrenchToken, existing: LaunchRow | null, obser
   };
   if (existing) return base;
   return { ...base, launchpad: UNKNOWN_LAUNCHPAD, createdAt: row.pairCreatedAt ?? row.firstAt ?? observedAt };
+}
+
+/**
+ * R6: symbol from the ERC-20 contract for a Robinhood row no source has named (Pons events and DexScreener profile
+ * rows carry none). Only `symbol` is written: erc20Meta reads symbol()/decimals(), not name(), so `name` stays null.
+ * Null when the lookup is unresolved or the contract has no readable symbol, so the caller upserts nothing.
+ */
+export function erc20MetaUpsert(token: string, entry: { symbol: string | null } | null): LaunchUpsert | null {
+  if (!entry || entry.symbol === null) return null;
+  return { chain: "robinhood", token, symbol: entry.symbol, sources: [ERC20_META_SOURCE] };
 }

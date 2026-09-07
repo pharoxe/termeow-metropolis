@@ -82,6 +82,7 @@ describe("formatIst", () => {
     expect(formatIst(UTC_MS, "hour")).toBe("06 Sep 2026 23:24 IST");
     expect(formatIst(UTC_MS, "day")).toBe("06 Sep 2026 IST");
     expect(formatIst(UTC_SEC, "minute", false)).toBe("06 Sep 2026 23:24");
+    expect(formatIst(UTC_MS, "minute", true, false)).toBe("06 Sep 23:24 IST");
   });
   it("never invents a time for missing input", () => {
     expect(formatIst(null, "minute")).toBe("—");

@@ -6,6 +6,7 @@ import type { MarketResponse } from "../../shared/wire.js";
 import type { OnchainMarket } from "../types.js";
 import { ROBINHOOD_MARKET_SOURCE } from "../market/robinhood.js";
 import {
+  MARKET_BACKFILLING_TTL_MS,
   MARKET_CACHE_TTL_MS,
   SOLANA_MARKET_SOURCE,
   buildMarketResponse,
@@ -94,6 +95,29 @@ describe("buildMarketResponse", () => {
     now = NOW + MARKET_CACHE_TTL_MS;
     expect((await buildMarketResponse(params, d)).observedAt).toBe(now);
     expect(assembleRobinhoodMarket).toHaveBeenCalledTimes(3);
+  });
+
+  it("re-reads a Robinhood answer after 5s instead of 45s while its chain backfill is still running", async () => {
+    let now = NOW;
+    let backfilling = true;
+    const assembleRobinhoodMarket = vi.fn(async () => ({
+      ...robinhoodMarket(now),
+      source: "chain swaps",
+      candleSource: { kind: "chain swaps" as const, backfilledFrom: null, coverage: { fromMs: null, toMs: null, bars: 0, prints: 0, complete: !backfilling, backfilling }, timing: "t", quoteUsd: 1, live: 0 }
+    }));
+    const d = deps({ assembleRobinhoodMarket, now: () => now });
+    const params = { chain: "robinhood" as const, address: FATCOIN, interval: "1m" as const };
+    await buildMarketResponse(params, d);
+    now = NOW + MARKET_BACKFILLING_TTL_MS - 1;
+    await buildMarketResponse(params, d);
+    expect(assembleRobinhoodMarket).toHaveBeenCalledTimes(1);
+    now = NOW + MARKET_BACKFILLING_TTL_MS;
+    backfilling = false;
+    await buildMarketResponse(params, d);
+    expect(assembleRobinhoodMarket).toHaveBeenCalledTimes(2);
+    now += MARKET_CACHE_TTL_MS - 1;
+    await buildMarketResponse(params, d);
+    expect(assembleRobinhoodMarket).toHaveBeenCalledTimes(2);
   });
 
   it("serves last-good with stale + error after a Robinhood failure, and the empty envelope when nothing is cached", async () => {

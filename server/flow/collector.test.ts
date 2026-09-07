@@ -9,11 +9,13 @@ import {
   FlowCollector,
   GECKO_POLL_MS,
   MAX_SUBSCRIPTIONS,
-  SUBSCRIPTION_TTL_MS,
+  GECKO_POLL_SLOW_MS,
+  IDLE_MS,
   type CollectorDeps,
   type OwnTapeLike,
   type RobinhoodOwnTapeLike
 } from "./collector.js";
+import { OWN_FRESH_MS } from "./feedHealth.js";
 import { FlowLedger } from "./ledger.js";
 
 const MINT = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
@@ -120,7 +122,7 @@ describe("FlowCollector", () => {
     await h.collector.tick();
     expect(h.fetchPumpTradesPage).toHaveBeenCalledTimes(1);
     expect(h.geckoPoolTrades).toHaveBeenCalledTimes(1);
-    expect(h.geckoPoolTrades).toHaveBeenCalledWith("solana", POOL, { priority: "low", token: MINT });
+    expect(h.geckoPoolTrades).toHaveBeenCalledWith("solana", POOL, { priority: "background", token: MINT });
     h.advance(5_000);
     await h.collector.tick();
     expect(h.fetchPumpTradesPage).toHaveBeenCalledTimes(2);
@@ -193,15 +195,55 @@ describe("FlowCollector", () => {
     expect(h.collector.status("solana", "unknown")).toMatchObject({ subscribed: false, lastRequestedAt: null, backfill: null, launchMs: null });
   });
 
-  it("skips subscriptions not requested within the TTL", async () => {
+  it("evicts a subscription idle past IDLE_MS, keeps its ledger data and remembers its pairs for pairsOf()", async () => {
     const h = track(harness());
-    h.collector.subscribe("solana", MINT, [row(PUMP, "A")]);
-    h.advance(SUBSCRIPTION_TTL_MS + 1);
+    h.collector.subscribe("solana", MINT, [row(PUMP, "A"), row(POOL, "A")]);
     await h.collector.tick();
-    expect(h.fetchPumpTradesPage).not.toHaveBeenCalled();
-    h.collector.subscribe("solana", MINT, [row(PUMP, "A")]);
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(1);
+    h.advance(IDLE_MS + 1);
     await h.collector.tick();
     expect(h.fetchPumpTradesPage).toHaveBeenCalledTimes(1);
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(1);
+    expect(h.collector.subscriptions()).toEqual([]);
+    expect(h.collector.status("solana", MINT).subscribed).toBe(false);
+    expect(h.log).toHaveBeenCalledWith(expect.stringContaining(`dropping solana:${MINT} (idle 90s, idle > 90s)`));
+    expect(h.ledger.recentPrints("solana", POOL)).toHaveLength(1);
+    expect(h.collector.pairsOf("solana", MINT)).toEqual([row(PUMP, "A"), row(POOL, "A")]);
+    expect(h.collector.pairsOf("solana", "never")).toBeNull();
+    h.collector.subscribe("solana", MINT, [row(PUMP, "A")]);
+    await h.collector.tick();
+    expect(h.fetchPumpTradesPage).toHaveBeenCalledTimes(2);
+    expect(h.collector.pairsOf("solana", MINT)).toEqual([row(PUMP, "A")]);
+  });
+
+  it("stops one token's Tier A pools from costing Gecko once the next CA is focused and it goes idle", async () => {
+    const h = track(harness());
+    h.collector.subscribe("solana", "first", [row("f1", "A"), row("f2", "A"), row("f3", "A"), row("f4", "A")]);
+    await h.collector.tick();
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(4);
+    h.advance(IDLE_MS + 1);
+    h.collector.subscribe("solana", "second", [row("s1", "A")]);
+    await h.collector.tick();
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(5);
+    expect(h.geckoPoolTrades.mock.calls.slice(4).map((call) => call[1])).toEqual(["s1"]);
+    expect(h.collector.subscriptions()).toEqual(["solana:second"]);
+  });
+
+  it("reports feed health in status()", async () => {
+    const h = track(harness());
+    h.collector.subscribe("solana", MINT, [row(PUMP, "A"), row(POOL, "A")]);
+    await h.collector.tick();
+    const status = h.collector.status("solana", MINT);
+    expect(status.feedHealth).toEqual({
+      own: { ok: true, lastOkAt: START - 500, lastError: null, nextRetryAt: null },
+      gecko: { ok: true, lastOkAt: START, lastError: null, nextRetryAt: null },
+      pumpfun: { ok: true, lastOkAt: START, lastError: null, nextRetryAt: null }
+    });
+    expect(h.collector.status("solana", "unknown").feedHealth).toEqual({
+      own: { ok: false, lastOkAt: null, lastError: null, nextRetryAt: null },
+      gecko: { ok: false, lastOkAt: null, lastError: null, nextRetryAt: null },
+      pumpfun: { ok: false, lastOkAt: null, lastError: null, nextRetryAt: null }
+    });
   });
 
   it("caps subscriptions and drops the least recently requested with a log line", () => {
@@ -238,10 +280,10 @@ describe("FlowCollector own tape", () => {
     expect(h.collector.status("solana", "unknown").sources.own).toEqual({ lastOkAt: null, lastError: null, lastErrorAt: null, tape: null });
   });
 
-  it("untracks when a subscription expires or is evicted, and stops the tape with the collector", async () => {
+  it("untracks when a subscription goes idle or is evicted, and stops the tape with the collector", async () => {
     const h = track(harness());
     h.collector.subscribe("solana", MINT, registry());
-    h.advance(SUBSCRIPTION_TTL_MS + 1);
+    h.advance(IDLE_MS + 1);
     await h.collector.tick();
     expect(h.tape.untrack).toHaveBeenCalledWith(MINT);
     await h.collector.tick();
@@ -287,7 +329,7 @@ describe("FlowCollector robinhood", () => {
     expect(h.rhTape.track).toHaveBeenCalledWith(EVM_TOKEN, [evmRow()]);
     expect(h.tape.track).not.toHaveBeenCalled();
     await h.collector.tick();
-    expect(h.geckoPoolTrades).toHaveBeenCalledWith("robinhood", EVM_POOL, { priority: "low", token: EVM_TOKEN });
+    expect(h.geckoPoolTrades).toHaveBeenCalledWith("robinhood", EVM_POOL, { priority: "background", token: EVM_TOKEN });
     expect(h.fetchPumpTradesPage).not.toHaveBeenCalled();
     expect(h.walkPumpTradesBack).not.toHaveBeenCalled();
     const own = h.collector.status("robinhood", EVM_TOKEN).sources.own;
@@ -302,13 +344,50 @@ describe("FlowCollector robinhood", () => {
     const h = track(harness());
     h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
     h.collector.subscribe("solana", MINT, [row(POOL, "A")]);
-    h.advance(SUBSCRIPTION_TTL_MS + 1);
+    h.advance(IDLE_MS + 1);
     await h.collector.tick();
     expect(h.rhTape.untrack).toHaveBeenCalledWith(EVM_TOKEN);
     expect(h.tape.untrack).toHaveBeenCalledWith(MINT);
     h.collector.stop();
     expect(h.rhTape.stop).toHaveBeenCalledTimes(1);
     expect(h.tape.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("polls gecko every GECKO_POLL_SLOW_MS while the own poller is healthy and drops to GECKO_POLL_MS when it backs off", async () => {
+    const h = track(harness());
+    h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
+    await h.collector.tick();
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(1);
+    expect(h.log).toHaveBeenCalledWith(`flow collector: gecko cadence robinhood:${EVM_TOKEN}: slow (60s, own tape healthy)`);
+    h.advance(GECKO_POLL_MS);
+    h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
+    await h.collector.tick();
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(1);
+    h.advance(GECKO_POLL_SLOW_MS - GECKO_POLL_MS);
+    h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
+    await h.collector.tick();
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(2);
+
+    const blockedStats: RobinhoodOwnTapeStats = { ...RH_STATS, poller: { ...RH_STATS.poller, blockedUntil: START + 10 * 60_000 } };
+    h.rhTape.stats.mockReturnValue(blockedStats);
+    h.advance(GECKO_POLL_MS);
+    h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
+    await h.collector.tick();
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(3);
+    const status = h.collector.status("robinhood", EVM_TOKEN);
+    expect(status.feedHealth.own).toEqual({ ok: false, lastOkAt: START, lastError: "rpc 429 rate limited", nextRetryAt: START + 10 * 60_000 });
+    expect(status.feedHealth.pumpfun.ok).toBe(false);
+    expect(h.log).toHaveBeenCalledWith(`flow collector: gecko cadence robinhood:${EVM_TOKEN}: fast (15s, own tape down)`);
+  });
+
+  it("treats a stale own poller (no ok poll within OWN_FRESH_MS) as down and polls gecko fast", async () => {
+    const h = track(harness());
+    h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
+    h.advance(OWN_FRESH_MS + 1_000);
+    h.collector.subscribe("robinhood", EVM_TOKEN, [evmRow()]);
+    await h.collector.tick();
+    expect(h.collector.status("robinhood", EVM_TOKEN).feedHealth.own.ok).toBe(false);
+    expect(h.geckoPoolTrades).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a robinhood tape fault out of solana's own health", () => {

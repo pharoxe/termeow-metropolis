@@ -7,7 +7,10 @@ import { mcapScale, rowMarketCap, rowTokenPrice } from "../lib/mcap";
 import { coverageChipLabel } from "../lib/flowSeries";
 import type { FlowCoverage, MarketResponse, TokenFlowResponse } from "../../shared/wire";
 import type { TapeRow } from "../lib/instrument";
-import { biasTone } from "../lib/deskFlow";
+import { biasTone, feedHealthChips, tapeEmptyCopy } from "../lib/deskFlow";
+import { isDiscoverTab } from "../lib/discover";
+import { useFundingNetwork } from "../features/NetworkContext";
+import { DiscoverTab } from "./DiscoverTab";
 import type { InstrumentRef } from "../lib/address";
 import { FlowSideOutputs } from "./FlowSideOutputs";
 import { AlertsTab } from "./AlertsTab";
@@ -114,6 +117,9 @@ export function WatchPanel({
   search?: ReactNode;
 }) {
   const [tab, setTab] = useState<WatchTab>("TRENDING");
+  /** R6: the ROBINHOOD/SOLANA toggle routes the discovery tabs; the ClawPump paths below stay Solana-only. */
+  const { network } = useFundingNetwork();
+  const robinhoodDiscovery = network === "robinhood" && isDiscoverTab(tab);
   const provider = record(market?.provider);
   const gems = rows(provider.anomalies, ["gems", "signals"]);
   const smartHolderRows = [...rows(provider.intelligence_signals, ["signals"]), ...gems].filter((item, index, all) => {
@@ -139,7 +145,7 @@ export function WatchPanel({
         <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW", "LAUNCHES", "FOMO", "ALERTS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
       </div>
       <div className="panel-scroll">
-        {tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
+        {robinhoodDiscovery && isDiscoverTab(tab) ? <DiscoverTab tab={tab} onOpen={onInstrument} selected={selected} /> : tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
           <table className="terminal-table"><thead><tr><th>TOKEN / SOCIAL</th><th className="r">MCAP / VOL</th></tr></thead><tbody>{sourceRows.slice(0, 48).map((item) => {
             const mint = String(item.mintAddress || "");
             return <tr className={mint && mint === selected ? "selected" : ""} key={mint || String(item.symbol)} onClick={() => pickSpot(item)}>
@@ -156,7 +162,7 @@ export function WatchPanel({
             return <tr className={mint && mint === selected ? "selected" : ""} key={String(item.contract || item.symbol || index)} onClick={() => pickSpot(item)}><td><b>{clean(item.symbol || item.name)}</b><small>{clean(item.signal || item.name)}{item.chain && String(item.chain) !== "sol" ? ` · ${String(item.chain).toUpperCase()}` : ""}</small></td><td className="r"><b className="mcap-value">{cap != null ? compact(cap) : "—"}</b>{px != null ? <small>{money(px)}</small> : null}</td><td className={`r ${change == null ? "" : changeClass(change)}`}>{change == null ? "—" : pct(change)}</td></tr>;
           })}</tbody></table>
         )}
-        {tab !== "LAUNCHES" && tab !== "FOMO" && tab !== "ALERTS" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
+        {!robinhoodDiscovery && tab !== "LAUNCHES" && tab !== "FOMO" && tab !== "ALERTS" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
       </div>
     </section>
   );
@@ -269,10 +275,15 @@ export function BothSidesPanel({
   const regimeLabel = sentRaw ? sentRaw.toUpperCase() : "—";
   const hour = tokenFlow?.windows?.find((window) => window.label === "1h") ?? null;
   const flowLabel = hour ? (hour.net > 0 ? "BUY" : hour.net < 0 ? "SELL" : "FLAT") : "—";
+  const healthChips = feedHealthChips(tokenFlow?.feedHealth, Date.now());
   return (
     <section className="panel sides-panel flow-panel research-panel">
       <div className="ph"><span className="pt">FLOW</span><span className="sd-sym">{market.symbol}</span><span className="pm">TAPE · POOLS · SENT</span></div>
-      {coverage ? <p className="pm"><span className="chip">{coverageChipLabel(coverage)}</span></p> : null}
+      {coverage || tokenFlow?.stale || healthChips.length ? <p className="pm flow-health">
+        {coverage ? <span className="chip">{coverageChipLabel(coverage)}</span> : null}
+        {tokenFlow?.stale ? <span className="chip warn" title={tokenFlow.error ? `last-good ring · ${tokenFlow.error}` : "last-good ring · no print source is currently ok"}>STALE</span> : null}
+        {healthChips.map((chip) => <span key={chip.key} className={`chip ${chip.tone}`} title={chip.title}>{chip.label}</span>)}
+      </p> : null}
       <FlowSideOutputs flow={tokenFlow ?? null} />
       <div className="flow-columns">
         <FeatureSection id="flow" className="tape-col">
@@ -285,7 +296,7 @@ export function BothSidesPanel({
                 <em>{printAge(row.time)}</em>
               </p>
             ))
-            : <p className="empty-copy">No pool prints in this window.</p>}
+            : <p className="empty-copy">{tapeEmptyCopy(tokenFlow)}</p>}
         </FeatureSection>
         <FeatureSection id="pools" className="pools-col">
           <h3>POOLS</h3>

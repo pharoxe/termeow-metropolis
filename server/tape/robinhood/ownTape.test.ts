@@ -7,7 +7,7 @@ import { FlowLedger, MINUTE_MS } from "../../flow/ledger.js";
 import { decodeSwapLog, SWAP_TOPICS } from "./decode.js";
 import type { LogsHandler, PollerStats, RawLog } from "./poller.js";
 import { NATIVE_ETH, POOL_MANAGER, type EvmPoolRef } from "./pools.js";
-import { RobinhoodOwnTape, type BlockTimeLike, type EvmPriceLike, type PollerLike } from "./ownTape.js";
+import { RobinhoodOwnTape, scopedError, type BlockTimeLike, type EvmPriceLike, type PollerLike } from "./ownTape.js";
 import type { EvmQuotePriceStatus } from "./price.js";
 
 const FATCOIN = "0x12D5ee7917cA430073C3A638ee1e6f0648A98a01";
@@ -267,6 +267,17 @@ describe("RobinhoodOwnTape", () => {
     h.tape.stop();
     expect(h.poller.stops).toBe(1);
     expect(h.tape.stats()).toMatchObject({ tokens: 0, pools: 0, poller: POLLER_STATS, blocks: BLOCK_STATS, price: PRICE_STATUS, resolve: { lastError: "unresolved pool" } });
+  });
+});
+
+describe("scopedError", () => {
+  const rows = [{ pairAddress: V3_PAIR }, { pairAddress: V4_PAIR }] as PairRow[];
+  it("keeps an error naming one of the token's pools or no pool at all, and drops one naming another token's pool", () => {
+    expect(scopedError(`pool ${V3_PAIR.toLowerCase()}: quote mint missing`, rows)).toBe(`pool ${V3_PAIR.toLowerCase()}: quote mint missing`);
+    expect(scopedError(`pool ${V4_PAIR}: decimals unreadable`, rows)).toMatch(/decimals unreadable/);
+    expect(scopedError("pool 0x34a4956d000000000000000000000000000000ff: quote mint missing", rows)).toBeNull();
+    expect(scopedError("annotate: rpc down", rows)).toBe("annotate: rpc down");
+    expect(scopedError(null, rows)).toBeNull();
   });
 });
 

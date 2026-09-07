@@ -1,5 +1,5 @@
 import type { PublicConfig } from "../types";
-import type { AlertRule, AlertsResponse, Chain, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, TokenFlowResponse } from "../../shared/wire";
+import type { AlertRule, AlertsResponse, Chain, DiscoverResponse, DiscoverView, DiscoverWindow, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, SystemHealth, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -41,6 +41,11 @@ export const api = {
     if (params.limit) search.set("limit", String(params.limit));
     return request<AlertsResponse>(`/api/alerts?${search.toString()}`);
   },
+  /** R6 discovery lists (Robinhood: trending / movers / new / holders); Solana answers rows [] + error (ClawPump paths serve it). */
+  discover: (chain: Chain, view: DiscoverView, window: DiscoverWindow = "24h") =>
+    request<DiscoverResponse>(`/api/discover/${chain}?view=${view}&window=${window}`),
+  /** /api/health: snapshot age + Robinhood RPC endpoint pool; the shape is read defensively (older servers omit both). */
+  health: () => request<SystemHealth>("/api/health"),
   search: (q: string) => request<Record<string, unknown>>(`/api/onchain/search?q=${encodeURIComponent(q)}`),
   trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
   board: () => request<Record<string, unknown>>("/api/onchain/board"),

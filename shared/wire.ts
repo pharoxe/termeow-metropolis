@@ -77,6 +77,14 @@ export type LargePrint = { pair: string; dex: string; tx: string; time: number; 
 /** Collector health per print source; `prints` is the own tape's counter when the token is tracked. */
 export type SourceChip = { name: "pumpfun" | "geckoterminal" | "own"; lastOkAt: number | null; lastError: string | null; prints?: number };
 
+/**
+ * R6 feed health per print source: `ok` = the source's last attempt succeeded and it is not sitting in a backoff;
+ * `nextRetryAt` = when a backoff lifts (null when none is known). Timestamps are epoch ms from this server's clock.
+ */
+export type FeedSourceHealth = { ok: boolean; lastOkAt: number | null; lastError: string | null; nextRetryAt: number | null };
+/** `own` = this server's chain poller, `gecko` = GeckoTerminal pool trades, `pumpfun` = the pump.fun trades feed (Solana only). */
+export type FeedHealth = { own: FeedSourceHealth; gecko: FeedSourceHealth; pumpfun: FeedSourceHealth };
+
 /** Tier A totals from the resolved anchor start; `startMs` null means the anchor is unknown and the totals are zeros. */
 export type SinceAnchor = { startMs: number | null; net: number; buyUsd: number; sellUsd: number; prints: number };
 
@@ -100,6 +108,8 @@ export type TokenFlowResponse = {
   sources?: SourceChip[];
   /** Newest Tier A prints across pairs from the ledger ring, time desc, at most 40. */
   tape?: TapePrint[];
+  /** R6: per-source feed health; when no source is ok and `tape` still has prints, the response is `stale: true` (last-good ring). */
+  feedHealth?: FeedHealth;
   /** FOMO trader fills for this token when the trader service is running; absent otherwise. */
   fomo?: TokenFlowFomo;
 };
@@ -137,9 +147,43 @@ export type FlowCandlesResponse = {
   error?: string;
 };
 
+/** Where a Robinhood candle series came from; the same string is MarketResponse.source when candles are present. */
+export type CandleSourceKind = "chain swaps" | "geckoterminal";
+
+/**
+ * Provenance of the Robinhood candle series (R6). "chain swaps" = every bar built from this pool's own Swap logs
+ * (eth_getLogs backfill + the own tape's live prints ticking the forming bar); "geckoterminal" = GeckoTerminal pool
+ * OHLCV, used only when the chain path failed.
+ */
+export type CandleSourceInfo = {
+  kind: CandleSourceKind;
+  /** Oldest block/time the chain backfill scanned (bars may start later: bars exist only where swaps exist). null for other kinds. */
+  backfilledFrom: { block: number; time: number } | null;
+  coverage: {
+    fromMs: number | null;
+    toMs: number | null;
+    bars: number;
+    /** Swaps that shaped the bars (chain); 0 for the Gecko fallback. */
+    prints: number;
+    /** Chain: the backfill reached the requested depth, genesis or the block cap with no recorded error; Gecko: always false. */
+    complete: boolean;
+    /** Chain: a backfill or top-up is still running; the next read will show more. */
+    backfilling: boolean;
+  };
+  /** How bar times were placed (chain: two eth_getBlockByNumber anchors per chunk, interpolated between). */
+  timing: string;
+  /** USD per quote unit used to express prices/volume in USD (chain only; the current DexScreener quote price, not a historical series). */
+  quoteUsd: number | null;
+  /** Own-tape prints merged outside the backfilled range (forming bar; older ring prints while a fill is still shallow). */
+  live: number;
+};
+
 /**
  * One instrument on either chain. Solana adapts getOnchainMarket (ClawPump intel rides in `provider`);
- * Robinhood assembles DexScreener pairs + GeckoTerminal pool OHLCV. `stale`/`error` follow the read-route contract.
+ * Robinhood assembles DexScreener pairs for metadata and, when the chain path works, candles from the pool's own swaps
+ * ("chain swaps"), else GeckoTerminal pool OHLCV ("geckoterminal").
+ * `source` is the candle provenance when candles exist ("dexscreener + geckoterminal" remains the legacy label when the
+ * chain path is not wired). `stale`/`error` follow the read-route contract.
  */
 export type MarketResponse = {
   instrument: {
@@ -164,6 +208,8 @@ export type MarketResponse = {
   source: string;
   degraded: boolean;
   notes: string[];
+  /** R6 (Robinhood): which series the candles are and how far it reaches; absent on Solana and on the legacy path. */
+  candleSource?: CandleSourceInfo;
   provider?: unknown;
   stale?: boolean;
   error?: string;
@@ -420,6 +466,99 @@ export type AlertsResponse = {
   rules: AlertRuleInfo[];
   /** Null only on the failure branch. */
   engine: AlertEngineStats | null;
+  stale?: boolean;
+  error?: string;
+};
+
+// ---- GET /api/health: the slice the desk status line reads (older servers omit every optional field) ----
+
+/** One Robinhood RPC endpoint of the process pool (tape/robinhood/endpoints.ts). */
+export type RpcEndpointHealth = {
+  url: string;
+  /** Enabled and not currently blocked. */
+  ok: boolean;
+  enabled: boolean;
+  disabledReason: string | null;
+  chainVerified: boolean;
+  /** Serves eth_getLogs (false for the measured head-only hosts or after a 403 on a logs request). */
+  logs: boolean;
+  blockedUntil: string | null;
+  calls: number;
+  rateLimited: number;
+  failures: number;
+  p50Ms: number | null;
+  lastError: string | null;
+};
+export type RpcPoolHealth = { chainId: number; endpoints: RpcEndpointHealth[] };
+export type SnapshotComponentHealth = { component: string; restoredAt: number | null; skipped: string | null };
+export type SystemHealth = {
+  now?: string;
+  /** When the first snapshot component was restored in this process; null when nothing was restored. */
+  restoredAt?: number | null;
+  /** Largest file age among the restored components, ms at restore time (not the current age). */
+  snapshotAge?: number | null;
+  snapshot?: { lastSaveAt?: number | null; components?: SnapshotComponentHealth[] };
+  robinhoodRpc?: RpcPoolHealth;
+};
+
+// ---- Discovery (R6: GET /api/discover/:chain) ----
+
+export type DiscoverView = "trending" | "movers" | "new" | "holders";
+export type DiscoverWindow = "1h" | "24h";
+
+/**
+ * Figures one source reported for one token inside the requested window. `txns`, `liquidityUsd`, `pool` and `dex` are
+ * per-pool (the source's best pool); `fomoHolders` = distinct verified-FOMO buyers in this server's trader book, null when
+ * the book holds no fills; `trackedBuyers` = robinhoodtrenches' own tracked-buyer count (their population, unofficial).
+ */
+export type DiscoverFigures = {
+  priceUsd: number | null;
+  marketCapUsd: number | null;
+  liquidityUsd: number | null;
+  volumeUsd: number | null;
+  changePct: number | null;
+  txns: PairTxns;
+  ageMs: number | null;
+  pool: string | null;
+  dex: string | null;
+  fomoHolders: number | null;
+  trackedBuyers: number | null;
+};
+
+/** One source's contribution to a row, kept whole so disagreeing figures are shown side by side, never averaged. */
+export type DiscoverProvenance = DiscoverFigures & {
+  source: string;
+  lastOkAt: number | null;
+  stale: boolean;
+  symbol: string | null;
+  name: string | null;
+  /** Position in the source's own ranking (0-based) when the source ranks (GeckoTerminal trending/new); null otherwise. */
+  rank: number | null;
+};
+
+export type DiscoverDisputedField = "priceUsd" | "marketCapUsd" | "liquidityUsd" | "volumeUsd" | "changePct";
+
+/** Top-level figures are the first non-null in source precedence; `disputed` names fields where two sources differ by more than 5%. */
+export type DiscoverRow = DiscoverFigures & {
+  chain: Chain;
+  token: string;
+  symbol: string | null;
+  name: string | null;
+  sources: DiscoverProvenance[];
+  disputed: DiscoverDisputedField[];
+};
+
+export type DiscoverSourceHealth = { name: string; lastOkAt: number | null; lastError: string | null; stale: boolean };
+
+export type DiscoverResponse = {
+  chain: Chain;
+  view: DiscoverView;
+  window: DiscoverWindow;
+  rows: DiscoverRow[];
+  observedAt: number;
+  sources: DiscoverSourceHealth[];
+  /** FOMO coverage label from the trader book; null when the book is empty or the chain has no book. */
+  coverage: FomoCoverage | null;
   stale?: boolean;
   error?: string;
 };

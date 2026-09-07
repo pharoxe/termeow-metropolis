@@ -226,6 +226,58 @@ describe("buildTokenFlowResponse", () => {
   });
 });
 
+describe("last-good tape (R6)", () => {
+  const down = { ok: false, lastOkAt: NOW - 90_000, lastError: "GeckoTerminal backoff active after 429", nextRetryAt: NOW + 15_000 };
+  const up = { ok: true, lastOkAt: NOW - 1000, lastError: null, nextRetryAt: null };
+  const sources = {
+    pumpfun: { lastOkAt: null, lastError: null, lastErrorAt: null },
+    geckoterminal: { lastOkAt: NOW - 90_000, lastError: "GeckoTerminal backoff active after 429", lastErrorAt: NOW - 1000 },
+    own: { lastOkAt: NOW - 60_000, lastError: "rpc 429 rate limited", lastErrorAt: null, tape: { prints: 3 } }
+  };
+
+  it("returns the ledger ring with stale:true and feedHealth when every source is down, never an empty tape", async () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([print(POOL, "old", NOW - 80_000, "buy", 12)]);
+    const feedHealth = { own: { ...down, lastError: "rpc 429 rate limited", nextRetryAt: NOW + 30_000 }, gecko: down, pumpfun: { ok: false, lastOkAt: null, lastError: null, nextRetryAt: null } };
+    const d = deps({}, ledger);
+    const response = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, status: () => ({ sources, feedHealth }) } });
+    expect(response.tape).toEqual([{ pair: POOL, dex: "raydium", tx: "old", time: NOW - 80_000, side: "buy", usd: 12, source: "geckoterminal" }]);
+    expect(response.stale).toBe(true);
+    expect(response.error).toBeUndefined();
+    expect(response.feedHealth).toEqual(feedHealth);
+    expect(response.sources?.[1]).toEqual({ name: "geckoterminal", lastOkAt: NOW - 90_000, lastError: "GeckoTerminal backoff active after 429" });
+  });
+
+  it("is not stale while any source is ok, and never stale on an empty ring", async () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([print(POOL, "fresh", NOW - 1000, "buy", 12)]);
+    const d = deps({}, ledger);
+    const live = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, status: () => ({ sources, feedHealth: { own: up, gecko: down, pumpfun: down } }) } });
+    expect(live.stale).toBeUndefined();
+    const empty = deps();
+    const noPrints = await buildTokenFlowResponse(params(), { ...empty, collector: { ...empty.collector, status: () => ({ sources, feedHealth: { own: down, gecko: down, pumpfun: down } }) } });
+    expect(noPrints.tape).toEqual([]);
+    expect(noPrints.stale).toBeUndefined();
+  });
+
+  it("falls back to the collector's remembered pairs when the registry throws, marking the response stale with the error", async () => {
+    const ledger = new FlowLedger({ now: () => NOW });
+    ledger.ingest([print(POOL, "kept", NOW - 5000, "sell", 8)]);
+    const pairsOf = vi.fn(() => [row(POOL, "A", 1)]);
+    const d = deps({ registry: async () => { throw new Error("dexscreener: 429; geckoterminal: 429; clawpump: down"); } }, ledger);
+    const response = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, pairsOf } });
+    expect(pairsOf).toHaveBeenCalledWith("solana", MINT);
+    expect(d.subscribe).toHaveBeenCalledWith("solana", MINT, [row(POOL, "A", 1)]);
+    expect(response.stale).toBe(true);
+    expect(response.error).toBe("registry: dexscreener: 429; geckoterminal: 429; clawpump: down (last-known pairs)");
+    expect(response.tape).toEqual([{ pair: POOL, dex: "raydium", tx: "kept", time: NOW - 5000, side: "sell", usd: 8, source: "geckoterminal" }]);
+    expect(response.bars.length).toBeGreaterThan(0);
+    const nothing = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, pairsOf: () => null } });
+    expect(nothing.tape).toBeUndefined();
+    expect(nothing.error).toBe("dexscreener: 429; geckoterminal: 429; clawpump: down");
+  });
+});
+
 describe("tape", () => {
   const POOL_B = "PoolBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
   const POOL_TIER_B = "PoolCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";

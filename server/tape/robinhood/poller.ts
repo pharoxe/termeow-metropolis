@@ -1,4 +1,5 @@
 import { UpstreamError, errorMessage } from "../../lib/http.js";
+import { robinhoodRpcFetch } from "./rpcPool.js";
 
 /** Uniswap Swap event signatures observed on Robinhood Chain (chain id 4663) via eth_getLogs, 2026-09-06. */
 export const V2_SWAP_TOPIC = "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822";
@@ -170,7 +171,7 @@ export class RobinhoodLogPoller {
     this.maxRange = opts.maxRange ?? DEFAULT_MAX_RANGE;
     this.reorgDepth = opts.reorgDepth ?? DEFAULT_REORG_DEPTH;
     this.poolManager = (opts.poolManager ?? V4_POOL_MANAGER).toLowerCase();
-    this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.fetchImpl = opts.fetchImpl ?? robinhoodRpcFetch;
     this.now = opts.now ?? (() => Date.now());
     this.log = opts.log ?? ((m) => console.warn(m));
   }

@@ -19,7 +19,7 @@ import { AlertingLaunchIndex } from "../alerts/launchIndex.js";
 import { alertSink } from "../alerts/sink.js";
 import { withTraderHooks } from "../traders/launchHooks.js";
 import { getTraderService } from "../traders/service.js";
-import { DEXSCREENER_TOKENS_SOURCE, PUMPPORTAL_SOURCE, profileUpsert, solanaLaunchUpsert, tokenBatchUpsert, trenchUpsert } from "./enrich.js";
+import { DEXSCREENER_TOKENS_SOURCE, ERC20_META_SOURCE, PUMPPORTAL_SOURCE, erc20MetaUpsert, profileUpsert, solanaLaunchUpsert, tokenBatchUpsert, trenchUpsert } from "./enrich.js";
 import { pickEnrichBatch, pruneAttempts } from "./enrichBatch.js";
 import { LaunchIndex, launchKey, type LaunchIndexStats, type LaunchListQuery } from "./index.js";
 import { ROBINHOOD_LAUNCH_SOURCE, RobinhoodLaunchStream, launchRegistryPool, type RobinhoodLaunchStreamStats } from "./robinhood/stream.js";
@@ -31,6 +31,8 @@ export const ENRICH_BATCH = 60;
 export const ENRICH_WINDOW_MS = 24 * 3_600_000;
 export const TRENCH_WINDOW: TrenchWindow = "24h";
 export const TRENCH_LIMIT = 200;
+/** R6: unnamed Robinhood rows sent to erc20Meta per refresh, newest first; two paced eth_calls each on the 2 rps low lane (~20 s). */
+export const NAME_BATCH = 20;
 const LOG_THROTTLE_MS = 60_000;
 const CHAINS: Chain[] = ["solana", "robinhood"];
 
@@ -51,8 +53,12 @@ export type LaunchServiceDeps = {
   fetchBoosts?: () => Promise<TokenProfile[]>;
   fetchTokenBatches?: (chain: Chain, addresses: string[]) => Promise<TokenBatch>;
   fetchTrenchTokens?: (window: TrenchWindow, limit: number) => Promise<TrenchTokensResult>;
+  /** R6: symbol lookups for unnamed Robinhood rows; defaults to the trader service's erc20Meta (cached, paced, low lane). */
+  erc20Meta?: Erc20MetaLike;
   refreshMs?: number;
 };
+
+export type Erc20MetaLike = { resolve(token: string): Promise<{ symbol: string | null } | null> };
 
 export type LaunchServiceStatus = {
   started: boolean;
@@ -174,6 +180,7 @@ export class LaunchService {
     try {
       await Promise.all([this.discover(DEXSCREENER_PROFILES_SOURCE), this.discover(DEXSCREENER_BOOSTS_SOURCE), this.enrichTrenches()]);
       await this.enrichPrices();
+      await this.enrichNames();
     } finally {
       this.refreshing = false;
     }
@@ -232,6 +239,27 @@ export class LaunchService {
     }
   }
 
+  /**
+   * R6: Robinhood rows still without a symbol after every feed (Pons events, DexScreener profile rows, curve-phase tokens
+   * DexScreener does not list) ask the contract itself. erc20Meta caches hits forever and failures for 10 min, so
+   * re-asking the same tokens each round is free; at most NAME_BATCH newest rows per round bound the RPC cost.
+   */
+  private async enrichNames(): Promise<void> {
+    const meta = this.deps.erc20Meta ?? getTraderService().erc20Meta;
+    const unnamed = this.index.list({ chain: "robinhood", windowMs: ENRICH_WINDOW_MS }).filter((row) => row.symbol === null).slice(0, NAME_BATCH);
+    if (!unnamed.length) return;
+    try {
+      const entries = await Promise.all(unnamed.map((row) => meta.resolve(row.token)));
+      unnamed.forEach((row, index) => {
+        const upsert = erc20MetaUpsert(row.token, entries[index]);
+        if (upsert) this.index.upsert(upsert);
+      });
+      this.ok(ERC20_META_SOURCE);
+    } catch (error) {
+      this.fail(ERC20_META_SOURCE, error);
+    }
+  }
+
   private async enrichTrenches(): Promise<void> {
     const load = this.deps.fetchTrenchTokens ?? fetchTrenchTokens;
     try {
@@ -246,7 +274,7 @@ export class LaunchService {
   }
 
   private sources(): LaunchSourceHealth[] {
-    const polled = [DEXSCREENER_PROFILES_SOURCE, DEXSCREENER_BOOSTS_SOURCE, DEXSCREENER_TOKENS_SOURCE, TRENCHES_SOURCE].map((name) => {
+    const polled = [DEXSCREENER_PROFILES_SOURCE, DEXSCREENER_BOOSTS_SOURCE, DEXSCREENER_TOKENS_SOURCE, TRENCHES_SOURCE, ERC20_META_SOURCE].map((name) => {
       const health = this.health.get(name);
       return { name, lastOkAt: health?.lastOkAt ?? null, lastError: health?.lastError ?? null };
     });
@@ -289,11 +317,19 @@ export class LaunchService {
 }
 
 let shared: LaunchService | null = null;
+let onCreate: ((service: LaunchService) => void) | null = null;
+
+/** Restart persistence hook (server/persist/live.ts): runs once on the shared service after construction, before start() (at once when it already exists). */
+export function setLaunchServiceHook(hook: ((service: LaunchService) => void) | null): void {
+  onCreate = hook;
+  if (shared && hook) hook(shared);
+}
 
 /** Process-wide service, started on first use; routes and the flow registry read from it. */
 export function getLaunchService(): LaunchService {
   if (!shared) {
     shared = new LaunchService();
+    onCreate?.(shared);
     shared.start();
   }
   return shared;

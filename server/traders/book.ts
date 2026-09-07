@@ -5,6 +5,7 @@ import {
   toRow,
   toStats,
   type TraderFill,
+  type TraderIdentity,
   type TraderKind,
   type TraderRow,
   type TraderStats,
@@ -55,6 +56,10 @@ export type TraderTapeRow = {
 };
 
 export type BookSize = { wallets: number; fills: number };
+
+/** Restart persistence (server/persist): the fill ring plus each wallet's current identity (kind as classified after its fills). */
+export type TraderBookIdentity = { chain: Chain; wallet: string; identity: TraderIdentity };
+export type TraderBookSnapshot = { fills: TraderFill[]; identities: TraderBookIdentity[] };
 
 export function walletKey(chain: string, wallet: string): string {
   return `${chain}:${wallet}`;
@@ -206,6 +211,25 @@ export class TraderBook {
 
   size(): BookSize {
     return { wallets: this.wallets.size, fills: this.ring.length };
+  }
+
+  snapshot(): TraderBookSnapshot {
+    const identities = [...this.wallets.values()].map((state) => ({ chain: state.chain, wallet: state.wallet, identity: { ...state.identity } }));
+    return { fills: [...this.ring], identities };
+  }
+
+  /**
+   * Restart persistence: replays the saved ring through record() (dedupe, caps and wallet stats all apply; fills already
+   * present are duplicates), then puts back each wallet's saved identity so a classify() that happened after its fills
+   * survives. Lifetime stats of wallets whose fills had left the ring before the save are not recoverable.
+   */
+  restore(snapshot: TraderBookSnapshot): RecordResult {
+    const result = this.recordAll(snapshot.fills);
+    for (const saved of snapshot.identities) {
+      const state = this.wallets.get(walletKey(saved.chain, saved.wallet));
+      if (state) state.identity = { ...saved.identity };
+    }
+    return result;
   }
 
   private windowStates(chain: ChainScope, since: number): WalletState[] {

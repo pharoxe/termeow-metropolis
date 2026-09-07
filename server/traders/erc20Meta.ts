@@ -103,6 +103,23 @@ export class Erc20Meta {
     return { cached: this.entries.size, pending: this.inFlight.size, ...this.counters, lastError: this.lastError, rpc: this.rpc.stats?.() ?? null };
   }
 
+  /** Restart persistence: resolved entries, oldest first (on-chain facts; resolvedAt stays the time they were read). */
+  snapshot(): [string, Erc20MetaEntry][] {
+    return [...this.entries.entriesOldestFirst()];
+  }
+
+  /** Puts saved entries back without RPC; an entry already resolved in this process wins. Returns how many were added. */
+  restore(entries: [string, Erc20MetaEntry][]): number {
+    let added = 0;
+    for (const [token, entry] of entries) {
+      const address = token.trim().toLowerCase();
+      if (!isAddress(address) || this.entries.has(address)) continue;
+      this.entries.set(address, { ...entry });
+      added += 1;
+    }
+    return added;
+  }
+
   private async lookup(address: string): Promise<Erc20MetaEntry | null> {
     try {
       const decimals = await this.view(address, DECIMALS_SELECTOR);

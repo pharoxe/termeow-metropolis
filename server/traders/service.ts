@@ -79,7 +79,13 @@ export type ClassifierLike = {
   stats(): unknown;
 };
 export type ReceiptsLike = { get(tx: string): Promise<(ReceiptLike & { to?: string | null }) | null>; stats(): unknown };
-export type HandlesLike = { get(address: string): HandleEntry | null; stats(): HandleBookStats };
+export type HandlesLike = {
+  get(address: string): HandleEntry | null;
+  stats(): HandleBookStats;
+  /** Restart persistence (HandleBook implements both; test doubles may omit them). */
+  learned?(): [string, HandleEntry][];
+  restoreLearned?(entries: [string, HandleEntry][]): number;
+};
 /** The R4 transfer feed as the service sees it: attached by launchHooks, read for status. */
 export type TransferFeedHandle = { wrapPoller(poller: StreamPollerLike): StreamPollerLike; stats(): TransferFeedStats };
 
@@ -150,7 +156,11 @@ export type TraderServiceStatus = {
 };
 
 type PairMeta = { token: string; dex: string };
-type SeedEntry = { address: string; provenance: string; at: number; attempts: number };
+export type SeedEntry = { address: string; provenance: string; at: number; attempts: number };
+
+/** Restart persistence (server/persist): verified population, seeded list and learned handles, each oldest first. */
+export type TraderServiceSnapshot = { population: string[]; seeded: SeedEntry[]; handlesLearned: [string, HandleEntry][] };
+export type TraderServiceRestoreCounts = { population: number; seeded: number; seedQueue: number; handlesLearned: number };
 
 function emptyCounters(): TraderServiceCounters {
   return { annotated: 0, fomo: 0, other: 0, noMeta: 0, noReceipt: 0, unattributed: 0, ambiguous: 0, deadlined: 0, late: 0, classifyFailed: 0, classifyDeferred: 0, discoverChecked: 0, discoverDropped: 0, seedChecked: 0, seedFomo: 0, seedFailed: 0, seedReingested: 0, transferFills: 0, transferUnproven: 0 };
@@ -415,6 +425,39 @@ export class TraderService {
     return this.version;
   }
 
+  snapshot(): TraderServiceSnapshot {
+    return { population: [...this.population.values()], seeded: [...this.seeded.values()].map((entry) => ({ ...entry })), handlesLearned: this.handles.learned?.() ?? [] };
+  }
+
+  /**
+   * Restart persistence: population and seeded entries come back as they were (wallets already known here win); seeded
+   * wallets without a classifier answer re-queue for their 7702 check exactly as a fresh seed() would. The version bumps
+   * once so the transfer feed rebuilds its legs. No RPC, no fills, no alerts.
+   */
+  restore(snapshot: TraderServiceSnapshot): TraderServiceRestoreCounts {
+    const counts = { population: 0, seeded: 0, seedQueue: 0, handlesLearned: 0 };
+    for (const raw of snapshot.population) {
+      const address = raw.trim().toLowerCase();
+      if (!isAddress(address) || this.population.has(address)) continue;
+      this.population.set(address, address);
+      counts.population += 1;
+    }
+    for (const entry of snapshot.seeded) {
+      const address = entry.address.trim().toLowerCase();
+      if (!isAddress(address) || this.seeded.has(address)) continue;
+      this.seeded.set(address, { ...entry, address });
+      counts.seeded += 1;
+      if (this.classifier.peek(address) === undefined) {
+        this.seedQueue = [...this.seedQueue, address];
+        counts.seedQueue += 1;
+      }
+    }
+    counts.handlesLearned = this.handles.restoreLearned?.(snapshot.handlesLearned) ?? 0;
+    if (counts.population + counts.seeded > 0) this.version += 1;
+    if (counts.seedQueue > 0) this.scheduleSeedDrain();
+    return counts;
+  }
+
   /**
    * Kind for the wallet without any RPC: the classifier's answer when it has one, "fomo" for a population member whose
    * classifier entry was evicted (never downgraded), "seeded" for a listed wallet still awaiting its check, null otherwise.
@@ -625,9 +668,19 @@ export class TraderService {
 }
 
 let shared: TraderService | null = null;
+let onCreate: ((service: TraderService) => void) | null = null;
+
+/** Restart persistence hook (server/persist/live.ts): runs once on the shared service — at once when it already exists (routes/flow.ts builds it at import), else right after construction. */
+export function setTraderServiceHook(hook: ((service: TraderService) => void) | null): void {
+  onCreate = hook;
+  if (shared && hook) hook(shared);
+}
 
 /** Process-wide service against config.robinhood.rpcUrl, created on first use so tests never touch the network. */
 export function getTraderService(): TraderService {
-  if (!shared) shared = new TraderService();
+  if (!shared) {
+    shared = new TraderService();
+    onCreate?.(shared);
+  }
   return shared;
 }

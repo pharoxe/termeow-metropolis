@@ -8,6 +8,8 @@ import {
   GECKO_BUCKET_WINDOW_MS,
   GECKO_MAX_WAIT_MS,
   GECKO_OHLCV_INTERVALS,
+  GECKO_RESERVE_FOCUSED,
+  geckoBlockedUntilMs,
   geckoGet,
   geckoPoolOhlcv,
   geckoPoolTrades,
@@ -95,6 +97,54 @@ describe("geckoGet token bucket", () => {
   });
 });
 
+describe("geckoGet budget classes", () => {
+  const drain = (count: number, priority?: "focused" | "discovery" | "background") =>
+    Array.from({ length: count }, (_, index) => geckoGet(`/networks/solana/pools/${priority ?? "F"}${index}/trades`, priority ? { priority } : {}));
+
+  it("serves focused before discovery before background when slots free up, whatever the arrival order", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({ ok: true }));
+    drain(GECKO_BUCKET_LIMIT);
+    await vi.advanceTimersByTimeAsync(GECKO_BUCKET_WINDOW_MS - 10_000);
+    const background = geckoGet("/networks/solana/pools/BG/trades", { priority: "background" });
+    const discovery = geckoGet("/networks/solana/trending_pools", { priority: "discovery" });
+    const low = geckoGet("/networks/solana/pools/LOW/trades", { priority: "low" });
+    const focused = geckoGet("/networks/solana/pools/FOCUSED/ohlcv/minute", { priority: "focused" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    const order = fetchMock.mock.calls.slice(GECKO_BUCKET_LIMIT).map((call) => String(call[0]));
+    const marks = ["FOCUSED", "trending_pools", "/BG/", "/LOW/"];
+    expect(order.map((url) => marks.find((mark) => url.includes(mark)))).toEqual(marks);
+    expect(await Promise.all([background, discovery, low, focused].map(settle))).toEqual(["resolved", "resolved", "resolved", "resolved"]);
+  });
+
+  it("keeps GECKO_RESERVE_FOCUSED slots that discovery and background may not take", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({ ok: true }));
+    const shared = GECKO_BUCKET_LIMIT - GECKO_RESERVE_FOCUSED;
+    drain(shared, "background");
+    await vi.advanceTimersByTimeAsync(GECKO_BUCKET_WINDOW_MS - 15_000);
+    expect(fetchMock).toHaveBeenCalledTimes(shared);
+    const extraBackground = geckoGet("/networks/solana/pools/EXTRA_BG/trades", { priority: "background" });
+    const extraDiscovery = geckoGet("/networks/solana/new_pools", { priority: "discovery" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(shared);
+    drain(GECKO_RESERVE_FOCUSED, "focused");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(GECKO_BUCKET_LIMIT);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(await settle(extraDiscovery)).toBe("resolved");
+    expect(await settle(extraBackground)).toBe("resolved");
+    expect(fetchMock).toHaveBeenCalledTimes(GECKO_BUCKET_LIMIT + 2);
+  });
+
+  it("rejects a background caller immediately when only reserved slots are left and the wait exceeds the cap", async () => {
+    stubFetch(() => jsonResponse({ ok: true }));
+    drain(GECKO_BUCKET_LIMIT - GECKO_RESERVE_FOCUSED, "background");
+    await vi.advanceTimersByTimeAsync(0);
+    const error = await settle(geckoGet("/networks/solana/pools/BG_LATE/trades", { priority: "background" }));
+    expect((error as UpstreamError).status).toBe(429);
+    expect(await settle(geckoGet("/networks/solana/pools/FOCUSED_OK/trades"))).toBe("resolved");
+  });
+});
+
 describe("geckoGet 429 block", () => {
   it("blocks every call for 20s after an upstream 429 and recovers on reset", async () => {
     const fetchMock = stubFetch(() => jsonResponse({ status: { error_code: 429 } }, 429));
@@ -104,6 +154,7 @@ describe("geckoGet 429 block", () => {
     const second = await settle(geckoGet("/networks/solana/pools/B/trades"));
     expect((second as UpstreamError).status).toBe(429);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(geckoBlockedUntilMs()).toBe(Date.now() + 20_000);
     resetGeckoBackoff();
     expect(isGeckoBlocked()).toBe(false);
     await settle(geckoGet("/networks/solana/pools/C/trades"));

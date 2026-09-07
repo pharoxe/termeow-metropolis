@@ -73,18 +73,19 @@ function clock(parts: IstParts, granularity: TimeGranularity): string {
   return granularity === "second" ? `${base}:${pad(parts.second)}` : base;
 }
 
-function calendar(parts: IstParts): string {
-  return `${pad(parts.day)} ${MONTHS[parts.month - 1]} ${parts.year}`;
+function calendar(parts: IstParts, year = true): string {
+  const date = `${pad(parts.day)} ${MONTHS[parts.month - 1]}`;
+  return year ? `${date} ${parts.year}` : date;
 }
 
 /**
  * Full IST stamp for the legend, e.g. "06 Sep 2026 23:24 IST" (seconds appended for sub-minute bars,
  * clock omitted for daily bars). Non-finite input renders as "—".
  */
-export function formatIst(msOrSec: number | null | undefined, granularity: TimeGranularity, suffix = true): string {
+export function formatIst(msOrSec: number | null | undefined, granularity: TimeGranularity, suffix = true, year = true): string {
   if (msOrSec == null || !Number.isFinite(msOrSec)) return "—";
   const parts = istParts(msOrSec);
-  const body = granularity === "day" ? calendar(parts) : `${calendar(parts)} ${clock(parts, granularity)}`;
+  const body = granularity === "day" ? calendar(parts, year) : `${calendar(parts, year)} ${clock(parts, granularity)}`;
   return suffix ? `${body} ${IST_SUFFIX}` : body;
 }
 

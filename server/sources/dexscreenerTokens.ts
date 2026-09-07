@@ -24,9 +24,11 @@ export type TokenBatchRow = {
 
 /** Keyed by `address.toLowerCase()`; addresses with no listed pair are absent. */
 export type TokenBatch = Map<string, TokenBatchRow>;
+/** The raw best pair per listed address (R6 discovery reads h1 fields the row omits) with the cache's provenance. */
+export type BestPairs = { pairs: Map<string, DexScreenerPair>; observedAt: number; stale: boolean; error: string | null };
 
 /** null = fetched, no pair listed (curve-phase or unlisted) — cached so unlisted tokens are not re-asked every call. */
-type CacheEntry = { row: TokenBatchRow | null; observedAt: number };
+type CacheEntry = { pair: DexScreenerPair | null; row: TokenBatchRow | null; observedAt: number };
 
 const cache = new Map<string, CacheEntry>();
 const now = () => Date.now();
@@ -68,8 +70,8 @@ function betterPair(current: DexScreenerPair | undefined, candidate: DexScreener
   return candidateLiq > currentLiq ? candidate : current;
 }
 
-/** Groups a /tokens/v1 body by base token and keeps the highest-liquidity pair per requested address. */
-export function pickBestPairs(chain: Chain, addresses: string[], body: unknown): TokenBatch {
+/** Groups a pair-array body (/tokens/v1, or /latest/dex/tokens' `pairs`) by base token; highest-liquidity pair per requested address. */
+export function bestPairsOf(chain: Chain, addresses: readonly string[], body: unknown): Map<string, DexScreenerPair> {
   const wanted = new Set(addresses.map((address) => address.toLowerCase()));
   const best = new Map<string, DexScreenerPair>();
   for (const raw of Array.isArray(body) ? body : []) {
@@ -79,8 +81,13 @@ export function pickBestPairs(chain: Chain, addresses: string[], body: unknown):
     if (pair.chainId !== chain || !base || !wanted.has(base)) continue;
     best.set(base, betterPair(best.get(base), pair));
   }
+  return best;
+}
+
+/** Groups a /tokens/v1 body by base token and keeps the highest-liquidity pair per requested address, as rows. */
+export function pickBestPairs(chain: Chain, addresses: string[], body: unknown): TokenBatch {
   const rows: TokenBatch = new Map();
-  for (const [address, pair] of best) {
+  for (const [address, pair] of bestPairsOf(chain, addresses, body)) {
     const row = rowFromPair(pair);
     if (row) rows.set(address, row);
   }
@@ -105,47 +112,72 @@ function fresh(entry: CacheEntry | undefined): entry is CacheEntry {
   return entry !== undefined && now() - entry.observedAt < CACHE_TTL_MS;
 }
 
-function collectCached(chain: Chain, addresses: string[], onlyFresh: boolean): { rows: TokenBatch; missing: string[] } {
-  const rows: TokenBatch = new Map();
+type Entries = Map<string, CacheEntry>;
+
+function collectCached(chain: Chain, addresses: string[], onlyFresh: boolean): { entries: Entries; missing: string[] } {
+  const entries: Entries = new Map();
   const missing: string[] = [];
   for (const address of addresses) {
     const entry = cache.get(cacheKey(chain, address));
-    if (entry && (!onlyFresh || fresh(entry))) {
-      if (entry.row) rows.set(address.toLowerCase(), entry.row);
-    } else {
-      missing.push(address);
-    }
+    if (entry && (!onlyFresh || fresh(entry))) entries.set(address.toLowerCase(), entry);
+    else missing.push(address);
   }
-  return { rows, missing };
+  return { entries, missing };
 }
 
-async function loadBatch(chain: Chain, addresses: string[]): Promise<TokenBatch> {
+async function loadBatch(chain: Chain, addresses: string[]): Promise<Entries> {
   const url = `${TOKENS_BASE}/${chain}/${addresses.map((address) => encodeURIComponent(address)).join(",")}`;
   const body = await fetchJson<unknown>(url, { headers: { Accept: "application/json" } });
-  const rows = pickBestPairs(chain, addresses, body);
+  const best = bestPairsOf(chain, addresses, body);
   const observedAt = now();
-  for (const address of addresses) cache.set(cacheKey(chain, address), { row: rows.get(address.toLowerCase()) ?? null, observedAt });
-  return rows;
+  const entries: Entries = new Map();
+  for (const address of addresses) {
+    const pair = best.get(address.toLowerCase()) ?? null;
+    const entry: CacheEntry = { pair, row: pair ? rowFromPair(pair) : null, observedAt };
+    cache.set(cacheKey(chain, address), entry);
+    entries.set(address.toLowerCase(), entry);
+  }
+  return entries;
 }
 
 /**
- * Best pair per token for up to 30 addresses in one DexScreener call, 60s TTL per address; only addresses not fresh in the
- * cache are asked for. On upstream failure returns whatever last-good rows exist for the missing addresses and rethrows only
- * when there is nothing cached for any of them.
+ * Cache entries for up to 30 addresses in one DexScreener call, 60s TTL per address; only addresses not fresh in the cache
+ * are asked for. On upstream failure returns whatever last-good entries exist for the missing addresses (stale, with the
+ * error) and rethrows only when there is nothing cached for any of them.
  */
-export async function fetchTokenBatch(chain: Chain, addresses: string[]): Promise<TokenBatch> {
+async function fetchEntries(chain: Chain, addresses: string[]): Promise<{ entries: Entries; stale: boolean; error: string | null }> {
   const unique = chunkAddresses(addresses)[0] ?? [];
   if (chunkAddresses(addresses).length > 1) throw new Error(`fetchTokenBatch: at most ${TOKEN_BATCH_MAX} addresses per call`);
-  const { rows, missing } = collectCached(chain, unique, true);
-  if (!missing.length) return rows;
+  const { entries, missing } = collectCached(chain, unique, true);
+  if (!missing.length) return { entries, stale: false, error: null };
   try {
     const loaded = await loadBatch(chain, missing);
-    return new Map([...rows, ...loaded]);
+    return { entries: new Map([...entries, ...loaded]), stale: false, error: null };
   } catch (error) {
     const lastGood = collectCached(chain, missing, false);
-    if (lastGood.missing.length === missing.length && !rows.size) throw error;
-    return new Map([...rows, ...lastGood.rows]);
+    if (lastGood.missing.length === missing.length && !entries.size) throw error;
+    return { entries: new Map([...entries, ...lastGood.entries]), stale: true, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+/** Best pair per token for up to 30 addresses (see fetchEntries): rows only, addresses with no listed pair absent. */
+export async function fetchTokenBatch(chain: Chain, addresses: string[]): Promise<TokenBatch> {
+  const { entries } = await fetchEntries(chain, addresses);
+  const rows: TokenBatch = new Map();
+  for (const [address, entry] of entries) if (entry.row) rows.set(address, entry.row);
+  return rows;
+}
+
+/** Same call and cache as fetchTokenBatch, handing back the raw best pairs with the oldest observedAt among them. */
+export async function fetchBestPairs(chain: Chain, addresses: string[]): Promise<BestPairs> {
+  const { entries, stale, error } = await fetchEntries(chain, addresses);
+  const pairs = new Map<string, DexScreenerPair>();
+  let observedAt = now();
+  for (const [address, entry] of entries) {
+    observedAt = Math.min(observedAt, entry.observedAt);
+    if (entry.pair) pairs.set(address, entry.pair);
+  }
+  return { pairs, observedAt, stale, error };
 }
 
 /** Any number of addresses, fetched in calls of at most 30; a failed chunk contributes nothing rather than failing the whole. */

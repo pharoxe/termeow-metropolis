@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { FlowCandlesResponse, FlowWindow, LaunchRow, MarketResponse, TapePrint, TokenFlowResponse } from "../../shared/wire";
 import {
-  candleSeriesKey, eventMarkerInput, flowBias, flowReadoutCells, flowSignature, hasLiveTape, launchRowFor, livePrintsAfter,
-  marketIntervalFor, ownTapeInterval, selectCandles, spanLabel, stableChartFlow, visibleIntervals, windowByLabel
+  allFeedsDown, candleSeriesKey, candleSourceMeta, eventMarkerInput, feedHealthChips, flowBias, flowReadoutCells, flowSignature, hasLiveTape, launchRowFor, livePrintsAfter,
+  marketIntervalFor, nextFlowState, noCandlesReason, ownTapeInterval, selectCandles, spanLabel, stableChartFlow, systemStatusLine, tapeEmptyCopy, visibleIntervals, windowByLabel
 } from "./deskFlow";
 
 const FATCOIN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
@@ -182,5 +182,75 @@ describe("event marker input", () => {
     expect(eventMarkerInput(null, flow({ anchor: "launch", sinceAnchor: since })).launch).toEqual({ createdAt: NOW - 600_000, launchpad: "" });
     expect(eventMarkerInput(null, flow({ anchor: "launch", sinceAnchor: { ...since, startMs: null } })).launch).toBeNull();
     expect(eventMarkerInput(null, null)).toEqual({ launch: null, graduation: null, largePrints: [] });
+  });
+});
+
+describe("R6 candle provenance and no-candles reason", () => {
+  const chainInfo = { kind: "chain swaps" as const, backfilledFrom: { block: 56_800_228, time: NOW - 7_200_000 }, coverage: { fromMs: 1_788_780_720_000, toMs: NOW, bars: 1840, prints: 2496, complete: true, backfilling: false }, timing: "anchors", quoteUsd: 1, live: 0 };
+  it("labels chain-swap candles with bar count and IST start, gecko as fallback, and nothing for own tape or legacy", () => {
+    expect(candleSourceMeta(market({ candleSource: chainInfo }), "market")).toBe("CHAIN SWAPS · 1,840 BARS · FROM 07 Sep 17:02 IST");
+    expect(candleSourceMeta(market({ candleSource: { ...chainInfo, coverage: { ...chainInfo.coverage, backfilling: true, complete: false } } }), "market")).toContain("BACKFILLING");
+    expect(candleSourceMeta(market({ candleSource: { ...chainInfo, coverage: { ...chainInfo.coverage, complete: false }, live: 3 } }), "market")).toBe("CHAIN SWAPS · 1,840 BARS · FROM 07 Sep 17:02 IST · PARTIAL · 3 LIVE PRINTS");
+    expect(candleSourceMeta(market({ candleSource: { ...chainInfo, kind: "geckoterminal", backfilledFrom: null, coverage: { ...chainInfo.coverage, bars: 200, fromMs: null } } }), "market")).toBe("GECKOTERMINAL · FALLBACK · 200 BARS");
+    expect(candleSourceMeta(market({ candleSource: chainInfo }), "own tape")).toBeNull();
+    expect(candleSourceMeta(market(), "market")).toBeNull();
+    expect(candleSourceMeta(market({ candleSource: chainInfo, stale: true }), "market")).toBe("CHAIN SWAPS · 1,840 BARS · FROM 07 Sep 17:02 IST · STALE HEAD");
+  });
+  it("names the route's own reason for an empty chart and the running backfill", () => {
+    expect(noCandlesReason(market({ candles: [], notes: ["DexScreener pairs stale: x", "OHLCV unavailable: GeckoTerminal backoff active after 429"] }), "")).toBe("OHLCV unavailable: GeckoTerminal backoff active after 429");
+    expect(noCandlesReason(market({ candles: [], notes: [], candleSource: { ...chainInfo, coverage: { ...chainInfo.coverage, bars: 0, prints: 120, backfilling: true, complete: false } } }), "")).toBe("Chain swap backfill running (120 swaps so far) · bars appear on the next read.");
+    expect(noCandlesReason(market({ candles: [], notes: [] }), "boom")).toBe("boom");
+    expect(noCandlesReason(null, "")).toBe("No candle source has answered yet.");
+  });
+});
+
+describe("R6 feed health and last-good flow", () => {
+  const health = {
+    own: { ok: false, lastOkAt: NOW - 40_000, lastError: "rpc 429 rate limited", nextRetryAt: NOW + 18_000 },
+    gecko: { ok: false, lastOkAt: null, lastError: "GeckoTerminal backoff active after 429", nextRetryAt: null },
+    pumpfun: { ok: true, lastOkAt: NOW - 2_000, lastError: null, nextRetryAt: null }
+  };
+  it("builds one chip per source with tone and a title naming error and retry", () => {
+    const chips = feedHealthChips(health, NOW);
+    expect(chips.map((chip) => [chip.label, chip.tone])).toEqual([["OWN", "warn"], ["GECKO", "bad"], ["PUMP", "good"]]);
+    expect(chips[0].title).toBe("OWN · down · last ok 40s ago · rpc 429 rate limited · retry in 18s");
+    expect(feedHealthChips(undefined, NOW)).toEqual([]);
+    expect(allFeedsDown(health)).toBe(false);
+    expect(allFeedsDown({ ...health, pumpfun: { ...health.pumpfun, ok: false } })).toBe(true);
+  });
+  it("explains an empty tape by the down sources", () => {
+    expect(tapeEmptyCopy(flow({ feedHealth: { ...health, pumpfun: { ...health.pumpfun, ok: false } } }))).toBe("No pool prints held · every print source is down (OWN rpc 429 rate limited · GECKO GeckoTerminal backoff active after 429 · PUMP).");
+    expect(tapeEmptyCopy(flow({ feedHealth: health }))).toBe("No pool prints in this window.");
+    expect(tapeEmptyCopy(null)).toBe("No pool prints in this window.");
+  });
+  it("keeps the last-good response, marked stale, on a failed poll or an empty error envelope", () => {
+    const print: TapePrint = { pair: "p", dex: "d", tx: "t", time: NOW, side: "buy", usd: 1, source: "own" };
+    const good = flow({ tape: [print] });
+    expect(nextFlowState(good, null, "network")).toMatchObject({ stale: true, error: "network", tape: [print] });
+    expect(nextFlowState(null, null)).toBeNull();
+    expect(nextFlowState(good, flow({ tape: [], error: "registry: boom" }))).toMatchObject({ stale: true, error: "registry: boom", tape: [print] });
+    const fresh = flow({ tape: [print], stale: true, error: "all sources down" });
+    expect(nextFlowState(good, fresh)).toBe(fresh);
+    expect(nextFlowState(good, flow({ tape: [] }))).toMatchObject({ tape: [] });
+  });
+  it("condenses /api/health into one status line with per-endpoint detail in the title", () => {
+    const line = systemStatusLine({
+      restoredAt: NOW - 3_000, snapshotAge: 200_000, snapshot: { lastSaveAt: NOW - 30_000 },
+      robinhoodRpc: { chainId: 4663, endpoints: [
+        { url: "https://robinhood-rpc.publicnode.com", ok: true, enabled: true, disabledReason: null, chainVerified: true, logs: false, blockedUntil: null, calls: 10, rateLimited: 0, failures: 0, p50Ms: 195, lastError: null },
+        { url: "https://rpc.mainnet.chain.robinhood.com/", ok: true, enabled: true, disabledReason: null, chainVerified: true, logs: true, blockedUntil: null, calls: 4, rateLimited: 1, failures: 1, p50Ms: 385.4, lastError: "upstream returned 429" },
+        { url: "https://rpc.nodeflare.app/robinhood/public", ok: false, enabled: true, disabledReason: null, chainVerified: true, logs: true, blockedUntil: new Date(NOW + 20_000).toISOString(), calls: 1, rateLimited: 1, failures: 0, p50Ms: null, lastError: "rate_limited" },
+        { url: "https://x.example", ok: false, enabled: false, disabledReason: "eth_chainId 1 != 4663", chainVerified: false, logs: false, blockedUntil: null, calls: 0, rateLimited: 0, failures: 0, p50Ms: null, lastError: null }
+      ] }
+    }, NOW);
+    expect(line?.text).toBe("RPC 2/4 UP · LOGS 1 · SNAP 3m OLD");
+    expect(line?.title).toContain("rpc.mainnet.chain.robinhood.com · up · logs · p50 385ms · 4 calls · 1 429 · upstream returned 429");
+    expect(line?.title).toContain("rpc.nodeflare.app · blocked until");
+    expect(line?.title).toContain("x.example · disabled");
+    expect(line?.title).toContain("snapshot restored 3s ago, aged 3m at restore · last save 30s ago");
+    // the visible age keeps growing after the restore (200 s at restore + 6 h since)
+    expect(systemStatusLine({ restoredAt: NOW - 6 * 3_600_000, snapshotAge: 200_000 }, NOW)?.text).toBe("RPC POOL — · SNAP 6h OLD");
+    expect(systemStatusLine({}, NOW)).toEqual({ text: "RPC POOL — · SNAP NONE", title: "no snapshot restored in this process" });
+    expect(systemStatusLine(null, NOW)).toBeNull();
   });
 });

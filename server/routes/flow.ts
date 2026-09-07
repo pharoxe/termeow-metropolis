@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { Chain, FlowBar, FomoCoverage, FomoFill, PairRow, TapePrint, TokenFlowFomo, TokenFlowResponse } from "../../shared/wire.js";
+import type { Chain, FeedHealth, FlowBar, FomoCoverage, FomoFill, PairRow, TapePrint, TokenFlowFomo, TokenFlowResponse } from "../../shared/wire.js";
 import { peekMarketProvider } from "../clawpump/market.js";
 import {
   FLOW_INTERVALS,
@@ -13,6 +13,7 @@ import {
   type FlowInterval
 } from "../flow/aggregate.js";
 import { flowCollector } from "../flow/collector.js";
+import { allSourcesDown } from "../flow/feedHealth.js";
 import { FOMO_MERGE_LIMIT, fomoWindowsFromFills, ledgerFomoFills, mergeFomoFills, type FomoLedgerLike } from "../flow/fomoFills.js";
 import { FlowLedger } from "../flow/ledger.js";
 import { priceOf } from "../flow/printPrice.js";
@@ -64,8 +65,10 @@ export type FlowCollectorLike = {
   ledger: FlowLedger;
   subscribe(chain: Chain, address: string, pairs: PairRow[]): void;
   launchMs(chain: Chain, address: string): number | null;
-  /** Optional: FlowCollector.status() narrowed to the source health the response condenses into chips. */
-  status?(chain: Chain, address: string): { sources: SourcesLike };
+  /** Optional: FlowCollector.status() narrowed to the source health the response condenses into chips, plus R6 feedHealth. */
+  status?(chain: Chain, address: string): { sources: SourcesLike; feedHealth?: FeedHealth };
+  /** Optional: last registry rows the collector saw for this token (kept after eviction), so a registry outage can still serve the ring. */
+  pairsOf?(chain: Chain, address: string): PairRow[] | null;
 };
 
 /** The slice of TraderService the FOMO block reads; absent means no FOMO block (tests, or the service not wired). */
@@ -116,11 +119,15 @@ function emptyResponse(params: FlowParams, observedAt: number, error: string): T
   };
 }
 
+/** Registry, or the collector's remembered rows marked stale when the registry throws; `failure` only when neither exists. */
 async function loadRegistry(params: FlowParams, deps: FlowRouteDeps): Promise<RegistryResult | { failure: string }> {
   try {
     return await deps.registry(params.chain, params.address);
   } catch (error) {
-    return { failure: errorMessage(error) };
+    const failure = errorMessage(error);
+    const remembered = deps.collector.pairsOf?.(params.chain, params.address);
+    if (!remembered?.length) return { failure };
+    return { pairs: remembered, observedAt: deps.now(), stale: true, error: `registry: ${failure} (last-known pairs)` };
   }
 }
 
@@ -131,7 +138,7 @@ function anchorStart(params: FlowParams, bars: FlowBar[], deps: FlowRouteDeps): 
   return bars[0]?.t ?? null;
 }
 
-type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources" | "tape" | "fomo">;
+type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources" | "tape" | "feedHealth" | "fomo">;
 
 /**
  * FOMO and seeded fills of this token, newest first: the token-keyed book merged with the pair-keyed FOMO ledger rings
@@ -169,6 +176,7 @@ function sideOutputs(params: FlowParams, pairs: PairRow[], bars: FlowBar[], deps
     sinceAnchor: sinceAnchor(ledger, params.chain, pairs, anchorStart(params, bars, deps), params.toMs),
     tape: recentTape(ledger, params.chain, pairs),
     ...(status ? { sources: sourceChips(status.sources) } : {}),
+    ...(status?.feedHealth ? { feedHealth: status.feedHealth } : {}),
     ...(deps.traders && params.chain === "robinhood" ? { fomo: fomoBlock(deps.traders, params, pairs, observedAt) } : {})
   };
 }
@@ -203,6 +211,8 @@ export async function buildTokenFlowResponse(params: FlowParams, deps: FlowRoute
   });
   const side = guardedSideOutputs(params, registry.pairs, flow.bars, deps, observedAt);
   const error = [registry.error, side.failure].filter((message): message is string => Boolean(message)).join("; ");
+  // Prints in the ring with every feed down are last-good data, not a live tape: say so instead of emptying it.
+  const staleFeed = Boolean(side.outputs.tape?.length && side.outputs.feedHealth && allSourcesDown(side.outputs.feedHealth));
   return {
     chain: params.chain,
     address: params.address,
@@ -214,7 +224,7 @@ export async function buildTokenFlowResponse(params: FlowParams, deps: FlowRoute
     counts: sumTxns(registry.pairs),
     observedAt,
     source: FLOW_SOURCE,
-    ...(registry.stale ? { stale: true } : {}),
+    ...(registry.stale || staleFeed ? { stale: true } : {}),
     ...(error ? { error } : {}),
     ...side.outputs
   };

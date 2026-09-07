@@ -1,5 +1,6 @@
 import { errorMessage } from "../../lib/http.js";
 import { evmRpc, hexToNumber, toHexQuantity } from "./rpc.js";
+import { robinhoodRpcFetch } from "./rpcPool.js";
 
 export const DEFAULT_BLOCK_CACHE_MAX = 5_000;
 /** Attempts per block before giving up: a 429 or a lagging node must not drop the swap logs that cite this block. */
@@ -56,7 +57,7 @@ export class BlockTimeCache {
 
   constructor(opts: BlockTimeCacheOptions) {
     this.rpcUrl = opts.rpcUrl;
-    this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.fetchImpl = opts.fetchImpl ?? robinhoodRpcFetch;
     this.max = opts.max ?? DEFAULT_BLOCK_CACHE_MAX;
     this.retryAttempts = Math.max(1, opts.retryAttempts ?? BLOCK_RETRY_ATTEMPTS);
     this.retryBaseMs = opts.retryBaseMs ?? BLOCK_RETRY_BASE_MS;

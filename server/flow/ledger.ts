@@ -21,6 +21,10 @@ export type FlowLedgerOptions = {
 export type IngestResult = { accepted: number; duplicates: number };
 export type CoverageResult = { fraction: number; firstPrintAt: number | null };
 export type LedgerStats = { pairs: number; buckets: number };
+/** Restart persistence (server/persist): per pair the recent ring (ascending) and the firstPrintAt it had; buckets are not saved. */
+export type LedgerPairSnapshot = { key: string; recent: FlowPrint[]; firstPrintAt: number | null };
+export type LedgerSnapshot = { pairs: LedgerPairSnapshot[] };
+export type LedgerRestoreResult = { pairs: number; prints: number };
 
 type PairState = {
   minutes: Map<number, FlowBucket>;
@@ -199,6 +203,38 @@ export class FlowLedger {
 
   pairs(): string[] {
     return [...this.store.keys()];
+  }
+
+  /** Pairs oldest-touched first (the LRU order), each with its ring as stored. */
+  snapshot(): LedgerSnapshot {
+    return { pairs: [...this.store].map(([key, state]) => ({ key, recent: [...state.recent], firstPrintAt: state.firstPrintAt })) };
+  }
+
+  /**
+   * Restart persistence from rings only: each saved print is folded into fresh minute/hour buckets and its tx seeds the
+   * dedupe ring (so a re-poll of the same window does not double count). firstPrintAt is set to the oldest ring print,
+   * not the saved value: buckets before the ring were not restored, and coverage() must only vouch for what is there.
+   * Pairs already present in this process are left alone. Bucket retention and the pair cap apply afterwards.
+   */
+  restore(snapshot: LedgerSnapshot): LedgerRestoreResult {
+    let pairs = 0;
+    let prints = 0;
+    for (const saved of snapshot.pairs) {
+      if (this.store.has(saved.key)) continue;
+      const state = emptyPair();
+      const ring = [...saved.recent].filter((print) => Number.isFinite(print.time)).sort((a, b) => a.time - b.time).slice(-this.recentRing);
+      for (const print of ring) {
+        if (this.isDuplicate(state, print.tx)) continue;
+        this.fold(state, print);
+        prints += 1;
+      }
+      state.firstPrintAt = state.recent.length > 0 ? state.recent[0].time : null;
+      this.store.set(saved.key, state);
+      pairs += 1;
+    }
+    this.evict();
+    this.prune(this.now());
+    return { pairs, prints };
   }
 
   stats(): LedgerStats {

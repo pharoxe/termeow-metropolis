@@ -132,6 +132,23 @@ export class HandleBook {
     return this.inFlight;
   }
 
+  /** Restart persistence: only the entries this server learned from its own tape rows (feed rows refetch themselves). */
+  learned(): [string, HandleEntry][] {
+    return [...this.entries].filter(([, entry]) => entry.source === "learned");
+  }
+
+  /** Puts learned entries back through merge(), so a feed row already loaded keeps winning. Returns how many were applied. */
+  restoreLearned(entries: [string, HandleEntry][]): number {
+    let applied = 0;
+    for (const [address, entry] of entries) {
+      const key = address.trim().toLowerCase();
+      if (!isAddress(key) || entry.source !== "learned" || textOrNull(entry.handle) === null) continue;
+      this.merge(key, { ...entry, source: "learned" });
+      applied += 1;
+    }
+    return applied;
+  }
+
   stats(): HandleBookStats {
     const [traders, tape] = this.feeds.map((feed) => ({ ...feed.status }));
     const learned = [...this.entries.values()].filter((entry) => entry.source === "learned").length;

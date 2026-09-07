@@ -1,0 +1,13 @@
+{
+ "_fixture": "eth_call decimals()/symbol() of 0xae5ec50d31c1c44a62eac39f382a607c70ea9f0b (Parlay, pools-trade) against robinhood-rpc.publicnode.com 2026-09-07 ~19:30 IST: decimals 0x..12 = 18, symbol ABI string Parlay",
+ "entries": [
+  [
+   "0xae5ec50d31c1c44a62eac39f382a607c70ea9f0b",
+   {
+    "decimals": 18,
+    "symbol": "Parlay",
+    "resolvedAt": 1788789600000
+   }
+  ]
+ ]
+}
