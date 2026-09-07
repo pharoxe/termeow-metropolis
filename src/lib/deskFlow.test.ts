@@ -247,9 +247,15 @@ describe("R6 feed health and last-good flow", () => {
         { url: "https://rpc.mainnet.chain.robinhood.com/", ok: true, enabled: true, disabledReason: null, chainVerified: true, logs: true, blockedUntil: null, calls: 4, rateLimited: 1, failures: 1, p50Ms: 385.4, lastError: "upstream returned 429" },
         { url: "https://rpc.nodeflare.app/robinhood/public", ok: false, enabled: true, disabledReason: null, chainVerified: true, logs: true, blockedUntil: new Date(NOW + 20_000).toISOString(), calls: 1, rateLimited: 1, failures: 0, p50Ms: null, lastError: "rate_limited" },
         { url: "https://x.example", ok: false, enabled: false, disabledReason: "eth_chainId 1 != 4663", chainVerified: false, logs: false, blockedUntil: null, calls: 0, rateLimited: 0, failures: 0, p50Ms: null, lastError: null }
+      ] },
+      robinhoodTransport: { label: "MIXED", mode: "mixed", wsEnabled: true, pollers: [
+        { name: "launch", mode: "ws", wsEnabled: true, httpCursor: 57_053_099, catchUpTicks: 12, wsLogs: 400, lastWsBlock: 57_053_120, ws: { connected: true, url: "wss://robinhood-rpc.publicnode.com", connectedAt: NOW - 600_000, subscriptions: 8, wantedLegs: 8, rejectedLegs: 0, reconnects: 1, lastError: null } },
+        { name: "tape", mode: "http", wsEnabled: true, httpCursor: 57_053_090, catchUpTicks: 3, wsLogs: 20, lastWsBlock: 57_053_000, ws: { connected: false, url: "wss://robinhood.api.pocket.network", connectedAt: null, subscriptions: 0, wantedLegs: 2, rejectedLegs: 0, reconnects: 2, lastError: "closed (1006)" } }
       ] }
     }, NOW);
-    expect(line?.text).toBe("RPC 2/4 UP · LOGS 1 · SNAP 3m OLD");
+    expect(line?.text).toBe("RPC 2/4 UP · LOGS 1 · MIXED · SNAP 3m OLD");
+    expect(line?.title).toMatch(/launch · prints via WS · robinhood-rpc\.publicnode\.com up since \d\d [A-Z][a-z]{2} \d\d:\d\d IST · 8\/8 legs · HTTP verified to 57053099/);
+    expect(line?.title).toContain("tape · prints via HTTP · socket down · 2 reconnects · HTTP verified to 57053090 · closed (1006)");
     expect(line?.title).toContain("rpc.mainnet.chain.robinhood.com · up · logs · p50 385ms · 4 calls · 1 429 · upstream returned 429");
     expect(line?.title).toContain("rpc.nodeflare.app · blocked until");
     expect(line?.title).toContain("x.example · disabled");

@@ -1,0 +1,57 @@
+{
+ "url": "wss://robinhood-rpc.publicnode.com",
+ "label": "publicnode",
+ "subscriptionsPerConnection": {
+  "accepted": 64,
+  "firstFailure": null,
+  "distinctIds": 64,
+  "unsubscribed": 64
+ },
+ "topicListSizes": {
+  "500": {
+   "ok": true
+  },
+  "1000": {
+   "ok": true
+  },
+  "2000": {
+   "ok": false,
+   "error": {
+    "message": "timeout"
+   }
+  },
+  "5000": {
+   "ok": false,
+   "error": {
+    "message": "timeout"
+   }
+  }
+ },
+ "addressListSizes": {
+  "1000": {
+   "ok": true
+  },
+  "2000": {
+   "ok": true
+  },
+  "5000": {
+   "ok": true
+  },
+  "10000": {
+   "ok": true
+  }
+ },
+ "mergedAddressesAndTopics": {
+  "ok": true
+ },
+ "callsOverWs": {
+  "eth_getLogs": {
+   "ok": true,
+   "logs": 19
+  },
+  "eth_getBlockByNumber": {
+   "ok": true,
+   "hasTimestamp": true
+  }
+ }
+}

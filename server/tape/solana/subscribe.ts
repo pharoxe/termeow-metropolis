@@ -53,7 +53,8 @@ function nextDelay(current: number): number {
   return Math.min(current * 2, BACKOFF_MAX_MS);
 }
 
-function frameText(data: unknown): string {
+/** Text of one inbound `ws` frame whatever form the library handed it in; shared with the Robinhood log transport. */
+export function frameText(data: unknown): string {
   if (typeof data === "string") return data;
   if (Array.isArray(data)) return Buffer.concat(data as Buffer[]).toString("utf8");
   if (data instanceof ArrayBuffer) return Buffer.from(data).toString("utf8");

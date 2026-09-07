@@ -1,0 +1,29 @@
+{
+ "url": "wss://robinhood-rpc.publicnode.com",
+ "label": "publicnode",
+ "mode": "ping",
+ "periodMs": 20000,
+ "runMs": 150000,
+ "pings": [],
+ "pongs": [
+  20638,
+  40700,
+  60666,
+  80653,
+  100644,
+  120658,
+  140641
+ ],
+ "closes": [
+  {
+   "atMs": 150753,
+   "code": 1000,
+   "reason": ""
+  }
+ ],
+ "errors": [],
+ "rpcAcks": [],
+ "subscriptionFrames": 3,
+ "openMs": 487,
+ "stillOpenAtEnd": true
+}

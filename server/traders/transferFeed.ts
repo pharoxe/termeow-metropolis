@@ -25,8 +25,15 @@ import {
 
 /** How often the feed re-reads the population (legs rebuild when its version moved). */
 export const LEGS_CHECK_MS = 5_000;
-/** Batches waiting behind a stalled receipt/block lookup (RPC 429 backoff) past which new batches are dropped and counted. */
+/**
+ * Batches waiting behind a stalled receipt/block lookup (RPC 429 backoff) past which a new batch is folded into the
+ * last waiting one instead of being queued on its own. The poller has already marked every log it hands over as seen
+ * and never re-delivers it, so dropping a batch loses fills for good; the websocket path flushes one batch per 150 ms,
+ * which is what pinned this queue at the cap on a cold cache. Only the log cap below drops, and it counts.
+ */
 export const MAX_QUEUED_BATCHES = 50;
+/** Logs held across the waiting batches; past this the newest logs are dropped (counted in logsDropped). */
+export const MAX_QUEUED_LOGS = 50_000;
 export const SEEN_FILLS = 5_000;
 const CHAIN = "robinhood" as const;
 
@@ -60,7 +67,12 @@ export type TransferFeedOptions = {
 
 export type TransferFeedCounters = {
   batches: number;
+  /** Batches refused outright: the queue was at the cap with nothing waiting to fold into (not reachable at the current cap). */
   batchesDropped: number;
+  /** Batches folded into the last waiting batch because the queue was at the cap; no log lost. */
+  batchesCoalesced: number;
+  /** Logs dropped because the waiting batches already held MAX_QUEUED_LOGS. */
+  logsDropped: number;
   logsSeen: number;
   /** Fills recorded in the book (first sighting). */
   fills: number;
@@ -90,7 +102,7 @@ export type TransferFeedStats = TransferFeedCounters & {
 };
 
 function emptyCounters(): TransferFeedCounters {
-  return { batches: 0, batchesDropped: 0, logsSeen: 0, fills: 0, duplicates: 0, unpriced: 0, untimed: 0, transfersSkipped: 0, foreignSegment: 0, unpaired: 0, receiptsMissing: 0 };
+  return { batches: 0, batchesDropped: 0, batchesCoalesced: 0, logsDropped: 0, logsSeen: 0, fills: 0, duplicates: 0, unpriced: 0, untimed: 0, transfersSkipped: 0, foreignSegment: 0, unpaired: 0, receiptsMissing: 0 };
 }
 
 function parseBlock(value: unknown): number | null {
@@ -98,6 +110,9 @@ function parseBlock(value: unknown): number | null {
   const parsed = Number.parseInt(value, 16);
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
+
+/** One waiting batch; `logs`/`head` grow while it waits at the cap, `done` settles when it has run. */
+type QueuedBatch = { logs: RawLog[]; head: number; done: Promise<void> };
 
 function hasSkips(skipped: SkipCounts): boolean {
   return skipped.transfers + skipped.foreignSegment + skipped.unpaired > 0;
@@ -125,6 +140,9 @@ export class TransferFeed {
   private timer: ReturnType<typeof setInterval> | null = null;
   private queue: Promise<void> = Promise.resolve();
   private queued = 0;
+  private queuedLogs = 0;
+  /** The last batch still waiting to run; a batch arriving at the cap is folded into it. */
+  private tail: QueuedBatch | null = null;
   private counters = emptyCounters();
   private lastOkAt: number | null = null;
   private lastError: string | null = null;
@@ -160,20 +178,38 @@ export class TransferFeed {
     };
   }
 
-  /** Queues one batch of Transfer logs; the returned promise settles when the batch is processed (tests await it). */
+  /** Queues one batch of Transfer logs; the returned promise settles when the batch (or the one it was folded into) is processed. */
   handleLogs(logs: RawLog[], headBlock: number): Promise<void> {
     if (this.queued >= MAX_QUEUED_BATCHES) {
-      this.counters.batchesDropped += 1;
-      return Promise.resolve();
+      if (!this.tail) {
+        this.counters.batchesDropped += 1;
+        return Promise.resolve();
+      }
+      const room = Math.max(0, MAX_QUEUED_LOGS - this.queuedLogs);
+      const kept = logs.slice(0, room);
+      this.counters.batchesCoalesced += 1;
+      this.counters.logsDropped += logs.length - kept.length;
+      this.queuedLogs += kept.length;
+      this.tail.logs = [...this.tail.logs, ...kept];
+      this.tail.head = Math.max(this.tail.head, headBlock);
+      return this.tail.done;
     }
+    const batch: QueuedBatch = { logs, head: headBlock, done: Promise.resolve() };
     this.queued += 1;
-    this.queue = this.queue
-      .then(() => this.process(logs, headBlock))
+    this.queuedLogs += logs.length;
+    this.tail = batch;
+    batch.done = this.queue
+      .then(() => {
+        if (this.tail === batch) this.tail = null;
+        return this.process(batch.logs, batch.head);
+      })
       .catch((error) => this.fail(`batch: ${errorMessage(error)}`))
       .finally(() => {
         this.queued -= 1;
+        this.queuedLogs -= batch.logs.length;
       });
-    return this.queue;
+    this.queue = batch.done;
+    return batch.done;
   }
 
   stats(): TransferFeedStats {

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { config, integrationStatus } from "../config.js";
 import { snapshotStatus } from "../persist/live.js";
 import { robinhoodRpcStats } from "../tape/robinhood/rpcPool.js";
+import { robinhoodTransportStatus } from "../tape/robinhood/wsStatus.js";
 
 export const systemRouter = Router();
 
@@ -13,7 +14,9 @@ systemRouter.get("/health", (_request, response) => {
     integrations: integrationStatus(),
     now: new Date().toISOString(),
     ...snapshotStatus(),
-    robinhoodRpc: robinhoodRpcStats()
+    robinhoodRpc: robinhoodRpcStats(),
+    /** Which transport carries Robinhood log prints per poller: "WS" while subscribed, "HTTP" while polling only. */
+    robinhoodTransport: robinhoodTransportStatus()
   });
 });
 

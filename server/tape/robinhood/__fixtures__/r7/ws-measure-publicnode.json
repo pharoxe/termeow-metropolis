@@ -1,0 +1,432 @@
+{
+ "url": "wss://robinhood-rpc.publicnode.com",
+ "label": "publicnode",
+ "startedAt": "2026-09-07T17:45:07.686Z",
+ "wallets": 1500,
+ "emitters": 1062,
+ "legs": [
+  {
+   "name": "launch",
+   "addresses": 7,
+   "topicSizes": [
+    8
+   ]
+  },
+  {
+   "name": "routers",
+   "addresses": 2,
+   "topicSizes": [
+    4
+   ]
+  },
+  {
+   "name": "emitters",
+   "addresses": 1062,
+   "topicSizes": [
+    4
+   ]
+  },
+  {
+   "name": "userop",
+   "addresses": 1,
+   "topicSizes": [
+    1
+   ]
+  },
+  {
+   "name": "xfer-to-0",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    null,
+    500
+   ]
+  },
+  {
+   "name": "xfer-from-0",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    500
+   ]
+  },
+  {
+   "name": "xfer-to-1",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    null,
+    500
+   ]
+  },
+  {
+   "name": "xfer-from-1",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    500
+   ]
+  },
+  {
+   "name": "xfer-to-2",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    null,
+    500
+   ]
+  },
+  {
+   "name": "xfer-from-2",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    500
+   ]
+  },
+  {
+   "name": "own-v2v3",
+   "addresses": 2,
+   "topicSizes": [
+    2
+   ]
+  },
+  {
+   "name": "own-v4",
+   "addresses": 1,
+   "topicSizes": [
+    1,
+    1
+   ]
+  }
+ ],
+ "connectMs": 616,
+ "acks": [
+  {
+   "leg": "launch",
+   "ok": true,
+   "ms": 172,
+   "id": "0xfc41a3cd6201c94bde4859be41443dd0",
+   "error": null
+  },
+  {
+   "leg": "routers",
+   "ok": true,
+   "ms": 163,
+   "id": "0x3d65a8077e57c4fa5f254b5ac00f1132",
+   "error": null
+  },
+  {
+   "leg": "emitters",
+   "ok": true,
+   "ms": 382,
+   "id": "0xd0d388e2cef8560d130e9f0d134ee108",
+   "error": null
+  },
+  {
+   "leg": "userop",
+   "ok": true,
+   "ms": 184,
+   "id": "0x52e3d6b1abf5e6f672c09a4a34ea0ddd",
+   "error": null
+  },
+  {
+   "leg": "xfer-to-0",
+   "ok": true,
+   "ms": 337,
+   "id": "0x579417a9a0531e154c8a099a4e7832ca",
+   "error": null
+  },
+  {
+   "leg": "xfer-from-0",
+   "ok": true,
+   "ms": 421,
+   "id": "0x25fcf5204f2dd0538a5c7498e9f486b8",
+   "error": null
+  },
+  {
+   "leg": "xfer-to-1",
+   "ok": true,
+   "ms": 342,
+   "id": "0xebbb0e6f9708b3e2a2b07507a43cf140",
+   "error": null
+  },
+  {
+   "leg": "xfer-from-1",
+   "ok": true,
+   "ms": 219,
+   "id": "0xb27d29c4fcd7b9755d46aca7eca99a97",
+   "error": null
+  },
+  {
+   "leg": "xfer-to-2",
+   "ok": true,
+   "ms": 231,
+   "id": "0x8a24fc7840891187f97cfc47ca164f4f",
+   "error": null
+  },
+  {
+   "leg": "xfer-from-2",
+   "ok": true,
+   "ms": 203,
+   "id": "0x9a8b381ca7f902205ba0a901880eac6c",
+   "error": null
+  },
+  {
+   "leg": "own-v2v3",
+   "ok": true,
+   "ms": 170,
+   "id": "0x4047d8600a7f2334db2a3ccff832395e",
+   "error": null
+  },
+  {
+   "leg": "own-v4",
+   "ok": true,
+   "ms": 160,
+   "id": "0x7c531f54d3db0438f0383a6071e57c31",
+   "error": null
+  }
+ ],
+ "subscribeAllMs": 2985,
+ "newHeadsAck": {
+  "ok": true,
+  "error": null
+ },
+ "blockNumberOverWs": "0x366182b",
+ "window": {
+  "ms": 60000,
+  "perLeg": {
+   "userop": {
+    "count": 262,
+    "bytes": 265408,
+    "firstBlock": 57022486,
+    "lastBlock": 57023093,
+    "removed": 0
+   },
+   "launch": {
+    "count": 19,
+    "bytes": 18022,
+    "firstBlock": 57022488,
+    "lastBlock": 57023079,
+    "removed": 0
+   },
+   "xfer-to-2": {
+    "count": 14,
+    "bytes": 10529,
+    "firstBlock": 57022506,
+    "lastBlock": 57023074,
+    "removed": 0
+   },
+   "xfer-to-0": {
+    "count": 8,
+    "bytes": 6015,
+    "firstBlock": 57022512,
+    "lastBlock": 57023098,
+    "removed": 0
+   },
+   "xfer-from-0": {
+    "count": 2,
+    "bytes": 1505,
+    "firstBlock": 57022549,
+    "lastBlock": 57022627,
+    "removed": 0
+   },
+   "xfer-from-2": {
+    "count": 13,
+    "bytes": 9776,
+    "firstBlock": 57022549,
+    "lastBlock": 57023061,
+    "removed": 0
+   },
+   "xfer-to-1": {
+    "count": 8,
+    "bytes": 6016,
+    "firstBlock": 57022556,
+    "lastBlock": 57023062,
+    "removed": 0
+   },
+   "emitters": {
+    "count": 21,
+    "bytes": 19823,
+    "firstBlock": 57022621,
+    "lastBlock": 57022992,
+    "removed": 0
+   },
+   "xfer-from-1": {
+    "count": 3,
+    "bytes": 2253,
+    "firstBlock": 57022670,
+    "lastBlock": 57022928,
+    "removed": 0
+   },
+   "routers": {
+    "count": 1,
+    "bytes": 998,
+    "firstBlock": 57023026,
+    "lastBlock": 57023026,
+    "removed": 0
+   }
+  },
+  "duplicates": 0,
+  "duplicateSamples": [],
+  "unknownFrames": 0
+ },
+ "newHeads": {
+  "count": 593,
+  "first": 57022507,
+  "last": 57023099,
+  "nonConsecutive": [],
+  "nonConsecutiveCount": 0,
+  "distinctTimestamps": 61,
+  "arrivalMinusBlockTsMs": {
+   "min": -78,
+   "max": 970,
+   "median": 433
+  },
+  "timestampIsSeconds": true
+ },
+ "conn1Events": {
+  "pings": [],
+  "pongs": [],
+  "closes": [
+   {
+    "at": 1788803171912,
+    "code": 1000,
+    "reason": ""
+   }
+  ],
+  "errors": [],
+  "unknown": 0
+ },
+ "reconnect": {
+  "closeToOpenMs": 897,
+  "closeToAllSubscribedMs": 3510,
+  "allOk": true,
+  "lastBlockBeforeClose": 57023099,
+  "firstBlockAfterResubscribe": 57023142,
+  "gapBlocks": 42
+ },
+ "httpSpan": {
+  "from": 57022508,
+  "to": 57023099,
+  "blocks": 592
+ },
+ "httpCompare": {
+  "launch": {
+   "http": 15,
+   "ws": 15,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 623
+  },
+  "routers": {
+   "http": 1,
+   "ws": 1,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 390
+  },
+  "emitters": {
+   "http": 21,
+   "ws": 21,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 537
+  },
+  "userop": {
+   "http": 255,
+   "ws": 255,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 507
+  },
+  "xfer-to-0": {
+   "http": 8,
+   "ws": 8,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1791
+  },
+  "xfer-from-0": {
+   "http": 2,
+   "ws": 2,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 2450
+  },
+  "xfer-to-1": {
+   "http": 8,
+   "ws": 8,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1871
+  },
+  "xfer-from-1": {
+   "http": 3,
+   "ws": 3,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1956
+  },
+  "xfer-to-2": {
+   "http": 13,
+   "ws": 13,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 2371
+  },
+  "xfer-from-2": {
+   "http": 13,
+   "ws": 13,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 2430
+  },
+  "own-v2v3": {
+   "http": 0,
+   "ws": 0,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 382
+  },
+  "own-v4": {
+   "http": 0,
+   "ws": 0,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 355
+  }
+ },
+ "gapRecovery": {
+  "leg": "userop",
+  "from": 57023099,
+  "to": 57023142,
+  "httpLogsInGapSpan": 22,
+  "strictlyInsideGap": 22
+ },
+ "finishedAt": "2026-09-07T17:46:53.925Z"
+}

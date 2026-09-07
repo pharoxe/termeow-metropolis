@@ -1,0 +1,67 @@
+{
+ "capturedAt": "2026-09-07T18:07:25.530Z",
+ "note": "eth_getLogs blockTimestamp field per HTTP endpoint, EntryPoint UserOperationEvent leg, last 30 blocks",
+ "results": {
+  "https://rpc.mainnet.chain.robinhood.com": {
+   "head": 57035610,
+   "logs": 14,
+   "blockTimestamps": [
+    "0x0"
+   ],
+   "keys": [
+    "address",
+    "blockHash",
+    "blockNumber",
+    "blockTimestamp",
+    "data",
+    "logIndex",
+    "removed",
+    "topics",
+    "transactionHash",
+    "transactionIndex"
+   ]
+  },
+  "https://robinhood-rpc.publicnode.com": {
+   "head": 57035655,
+   "logs": 8,
+   "blockTimestamps": [
+    "0x6a9efd53",
+    "0x6a9efd54",
+    "0x6a9efd55"
+   ],
+   "keys": [
+    "address",
+    "blockHash",
+    "blockNumber",
+    "blockTimestamp",
+    "data",
+    "logIndex",
+    "removed",
+    "topics",
+    "transactionHash",
+    "transactionIndex"
+   ]
+  },
+  "https://robinhood.api.pocket.network": {
+   "head": 57035695,
+   "logs": 8,
+   "blockTimestamps": [
+    "0x6a9efd57",
+    "0x6a9efd58",
+    "0x6a9efd59"
+   ],
+   "keys": [
+    "address",
+    "blockHash",
+    "blockNumber",
+    "blockTimestamp",
+    "data",
+    "logIndex",
+    "removed",
+    "topics",
+    "transactionHash",
+    "transactionIndex"
+   ]
+  }
+ }
+}

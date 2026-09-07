@@ -273,7 +273,19 @@ export function nextFlowState(previous: TokenFlowResponse | null, next: TokenFlo
 
 export type StatusLine = { text: string; title: string };
 
-/** One line for the toolbar: "RPC 4/6 UP · LOGS 2 · SNAP 3m OLD"; the title lists every endpoint's health. */
+/** "WS" / "HTTP" / "MIXED" for the status line plus one title line per poller naming its transport (IST for the socket's connect time). */
+export function transportStatusParts(transport: SystemHealth["robinhoodTransport"]): { text: string; lines: string[] } {
+  if (!transport) return { text: "", lines: [] };
+  const lines = transport.pollers.map((poller) => {
+    const ws = poller.ws;
+    const socket = !poller.wsEnabled || !ws ? "websocket off" : ws.connected ? `${ws.url?.replace(/^wss?:\/\//, "") ?? "?"} up since ${shortIst(ws.connectedAt)} · ${ws.subscriptions}/${ws.wantedLegs} legs${ws.rejectedLegs ? ` · ${ws.rejectedLegs} rejected` : ""}` : `socket down${ws.reconnects ? ` · ${ws.reconnects} reconnects` : ""}`;
+    const error = ws?.lastError ? ` · ${ws.lastError}` : "";
+    return `${poller.name} · prints via ${poller.mode.toUpperCase()} · ${socket} · HTTP verified to ${poller.httpCursor ?? EM_DASH}${error}`;
+  });
+  return { text: transport.label, lines };
+}
+
+/** One line for the toolbar: "RPC 4/6 UP · LOGS 2 · WS · SNAP 3m OLD"; the title lists every endpoint's and poller's health. */
 export function systemStatusLine(health: SystemHealth | null, now: number): StatusLine | null {
   if (!health) return null;
   const pool = health.robinhoodRpc;
@@ -290,6 +302,11 @@ export function systemStatusLine(health: SystemHealth | null, now: number): Stat
       lines.push(`${host} · ${state}${endpoint.logs ? " · logs" : ""} · p50 ${endpoint.p50Ms == null ? EM_DASH : `${Math.round(endpoint.p50Ms)}ms`} · ${endpoint.calls} calls · ${endpoint.rateLimited} 429${endpoint.lastError ? ` · ${endpoint.lastError}` : ""}`);
     }
   } else parts.push("RPC POOL —");
+  const transport = transportStatusParts(health.robinhoodTransport);
+  if (transport.text) {
+    parts.push(transport.text);
+    lines.push(...transport.lines);
+  }
   if (health.snapshotAge != null && health.restoredAt != null) {
     // the server reports the file's age at restore time; the data has kept ageing since
     parts.push(`SNAP ${durationLabel(health.snapshotAge + Math.max(0, now - health.restoredAt))} OLD`);

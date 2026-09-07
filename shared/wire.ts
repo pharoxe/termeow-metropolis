@@ -495,6 +495,35 @@ export type RpcEndpointHealth = {
 };
 export type RpcPoolHealth = { chainId: number; endpoints: RpcEndpointHealth[] };
 export type SnapshotComponentHealth = { component: string; restoredAt: number | null; skipped: string | null };
+/** Socket detail of one Robinhood log poller (server/tape/robinhood/wsLogs.ts WsTransportStatus; times are ms epoch). */
+export type RobinhoodWsHealth = {
+  connected: boolean;
+  url: string | null;
+  connectedAt: number | null;
+  subscriptions: number;
+  wantedLegs: number;
+  rejectedLegs: number;
+  reconnects: number;
+  lastError: string | null;
+};
+/** One log poller: `mode` is "ws" only while the socket is open and every wanted leg is subscribed; otherwise its prints come from the HTTP sweep. */
+export type RobinhoodPollerTransportHealth = {
+  name: string;
+  mode: "ws" | "http";
+  wsEnabled: boolean;
+  httpCursor: number | null;
+  catchUpTicks: number;
+  wsLogs: number;
+  lastWsBlock: number | null;
+  ws: RobinhoodWsHealth | null;
+};
+/** Which transport carries Robinhood log prints: "WS" when every poller is fully subscribed, "HTTP" when none is, "MIXED" otherwise. */
+export type RobinhoodTransportHealth = {
+  label: "WS" | "HTTP" | "MIXED";
+  mode: "ws" | "http" | "mixed";
+  wsEnabled: boolean;
+  pollers: RobinhoodPollerTransportHealth[];
+};
 export type SystemHealth = {
   now?: string;
   /** When the first snapshot component was restored in this process; null when nothing was restored. */
@@ -503,6 +532,7 @@ export type SystemHealth = {
   snapshotAge?: number | null;
   snapshot?: { lastSaveAt?: number | null; components?: SnapshotComponentHealth[] };
   robinhoodRpc?: RpcPoolHealth;
+  robinhoodTransport?: RobinhoodTransportHealth;
 };
 
 // ---- Discovery (R6: GET /api/discover/:chain) ----

@@ -1,0 +1,448 @@
+{
+ "url": "wss://robinhood.api.pocket.network",
+ "label": "pocket",
+ "startedAt": "2026-09-07T17:47:11.527Z",
+ "wallets": 1500,
+ "emitters": 1059,
+ "legs": [
+  {
+   "name": "launch",
+   "addresses": 7,
+   "topicSizes": [
+    8
+   ]
+  },
+  {
+   "name": "routers",
+   "addresses": 2,
+   "topicSizes": [
+    4
+   ]
+  },
+  {
+   "name": "emitters",
+   "addresses": 1059,
+   "topicSizes": [
+    4
+   ]
+  },
+  {
+   "name": "userop",
+   "addresses": 1,
+   "topicSizes": [
+    1
+   ]
+  },
+  {
+   "name": "xfer-to-0",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    null,
+    500
+   ]
+  },
+  {
+   "name": "xfer-from-0",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    500
+   ]
+  },
+  {
+   "name": "xfer-to-1",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    null,
+    500
+   ]
+  },
+  {
+   "name": "xfer-from-1",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    500
+   ]
+  },
+  {
+   "name": "xfer-to-2",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    null,
+    500
+   ]
+  },
+  {
+   "name": "xfer-from-2",
+   "addresses": 0,
+   "topicSizes": [
+    1,
+    500
+   ]
+  },
+  {
+   "name": "own-v2v3",
+   "addresses": 2,
+   "topicSizes": [
+    2
+   ]
+  },
+  {
+   "name": "own-v4",
+   "addresses": 1,
+   "topicSizes": [
+    1,
+    1
+   ]
+  }
+ ],
+ "connectMs": 1082,
+ "acks": [
+  {
+   "leg": "launch",
+   "ok": true,
+   "ms": 456,
+   "id": "0xff6c43e92dee83586c85decce2f17b33",
+   "error": null
+  },
+  {
+   "leg": "routers",
+   "ok": true,
+   "ms": 302,
+   "id": "0x8e377ea55e311a487fa293f0779fdc94",
+   "error": null
+  },
+  {
+   "leg": "emitters",
+   "ok": true,
+   "ms": 1036,
+   "id": "0xcbbe2bab4bc33175dcf689816ef4652e",
+   "error": null
+  },
+  {
+   "leg": "userop",
+   "ok": true,
+   "ms": 303,
+   "id": "0xc20742dfa400eb3aea6939b8f43afd71",
+   "error": null
+  },
+  {
+   "leg": "xfer-to-0",
+   "ok": true,
+   "ms": 563,
+   "id": "0xfb160e7c2ce78bb492f3e31a51f49cc2",
+   "error": null
+  },
+  {
+   "leg": "xfer-from-0",
+   "ok": true,
+   "ms": 437,
+   "id": "0x73a077b3f315d27a845fba21b744ad76",
+   "error": null
+  },
+  {
+   "leg": "xfer-to-1",
+   "ok": true,
+   "ms": 427,
+   "id": "0x3cde6112694d34bee67f662886ae78e3",
+   "error": null
+  },
+  {
+   "leg": "xfer-from-1",
+   "ok": true,
+   "ms": 445,
+   "id": "0xf31983f92579157eba81fb9c7d68262c",
+   "error": null
+  },
+  {
+   "leg": "xfer-to-2",
+   "ok": true,
+   "ms": 442,
+   "id": "0x4e91f84a5ba7b3554bcf0437b1a6f2",
+   "error": null
+  },
+  {
+   "leg": "xfer-from-2",
+   "ok": true,
+   "ms": 439,
+   "id": "0x944ae9638b957a3f82ac6b6fca222c67",
+   "error": null
+  },
+  {
+   "leg": "own-v2v3",
+   "ok": true,
+   "ms": 305,
+   "id": "0xd9b2c535ddf2463f8d073558b4c11810",
+   "error": null
+  },
+  {
+   "leg": "own-v4",
+   "ok": true,
+   "ms": 298,
+   "id": "0x325baf7f40b14491bd61ec7131adbc07",
+   "error": null
+  }
+ ],
+ "subscribeAllMs": 5453,
+ "newHeadsAck": {
+  "ok": true,
+  "error": null
+ },
+ "blockNumberOverWs": "0x3661d18",
+ "window": {
+  "ms": 60000,
+  "perLeg": {
+   "emitters": {
+    "count": 29,
+    "bytes": 27366,
+    "firstBlock": 57023725,
+    "lastBlock": 57024323,
+    "removed": 0
+   },
+   "userop": {
+    "count": 270,
+    "bytes": 273501,
+    "firstBlock": 57023732,
+    "lastBlock": 57024360,
+    "removed": 0
+   },
+   "launch": {
+    "count": 31,
+    "bytes": 29408,
+    "firstBlock": 57023739,
+    "lastBlock": 57024360,
+    "removed": 0
+   },
+   "xfer-to-2": {
+    "count": 11,
+    "bytes": 8249,
+    "firstBlock": 57023772,
+    "lastBlock": 57024355,
+    "removed": 0
+   },
+   "xfer-from-0": {
+    "count": 2,
+    "bytes": 1503,
+    "firstBlock": 57023777,
+    "lastBlock": 57024343,
+    "removed": 0
+   },
+   "xfer-from-2": {
+    "count": 9,
+    "bytes": 6765,
+    "firstBlock": 57023787,
+    "lastBlock": 57024259,
+    "removed": 0
+   },
+   "xfer-from-1": {
+    "count": 4,
+    "bytes": 3007,
+    "firstBlock": 57023901,
+    "lastBlock": 57024319,
+    "removed": 0
+   },
+   "routers": {
+    "count": 1,
+    "bytes": 998,
+    "firstBlock": 57023953,
+    "lastBlock": 57023953,
+    "removed": 0
+   },
+   "xfer-to-1": {
+    "count": 6,
+    "bytes": 4512,
+    "firstBlock": 57023993,
+    "lastBlock": 57024360,
+    "removed": 0
+   },
+   "xfer-to-0": {
+    "count": 5,
+    "bytes": 3760,
+    "firstBlock": 57024034,
+    "lastBlock": 57024267,
+    "removed": 0
+   },
+   "own-v4": {
+    "count": 1,
+    "bytes": 1072,
+    "firstBlock": 57024178,
+    "lastBlock": 57024178,
+    "removed": 0
+   }
+  },
+  "duplicates": 0,
+  "duplicateSamples": [],
+  "unknownFrames": 0
+ },
+ "newHeads": {
+  "count": 596,
+  "first": 57023765,
+  "last": 57024360,
+  "nonConsecutive": [],
+  "nonConsecutiveCount": 0,
+  "distinctTimestamps": 61,
+  "arrivalMinusBlockTsMs": {
+   "min": 7,
+   "max": 1174,
+   "median": 555
+  },
+  "timestampIsSeconds": true
+ },
+ "conn1Events": {
+  "pings": [
+   {
+    "at": 1788803260020,
+    "bytes": 0
+   },
+   {
+    "at": 1788803287031,
+    "bytes": 0
+   }
+  ],
+  "pongs": [],
+  "closes": [
+   {
+    "at": 1788803298950,
+    "code": 1000,
+    "reason": ""
+   }
+  ],
+  "errors": [],
+  "unknown": 0
+ },
+ "reconnect": {
+  "closeToOpenMs": 1266,
+  "closeToAllSubscribedMs": 6691,
+  "allOk": true,
+  "lastBlockBeforeClose": 57024360,
+  "firstBlockAfterResubscribe": 57024386,
+  "gapBlocks": 25
+ },
+ "httpSpan": {
+  "from": 57023766,
+  "to": 57024362,
+  "blocks": 597
+ },
+ "httpCompare": {
+  "launch": {
+   "http": 29,
+   "ws": 29,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 575
+  },
+  "routers": {
+   "http": 1,
+   "ws": 1,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 336
+  },
+  "emitters": {
+   "http": 28,
+   "ws": 28,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 571
+  },
+  "userop": {
+   "http": 259,
+   "ws": 259,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 791
+  },
+  "xfer-to-0": {
+   "http": 5,
+   "ws": 5,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1269
+  },
+  "xfer-from-0": {
+   "http": 2,
+   "ws": 2,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1174
+  },
+  "xfer-to-1": {
+   "http": 6,
+   "ws": 6,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1478
+  },
+  "xfer-from-1": {
+   "http": 4,
+   "ws": 4,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1509
+  },
+  "xfer-to-2": {
+   "http": 11,
+   "ws": 11,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1111
+  },
+  "xfer-from-2": {
+   "http": 9,
+   "ws": 9,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1574
+  },
+  "own-v2v3": {
+   "http": 0,
+   "ws": 0,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 353
+  },
+  "own-v4": {
+   "http": 1,
+   "ws": 1,
+   "missingFromWs": 0,
+   "extraInWs": 0,
+   "missingSamples": [],
+   "extraSamples": [],
+   "ms": 1486
+  }
+ },
+ "gapRecovery": {
+  "leg": "userop",
+  "from": 57024360,
+  "to": 57024386,
+  "httpLogsInGapSpan": 16,
+  "strictlyInsideGap": 14
+ },
+ "finishedAt": "2026-09-07T17:49:00.786Z"
+}

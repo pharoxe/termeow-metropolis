@@ -302,7 +302,10 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     () => buildFomoMarkers(flowState?.fomo?.fills ?? [], chartFlow?.candleTimes ?? [], { theme }),
     [flowState?.fomo?.fills, chartFlow?.candleTimes, theme]
   );
-  const fomoMeta = [fomo.markers.length - fomo.seeded > 0 ? `${fomo.markers.length - fomo.seeded} FOMO` : "", fomo.seeded ? `${fomo.seeded} SEEDED` : "", fomo.dropped ? `+${fomo.dropped} more` : "", fomo.beforeRange ? `${fomo.beforeRange} off-chart` : ""].filter(Boolean).join(" ");
+  // Fill counts, not bucket counts: a bucket is one candle+side and can mix FOMO and seeded fills.
+  const fomoFills = fomo.markers.reduce((sum, marker) => sum + marker.fomoFills, 0);
+  const seededFills = fomo.markers.reduce((sum, marker) => sum + marker.seededFills, 0);
+  const fomoMeta = [fomoFills ? `${fomoFills} FOMO` : "", seededFills ? `${seededFills} SEEDED` : "", fomo.dropped ? `+${fomo.dropped} more` : "", fomo.beforeRange ? `${fomo.beforeRange} off-chart` : ""].filter(Boolean).join(" ");
   const sourceLabel = active.source === "own tape" ? "OWN TAPE" : feed?.primaryPair?.dex || feed?.source || "GECKO";
   /** R6 provenance: which series the market candles are and how far the chain backfill reaches. */
   const provenanceMeta = candleSourceMeta(feed, active.source);

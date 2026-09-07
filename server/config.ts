@@ -16,6 +16,15 @@ export const DEFAULT_ROBINHOOD_RPC_URLS = [
   "https://rpc.nodeflare.app/robinhood/public"
 ] as const;
 const LEGACY_ROBINHOOD_RPC_URL = "https://rpc.mainnet.chain.robinhood.com";
+/**
+ * Robinhood Chain websocket endpoints that accepted every poller leg shape and matched HTTP eth_getLogs log-for-log over
+ * 60 s windows (2026-09-07 23:14-23:45 IST, fixtures server/tape/robinhood/__fixtures__/r7/). Both deliver newHeads
+ * every block and real blockTimestamps; blockmachine / blxrbdn / nodeflare websockets are unmeasured and left out.
+ */
+export const DEFAULT_ROBINHOOD_WS_URLS = [
+  "wss://robinhood-rpc.publicnode.com",
+  "wss://robinhood.api.pocket.network"
+] as const;
 const urlList = (fallback: readonly string[]) => z.preprocess(
   emptyAsUndefined,
   z.string().default(fallback.join(","))
@@ -49,6 +58,10 @@ const envSchema = z.object({
    */
   ROBINHOOD_LOGS_MIN_GAP_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().min(0).default(5_000)),
   ROBINHOOD_LOGS_MAX_GAP_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().min(0).default(30_000)),
+  /** Websocket log transport (tape/robinhood/wsLogs.ts): "false" keeps the log pollers HTTP-only. */
+  ROBINHOOD_WS_ENABLED: z.preprocess(emptyAsUndefined, z.string().default("true")),
+  /** Comma-separated wss:// pool, tried in order and rotated on every reconnect. */
+  ROBINHOOD_WS_URLS: urlList(DEFAULT_ROBINHOOD_WS_URLS),
   SNAPSHOT_DIR: z.preprocess(emptyAsUndefined, z.string().default(".cache/termeow")),
   SNAPSHOT_INTERVAL_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().positive().default(30_000)),
   PRIVY_APP_ID: optionalString,
@@ -103,6 +116,10 @@ export const config = {
     logsLane: {
       minGapMs: env.ROBINHOOD_LOGS_MIN_GAP_MS,
       maxGapMs: env.ROBINHOOD_LOGS_MAX_GAP_MS
+    },
+    ws: {
+      enabled: env.ROBINHOOD_WS_ENABLED.toLowerCase() === "true",
+      urls: env.ROBINHOOD_WS_URLS
     }
   },
   /** Restart persistence (server/persist): per-component JSON snapshots, relative to cwd unless absolute. */

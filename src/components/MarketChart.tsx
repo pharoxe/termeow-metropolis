@@ -22,13 +22,15 @@ import type { TapePrint } from "../../shared/wire";
 import { bollinger, ema, macd, obv, rsi, vwap } from "../lib/indicators";
 import { axisUsd } from "../lib/format";
 import { buildFlowSeries, type FlowChartInput, type FlowChartSeries } from "../lib/flowChart";
-import type { FomoMarker } from "../lib/fomoMarkers";
+import { indexFomoMarkersByTime, type FomoMarker } from "../lib/fomoMarkers";
+import { fomoHoverView, type FomoHoverView } from "../lib/fomoHover";
 import { mergeMarkers, type ChartMarker } from "../lib/chartMarkers";
 import { formatIst, granularityFor, istLocalization, istTimeScaleOptions, toSeconds, type TimeGranularity } from "../lib/chartTime";
 import { applyPrintsToCandles, barLegend, dedupeAscending, inferIntervalMs, planCandleUpdate, type CandlePlan, type LiveCandleStats } from "../lib/liveCandle";
 import { formatMicroPrice, priceMinMove, pricePriceFormat } from "../lib/priceFormat";
 import { applyFlowSeries, createFlowSeries, SIDE_PANE_STRETCH, type FlowSeriesRefs } from "./flowChartSeries";
 import { ChartLegend, type LegendState } from "./ChartLegend";
+import { FomoHover } from "./FomoHover";
 import { attachDrawings, type DrawingsApi } from "../chart/drawings";
 import type { Theme } from "./ThemeToggle";
 import "./chart.css";
@@ -95,9 +97,9 @@ function linePoints(candles: Candle[], values: Array<number | null>, from = 0) {
   return points;
 }
 
-/** ChartMarker/FomoMarker already match the library's marker shape; only `time` needs the branded type. */
+/** Only the library's marker fields cross over (FomoMarker carries its wallet breakdown too); `time` needs the branded type. */
 function toSeriesMarkers(markers: ChartMarker[]): SeriesMarker<Time>[] {
-  return markers.map((marker) => ({ ...marker, time: marker.time as UTCTimestamp }));
+  return markers.map(({ time, position, shape, color, text, size }) => ({ time: time as UTCTimestamp, position, shape, color, text, size }));
 }
 
 type BuildConfig = { theme: Theme; compactAxis: boolean; indicators: IndicatorSet; paneMode: PaneMode; granularity: TimeGranularity; scaleMode: ChartScaleMode; sample: number | null };
@@ -253,6 +255,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   const hoverIndexRef = useRef<number | null>(null);
   const frameRef = useRef<number | null>(null);
   const [legend, setLegend] = useState<LegendState | null>(null);
+  const [fomoHover, setFomoHover] = useState<FomoHoverView | null>(null);
 
   const resolvedIntervalMs = intervalMs != null && intervalMs > 0 ? intervalMs : inferIntervalMs(candles);
   const granularity = granularityFor(resolvedIntervalMs);
@@ -262,6 +265,9 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   const flowUsable = Boolean(flowSeries && !flowSeries.empty && flowSeries.buys.length >= MIN_FLOW_BARS);
   const paneMode: PaneMode = flowUsable ? "flow" : "none";
   const merged = useMemo(() => mergeMarkers(fomoMarkers, eventMarkers), [fomoMarkers, eventMarkers]);
+  const fomoByTime = useMemo(() => indexFomoMarkersByTime(fomoMarkers), [fomoMarkers]);
+  const fomoByTimeRef = useRef(fomoByTime);
+  fomoByTimeRef.current = fomoByTime;
   const hasCandles = displayCandles.length > 0;
   const mountKey = [theme, compactAxis, INDICATOR_KEYS.filter((key) => indicators[key]).join("+"), paneMode, hasCandles].join("|");
 
@@ -294,6 +300,12 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     const held = heldRef.current.candles;
     const hovered = hoverIndexRef.current;
     const bar = barLegend(held, hovered ?? held.length - 1);
+    // Hover-only: the wallet strip names who filled the bar under the crosshair, never the last bar by default.
+    const buckets = hovered != null && bar ? fomoByTimeRef.current.get(Math.floor(bar.time / 1000)) ?? [] : [];
+    setFomoHover((prev) => {
+      const next = fomoHoverView(buckets);
+      return prev && next && prev.title === next.title && prev.rows.length === next.rows.length && prev.more === next.more ? prev : next;
+    });
     setLegend((prev) => {
       if (!bar) return null;
       if (prev && prev.bar.index === bar.index && prev.hovered === (hovered != null) && prev.total === held.length && prev.bar.close === bar.close && prev.bar.volume === bar.volume && prev.bar.time === bar.time) return prev;
@@ -418,6 +430,12 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [merged]);
 
+  // A new FOMO poll can change the buckets under a resting crosshair; re-derive the strip without waiting for a move.
+  useEffect(() => {
+    refreshLegend();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fomoByTime]);
+
   useEffect(() => {
     builtRef.current?.chart.priceScale("right").applyOptions({ mode: scaleModeOf(scaleMode) });
   }, [scaleMode]);
@@ -435,6 +453,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     <div className="chart-host">
       <div className="chart-canvas" ref={host} />
       <ChartLegend state={legend} compact={compactAxis} granularity={granularity} label={legendLabel} />
+      <FomoHover view={fomoHover} />
     </div>
   );
 });

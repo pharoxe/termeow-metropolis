@@ -1,4 +1,5 @@
 import { errorMessage } from "../../lib/http.js";
+import { hintedBlockTimeMs } from "./blockHints.js";
 import { evmRpc, hexToNumber, toHexQuantity } from "./rpc.js";
 import { robinhoodRpcFetch } from "./rpcPool.js";
 
@@ -39,8 +40,9 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Block number -> ms timestamp via eth_getBlockByNumber(n, false). Robinhood Chain logs carry blockTimestamp 0x0,
- * so this is the only honest clock for a print. LRU-bounded, one request per block in flight, retried with a short
+ * Block number -> ms timestamp via eth_getBlockByNumber(n, false). The official RPC's logs carry blockTimestamp 0x0,
+ * so this is the honest clock for a print; a block the websocket transport has already timed (newHeads header, see
+ * blockHints.ts) is taken from there first and costs no request. LRU-bounded, one request per block in flight, retried with a short
  * backoff before a miss is reported, never throws.
  */
 export class BlockTimeCache {
@@ -78,6 +80,11 @@ export class BlockTimeCache {
     }
     const pending = this.inFlight.get(blockNumber);
     if (pending) return pending;
+    const hinted = hintedBlockTimeMs(blockNumber);
+    if (hinted !== null) {
+      this.store(blockNumber, hinted);
+      return hinted;
+    }
     const request = this.fetchBlock(blockNumber).finally(() => this.inFlight.delete(blockNumber));
     this.inFlight.set(blockNumber, request);
     return request;

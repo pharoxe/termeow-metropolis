@@ -83,7 +83,7 @@ function tokenForCurvePair(index: LaunchIndex, pair: string): string | null {
 function liveRobinhoodStream(index: LaunchIndex, log: (msg: string) => void): RobinhoodLaunchStream {
   const rpcUrl = config.robinhood.rpcUrl;
   const hooked = withTraderHooks({
-    poller: new RobinhoodLogPoller({ rpcUrl, log }),
+    poller: new RobinhoodLogPoller({ rpcUrl, log, name: "launch" }),
     ledger: flowCollector.ledger,
     traders: getTraderService(),
     tokenOf: (pair) => tokenForCurvePair(index, pair),

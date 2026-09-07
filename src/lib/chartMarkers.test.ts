@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { LargePrint } from "../../shared/wire";
-import { LAUNCH_MARKER_SIZE, buildEventMarkers, largePrintText, mergeMarkers, sortMarkers } from "./chartMarkers";
+import { LAUNCH_MARKER_SIZE, buildEventMarkers, largePrintText, mergeMarkers, sortMarkers, type ChartMarker } from "./chartMarkers";
 import { FLOW_PALETTE } from "./flowChart";
-import { MARKER_SIZE_BY_CLASS, type FomoMarker } from "./fomoMarkers";
+import { MARKER_SIZE_BY_CLASS } from "./fomoMarkers";
 
 const MINUTE = 60_000;
 const T0 = 1_700_000_000_000;
@@ -72,7 +72,7 @@ describe("largePrintText", () => {
 
 describe("mergeMarkers / sortMarkers", () => {
   it("merges FOMO and event markers into one time-sorted list, below before above, stable within ties", () => {
-    const fomo: FomoMarker[] = [
+    const fomo: ChartMarker[] = [
       { time: 20, position: "aboveBar", shape: "arrowDown", color: "#f00", text: "alice" },
       { time: 10, position: "belowBar", shape: "arrowUp", color: "#0f0", text: "bob" }
     ];

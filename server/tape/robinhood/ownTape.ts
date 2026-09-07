@@ -157,7 +157,7 @@ export class RobinhoodOwnTape {
     this.ledger = opts.ledger;
     this.log = opts.log ?? ((msg) => console.warn(msg));
     this.now = opts.now ?? (() => Date.now());
-    this.poller = opts.poller ?? new RobinhoodLogPoller({ rpcUrl: opts.rpcUrl, log: this.log, now: this.now });
+    this.poller = opts.poller ?? new RobinhoodLogPoller({ rpcUrl: opts.rpcUrl, log: this.log, now: this.now, name: "tape" });
     this.blocks = opts.blocks ?? new BlockTimeCache({ rpcUrl: opts.rpcUrl });
     this.prices = opts.prices ?? new EvmQuotePrice({ chain: "robinhood", now: this.now });
     this.resolveStatus = opts.resolveStatus ?? poolResolveStatus;

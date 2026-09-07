@@ -220,10 +220,23 @@ describe("TransferFeed batch processing", () => {
     expect(h.log).toHaveBeenCalledWith("transfer feed: batch: population exploded");
   });
 
-  it("drops batches past the queue cap while a lookup stalls, counting them", async () => {
+  it("folds batches past the queue cap into the last waiting one while a lookup stalls (nothing dropped: the poller never re-delivers), and processes every log once it clears", async () => {
     const h = harness();
-    h.traders.receiptFor = () => new Promise(() => undefined);
-    for (let i = 0; i < MAX_QUEUED_BATCHES + 3; i += 1) void h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
-    expect(h.feed.stats()).toMatchObject({ queued: MAX_QUEUED_BATCHES, batchesDropped: 3 });
+    const fetchReceipt = h.traders.receiptFor;
+    let release: () => void = () => undefined;
+    const stalled = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    h.traders.receiptFor = async (tx) => {
+      await stalled;
+      return fetchReceipt(tx);
+    };
+    const logs = walletLogs(TX, WALLET);
+    const settled: Array<Promise<void>> = [];
+    for (let i = 0; i < MAX_QUEUED_BATCHES + 3; i += 1) settled.push(h.feed.handleLogs(logs, 56_168_800 + i));
+    expect(h.feed.stats()).toMatchObject({ queued: MAX_QUEUED_BATCHES, batchesDropped: 0, batchesCoalesced: 3, logsDropped: 0 });
+    release();
+    await Promise.all(settled);
+    expect(h.feed.stats()).toMatchObject({ queued: 0, batches: MAX_QUEUED_BATCHES, logsSeen: logs.length * (MAX_QUEUED_BATCHES + 3), fills: 1 });
   });
 });

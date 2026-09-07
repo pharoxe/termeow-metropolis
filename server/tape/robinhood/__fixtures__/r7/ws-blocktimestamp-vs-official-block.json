@@ -1,0 +1,20 @@
+{
+ "capturedAt": "2026-09-07T18:07:47.090Z",
+ "results": {
+  "57022486": {
+   "wsLogBlockTimestamp": "0x6a9ef825",
+   "officialBlockTimestamp": "0x6a9ef825",
+   "match": true
+  },
+  "57022491": {
+   "wsLogBlockTimestamp": "0x6a9ef826",
+   "officialBlockTimestamp": "0x6a9ef826",
+   "match": true
+  },
+  "57023765": {
+   "wsLogBlockTimestamp": "0x6a9ef8a6",
+   "officialBlockTimestamp": "0x6a9ef8a6",
+   "match": true
+  }
+ }
+}
