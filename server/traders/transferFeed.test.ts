@@ -195,11 +195,11 @@ describe("TransferFeed batch processing", () => {
     expect(h.feed.stats()).toMatchObject({ fills: 0, untimed: 1 });
   });
 
-  it("records a seeded wallet's fill with kind null (never labelled FOMO before its check) and ignores logs of untracked wallets", async () => {
+  it("records a seeded wallet's fill with the kind the service answers (seeded, never FOMO before its check) and ignores logs of untracked wallets", async () => {
     const h = harness();
-    h.traders.kinds = {};
+    h.traders.kinds = { [WALLET]: "seeded" };
     await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
-    expect(h.traders.recorded[0].kind).toBeNull();
+    expect(h.traders.recorded[0].kind).toBe("seeded");
     h.traders.wallets = [];
     h.traders.recorded = [];
     await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);

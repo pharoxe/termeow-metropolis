@@ -132,16 +132,17 @@ function anchorStart(params: FlowParams, bars: FlowBar[], deps: FlowRouteDeps): 
 type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources" | "tape" | "fomo">;
 
 /**
- * FOMO-kind fills of this token, newest first: the token-keyed book merged with the pair-keyed FOMO ledger rings
- * (Tier A pairs + "fomo:<token>"), one row per tx+wallet, plus windows summed over that deduped list. Robinhood only
- * (the designator check is eth_getCode); populations are "seen by this server".
+ * FOMO and seeded fills of this token, newest first: the token-keyed book merged with the pair-keyed FOMO ledger rings
+ * (Tier A pairs + "fomo:<token>"), one row per tx+wallet, plus windows summed over the verified-FOMO subset of that
+ * deduped list (seeded rows are tagged on `fills`, never folded into the cohort totals). Robinhood only (the designator
+ * check is eth_getCode); populations are "seen by this server".
  */
 export function fomoBlock(traders: FlowTradersLike, params: FlowParams, pairs: PairRow[], observedAt: number): TokenFlowFomo {
   const dexByPair = new Map(pairs.map((pair) => [pair.pairAddress, pair.dex]));
   const dexOf = (pair: string) => dexByPair.get(pair) ?? traders.dexOf(params.chain, pair);
   const fromBook = traders.fillsForToken(params.chain, params.address, FOMO_MERGE_LIMIT).map((fill) => ({ ...fill, dex: dexByPair.get(fill.pair) ?? fill.dex }));
   const merged = mergeFomoFills(fromBook, ledgerFomoFills(traders.fomoLedger, params.chain, params.address, pairs, dexOf));
-  return { fills: merged.slice(0, FOMO_TAPE_LIMIT), windows: fomoWindowsFromFills(merged, observedAt), population: traders.population.size, handles: traders.handles.stats().entries };
+  return { fills: merged.slice(0, FOMO_TAPE_LIMIT), windows: fomoWindowsFromFills(merged.filter((fill) => fill.trader.kind === "fomo"), observedAt), population: traders.population.size, handles: traders.handles.stats().entries };
 }
 
 /** Newest Tier A prints across pairs from the ledger ring, dex from the PairRow, time desc, at most `limit`. Unpriced prints keep usd null. */

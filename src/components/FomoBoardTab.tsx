@@ -56,7 +56,7 @@ export function FomoBoardTab() {
                     {view.href
                       ? <a href={view.href} target="_blank" rel="noopener noreferrer">{view.label}</a>
                       : <b>{view.label}</b>}
-                    <small>{view.age}</small>
+                    <small>{view.tag ? `${view.tag} · ` : ""}{view.age}</small>
                   </td>
                   <td className="r">{view.fills}</td>
                   <td className="r up">{view.buy}</td>

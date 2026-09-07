@@ -32,8 +32,10 @@ export type TraderBookOptions = {
 export type RecordOutcome = "accepted" | "duplicate" | "rejected";
 export type RecordResult = { accepted: number; duplicates: number; rejected: number };
 
-export type RankOptions = { kind?: TraderKind };
-export type TapeOptions = { kind?: TraderKind; token?: string };
+/** A single kind or a list of kinds to keep (e.g. ["fomo", "seeded"]); undefined keeps every row. */
+export type KindFilter = TraderKind | readonly TraderKind[];
+export type RankOptions = { kind?: KindFilter };
+export type TapeOptions = { kind?: KindFilter; token?: string };
 
 export type TraderTapeRow = {
   chain: Chain;
@@ -82,6 +84,11 @@ function isValidFill(fill: TraderFill): boolean {
 
 function inScope(chain: ChainScope, fill: { chain: Chain }): boolean {
   return chain === "all" || fill.chain === chain;
+}
+
+function kindAllowed(filter: KindFilter | undefined, kind: TraderKind | null): boolean {
+  if (filter === undefined) return true;
+  return typeof filter === "string" ? kind === filter : kind !== null && filter.includes(kind);
 }
 
 /** Inserts `fill` keeping `ring` ascending by time, then trims the oldest entries down to `cap`. */
@@ -167,7 +174,7 @@ export class TraderBook {
       : [...this.wallets.values()].filter((state) => inScope(chain, state));
     return states
       .map(toRow)
-      .filter((row) => opts.kind === undefined || row.kind === opts.kind)
+      .filter((row) => kindAllowed(opts.kind, row.kind))
       .sort(byNetUsdDesc);
   }
 
@@ -181,10 +188,15 @@ export class TraderBook {
       if (opts.token !== undefined && fill.token !== opts.token) continue;
       const identity = this.wallets.get(walletKey(fill.chain, fill.trader))?.identity;
       const kind = identity?.kind ?? fill.kind ?? null;
-      if (opts.kind !== undefined && kind !== opts.kind) continue;
+      if (!kindAllowed(opts.kind, kind)) continue;
       out.push(toTapeRow(fill, identity?.handle ?? fill.handle ?? null, kind));
     }
     return out;
+  }
+
+  /** Every ring fill of one (chain, wallet), oldest first, as recorded (per-fill kind may be stale; identity holds the current one). Fills already evicted from the ring are gone. */
+  fillsOf(chain: Chain, wallet: string): TraderFill[] {
+    return this.ring.filter((fill) => fill.chain === chain && fill.trader === wallet);
   }
 
   /** Oldest fill time still in the ring; a window reaching past it is truncated. Null when empty. */

@@ -61,7 +61,7 @@ describe("buildFomoMarkers", () => {
   });
 
   it("returns nothing and counts every fill as beforeRange when there are no candles", () => {
-    expect(buildFomoMarkers([fill({ time: T0, side: "buy", usd: 1 })], [], { theme: "dark" })).toEqual({ markers: [], dropped: 0, beforeRange: 1 });
+    expect(buildFomoMarkers([fill({ time: T0, side: "buy", usd: 1 })], [], { theme: "dark" })).toEqual({ markers: [], dropped: 0, beforeRange: 1, seeded: 0 });
   });
 
   it("collapses same wallet + side + candle into one marker with ×n and the summed usd", () => {
@@ -142,6 +142,16 @@ describe("buildFomoMarkers", () => {
     const fills = [fill({ time: T0, side: "buy", usd: 5, trader: { address: WALLET_B, kind: "fomo", handle: null, followers: null } })];
     expect(buildFomoMarkers(fills, CANDLES, { theme: "dark" }).markers[0].text).toBe("0xbb…bbbb $5");
     expect(markerText({ address: WALLET_B, handle: "   ", count: 1, usd: null })).toBe("0xbb…bbbb");
+  });
+
+  it("marks a seeded wallet's arrow SEEDED and counts seeded groups so the chart never reads them as FOMO", () => {
+    expect(markerText({ address: WALLET_B, handle: "unipcs", count: 2, usd: 40, kind: "seeded" })).toBe("unipcs ×2 $40 SEEDED");
+    expect(markerText({ address: WALLET_B, handle: "unipcs", count: 1, usd: 40, kind: "fomo" })).toBe("unipcs $40");
+    const seededRef = { address: WALLET_B, kind: "seeded" as const, handle: "unipcs", followers: 514_576 };
+    const result = buildFomoMarkers([fill({ time: T0 + 1_000, side: "buy", usd: 10, trader: seededRef }), fill({ time: T0 + 2_000, side: "sell", usd: 20 })], CANDLES, { theme: "dark" });
+    expect(result.seeded).toBe(1);
+    expect(result.markers.map((marker) => marker.text.endsWith("SEEDED"))).toEqual([true, false]);
+    expect(buildFomoMarkers([], CANDLES, { theme: "dark" }).seeded).toBe(0);
   });
 });
 

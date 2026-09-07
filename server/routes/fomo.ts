@@ -3,9 +3,9 @@ import { z } from "zod";
 import type { Chain, FomoBoardResponse, FomoBoardRow, FomoFill, FomoTapeResponse } from "../../shared/wire.js";
 import { getLaunchService } from "../launch/service.js";
 import { errorMessage } from "../lib/http.js";
-import type { ChainScope, TraderRow, TraderTapeRow } from "../traders/book.js";
+import type { ChainScope, RankOptions, TapeOptions, TraderRow, TraderTapeRow } from "../traders/book.js";
 import { FOMO_PROFILE_BASE, type HandleEntry } from "../traders/handles.js";
-import { FOMO_POPULATION_LABEL, getTraderService, toFomoFill, type TraderServiceStatus } from "../traders/service.js";
+import { FOMO_POPULATION_LABEL, TAPE_KINDS, getTraderService, toFomoFill, type TraderServiceStatus } from "../traders/service.js";
 
 export const FOMO_TAPE_DEFAULT = 60;
 export const FOMO_TAPE_MAX = 200;
@@ -23,8 +23,8 @@ export type FomoBoardQuery = z.infer<typeof fomoBoardQuerySchema>;
 /** The slice of TraderService the routes read; tests inject a fake. */
 export type FomoTradersLike = {
   book: {
-    tape(chain: ChainScope, limit: number, opts?: { kind?: "fomo" | "other"; token?: string }): TraderTapeRow[];
-    rank(chain: ChainScope, windowMs: number, opts?: { kind?: "fomo" | "other" }): TraderRow[];
+    tape(chain: ChainScope, limit: number, opts?: TapeOptions): TraderTapeRow[];
+    rank(chain: ChainScope, windowMs: number, opts?: RankOptions): TraderRow[];
     oldestFillAt(): number | null;
   };
   population: { size: number };
@@ -64,12 +64,13 @@ export function toBoardRow(traders: FomoTradersLike, row: TraderRow): FomoBoardR
     wins: row.wins,
     wilsonLow: row.wilsonLow,
     lastSeenAt: row.lastSeenAt,
-    profileUrl: profileUrlFor(traders, row)
+    profileUrl: profileUrlFor(traders, row),
+    kind: row.kind
   };
 }
 
 function tapeFills(deps: FomoRouteDeps, query: FomoTapeQuery): FomoFill[] {
-  return deps.traders.book.tape(query.chain, query.limit, { kind: "fomo" }).map((row) => {
+  return deps.traders.book.tape(query.chain, query.limit, { kind: TAPE_KINDS }).map((row) => {
     const followers = deps.traders.handles.get(row.trader)?.followers ?? null;
     return toFomoFill(row, deps.traders.dexOf(row.chain, row.pair), followers, deps.symbolOf?.(row.chain, row.token) ?? null);
   });
@@ -91,13 +92,13 @@ export function truncatedAt(oldest: number | null, windowMs: number, now: number
   return oldest !== null && oldest > now - windowMs ? oldest : null;
 }
 
-/** Pure handler: rank by netUsd over the window, FOMO kind only; failure keeps the 200 + error contract. */
+/** Pure handler: rank by netUsd over the window, FOMO and seeded kinds (each row says which); failure keeps the 200 + error contract. */
 export function buildFomoBoardResponse(query: FomoBoardQuery, deps: FomoRouteDeps): FomoBoardResponse {
   const observedAt = deps.now();
   const windowMs = FOMO_WINDOW_MS[query.window];
   const base = { chain: query.chain, window: query.window, populationLabel: FOMO_POPULATION_LABEL, observedAt };
   try {
-    const rows = deps.traders.book.rank(query.chain, windowMs, { kind: "fomo" }).map((row) => toBoardRow(deps.traders, row));
+    const rows = deps.traders.book.rank(query.chain, windowMs, { kind: TAPE_KINDS }).map((row) => toBoardRow(deps.traders, row));
     return { ...base, rows, population: deps.traders.population.size, truncatedAt: truncatedAt(deps.traders.book.oldestFillAt(), windowMs, observedAt) };
   } catch (error) {
     return { ...base, rows: [], population: 0, truncatedAt: null, stale: true, error: `board: ${errorMessage(error)}` };

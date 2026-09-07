@@ -1,4 +1,4 @@
-import type { FomoFill } from "../../shared/wire";
+import type { FomoFill, TraderKind } from "../../shared/wire";
 import { FLOW_PALETTE, type FlowChartTheme } from "./flowChart";
 import { money, shortAddress } from "./format";
 
@@ -15,8 +15,8 @@ export type FomoMarker = {
 
 export type FomoMarkerOptions = { maxMarkers?: number; theme: FlowChartTheme };
 
-/** `dropped` = markers cut by the cap; `beforeRange` = fills older than the first candle (no candle contains them). */
-export type FomoMarkerResult = { markers: FomoMarker[]; dropped: number; beforeRange: number };
+/** `dropped` = markers cut by the cap; `beforeRange` = fills older than the first candle (no candle contains them); `seeded` = kept markers of wallets awaiting their 7702 check (text ends in SEEDED). */
+export type FomoMarkerResult = { markers: FomoMarker[]; dropped: number; beforeRange: number; seeded: number };
 
 /** `wallets` = distinct addresses; `unpriced` fills are counted, never summed. `net` = buyUsd - sellUsd. */
 export type FomoSummary = { buyUsd: number; sellUsd: number; net: number; wallets: number; fills: number; unpriced: number };
@@ -32,6 +32,8 @@ export const MARKER_SIZE_BY_CLASS: Readonly<Record<FomoSizeClass, number>> = { 0
 type Group = {
   address: string;
   handle: string | null;
+  /** Kind of the first fill in the group (a wallet has one kind at a time on the wire). */
+  kind: TraderKind | null;
   side: FomoFill["side"];
   candleIndex: number;
   count: number;
@@ -88,6 +90,7 @@ function groupFills(fills: FomoFill[], candleTimesMs: number[]): { groups: Group
       byKey.set(key, {
         address: fill.trader.address,
         handle: fill.trader.handle,
+        kind: fill.trader.kind ?? null,
         side: fill.side,
         candleIndex,
         count: 1,
@@ -107,11 +110,13 @@ function groupFills(fills: FomoFill[], candleTimesMs: number[]): { groups: Group
   return { groups: [...byKey.values()], beforeRange };
 }
 
-export function markerText(group: Pick<Group, "address" | "handle" | "count" | "usd">): string {
+/** Ends in "SEEDED" for a wallet still awaiting its 7702 check so the arrow never reads as a verified FOMO fill. */
+export function markerText(group: Pick<Group, "address" | "handle" | "count" | "usd"> & { kind?: TraderKind | null }): string {
   const label = group.handle?.trim() || shortAddress(group.address);
   const parts = [label];
   if (group.count > 1) parts.push(`×${group.count}`);
   if (priced(group.usd)) parts.push(money(group.usd, true));
+  if (group.kind === "seeded") parts.push("SEEDED");
   return parts.join(" ");
 }
 
@@ -144,11 +149,11 @@ function byUsdDesc(a: Group, b: Group): number {
 
 export function buildFomoMarkers(fills: FomoFill[], candleTimesMs: number[], opts: FomoMarkerOptions): FomoMarkerResult {
   const maxMarkers = opts.maxMarkers ?? DEFAULT_MAX_MARKERS;
-  if (candleTimesMs.length === 0) return { markers: [], dropped: 0, beforeRange: fills.length };
+  if (candleTimesMs.length === 0) return { markers: [], dropped: 0, beforeRange: fills.length, seeded: 0 };
   const { groups, beforeRange } = groupFills(fills, candleTimesMs);
   const kept = groups.length > maxMarkers ? [...groups].sort(byUsdDesc).slice(0, Math.max(0, maxMarkers)) : groups;
   const markers = [...kept].sort(byTimeThenSide).map((group) => toMarker(group, candleTimesMs, opts.theme));
-  return { markers, dropped: groups.length - kept.length, beforeRange };
+  return { markers, dropped: groups.length - kept.length, beforeRange, seeded: kept.filter((group) => group.kind === "seeded").length };
 }
 
 /** Header-line totals over fills at or before `nowMs` (future-stamped fills are ignored) and within `windowMs` of it. */

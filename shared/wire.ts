@@ -225,7 +225,8 @@ export type LaunchesResponse = {
 
 /**
  * One fill attributed to a trader wallet. `kind` is "fomo" only when the wallet passed the EIP-7702 designator
- * check on this server; `handle`/`followers` come from the robinhoodtrenches trader population and stay null otherwise.
+ * check on this server, "seeded" while a robinhoodtrenches-listed wallet still awaits that check (never shown as FOMO);
+ * `handle`/`followers` come from the robinhoodtrenches trader population and stay null otherwise.
  */
 export type FomoFill = {
   chain: Chain;
@@ -245,13 +246,17 @@ export type FomoFill = {
   usdVia?: "wallet_leg" | "hub_leg";
 };
 
-/** Optional FOMO block on TokenFlowResponse: `population` = FOMO wallets seen by this server, `handles` = robinhoodtrenches handles known. */
+/** Optional FOMO block on TokenFlowResponse: `population` = FOMO wallets seen by this server, `handles` = robinhoodtrenches handles known; seeded fills ride in `fills` tagged "seeded", `windows` sum verified-FOMO fills only. */
 export type TokenFlowFomo = { fills: FomoFill[]; windows: FlowWindow[]; population: number; handles: number };
 
 // ---- Trader identity (R3: server/traders) ----
 
-/** "fomo" only when eth_getCode(wallet) equals the EIP-7702 FOMO designator on this server; everything else is "other". */
-export type TraderKind = "fomo" | "other";
+/**
+ * "fomo" only when eth_getCode(wallet) equals the EIP-7702 FOMO designator on this server; "other" when the check said
+ * otherwise; "seeded" when the wallet is on the robinhoodtrenches traders list and the check has not answered here yet.
+ * A seeded wallet is never shown as FOMO; the classifier itself only ever writes fomo/other.
+ */
+export type TraderKind = "fomo" | "other" | "seeded";
 /** A wallet attributed to a print. `handle`/`followers` come from the robinhoodtrenches population and stay null otherwise. */
 export type TraderRef = { address: string; kind: TraderKind; handle: string | null; followers: number | null };
 
@@ -260,7 +265,7 @@ export type TraderRef = { address: string; kind: TraderKind; handle: string | nu
 export type FomoChainScope = "all" | Chain;
 export type FomoBoardWindow = "1h" | "24h" | "7d";
 
-/** Newest FOMO-kind fills across every tracked token as this server saw them; `population` = FOMO wallets seen here. */
+/** Newest FOMO and seeded fills across every tracked token as this server saw them; `population` = FOMO wallets seen here. */
 export type FomoTapeResponse = {
   chain: FomoChainScope;
   fills: FomoFill[];
@@ -289,6 +294,8 @@ export type FomoBoardRow = {
   wilsonLow: number | null;
   lastSeenAt: number;
   profileUrl: string | null;
+  /** Verbatim from the book: "fomo" (7702 check passed here), "seeded" (listed, check pending), null when never classified. */
+  kind: TraderKind | null;
 };
 
 export type FomoBoardResponse = {

@@ -291,7 +291,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     () => buildFomoMarkers(flowState?.fomo?.fills ?? [], chartFlow?.candleTimes ?? [], { theme }),
     [flowState?.fomo?.fills, chartFlow?.candleTimes, theme]
   );
-  const fomoMeta = [fomo.markers.length ? `${fomo.markers.length} FOMO` : "", fomo.dropped ? `+${fomo.dropped} more` : "", fomo.beforeRange ? `${fomo.beforeRange} off-chart` : ""].filter(Boolean).join(" ");
+  const fomoMeta = [fomo.markers.length - fomo.seeded > 0 ? `${fomo.markers.length - fomo.seeded} FOMO` : "", fomo.seeded ? `${fomo.seeded} SEEDED` : "", fomo.dropped ? `+${fomo.dropped} more` : "", fomo.beforeRange ? `${fomo.beforeRange} off-chart` : ""].filter(Boolean).join(" ");
   const sourceLabel = active.source === "own tape" ? "OWN TAPE" : feed?.primaryPair?.dex || feed?.source || "GECKO";
 
   const technicals = useMemo(() => {

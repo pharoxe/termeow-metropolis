@@ -10,6 +10,7 @@ import {
   fomoWindowRows,
   followersLabel,
   profileHref,
+  provenanceTag,
   truncationNote,
   walletLabel
 } from "./fomoPanel";
@@ -48,6 +49,7 @@ function boardRow(overrides: Partial<FomoBoardRow> = {}): FomoBoardRow {
     wilsonLow: 0.3,
     lastSeenAt: NOW - 60_000,
     profileUrl: null,
+    kind: "fomo",
     ...overrides
   };
 }
@@ -132,6 +134,22 @@ describe("fomoBoardRowView", () => {
 describe("labels and windows", () => {
   it("names both populations in the header", () => {
     expect(fomoHeaderLabel(128, 47)).toBe("FOMO WALLETS · 128 SEEN · 47 NAMED");
+  });
+
+  it("tags seeded rows with their provenance and never tags verified FOMO rows", () => {
+    expect(provenanceTag("seeded")).toBe("SEEDED");
+    expect(provenanceTag("fomo")).toBeNull();
+    expect(provenanceTag("other")).toBeNull();
+    expect(provenanceTag(null)).toBeNull();
+    const seeded = fomoTapeRow(fill({ trader: { address: WALLET, kind: "seeded", handle: "unipcs", followers: 514_576 } }), NOW);
+    expect(seeded.tag).toBe("SEEDED");
+    expect(seeded.title).toContain("seeded from robinhoodtrenches · 7702 check pending");
+    const verified = fomoTapeRow(fill(), NOW);
+    expect(verified.tag).toBeNull();
+    expect(verified.title).not.toContain("7702");
+    expect(fomoBoardRowView(boardRow({ kind: "seeded" }), NOW).tag).toBe("SEEDED");
+    expect(fomoBoardRowView(boardRow({ kind: "seeded" }), NOW).title).toContain("7702 check pending");
+    expect(fomoBoardRowView(boardRow(), NOW).tag).toBeNull();
   });
 
   it("reports truncation only when the ring is shorter than the window", () => {

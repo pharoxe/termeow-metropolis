@@ -1,4 +1,4 @@
-import type { Chain, FlowWindow, FomoBoardRow, FomoBoardWindow, FomoFill, TokenFlowFomo } from "../../shared/wire";
+import type { Chain, FlowWindow, FomoBoardRow, FomoBoardWindow, FomoFill, TokenFlowFomo, TraderKind } from "../../shared/wire";
 import type { InstrumentRef } from "./address";
 import { EM_DASH, printAgeLabel, windowRow, type WindowRow } from "./flowPanel";
 import { money, shortAddress, signedMoney } from "./format";
@@ -46,6 +46,13 @@ export function chainTag(chain: Chain): string {
   return chain === "solana" ? "SOL" : "RH";
 }
 
+/** Row tag for a wallet taken from the robinhoodtrenches traders list whose 7702 check has not answered here; null for verified FOMO (and anything else). */
+export function provenanceTag(kind: TraderKind | null | undefined): "SEEDED" | null {
+  return kind === "seeded" ? "SEEDED" : null;
+}
+
+const SEEDED_TITLE = " · seeded from robinhoodtrenches · 7702 check pending";
+
 /** Symbol from the launch index when known, else the token's short address (never a guess). */
 export function tokenLabel(fill: Pick<FomoFill, "symbol" | "token">): string {
   const symbol = fill.symbol?.trim();
@@ -59,6 +66,8 @@ export type FomoTapeRowView = {
   href: string | null;
   profileUrl: string | null;
   title: string;
+  /** "SEEDED" when the wallet awaits its 7702 check (provenance shown, never upgraded to FOMO); null otherwise. */
+  tag: "SEEDED" | null;
   followers: string;
   side: "BUY" | "SELL";
   tone: "up" | "dn";
@@ -72,12 +81,14 @@ export type FomoTapeRowView = {
 export function fomoTapeRow(fill: FomoFill, now: number): FomoTapeRowView {
   const side = fill.side === "buy" ? "BUY" : "SELL";
   const href = profileHref(fill.trader.handle);
+  const tag = provenanceTag(fill.trader.kind);
   return {
     key: `${fill.chain}:${fill.tx}:${fill.pair}:${fill.trader.address}`,
     label: walletLabel(fill.trader.address, fill.trader.handle),
     href,
     profileUrl: href,
-    title: `${fill.trader.address} · ${side} ${fill.token} · ${fill.dex || fill.pair} · ${fill.tx}${fill.usdVia === "hub_leg" ? " · usd via custody hub leg" : ""}`,
+    title: `${fill.trader.address} · ${side} ${fill.token} · ${fill.dex || fill.pair} · ${fill.tx}${fill.usdVia === "hub_leg" ? " · usd via custody hub leg" : ""}${tag ? SEEDED_TITLE : ""}`,
+    tag,
     followers: followersLabel(fill.trader.followers),
     side,
     tone: fill.side === "buy" ? "up" : "dn",
@@ -95,6 +106,7 @@ export type FomoBoardRowView = {
   href: string | null;
   profileUrl: string | null;
   title: string;
+  tag: "SEEDED" | null;
   followers: string;
   fills: string;
   buy: string;
@@ -119,12 +131,14 @@ export function fomoBoardRowView(row: FomoBoardRow, now: number): FomoBoardRowVi
   const record = row.closed > 0 ? `${row.wins}/${row.closed}` : EM_DASH;
   // Every fill unpriced: the dollars are unknown, not zero.
   const unpricedOnly = row.fills > 0 && row.unpriced >= row.fills;
+  const tag = provenanceTag(row.kind);
   return {
     key: `${row.chain}:${row.wallet}`,
     label: walletLabel(row.wallet, row.handle),
     href,
     profileUrl: href,
-    title: `${row.wallet} · ${followersLabel(row.followers)} followers · last fill ${printAgeLabel(row.lastSeenAt, now)} ago`,
+    title: `${row.wallet} · ${followersLabel(row.followers)} followers · last fill ${printAgeLabel(row.lastSeenAt, now)} ago${tag ? SEEDED_TITLE : ""}`,
+    tag,
     followers: followersLabel(row.followers),
     fills: row.unpriced > 0 ? `${row.fills} (${row.unpriced}u)` : String(row.fills),
     buy: unpricedOnly ? EM_DASH : money(row.buyUsd, true),

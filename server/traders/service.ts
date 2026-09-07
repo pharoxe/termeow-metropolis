@@ -50,6 +50,8 @@ export const SEED_PROVENANCE_TRENCHES = "robinhoodtrenches";
 export const SEED_DRAIN_MS = 10_000;
 export const SEED_DRAIN_BATCH = 5;
 export const SEED_MAX_ATTEMPTS = 3;
+/** Kinds the FOMO tape/board/flow block show: verified FOMO plus seeded-awaiting-check (tagged, never as FOMO). "other" and null never. */
+export const TAPE_KINDS: readonly TraderKind[] = ["fomo", "seeded"];
 const SEEDED_MAX = 5_000;
 const FOMO_LEDGER_PAIRS = 256;
 const DISCOVERED_MAX = 20_000;
@@ -114,7 +116,9 @@ export type TraderServiceCounters = {
   seedChecked: number;
   seedFomo: number;
   seedFailed: number;
-  /** R4 transfer fills accepted by the book; `transferUnproven` were recorded with kind null (seeded wallet, check pending) and kept out of the FOMO ledger. */
+  /** Earlier book fills of a seeded wallet the FOMO ledger accepted when its check passed (ledger duplicates not counted). */
+  seedReingested: number;
+  /** R4 transfer fills accepted by the book; `transferUnproven` were recorded with kind "seeded" (check pending) and kept out of the FOMO ledger. */
   transferFills: number;
   transferUnproven: number;
 };
@@ -146,7 +150,7 @@ type PairMeta = { token: string; dex: string };
 type SeedEntry = { address: string; provenance: string; at: number; attempts: number };
 
 function emptyCounters(): TraderServiceCounters {
-  return { annotated: 0, fomo: 0, other: 0, noMeta: 0, noReceipt: 0, unattributed: 0, ambiguous: 0, deadlined: 0, late: 0, classifyFailed: 0, classifyDeferred: 0, discoverChecked: 0, discoverDropped: 0, seedChecked: 0, seedFomo: 0, seedFailed: 0, transferFills: 0, transferUnproven: 0 };
+  return { annotated: 0, fomo: 0, other: 0, noMeta: 0, noReceipt: 0, unattributed: 0, ambiguous: 0, deadlined: 0, late: 0, classifyFailed: 0, classifyDeferred: 0, discoverChecked: 0, discoverDropped: 0, seedChecked: 0, seedFomo: 0, seedFailed: 0, seedReingested: 0, transferFills: 0, transferUnproven: 0 };
 }
 
 function pairMetaKey(chain: Chain, pair: string): string {
@@ -206,7 +210,7 @@ export function toFomoFill(row: TraderTapeRow, dex: string, followers: number | 
   };
 }
 
-/** A recorded transfer fill as a FlowPrint for the FOMO ledger; only called for kind "fomo". */
+/** A recorded fill as a FlowPrint for the FOMO ledger; only called for wallets whose 7702 check passed (the fill's own stale kind is ignored). */
 function toFomoPrint(fill: TraderFill): FlowPrint {
   const { trader, token: _token, handle, followers, kind: _kind, usdVia: _usdVia, ...print } = fill;
   return { ...print, trader: { address: trader, kind: "fomo", handle: handle ?? null, followers: followers ?? null } };
@@ -393,9 +397,16 @@ export class TraderService {
     return this.version;
   }
 
-  /** Kind already known for the wallet without any RPC; null when never classified here. */
+  /**
+   * Kind for the wallet without any RPC: the classifier's answer when it has one, "fomo" for a population member whose
+   * classifier entry was evicted (never downgraded), "seeded" for a listed wallet still awaiting its check, null otherwise.
+   */
   peekKind(wallet: string): TraderKind | null {
-    return this.classifier.peek(wallet.toLowerCase()) ?? null;
+    const key = wallet.toLowerCase();
+    const known = this.classifier.peek(key);
+    if (known) return known;
+    if (this.population.has(key)) return "fomo";
+    return this.seeded.has(key) ? "seeded" : null;
   }
 
   attachTransfers<T extends TransferFeedHandle>(feed: T): T {
@@ -406,12 +417,14 @@ export class TraderService {
   /**
    * R4 transfer fills (pair "fomo:<token>", dex ""): every accepted fill enters the book; only fills of a wallet whose
    * 7702 check passed reach the FOMO ledger, the rest are counted as transferUnproven. The book's tx+trader+token+side
-   * key also rejects a fill R3 already attributed from a tracked pool.
+   * key also rejects a fill R3 already attributed from a tracked pool. Each fill is recorded with the wallet's kind as
+   * of now (the feed snapshots peekKind early in a batch; the seed drain may verify the wallet before the batch lands).
    */
   recordTransferFills(fills: TraderFill[]): RecordResult {
     const result = { accepted: 0, duplicates: 0, rejected: 0 };
     const fomo: FlowPrint[] = [];
-    for (const fill of fills) {
+    for (const snapshot of fills) {
+      const fill = snapshot.kind === "fomo" ? snapshot : { ...snapshot, kind: this.peekKind(snapshot.trader) ?? snapshot.kind };
       const outcome = this.book.record(fill);
       if (outcome === "duplicate") result.duplicates += 1;
       else if (outcome === "rejected") result.rejected += 1;
@@ -429,16 +442,27 @@ export class TraderService {
   /** Newest FOMO-kind fills of one token across every pair (pools and "fomo:<token>"), with erc20Meta symbol and known handles. */
   fillsForToken(chain: Chain, token: string, limit: number): FomoFill[] {
     const key = normalizeAddress(chain, token);
-    return this.book.tape(chain, limit, { kind: "fomo", token: key }).map((row) => {
+    return this.book.tape(chain, limit, { kind: TAPE_KINDS, token: key }).map((row) => {
       const entry = this.handles.get(row.trader);
       const symbol = chain === "robinhood" ? (this.erc20Meta.get(row.token)?.symbol ?? null) : null;
       return toFomoFill({ ...row, handle: row.handle ?? entry?.handle ?? null }, this.dexOf(row.chain, row.pair), entry?.followers ?? null, symbol);
     });
   }
 
+  /** First admission of a seeded wallet (from any lane: seed drain, discover, per-print kindOf) also promotes its book rows and earlier fills. */
   private admit(address: string): void {
-    if (!this.population.has(address)) this.version += 1;
+    const fresh = !this.population.has(address);
     this.population.set(address, address);
+    if (!fresh) return;
+    this.version += 1;
+    if (this.seeded.has(address)) this.promoteSeeded(address);
+  }
+
+  /** A seeded wallet whose check passed: its book rows are relabelled and its earlier ring fills enter the FOMO ledger (once: the ledger dedupes per pair by tx, the book never re-records). */
+  private promoteSeeded(address: string): void {
+    this.book.classify("robinhood", address, "fomo");
+    const earlier = this.book.fillsOf("robinhood", address);
+    if (earlier.length) this.counters.seedReingested += this.fomoLedger.ingest(earlier.map(toFomoPrint)).accepted;
   }
 
   private scheduleSeedDrain(): void {
@@ -462,7 +486,7 @@ export class TraderService {
     this.scheduleSeedDrain();
   }
 
-  /** One seeded wallet through the low lane: FOMO joins the population (and its book rows are relabelled), "other" leaves the legs, a failure retries. */
+  /** One seeded wallet through the low lane: FOMO joins the population (admit() relabels and re-ingests), "other" relabels the rows and leaves the legs; a failure retries. */
   private async classifySeed(address: string): Promise<void> {
     const entry = this.seeded.get(address);
     if (!entry) return;
@@ -471,10 +495,10 @@ export class TraderService {
     if (kind === "fomo") {
       this.counters.seedFomo += 1;
       this.admit(address);
-      this.book.classify("robinhood", address, "fomo");
       return;
     }
     if (kind === "other") {
+      this.book.classify("robinhood", address, "other");
       this.version += 1;
       return;
     }

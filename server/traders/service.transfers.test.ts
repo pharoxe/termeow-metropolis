@@ -9,6 +9,7 @@ import {
   SEED_DRAIN_MS,
   SEED_MAX_ATTEMPTS,
   SEED_PROVENANCE_TRENCHES,
+  TAPE_KINDS,
   TraderService,
   type ClassifierLike,
   type HandlesLike,
@@ -21,6 +22,10 @@ const W1 = "0x1111111111111111111111111111111111111111";
 const W2 = "0x2222222222222222222222222222222222222222";
 const W3 = "0x4444444444444444444444444444444444444444";
 const W4 = "0x5555555555555555555555555555555555555555";
+/** Real robinhoodtrenches traders (server/traders/__fixtures__/r4/trenches-traders.json). */
+const UNIPCS = "0x0a6ebed0155edb4b21d92ad02897a626cd90119e";
+const POORGOAT = "0x9ce0cb4a193acbce0dca3283972341aed6f3f614";
+const CRAYON = "0x8f62a08537cede87d511aca6436274ab4ca080a3";
 
 class FakeClassifier implements ClassifierLike {
   calls: Array<[string, string | undefined]> = [];
@@ -131,6 +136,106 @@ describe("TraderService seeding", () => {
     expect(h.svc.book.tape("robinhood", 10, { kind: "fomo" })).toEqual([]);
     await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
     expect(h.svc.book.tape("robinhood", 10, { kind: "fomo" })).toHaveLength(1);
+  });
+
+  it("peekKind answers seeded for a listed wallet awaiting its check, the classifier's answer once known, fomo for a population member, null otherwise", async () => {
+    vi.useFakeTimers();
+    const h = service({ [UNIPCS]: "fomo", [POORGOAT]: "other" });
+    h.svc.seed([UNIPCS, POORGOAT], SEED_PROVENANCE_TRENCHES);
+    expect(h.svc.peekKind(UNIPCS)).toBe("seeded");
+    expect(h.svc.peekKind(UNIPCS.toUpperCase())).toBe("seeded");
+    expect(h.svc.peekKind(POORGOAT)).toBe("seeded");
+    expect(h.svc.peekKind("0x7777777777777777777777777777777777777777")).toBeNull();
+    await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
+    expect(h.svc.peekKind(UNIPCS)).toBe("fomo");
+    expect(h.svc.peekKind(POORGOAT)).toBe("other");
+    // A population member whose classifier entry was forgotten still answers fomo (never downgraded to seeded).
+    h.classifier.known.delete(UNIPCS);
+    expect(h.svc.peekKind(UNIPCS)).toBe("fomo");
+  });
+
+  it("books a seeded wallet's transfer fill as kind seeded: shown by fillsForToken tagged seeded, counted transferUnproven, kept out of the FOMO ledger", () => {
+    const handles = new FakeHandles({ [UNIPCS]: { handle: "unipcs", followers: 514_576, profileUrl: null, source: "traders" } });
+    const h = service({ [UNIPCS]: "fomo" }, handles);
+    h.svc.seed([UNIPCS], SEED_PROVENANCE_TRENCHES);
+    expect(h.svc.recordTransferFills([fill(UNIPCS, h.svc.peekKind(UNIPCS))])).toEqual({ accepted: 1, duplicates: 0, rejected: 0 });
+    const fills = h.svc.fillsForToken("robinhood", TOKEN, 10);
+    expect(fills).toHaveLength(1);
+    expect(fills[0].trader).toEqual({ address: UNIPCS, kind: "seeded", handle: "unipcs", followers: 514_576 });
+    expect(h.svc.book.tape("robinhood", 10, { kind: "fomo" })).toEqual([]);
+    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toEqual([]);
+    expect(h.svc.status().counters).toMatchObject({ transferFills: 1, transferUnproven: 1 });
+    expect(h.svc.status().population).toMatchObject({ classified: 0, seeded: 1, seedQueue: 1 });
+  });
+
+  it("re-ingests a seeded wallet's earlier fills into the FOMO ledger exactly once when its check passes", async () => {
+    vi.useFakeTimers();
+    const h = service({ [POORGOAT]: "fomo" });
+    h.svc.seed([POORGOAT], SEED_PROVENANCE_TRENCHES);
+    const first = fill(POORGOAT, h.svc.peekKind(POORGOAT));
+    expect(first.kind).toBe("seeded");
+    expect(h.svc.recordTransferFills([first])).toEqual({ accepted: 1, duplicates: 0, rejected: 0 });
+    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toEqual([]);
+    await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
+    const prints = h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`);
+    expect(prints).toHaveLength(1);
+    expect(prints[0]).toMatchObject({ tx: "0xt1", usd: 12.5, trader: { address: POORGOAT, kind: "fomo" } });
+    expect(h.svc.status().counters).toMatchObject({ seedFomo: 1, seedReingested: 1 });
+    expect(h.svc.fillsForToken("robinhood", TOKEN, 10)[0].trader.kind).toBe("fomo");
+    // The feed sending the same fill again is a book duplicate; the ledger stays at one.
+    expect(h.svc.recordTransferFills([first])).toEqual({ accepted: 0, duplicates: 1, rejected: 0 });
+    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toHaveLength(1);
+    // A new post-verification fill goes straight to the ledger; the re-ingest counter does not move.
+    expect(h.svc.recordTransferFills([fill(POORGOAT, h.svc.peekKind(POORGOAT), { tx: "0xt2", time: NOW - 500 })])).toEqual({ accepted: 1, duplicates: 0, rejected: 0 });
+    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toHaveLength(2);
+    expect(h.svc.status().counters).toMatchObject({ seedReingested: 1, transferUnproven: 1 });
+  });
+
+  it("relabels a seeded wallet other when its check says so: rows leave the fomo/seeded tape, dropped from transferWallets", async () => {
+    vi.useFakeTimers();
+    const h = service({ [CRAYON]: "other" });
+    h.svc.seed([CRAYON], SEED_PROVENANCE_TRENCHES);
+    h.svc.recordTransferFills([fill(CRAYON, h.svc.peekKind(CRAYON))]);
+    expect(h.svc.book.tape("robinhood", 10, { kind: TAPE_KINDS })).toHaveLength(1);
+    expect(h.svc.transferWallets()).toEqual([CRAYON]);
+    await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
+    expect(h.svc.book.tape("robinhood", 10, { kind: TAPE_KINDS })).toEqual([]);
+    expect(h.svc.book.tape("robinhood", 10, { kind: "other" })).toHaveLength(1);
+    expect(h.svc.status().counters).toMatchObject({ seedChecked: 1, seedFomo: 0, seedReingested: 0 });
+    expect(h.svc.transferWallets()).toEqual([]);
+    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toEqual([]);
+  });
+
+  it("records a fill with the wallet's kind as of record time, not the feed's stale snapshot taken before the drain verified it", async () => {
+    vi.useFakeTimers();
+    const h = service({ [POORGOAT]: "fomo" });
+    h.svc.seed([POORGOAT], SEED_PROVENANCE_TRENCHES);
+    h.svc.recordTransferFills([fill(POORGOAT, h.svc.peekKind(POORGOAT))]);
+    // The feed snapshots peekKind early in a batch; the seed drain verifies the wallet before recordTransferFills runs.
+    const stale = fill(POORGOAT, h.svc.peekKind(POORGOAT), { tx: "0xt2", time: NOW - 500 });
+    expect(stale.kind).toBe("seeded");
+    await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
+    expect(h.svc.recordTransferFills([stale])).toEqual({ accepted: 1, duplicates: 0, rejected: 0 });
+    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`).map((print) => print.tx).sort()).toEqual(["0xt1", "0xt2"]);
+    expect(h.svc.book.tape("robinhood", 10, { kind: "fomo" })).toHaveLength(2);
+    expect(h.svc.book.rank("robinhood", 60_000)[0]).toMatchObject({ wallet: POORGOAT, kind: "fomo" });
+    expect(h.svc.status().counters).toMatchObject({ transferFills: 2, transferUnproven: 1, seedReingested: 1 });
+  });
+
+  it("relabels and re-ingests a seeded wallet verified by the discover lane before the seed drain reaches it, and the drain does not re-ingest again", async () => {
+    vi.useFakeTimers();
+    const h = service({ [UNIPCS]: "fomo" });
+    h.svc.seed([UNIPCS], SEED_PROVENANCE_TRENCHES);
+    h.svc.recordTransferFills([fill(UNIPCS, h.svc.peekKind(UNIPCS))]);
+    expect(h.svc.book.rank("robinhood", 60_000)[0]).toMatchObject({ wallet: UNIPCS, kind: "seeded" });
+    expect(await h.svc.discover([UNIPCS])).toEqual({ checked: 1, dropped: 0, fomo: 1 });
+    expect(h.svc.peekKind(UNIPCS)).toBe("fomo");
+    expect(h.svc.book.rank("robinhood", 60_000)[0]).toMatchObject({ wallet: UNIPCS, kind: "fomo" });
+    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toHaveLength(1);
+    expect(h.svc.status().counters).toMatchObject({ seedReingested: 1, seedChecked: 0 });
+    await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
+    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toHaveLength(1);
+    expect(h.svc.status().counters).toMatchObject({ seedReingested: 1, seedChecked: 1, seedFomo: 1 });
   });
 });
 

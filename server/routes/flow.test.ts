@@ -294,6 +294,24 @@ describe("FOMO block and trader on the tape", () => {
     expect(robinhood.fomo).toMatchObject({ fills: [], population: 94, handles: 0 });
   });
 
+  it("carries seeded fills on the block tagged seeded but sums the FOMO windows over verified fills only", async () => {
+    const SEEDED = { address: "0x0a6ebed0155edb4b21d92ad02897a626cd90119e", kind: "seeded" as const, handle: "unipcs", followers: 514_576 };
+    const base = { chain: "robinhood" as const, token: EVM_TOKEN, pair: `fomo:${EVM_TOKEN}`, dex: "", side: "buy" as const };
+    const withSeeded: FlowTradersLike = {
+      ...traders(),
+      fillsForToken: () => [
+        { ...base, tx: "0xf", time: NOW - 30_000, usd: 100, trader: TRADER },
+        { ...base, tx: "0xs", time: NOW - 20_000, usd: 40, trader: SEEDED }
+      ]
+    };
+    const robinhoodRow = row(EVM_POOL, "A", 1, { chain: "robinhood", dex: "uniswap", baseMint: EVM_TOKEN });
+    const d = deps({ traders: withSeeded, registry: vi.fn(async () => ({ pairs: [robinhoodRow], observedAt: NOW - 1000, stale: false })) });
+    const response = await buildTokenFlowResponse(params({ chain: "robinhood", address: EVM_TOKEN }), d);
+    expect(response.fomo?.fills.map((fill) => [fill.tx, fill.trader.kind])).toEqual([["0xs", "seeded"], ["0xf", "fomo"]]);
+    const minute = response.fomo?.windows.find((window) => window.label === "1m");
+    expect(minute).toMatchObject({ buyUsd: 100, buys: 1, sells: 0 });
+  });
+
   it("carries a per-print price onto the tape and omits the key when the producer gave none", () => {
     const ledger = new FlowLedger({ now: () => NOW });
     ledger.ingest([{ ...print(POOL, "p", NOW - 1000, "buy", 100), source: "own", price: 0.26783 }, print(POOL, "u", NOW - 2000, "sell", 5)]);

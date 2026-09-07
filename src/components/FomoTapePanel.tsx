@@ -6,8 +6,9 @@ import { FOMO_TAPE_POLL_MS, fomoHeaderLabel, fomoTapeRow } from "../lib/fomoPane
 
 /**
  * Radar "FOMO tape": newest FOMO-wallet fills across every token this server tracks, polled from /api/fomo/tape.
- * A wallet is here only after the EIP-7702 designator check passed on this server; a row without a robinhoodtrenches
- * handle shows its address and links nowhere (fomo.family has no public API to resolve one).
+ * A row is FOMO only after the EIP-7702 designator check passed on this server; a wallet taken from the
+ * robinhoodtrenches traders list whose check has not answered yet is tagged SEEDED (its provenance, never an upgrade).
+ * A row without a robinhoodtrenches handle shows its address and links nowhere (fomo.family has no public API to resolve one).
  */
 export function FomoTapePanel({ onInstrument }: { onInstrument?: (ref: InstrumentRef, symbol?: string) => void }) {
   const [feed, setFeed] = useState<FomoTapeResponse | null>(null);
@@ -50,7 +51,7 @@ export function FomoTapePanel({ onInstrument }: { onInstrument?: (ref: Instrumen
                       {row.href
                         ? <a href={row.href} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>{row.label}</a>
                         : <b>{row.label}</b>}
-                      <small>{row.followers} FOLLOWERS</small>
+                      <small>{row.followers} FOLLOWERS{row.tag ? ` · ${row.tag}` : ""}</small>
                     </td>
                     <td className={`r ${row.tone}`}><b>{row.usd}</b><small>{row.side}</small></td>
                     <td className="r"><b>{row.token}</b><small>{row.age}</small></td>
@@ -59,7 +60,7 @@ export function FomoTapePanel({ onInstrument }: { onInstrument?: (ref: Instrumen
               })}
             </tbody>
           </table>
-        ) : <p className="empty-copy">{failure ? "" : "No FOMO fills seen by this server yet. Wallets appear once a tracked token trades and the designator check passes."}</p>}
+        ) : <p className="empty-copy">{failure ? "" : "No FOMO or seeded fills seen by this server yet. Rows appear once a watched wallet trades; SEEDED marks robinhoodtrenches wallets still awaiting the 7702 check."}</p>}
       </div>
     </section>
   );

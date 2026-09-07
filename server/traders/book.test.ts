@@ -209,3 +209,37 @@ describe("TraderBook tape and bounds", () => {
     expect(b.stats("robinhood", W1)?.closed).toBe(0);
   });
 });
+
+describe("TraderBook kind lists and fillsOf", () => {
+  const UNIPCS = "0x0a6ebed0155edb4b21d92ad02897a626cd90119e";
+
+  it("tape and rank accept a kind list (fomo + seeded) and still exclude other", () => {
+    const b = book();
+    b.recordAll([
+      fill({ time: T0 + 1, tx: "f1", trader: W1, kind: "fomo" }),
+      fill({ time: T0 + 2, tx: "s1", trader: UNIPCS, kind: "seeded", handle: "unipcs" }),
+      fill({ time: T0 + 3, tx: "o1", trader: W2, kind: "other" }),
+      fill({ time: T0 + 4, tx: "n1", trader: "0xdddd" })
+    ]);
+    const tape = b.tape("all", 10, { kind: ["fomo", "seeded"] });
+    expect(tape.map((r) => r.tx)).toEqual(["s1", "f1"]);
+    expect(tape[0]).toMatchObject({ trader: UNIPCS, kind: "seeded", handle: "unipcs" });
+    expect(b.tape("all", 1, { kind: ["fomo", "seeded"] }).map((r) => r.tx)).toEqual(["s1"]);
+    expect(b.tape("all", 10, { kind: "fomo" }).map((r) => r.tx)).toEqual(["f1"]);
+    expect(b.rank("all", Number.POSITIVE_INFINITY, { kind: ["fomo", "seeded"] }).map((r) => r.wallet).sort()).toEqual([UNIPCS, W1].sort());
+    expect(b.rank("all", Number.POSITIVE_INFINITY, { kind: ["fomo", "seeded"] }).find((r) => r.wallet === UNIPCS)?.kind).toBe("seeded");
+  });
+
+  it("fillsOf returns one wallet's ring fills oldest first and nothing for an unknown wallet", () => {
+    const b = book();
+    b.recordAll([
+      fill({ time: T0 + 3, tx: "c", trader: UNIPCS, kind: "seeded" }),
+      fill({ time: T0 + 1, tx: "a", trader: UNIPCS, kind: "seeded" }),
+      fill({ time: T0 + 2, tx: "b", trader: W1 }),
+      fill({ time: T0 + 2, tx: "d", trader: UNIPCS, chain: "solana", pair: "pool-S", token: "MINT" })
+    ]);
+    expect(b.fillsOf("robinhood", UNIPCS).map((f) => f.tx)).toEqual(["a", "c"]);
+    expect(b.fillsOf("solana", UNIPCS).map((f) => f.tx)).toEqual(["d"]);
+    expect(b.fillsOf("robinhood", "0xnobody")).toEqual([]);
+  });
+});
