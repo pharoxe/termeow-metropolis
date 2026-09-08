@@ -24,7 +24,10 @@ systemRouter.get("/config", (_request, response) => {
   response.json({
     network: "mainnet-beta",
     rpcEndpoint: "/api/rpc",
-    executionEnabled: config.executionEnabled,
+    routers: [
+      { id: "0x", label: "0x Protocol", available: Boolean(config.zeroEx.apiKey) },
+      { id: "clawpump", label: "ClawPump + Jupiter", available: Boolean(config.clawpump.apiKey) }
+    ],
     ansemMint: config.ansemMint,
     usdcMint: config.usdcMint,
     privyEnabled: Boolean(config.privy.appId),

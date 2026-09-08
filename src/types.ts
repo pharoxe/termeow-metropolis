@@ -33,7 +33,7 @@ export type OnchainMarket = {
 export type PublicConfig = {
   network: string;
   rpcEndpoint: string;
-  executionEnabled: boolean;
+  routers: Array<{ id: "0x" | "clawpump"; label: string; available: boolean }>;
   ansemMint: string;
   usdcMint: string;
   privyEnabled: boolean;

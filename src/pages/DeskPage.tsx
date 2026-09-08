@@ -32,6 +32,7 @@ import { AccountScreen } from "../components/AccountScreens";
 import { AgenticAnalysisPanel } from "../components/AgenticAnalysis";
 import { SfxToggle, useNotifications } from "../components/NotificationSystem";
 import { useFundingNetwork } from "../features/NetworkContext";
+import { AgentHeaderButton, useAgent } from "../features/voice-agent";
 
 type ChartUnit = "price" | "mcap";
 type Row = Record<string, unknown>;
@@ -91,6 +92,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const [theme, setTheme] = useTheme();
   const { network, setNetwork } = useFundingNetwork();
   const { notify } = useNotifications();
+  const voiceAgent = useAgent();
   const [section, setSection] = useState("Trade");
   const [searchOpen, setSearchOpen] = useState(false);
   const [instrument, setInstrument] = useState<InstrumentRef>({ chain: "solana", address: config.ansemMint });
@@ -98,6 +100,15 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const [query, setQuery] = useState("");
   const [interval, setIntervalValue] = useState("15M");
   const [chartExpanded, setChartExpanded] = useState(false);
+
+  useEffect(() => {
+    voiceAgent.updateContext({
+      route: section.toLowerCase(),
+      chain: instrument.chain,
+      token: { address: instrument.address, symbol: undefined },
+      chart: { timeframe: interval }
+    });
+  }, [instrument.address, instrument.chain, interval, section, voiceAgent.updateContext]);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const chartRef = useRef<MarketChartHandle>(null);
   const lastNotifiedInstrument = useRef("");
@@ -394,7 +405,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
       <div className="desk-grainient" aria-hidden="true" />
       <header className="app-header desk-header">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">▦</span><strong>termeow</strong><b>{brandSuffix(instrument.chain)}</b>
+          <span className="brand-mark" aria-hidden="true"><img src="/termeow-logo.svg" alt="" /></span><strong>termeow</strong><b>{brandSuffix(instrument.chain)}</b>
         </div>
         <nav className="primary-navigation" aria-label="Main navigation">{["Trade", "Portfolio"].map(item => <button key={item} aria-current={section === item ? "page" : undefined} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
         <nav className="mode-switch funding-network-picker header-network-picker" aria-label="Funding network">
@@ -403,6 +414,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
         </nav>
         <ThemeToggle theme={theme} onChange={setTheme} />
         <SfxToggle />
+        <AgentHeaderButton />
         <AuthControls />
       </header>
       {legacy && <MarketStrips market={legacy} onPick={focusSolana} />}
