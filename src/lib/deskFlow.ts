@@ -72,13 +72,17 @@ function producersLabel(own: FlowCandlesResponse): string {
 }
 
 /**
- * One source per series: own-tape candles whenever the route served any (a partial registry error such as a Gecko
- * backoff does not invalidate ring prints; it is shown as a note), else the 1m market candles with a visible note. Never mixed.
+ * One source per series: own-tape candles whenever the route served any under source "own tape" (a partial registry
+ * error such as a Gecko backoff does not invalidate ring prints; it is shown as a note). An empty own tape, or a
+ * market/on-chain series the candles route substituted, uses those bars (else the 1m market candles) and never claims
+ * OWN TAPE. Never mixed.
  */
 export function selectCandles(interval: string, market: MarketResponse | null, own: FlowCandlesResponse | null): ActiveCandles {
+  if (market && market.interval !== marketIntervalFor(interval)) market = null;
+  if (own && own.interval !== ownTapeInterval(interval)) own = null;
   const marketCandles = market?.candles ?? [];
   if (!ownTapeInterval(interval)) return { candles: marketCandles, source: "market", observedAt: market?.observedAt ?? null, note: null, label: null };
-  if (own && own.candles.length) {
+  if (own && own.source === "own tape" && own.candles.length) {
     return {
       candles: own.candles,
       source: "own tape",
@@ -87,7 +91,17 @@ export function selectCandles(interval: string, market: MarketResponse | null, o
       label: `OWN TAPE · ${own.priced}/${own.prints} PRICED · ${spanLabel(own.spanMs)} SPAN${producersLabel(own)}`
     };
   }
-  return { candles: marketCandles, source: "market", observedAt: market?.observedAt ?? null, note: ownTapeNote(own), label: null };
+  if (own && own.source !== "own tape" && own.candles.length) {
+    return {
+      candles: own.candles,
+      source: "market",
+      observedAt: own.observedAt,
+      note: own.error ?? `FALLBACK · ${own.source}`,
+      label: null
+    };
+  }
+  const fallback = marketCandles.length ? marketCandles : [];
+  return { candles: fallback, source: "market", observedAt: market?.observedAt ?? null, note: ownTapeNote(own), label: null };
 }
 
 /** Identity of the candle stream; the source is part of it so an own-tape → market fallback resets the series instead of blending. */

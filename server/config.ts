@@ -6,13 +6,17 @@ const optionalString = z.preprocess(emptyAsUndefined, z.string().min(1).optional
 const optionalUrl = z.preprocess(emptyAsUndefined, z.string().url().optional());
 const urlWithDefault = (fallback: string) => z.preprocess(emptyAsUndefined, z.string().url().default(fallback));
 
-/** Public Robinhood Chain (4663) JSON-RPC endpoints, measured 2026-09-07 19:20 IST, in eth_blockNumber latency order. */
+/**
+ * Public Robinhood Chain (4663) JSON-RPC endpoints. Working hosts lead (publicnode / pocket / blxrbdn, not rate
+ * limited). The official RPC and nodeflare are kept in the pool but last: both answered upstream 429s and must not
+ * win a configured-order tie. The health-based picker also ranks any host with rateLimited > 0 behind clean ones.
+ */
 export const DEFAULT_ROBINHOOD_RPC_URLS = [
   "https://robinhood-rpc.publicnode.com",
-  "https://rpc-robinhood.blockmachine.io",
-  "https://rpc.mainnet.chain.robinhood.com",
   "https://robinhood.api.pocket.network",
   "https://robinhood.rpc.blxrbdn.com",
+  "https://rpc-robinhood.blockmachine.io",
+  "https://rpc.mainnet.chain.robinhood.com",
   "https://rpc.nodeflare.app/robinhood/public"
 ] as const;
 const LEGACY_ROBINHOOD_RPC_URL = "https://rpc.mainnet.chain.robinhood.com";

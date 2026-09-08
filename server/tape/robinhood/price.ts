@@ -101,10 +101,24 @@ export class EvmQuotePrice {
 
   /** One tokens/v1 call per 30 non-stable addresses that are unknown or past ttl; in-flight ones are joined. Never throws. */
   async prime(quotes: string[]): Promise<void> {
+    this.rememberStables(quotes);
     const wanted = this.needsFetch(quotes);
     const pending = wanted.flatMap((address) => this.inFlight.get(address) ?? []);
     const fresh = wanted.filter((address) => !this.inFlight.has(address));
     await Promise.all([...pending, ...chunk(fresh, TOKENS_PER_CALL).map((batch) => this.launch(batch))]);
+  }
+
+  /** Stables are a known price (1) and must show up in status.cached; get() already returns 1 without a fetch. */
+  private rememberStables(quotes: string[]): void {
+    const now = this.now();
+    let stored = false;
+    for (const quote of quotes) {
+      const address = quote.toLowerCase();
+      if (!this.stable.has(address) || this.entries.has(address)) continue;
+      this.entries.set(address, { usd: 1, fetchedAt: now });
+      stored = true;
+    }
+    if (stored) this.lastOkAt = now;
   }
 
   /** 1 for stables; cached usd while younger than STALE_MAX_MS; null otherwise. */

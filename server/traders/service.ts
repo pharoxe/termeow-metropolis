@@ -414,6 +414,18 @@ export class TraderService {
     });
   }
 
+  /**
+   * Wallets the transfer legs must not drop when the FOMO classifier outgrows the watch budget: seeded handles,
+   * named wallets, and any wallet already in the book. Anonymous never-filled FOMO stay behind them and do not
+   * count as overflow.
+   */
+  watchPriority(wallet: string): boolean {
+    const key = wallet.toLowerCase();
+    if (this.seeded.has(key)) return true;
+    if (this.handles.get(key) !== null) return true;
+    return this.book.stats("robinhood", key)?.lastSeenAt != null;
+  }
+
   /** R5 coverage every FOMO route carries: legs' watched count against transferWallets(), seeded-pending named apart, plus the named handles. */
   coverage(): FomoCoverage {
     const wallets = this.transferWallets();
