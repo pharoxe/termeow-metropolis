@@ -50,6 +50,7 @@ export type IndicatorSet = {
 
 export type ChartScaleMode = "linear" | "log";
 export type MarketChartHandle = {
+  setCrosshair: (time: number|null) => void;
   seekTime: (time: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -89,8 +90,8 @@ const compactFormat = { type: "custom" as const, minMove: 1, formatter: (value: 
 /** Canvas colours cannot read CSS custom properties, so the chart's copy of the roles lives here: `up`/`down` are
  *  the direction hues (--up / --down), `select` is the one selection hue (--select) shared with markers and drawings. */
 const PALETTE = {
-  light: { background: "rgba(247,250,245,0.86)", text: "#516058", grid: "rgba(190,207,194,0.62)", crosshair: "#7b8d82", border: "#cad7cc", up: "#0a7a4b", down: "#c02d43", select: "#1257b8" },
-  dark: { background: "#10151c", text: "#8f9caf", grid: "rgba(100,120,145,0.10)", crosshair: "#526357", border: "#253129", up: "#42c99a", down: "#ef7885", select: "#69acff" }
+  light: { background: "#f6faf7", text: "#506b5b", grid: "#e2ece5", crosshair: "#729680", border: "#cfdfd4", up: "#0a7a4b", down: "#c02d43", select: "#087443" },
+  dark: { background: "#0c120f", text: "#94ad9d", grid: "rgba(100,145,120,0.10)", crosshair: "#638671", border: "#213428", up: "#42c99a", down: "#ef7885", select: "#39ff88" }
 } as const;
 
 const closes = (candles: Candle[]) => candles.map((candle) => candle.close);
@@ -250,11 +251,14 @@ type MarketChartProps = {
   legendLabel?: string | null;
   /** Drawings persistence namespace (instrument key); drawings attach to the candle series while it is set. */
   drawingsKey?: string | null;
+  onCrosshairTime?: (time:number|null)=>void;
   /** Receives the drawings API when attached and null when detached (chart rebuilt or instrument changed). */
   onDrawings?: (api: DrawingsApi | null) => void;
 };
 
 export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(function MarketChart(props, ref) {
+  const crosshairCallback=useRef(props.onCrosshairTime);crosshairCallback.current=props.onCrosshairTime;
+  const syncingCrosshair=useRef(false);
   const {
     candles, indicators, seriesKey = "", intervalMs = null, livePrints = EMPTY_PRINTS, mcapScale = null, onLiveStats,
     scaleMode = "linear", eventMarkers = EMPTY_EVENTS, flow, fomoMarkers = EMPTY_MARKERS,
@@ -270,6 +274,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   const frameRef = useRef<number | null>(null);
   const savedPrice = useRef<{ range: { from: number; to: number } | null; auto: boolean; unit: boolean; key: string } | null>(null);
   const drawingActive = useRef(false);
+  const disposeDrawings = useRef<(()=>void)|null>(null);
   const paneHeights = useRef<number[]>([]);
   const [legend, setLegend] = useState<LegendState | null>(null);
   const [fomoHover, setFomoHover] = useState<FomoHoverView | null>(null);
@@ -321,6 +326,13 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     priceScale.setVisibleRange(next);
   };
   useImperativeHandle(ref, () => ({
+    setCrosshair:(time)=>{
+      const built=builtRef.current;if(!built)return;
+      syncingCrosshair.current=true;
+      if(time==null)built.chart.clearCrosshairPosition();
+      else {const bars=heldRef.current.candles;const bar=bars.find((bar,i)=>bar.time<=time&&(i===bars.length-1||bars[i+1].time>time));if(bar)built.chart.setCrosshairPosition(bar.close,Math.floor(bar.time/1000) as UTCTimestamp,built.price);else built.chart.clearCrosshairPosition();}
+      syncingCrosshair.current=false;
+    },
     seekTime: (time) => {
       const bars = heldRef.current.candles;
       const index = bars.findIndex((bar, i) => bar.time <= time && (i === bars.length - 1 || bars[i + 1].time > time));
@@ -441,6 +453,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     };
     // One legend update per frame; a hidden tab gets no frames, so apply synchronously there to avoid a stale hover.
     const onCrosshair = (param: MouseEventParams<Time>) => {
+      if(!syncingCrosshair.current && param.sourceEvent)crosshairCallback.current?.(typeof param.time==='number'?param.time*1000:null);
       const index = param.time == null || param.logical == null ? null : Math.round(Number(param.logical));
       if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
       const apply = () => {
@@ -472,6 +485,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
       if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
       if (builtRef.current === built) builtRef.current = null;
+      disposeDrawings.current?.();
       chart.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -528,12 +542,18 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     });
     const unsubscribe = api.subscribe(state => { drawingActive.current = Boolean(state.tool || state.drafting || state.selectedId); });
     onDrawings?.(api);
-    return () => {
+    let disposed=false;
+    const dispose=() => {
+      if(disposed)return;
+      disposed=true;
       unsubscribe();
       drawingActive.current = false;
       onDrawings?.(null);
       api.destroy();
+      if(disposeDrawings.current===dispose)disposeDrawings.current=null;
     };
+    disposeDrawings.current=dispose;
+    return dispose;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mountKey, drawingsKey]);
 

@@ -1,0 +1,87 @@
+/* Final visual contract for the trading workspace. Legacy pages keep their own styling. */
+.terminal-workspace{
+  --bg:#070b09;--bg2:#0c120f;--surface:#0c120f;--surface2:#142019;
+  --panel:#0c120f;--panel-hi:#111b15;--hover:#1a3022;
+  --line:#213428;--line2:#34523e;--chart-bg:#0c120f;
+  --text:#cbded1;--text-strong:#edfff3;--muted:#94ad9d;--meta:#94ad9d;
+  --label:#abc8b5;--select:#39ff88;--warning:#e0c374;--warning-bg:#292416;
+  --up:#42c99a;--down:#ef7885;--accent:#39ff88;
+  --amber:var(--label);--amber2:var(--text-strong);--blue:var(--select);--green:var(--up);--red:var(--down);
+  --terminal-font:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font:12px/1.45 var(--terminal-font)!important;color:var(--text);
+}
+:root[data-theme=light] .terminal-workspace{
+  --bg:#e5eee7;--bg2:#f6faf7;--surface:#f6faf7;--surface2:#e7f0ea;
+  --panel:#f6faf7;--panel-hi:#edf5ef;--hover:#d9efdf;
+  --line:#cfdfd4;--line2:#abc4b3;--chart-bg:#f6faf7;
+  --text:#263d2f;--text-strong:#142a1c;--muted:#506b5b;--meta:#506b5b;
+  --label:#45634f;--select:#087443;--warning:#715700;--warning-bg:#fff5cf;
+  --up:#0a7a4b;--down:#c02d43;--accent:#087443;
+}
+.terminal-workspace :is(button,input,select,textarea,table,th,td,.pt,.chart-head-right,.chart-head-right *,.chart-readout,.mcap-value,.project-description,.thesis-heading,.thesis-metrics,.trader-toolbar,.participant-tape,.terminal-rail){font-family:var(--terminal-font)!important;letter-spacing:0;font-variant-numeric:tabular-nums;}
+.terminal-workspace :is(button,select,input,textarea){border-radius:0!important;}
+.terminal-workspace button{background:var(--surface2);color:var(--text);border:1px solid var(--line2);box-shadow:none;}
+.terminal-workspace button:hover:not(:disabled){background:var(--hover);border-color:var(--muted);}
+.terminal-workspace button:disabled{opacity:.45;cursor:default;}
+.terminal-workspace :is(button,input,select,a):focus-visible{outline:2px solid var(--select);outline-offset:2px;}
+.terminal-workspace :is(button.on,button.active,button[aria-pressed=true],button[aria-current=page],.workspace-tabs button[aria-pressed=true]){color:var(--select)!important;background:color-mix(in srgb,var(--select) 10%,var(--surface))!important;border-color:var(--select)!important;box-shadow:none;}
+.terminal-workspace .workspace-chart.active{border-color:var(--select);}
+.terminal-workspace :is(.panel,.feature-section,.terminal-rail,.participant-tape,.thesis-activity,.trader-inspector,.flow-panel.research-panel,.flow-panel.research-panel .feature-section){background:var(--surface)!important;box-shadow:none;backdrop-filter:none!important;}
+.terminal-workspace :is(.ph,.rail-tabs,.participant-tape-head,.workspace-controls,.workspace-tile-actions,.chart-tools,.chart-readout){background:var(--panel-hi)!important;border-color:var(--line);}
+.terminal-workspace :is(.app-header.desk-header,.persistent-ca-search,.workspace-tabs){background:var(--surface);border-color:var(--line2);}
+.terminal-workspace .app-header button,.terminal-workspace .auth-button{height:28px!important;min-height:28px;padding:4px 8px!important;font-size:10px!important;}
+.terminal-workspace .primary-auth{color:var(--text)!important;border-color:var(--line2)!important;}
+.terminal-workspace .persistent-ca-search button{padding:7px 10px;font-size:11px;white-space:nowrap;}
+.terminal-workspace .brand strong{color:var(--accent);}
+.terminal-workspace .pt{font-size:11px;font-weight:600;color:var(--label);}
+.terminal-workspace .chart-head .pt{font-size:13px;color:var(--text-strong);}
+.terminal-workspace .chart-price{font-size:20px!important;}
+.terminal-workspace .indicator-bar button,.terminal-workspace .chart-head button{font-size:10px;padding:5px 7px;min-height:25px;}
+.terminal-workspace .chart-head-left{gap:6px;}
+.terminal-workspace .indicator-bar{overflow-x:auto;flex-wrap:nowrap;}
+.terminal-workspace .indicator-bar>*{flex-shrink:0;}
+.terminal-workspace .indicator-bar .deferred{display:none;}
+.terminal-workspace .thesis-compact{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:5px 8px;}
+.terminal-workspace .thesis-compact .thesis-heading{font:9px var(--terminal-font);gap:8px;}
+.terminal-workspace .thesis-compact .thesis-metrics{margin:0;padding:0;border:0;background:transparent;font-size:10px;flex:1;min-width:200px;}
+.terminal-workspace .thesis-compact .thesis-metrics b{font-size:11px;}
+.terminal-workspace .thesis-note,.terminal-workspace .thesis-records p{font-family:var(--terminal-font);font-size:11px;}
+.terminal-workspace .trader-inspector{padding:12px;}
+.terminal-workspace .trader-inspector h2{font:600 15px/1.4 var(--terminal-font);letter-spacing:0;margin:12px 0 8px;}
+.terminal-workspace .trader-inspector p{font:11px/1.65 var(--terminal-font);}
+.terminal-workspace .inspector-explainer{padding:10px 0;margin:16px 0;}
+.terminal-workspace .inspector-explainer p{margin-bottom:12px;}
+.terminal-workspace .rail-tabs button{font-size:9px;padding:9px 4px;}
+.terminal-workspace .trader-toolbar{padding:8px;}
+.terminal-workspace .participant-tape-head,.terminal-workspace .tape-pagination{padding:8px;font-size:10px;}
+.terminal-workspace .participant-tape td,.terminal-workspace .participant-tape th{padding:6px 8px;font-size:11px;}
+.terminal-workspace .participant-tape td button{background:transparent;border:0;}
+.terminal-workspace .terminal-notice{color:var(--muted);background:var(--panel-hi);border-left-color:var(--line2);}
+.terminal-workspace .terminal-table tr.selected td{background:var(--hover);}
+.terminal-workspace input[type=checkbox]{accent-color:var(--select);}
+.terminal-workspace *{scrollbar-width:thin;scrollbar-color:var(--line2) transparent;}
+.terminal-workspace *::-webkit-scrollbar{display:block!important;width:6px!important;height:6px!important;}
+.terminal-workspace *::-webkit-scrollbar-thumb{background:var(--line2);}
+@media(prefers-reduced-motion:reduce){.terminal-workspace *{animation:none!important;transition:none!important;}}
+
+/* Pixel typography identifies the terminal; values retain the tabular data face. */
+.terminal-workspace .app-header button,
+.terminal-workspace .workspace-controls>strong,
+.terminal-workspace .workspace-tabs button,
+.terminal-workspace .workspace-tile-actions button,
+.terminal-workspace .watch-tabs button,
+.terminal-workspace .rail-tabs button,
+.terminal-workspace .persistent-ca-search button,
+.terminal-workspace .chart-head .pt,
+.terminal-workspace .participant-tape-head>strong,
+.terminal-workspace .thesis-heading>strong{
+  font-family:"Silkscreen","Home Video",monospace!important;
+  font-weight:400;letter-spacing:0;line-height:1.4;
+}
+.terminal-workspace .brand strong{text-shadow:2px 2px 0 var(--accent-soft);}
+.terminal-workspace .workspace-chart.active{box-shadow:inset 0 2px 0 var(--select);}
+.terminal-workspace .workspace-tile-actions button:first-child{color:var(--select);}
+.terminal-workspace .workspace-controls>strong{color:var(--select);}
+.terminal-workspace .workspace-tabs button[aria-pressed=true]::before{content:"▪ ";}
+.terminal-workspace .persistent-ca-search button[type=submit]{border-color:var(--select);color:var(--select);}
+.terminal-workspace .rail-tabs button.active{box-shadow:inset 0 -2px var(--select);}

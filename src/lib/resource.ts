@@ -18,7 +18,7 @@ export function resource<T>(key:string,load:()=>Promise<T>,period:number){
     e.listeners.add(listener);e.generation++;
     if(!e.timer){if(!e.snapshot.updatedAt||Date.now()-e.snapshot.updatedAt>=e.period)void refresh();e.timer=setInterval(()=>void refresh(),e.period);}
     return()=>{e.listeners.delete(listener);if(!e.listeners.size){clearInterval(e.timer);e.timer=undefined;const generation=++e.generation;setTimeout(()=>{if(!e.listeners.size&&e.generation===generation)entries.delete(key);},60000);}};
-  };
+  }};
 }
 const empty={data:null,error:'',updatedAt:0};
 const idle={getSnapshot:()=>empty,subscribe:()=>()=>{},refresh:async()=>{}};

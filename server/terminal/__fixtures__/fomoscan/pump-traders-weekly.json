@@ -1,0 +1,40 @@
+{
+ "period": "weekly",
+ "capturedAt": 1788879853385,
+ "count": 3,
+ "entries": [
+  {
+   "rank": 1,
+   "wallet": "3jWTgYPG5s7WfaRvppPBXio4hHQxg18fLUkV2z5covSQ",
+   "username": "weeshark41081",
+   "isVerified": false,
+   "pnlSol": 17001.0059279686,
+   "pnlUsd": 1757367.63121493,
+   "pnlPercent": 1954.09955057449,
+   "realizedPnlUsd": -1123.91355385566,
+   "unrealizedPnlUsd": 1758491.54476878
+  },
+  {
+   "rank": 2,
+   "wallet": "4UrFSCrGxgoCtCUBAEZq7ZmPK3Pczkxx7PwYnkBMi1KR",
+   "username": "J777Crypto",
+   "isVerified": true,
+   "pnlSol": 13419.8587578144,
+   "pnlUsd": 1389048.64945215,
+   "pnlPercent": 104.540686416539,
+   "realizedPnlUsd": 9186.49640437511,
+   "unrealizedPnlUsd": 1379862.15304778
+  },
+  {
+   "rank": 3,
+   "wallet": "4YMaKs8Xx1U1NyP1PTQe5J3kxZvE3bSCoVUEPgrkNXpb",
+   "username": "munji",
+   "isVerified": false,
+   "pnlSol": 10939.4870458711,
+   "pnlUsd": 1129587.36548515,
+   "pnlPercent": 238.992319966821,
+   "realizedPnlUsd": 538914.707116895,
+   "unrealizedPnlUsd": 590672.658368256
+  }
+ ]
+}
