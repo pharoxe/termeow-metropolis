@@ -11,7 +11,7 @@ ANSEM mint: `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump`.
 
 ## Local setup
 
-Node.js 22+ is required.
+Node.js 22.13+ is required (the durable trade archive uses built-in SQLite).
 
 ```powershell
 Copy-Item .env.example .env

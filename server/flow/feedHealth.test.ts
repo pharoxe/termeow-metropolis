@@ -46,6 +46,11 @@ describe("ownFeedHealth", () => {
 });
 
 describe("feedHealthOf / allSourcesDown", () => {
+  it("does not report a stalled poller as live forever after one successful response", () => {
+    const stale = { ...ok, lastOkAt: NOW - 180_001 };
+    const health = feedHealthOf({ sources: { pumpfun: stale, geckoterminal: stale }, own: own(null), geckoBlockedUntil: null, now: NOW });
+    expect(allSourcesDown(health)).toBe(true);
+  });
   it("marks a polled source ok only when its last attempt succeeded, and carries the global gecko block as nextRetryAt", () => {
     const health = feedHealthOf({ sources: { pumpfun: never, geckoterminal: ok }, own: own(RH), geckoBlockedUntil: null, now: NOW });
     expect(health.gecko).toEqual({ ok: true, lastOkAt: NOW - 3000, lastError: null, nextRetryAt: null });

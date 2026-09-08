@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { FlowCandlesResponse, FlowWindow, LaunchRow, MarketResponse, TapePrint, TokenFlowResponse } from "../../shared/wire";
 import {
-  allFeedsDown, candleSeriesKey, candleSourceMeta, eventMarkerInput, feedHealthChips, flowBias, flowReadoutCells, flowSignature, hasLiveTape, launchRowFor, livePrintsAfter,
+  aggregateReadoutCells, allFeedsDown, candleSeriesKey, candleSourceMeta, coverageHeadline, coverageNotes, eventMarkerInput, feedHealthChips, flowBias, flowReadoutCells, flowSignature, hasLiveTape, launchRowFor, livePrintsAfter,
   marketIntervalFor, nextFlowState, noCandlesReason, ownTapeInterval, selectCandles, spanLabel, stableChartFlow, systemStatusLine, tapeEmptyCopy, visibleIntervals, windowByLabel
 } from "./deskFlow";
+import type { CoverageInput } from "./deskFlow";
+import { EM_DASH } from "./flowPanel";
 
 const FATCOIN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
 const NOW = 1_788_717_300_000;
@@ -60,6 +62,10 @@ describe("intervals", () => {
 });
 
 describe("selectCandles", () => {
+  it("does not render old timeframe bars while a different interval loads", () => {
+    expect(selectCandles("4H", market(), null).candles).toEqual([]);
+    expect(selectCandles("5S", market(), own({ interval: "15s" })).source).toBe("market");
+  });
   it("serves market candles for minute+ intervals with the feed's observedAt", () => {
     const active = selectCandles("1M", market(), own());
     expect(active).toMatchObject({ source: "market", observedAt: NOW - 5000, note: null, label: null });
@@ -80,8 +86,8 @@ describe("selectCandles", () => {
     expect(partial.label).toBe("OWN TAPE · 180/200 PRICED · 3m SPAN · PRICED BY own 170 · geckoterminal 10");
   });
   it("falls back to the market series with a visible note on error, on zero candles, and while loading — never mixing", () => {
-    expect(selectCandles("5S", market(), own({ error: "untracked: down", candles: [] }))).toMatchObject({ source: "market", note: "NO OWN TAPE · untracked: down", observedAt: NOW - 5000 });
-    expect(selectCandles("5S", market(), own({ candles: [], priced: 0, prints: 7 })).note).toBe("NO OWN TAPE · 0 priced of 7 ring prints");
+    expect(selectCandles("5S", market(), own({ interval: "5s", error: "untracked: down", candles: [] }))).toMatchObject({ source: "market", note: "NO OWN TAPE · untracked: down", observedAt: NOW - 5000 });
+    expect(selectCandles("5S", market(), own({ interval: "5s", candles: [], priced: 0, prints: 7 })).note).toBe("NO OWN TAPE · 0 priced of 7 ring prints");
     expect(selectCandles("5S", market(), null).note).toBe("NO OWN TAPE · loading");
     expect(selectCandles("5S", null, null).candles).toEqual([]);
   });
@@ -264,5 +270,82 @@ describe("R6 feed health and last-good flow", () => {
     expect(systemStatusLine({ restoredAt: NOW - 6 * 3_600_000, snapshotAge: 200_000 }, NOW)?.text).toBe("RPC POOL — · SNAP 6h OLD");
     expect(systemStatusLine({}, NOW)).toEqual({ text: "RPC POOL — · SNAP NONE", title: "no snapshot restored in this process" });
     expect(systemStatusLine(null, NOW)).toBeNull();
+  });
+});
+
+describe("coverage disclosure", () => {
+  const base: CoverageInput = {
+    series: { bars: 120, source: "GECKO", interval: "15M", meta: "provider OHLCV", note: null },
+    aggregate: { error: "", data: { capturedPools: 4, knownPools: 4, buyUsd: 1000, sellUsd: 400, delta: 600, trades: 80, unpriced: 0 } },
+    launch: { launchpad: "pump.fun", createdAt: NOW - 86_400_000 },
+    replay: false,
+    baselines: { checked: 12, total: 12, refreshMs: 600_000, error: "" }
+  };
+
+  it("keeps every caveat line the stacked lanes carried", () => {
+    const notes = coverageNotes(base);
+    expect(notes.map((note) => note.key)).toEqual(["series", "aggregate", "cvd", "event", "baselines"]);
+    expect(notes[0].detail).toBe("120 BARS · GECKO · 15M · provider OHLCV");
+    expect(notes[1].detail).toContain("4/4 known pools with captured trades");
+    expect(notes[1].detail).toContain("0 of 80 rows unpriced and summed as 0");
+    // the CVD caveat is a standing one: it qualifies the series no matter how complete the pool coverage is
+    expect(notes[2].detail).toContain("pool turnover, not net wallet inflow");
+    expect(notes[2].partial).toBe(true);
+    expect(notes[3].detail).toBe("pump.fun launch · Provider OHLCV · trade markers may cover additional venues");
+    expect(notes[4].detail).toBe("12/12 checked · refresh target 10m · up to 32 active wallets");
+  });
+
+  it("marks partial coverage rather than reading it as complete", () => {
+    const partial = coverageNotes({
+      ...base,
+      series: { ...base.series, note: "own tape unavailable, showing 1m market bars" },
+      aggregate: { error: "", data: { capturedPools: 2, knownPools: 9, buyUsd: 10, sellUsd: 4, delta: 6, trades: 12, unpriced: 3 } },
+      launch: null,
+      baselines: { checked: 41, total: 117, refreshMs: 600_000, error: "" }
+    });
+    expect(partial.filter((note) => note.partial).map((note) => note.key)).toEqual(["series", "aggregate", "cvd", "event", "baselines"]);
+    expect(partial[1].detail).toContain("2/9 known pools");
+    expect(partial[3].detail).toContain("No sourced launch event in the loaded index");
+    expect(partial[4].detail).toContain("41/117 checked");
+  });
+
+  it("reports an unloaded or failed aggregate as unknown, never as zero", () => {
+    const loading = coverageNotes({ ...base, aggregate: { error: "", data: null } });
+    expect(loading[1].detail).toBe("Loading captured pool flow…");
+    expect(loading[1].partial).toBe(true);
+    const failed = coverageNotes({ ...base, aggregate: { error: "aggregate flow request failed", data: null } });
+    expect(failed[1].detail).toBe("aggregate flow request failed");
+    expect(failed[1].partial).toBe(true);
+  });
+
+  it("leads the collapsed headline with which notes are partial, then the series", () => {
+    // The summary is clipped to one row, so the caveat must come before the detail an ellipsis is allowed to eat.
+    expect(coverageHeadline(coverageNotes(base))).toBe("1/5 PARTIAL OR UNKNOWN: CVD · 120 BARS · GECKO · 15M · provider OHLCV");
+    const worst = coverageNotes({ ...base, series: { ...base.series, bars: 0 }, aggregate: { error: "flow down", data: null }, launch: null, replay: true, baselines: { checked: 0, total: 117, refreshMs: 600_000, error: "baseline scan unavailable" } });
+    expect(coverageHeadline(worst)).toContain("5/5 PARTIAL OR UNKNOWN: SERIES · AGGREGATE FLOW · CVD · EVENT CONTEXT · PARTICIPANT BASELINES");
+  });
+
+  describe("aggregate readout cells", () => {
+    const window = "the 120 loaded 15M bars";
+    it("names the population, the window and the rows that were summed as zero", () => {
+      const cells = aggregateReadoutCells({ error: "", data: { capturedPools: 2, knownPools: 9, buyUsd: 1000, sellUsd: 400, delta: 600, trades: 80, unpriced: 12 } }, window);
+      expect(cells.map((cell) => cell.label)).toEqual(["AGG BUY", "AGG SELL", "WINDOW DELTA"]);
+      expect(cells[0].value).toBe("$1K (12u)");
+      expect(cells[0].title).toContain("Captured pool trades only, over the 120 loaded 15M bars");
+      expect(cells[0].title).toContain("2/9 known pools captured");
+      expect(cells[0].title).toContain("12 of 80 rows carry no USD and are summed as 0, so this is a floor, not a total");
+      expect(cells[2].tone).toBe("up");
+    });
+    it("shows an unloaded aggregate as unknown, never as zero", () => {
+      const cells = aggregateReadoutCells({ error: "", data: null }, window);
+      expect(cells.map((cell) => cell.value)).toEqual([EM_DASH, EM_DASH, EM_DASH]);
+      expect(cells[0].title).toContain("not loaded yet");
+    });
+    it("marks the previous window's numbers stale when the poll that should have replaced them failed", () => {
+      const cells = aggregateReadoutCells({ error: "Aggregate unavailable (503)", data: { capturedPools: 4, knownPools: 4, buyUsd: 1000, sellUsd: 400, delta: 600, trades: 80, unpriced: 0 } }, window);
+      expect(cells[0].value).toBe("$1K · STALE");
+      expect(cells[0].title).toContain("NOT CURRENT");
+      expect(cells[0].title).toContain("Aggregate unavailable (503)");
+    });
   });
 });

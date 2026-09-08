@@ -387,7 +387,8 @@ export class RobinhoodLogPoller {
     try {
       results = this.batchResults(await this.post(requests), requests);
     } catch (error) {
-      if (this.batchMode === "on" || isRateLimit(error)) throw error;
+      const invalidRange = /invalid block range/i.test(errorMessage(error));
+      if (isRateLimit(error) || (this.batchMode === "on" && !invalidRange)) throw error;
       this.batchMode = "off";
       this.log(`robinhood log poller: batch unsupported, falling back to sequential (${errorMessage(error)})`);
       return this.pollSequential();

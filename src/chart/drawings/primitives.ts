@@ -19,7 +19,7 @@ import { EMPTY_STATE, type Draft, type Drawing, type DrawingsState } from "./sta
 export type DrawingTheme = { line: string; selected: string; text: string; labelBg: string; up: string; down: string; handle: string; font: string };
 
 const FONT = '10px "Home Video", monospace';
-export const DARK_DRAWING_THEME: DrawingTheme = { line: "#43a5ff", selected: "#39ff88", text: "#f4fff6", labelBg: "#101611", up: "#39ff88", down: "#ff5268", handle: "#f4fff6", font: FONT };
+export const DARK_DRAWING_THEME: DrawingTheme = { line: "#8c9daf", selected: "#69acff", text: "#f4fff6", labelBg: "#101611", up: "#42c99a", down: "#ef7885", handle: "#f4fff6", font: FONT };
 export const LIGHT_DRAWING_THEME: DrawingTheme = { line: "#1269bd", selected: "#007c40", text: "#172019", labelBg: "#f7faf5", up: "#00d86a", down: "#ce2945", handle: "#172019", font: FONT };
 
 export type Formatters = { price: (price: number) => string; time: (epochMs: number) => string };

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import type { FomoBoardResponse, FomoBoardWindow } from "../../shared/wire";
+import type { Chain, FomoBoardResponse, FomoBoardWindow } from "../../shared/wire";
 import { api } from "../api/client";
 import { BOARD_WINDOWS, FOMO_BOARD_POLL_MS, fomoBoardRowView, fomoCoverageLabel, populationNote, truncationNote } from "../lib/fomoPanel";
 
-const COLUMNS = ["WALLET", "FILLS", "BUY", "SELL", "NET", "W/L"];
+const COLUMNS = ["WALLET", "FILLS", "BUY", "SELL", "NET", "CASH FLOW"];
 const DEFAULT_POPULATION_LABEL = "FOMO wallets seen by this server";
 
 /**
@@ -11,7 +11,7 @@ const DEFAULT_POPULATION_LABEL = "FOMO wallets seen by this server";
  * net flow into tokens, not realized P&L. W/L counts tokens with priced buys and priced sells, and its Wilson lower
  * bound is an em-dash under five closed round trips. The population line always says whose population it is.
  */
-export function FomoBoardTab() {
+export function FomoBoardTab({chain}:{chain?:Chain}) {
   const [window, setWindow] = useState<FomoBoardWindow>("24h");
   const [feed, setFeed] = useState<FomoBoardResponse | null>(null);
   const [failure, setFailure] = useState("");
@@ -19,7 +19,7 @@ export function FomoBoardTab() {
 
   useEffect(() => {
     let active = true;
-    const load = () => api.fomoBoard({ window })
+    const load = () => api.fomoBoard({ chain, window })
       .then((value) => {
         if (!active) return;
         setFeed(value);
@@ -30,9 +30,9 @@ export function FomoBoardTab() {
     load();
     const timer = setInterval(load, FOMO_BOARD_POLL_MS);
     return () => { active = false; clearInterval(timer); };
-  }, [window]);
+  }, [chain, window]);
 
-  const rows = feed?.rows ?? [];
+  const rows = feed && (!chain || feed.chain === chain) ? feed.rows : [];
   const truncated = truncationNote(feed?.truncatedAt ?? null, now);
   return (
     <div className="fomo-board">
@@ -45,8 +45,9 @@ export function FomoBoardTab() {
       <p className="pm fomo-note" title="Unwatched wallets cannot rank: the transfer legs only carry the watched share of the population">{fomoCoverageLabel(feed?.coverage)}</p>
       {truncated ? <p className="pm fomo-note">{truncated}</p> : null}
       {failure ? <p className="empty-copy">Board degraded · {failure}</p> : null}
+      <p className="terminal-notice">Cash-flow counts are not win rate or realized P&amp;L. Partial sales do not prove closed positions.</p>
       {rows.length ? (
-        <table className="terminal-table fomo-board-table">
+      <table className="terminal-table fomo-board-table">
           <thead><tr>{COLUMNS.map((column, index) => <th key={column} className={index ? "r" : ""}>{column}</th>)}</tr></thead>
           <tbody>
             {rows.map((row) => {
@@ -63,7 +64,7 @@ export function FomoBoardTab() {
                   <td className="r up">{view.buy}</td>
                   <td className="r dn">{view.sell}</td>
                   <td className={`r ${view.netTone}`}>{view.net}</td>
-                  <td className="r">{view.record}<small>{view.wilson}</small></td>
+                  <td className="r">{view.record}<small>cash-positive / two-sided</small></td>
                 </tr>
               );
             })}

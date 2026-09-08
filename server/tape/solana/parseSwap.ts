@@ -175,6 +175,7 @@ function poolPrint(tx: unknown, pool: PoolRef, vaults: TokenDelta[], ctx: ParseC
     side: mintDelta < 0 ? "buy" : "sell",
     usd,
     source: "own",
+    quantity: Math.abs(mintDelta),
     ...perTokenPrice(usd, mintDelta)
   };
 }
@@ -215,6 +216,16 @@ export function parseSwapTransaction(tx: unknown, ctx: ParseContext): ParseResul
     if (print) prints.push(print);
   }
   const signerKeys = signers(list(record(record(record(tx).transaction).message).accountKeys));
+  // A fee payer alone is not an owner. Attribute only one signer whose own token accounts moved in the trade direction.
+  for (const print of prints) {
+    const moves = new Map<string, number>();
+    for (const delta of deltas) if (delta.mint === ctx.mint && delta.owner && signerKeys.has(delta.owner) && !attributed.has(delta)) moves.set(delta.owner, (moves.get(delta.owner) ?? 0) + delta.delta);
+    const owners = [...moves].filter(([, amount]) => print.side === "buy" ? amount > 0 : amount < 0);
+    if (owners.length === 1) {
+      print.trader = { address: owners[0][0], kind: "other", handle: null, followers: null };
+      print.identitySource = "signer-owned token balance change";
+    }
+  }
   const unattributed = deltas.filter(
     (delta) => delta.mint === ctx.mint && delta.delta !== 0 && !attributed.has(delta) && !(delta.owner && signerKeys.has(delta.owner))
   ).length;

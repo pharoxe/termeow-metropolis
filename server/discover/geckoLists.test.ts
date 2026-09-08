@@ -9,6 +9,7 @@ const rows = trending.data as GeckoListRow[];
 const fresh = newPools.data as GeckoListRow[];
 
 describe("tokenFromRelationshipId", () => {
+  it("preserves Solana address case",()=>{expect(tokenFromRelationshipId("solana_So11111111111111111111111111111111111111112","solana")).toBe("So11111111111111111111111111111111111111112");});
   it("strips the network prefix and lowercases a 0x address", () => {
     expect(tokenFromRelationshipId("robinhood_0x11B70d0243baf75e85ce03201a92b5b7c33beb59", "robinhood")).toBe(ROBIN);
   });

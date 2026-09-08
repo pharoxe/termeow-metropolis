@@ -1,3 +1,5 @@
+import { QuoteCache, matchesOrder, matchesRoute } from "../trading/quotes.js";
+import { walletPortfolio } from "../market/walletPortfolio.js";
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
@@ -10,13 +12,15 @@ const address = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
 const quoteSchema = z.object({
   inputMint: address,
   outputMint: address,
-  amount: z.string().regex(/^\d+$/),
+  amount: z.string().regex(/^[1-9]\d*$/).refine(value => BigInt(value) <= 18446744073709551615n, "Amount exceeds token range"),
   slippageBps: z.number().int().min(1).max(500).default(50),
   walletAddress: address.optional()
 });
 
 export const onchainRouter = Router();
-const quoteCache = new Map<string, { expiresAt: number; quote: unknown }>();
+const quoteCache = new QuoteCache();
+const quoteCleanup = setInterval(() => quoteCache.prune(), 30_000);
+quoteCleanup.unref();
 
 function findJupiterQuote(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -88,8 +92,13 @@ onchainRouter.post("/quote", async (request, response, next) => {
       return;
     }
     const quoteId = randomUUID();
-    quoteCache.set(quoteId, { expiresAt: Date.now() + 60_000, quote: result.data });
-    response.json({ quoteId, source: "clawpump", observedAt: Date.now(), ...result });
+    const route = findJupiterQuote(result.data);
+    if (route && !matchesRoute(route, input)) {
+      response.status(502).json({ error: "Quote route differs from requested order" });
+      return;
+    }
+    const expiresAt = quoteCache.set(quoteId, result.data, input);
+    response.json({ quoteId, expiresAt, source: "clawpump", observedAt: Date.now(), ...result });
   } catch (error) { next(error); }
 });
 
@@ -108,12 +117,20 @@ onchainRouter.post("/transaction", async (request, response, next) => {
       response.status(409).json({ error: "Quote expired", hint: "Request a fresh ClawPump quote before building the transaction." });
       return;
     }
-    quoteCache.delete(input.quoteId!);
+    if (!matchesOrder(cached.order, input)) {
+      response.status(409).json({ error: "Order changed; request a fresh quote" });
+      return;
+    }
     const quoteResponse = findJupiterQuote(cached.quote);
     if (!quoteResponse) {
       response.status(502).json({ error: "ClawPump quote did not contain a Jupiter-compatible route" });
       return;
     }
+    if (!matchesRoute(quoteResponse, input)) {
+      response.status(409).json({ error: "Quote route differs from requested order" });
+      return;
+    }
+    quoteCache.delete(input.quoteId!);
     const result = await fetchJson<Record<string, unknown>>(`${config.jupiter.apiUrl}/swap`, {
       method: "POST",
       headers: {
@@ -134,8 +151,6 @@ onchainRouter.post("/transaction", async (request, response, next) => {
 onchainRouter.get("/portfolio/:wallet", async (request, response, next) => {
   try {
     const walletAddress = address.parse(request.params.wallet);
-    const args = { walletAddress, ...(config.clawpump.agentId ? { agentId: config.clawpump.agentId } : {}) };
-    const result = await clawpumpMcp.call("get_portfolio", args);
-    response.status(result.ok ? 200 : 502).json(result);
+    response.json(await walletPortfolio(walletAddress));
   } catch (error) { next(error); }
 });

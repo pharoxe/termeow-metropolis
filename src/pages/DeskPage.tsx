@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
+import { useParticipants } from "../hooks/useParticipants";
+import { useAggregateFlow } from "../hooks/useAggregateFlow";
+import { TerminalCommand } from "../components/TerminalCommand";
+import { TraderInspector, TraderToolbar, TradeTape } from "../components/TraderContext";
+import { useTerminal } from "../hooks/useTerminal";
+import { DEFAULT_TRADE_FILTER, filterTradesWithBreakdown, tradeMarkers, type TradeFilter } from "../lib/terminal";
+import type { TradeEvent } from "../../shared/terminal";
+import "../components/terminal.css";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { api } from "../api/client";
 import type { OnchainMarket, PublicConfig } from "../types";
@@ -11,16 +19,15 @@ import { money, pct } from "../lib/format";
 import { atr, macd, rsi } from "../lib/indicators";
 import { MINT_RE } from "../lib/mint";
 import { extractAddress, type InstrumentRef } from "../lib/address";
-import { brandSuffix, instrumentKey, isEmptyMarket, isValidInstrument, legacyMarket, sameInstrument, tapeRows } from "../lib/instrument";
+import { brandSuffix, instrumentKey, isValidInstrument, legacyMarket, sameInstrument, tapeRows } from "../lib/instrument";
 import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
 import type { FlowCandlesResponse, LaunchRow, MarketResponse, TokenFlowResponse } from "../../shared/wire";
-import { buildFomoMarkers } from "../lib/fomoMarkers";
 import { buildEventMarkers } from "../lib/chartMarkers";
 import { parseIntervalMs } from "../lib/chartTime";
 import type { LiveCandleStats } from "../lib/liveCandle";
 import { analysisFlowFromWindows } from "../lib/agenticAnalysis";
 import {
-  LAUNCH_POLL_MS, OWN_TAPE_POLL_MS, biasTone, candleSeriesKey, candleSourceMeta, eventMarkerInput, flowReadoutCells, hasLiveTape, launchRowFor,
+  LAUNCH_POLL_MS, OWN_TAPE_POLL_MS, aggregateReadoutCells, biasTone, candleSeriesKey, candleSourceMeta, coverageHeadline, coverageNotes, eventMarkerInput, hasLiveTape, launchRowFor,
   livePrintsAfter, marketIntervalFor, nextFlowState, noCandlesReason, ownTapeInterval, selectCandles, stableChartFlow, systemStatusLine, visibleIntervals, SUB_MINUTE_MARKET_INTERVAL, type StableFlow
 } from "../lib/deskFlow";
 import { DrawingToolbar, type DrawingsApi, type DrawingsSnapshot } from "../chart/drawings";
@@ -36,7 +43,7 @@ import { useFundingNetwork } from "../features/NetworkContext";
 type ChartUnit = "price" | "mcap";
 type Row = Record<string, unknown>;
 const initialIndicators: IndicatorSet = {
-  ema: true, bollinger: false, vwap: true, sr: true, volume: true, cvd: true, rsi: false, macd: false, obv: false
+  ema: false, bollinger: false, vwap: false, sr: false, volume: true, cvd: true, rsi: false, macd: false, obv: false
 };
 const CHART_UNIT_KEY = "desk-chart-unit";
 const CHART_SCALE_KEY = "desk-chart-scale";
@@ -53,7 +60,7 @@ function readStored<T extends string>(key: string, allowed: readonly T[], fallba
 function persistStored(key: string, value: string) {
   try { localStorage.setItem(key, value); } catch { /* ignore quota / private mode */ }
 }
-const readChartUnit = () => readStored<ChartUnit>(CHART_UNIT_KEY, ["price", "mcap"], "mcap");
+const readChartUnit = () => readStored<ChartUnit>(CHART_UNIT_KEY, ["price", "mcap"], "price");
 const persistChartUnit = (unit: ChartUnit) => persistStored(CHART_UNIT_KEY, unit);
 const readChartScale = () => readStored<ChartScaleMode>(CHART_SCALE_KEY, ["linear", "log"], "linear");
 const persistChartScale = (mode: ChartScaleMode) => persistStored(CHART_SCALE_KEY, mode);
@@ -92,7 +99,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const { network, setNetwork } = useFundingNetwork();
   const { notify } = useNotifications();
   const [section, setSection] = useState("Trade");
-  const [searchOpen, setSearchOpen] = useState(false);
+
   const [instrument, setInstrument] = useState<InstrumentRef>({ chain: "solana", address: config.ansemMint });
   const solana = instrument.chain === "solana";
   const [query, setQuery] = useState("");
@@ -111,6 +118,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const [holders, setHolders] = useState<Row>({});
   const [flowState, setFlowState] = useState<TokenFlowResponse | null>(null);
   /** Own-tape candles for the 5S/15S chips; null until the route answered (or while a minute+ interval is selected). */
+  const capturedLoader = useRef<(()=>void)|null>(null);
   const [ownCandles, setOwnCandles] = useState<FlowCandlesResponse | null>(null);
   const [launchRows, setLaunchRows] = useState<LaunchRow[]>([]);
   const [liveStats, setLiveStats] = useState<LiveCandleStats | null>(null);
@@ -129,6 +137,20 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     persistChartScale(mode);
   };
   const ownInterval = ownTapeInterval(interval);
+  const [visibleRange, setVisibleRange] = useState<{from:number;to:number}|null>(null);
+  const [tradeFilter, setTradeFilter] = useState<TradeFilter>(DEFAULT_TRADE_FILTER);
+  const [followed, setFollowed] = useState<string[]>(() => {try {const value=JSON.parse(localStorage.getItem("terminal-followed")??"[]");return Array.isArray(value)?value.filter((v:unknown)=>typeof v==="string"):[];}catch{return [];}});
+  const [selectedTrade, setSelectedTrade] = useState<TradeEvent|null>(null);
+  const [commandsOpen,setCommandsOpen]=useState(false);
+  useEffect(()=>{const handler=(event:KeyboardEvent)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){event.preventDefault();setCommandsOpen(open=>!open);}};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[]);
+  const [railTab, setRailTab] = useState<"trader"|"order">("trader");
+  const [replayTime, setReplayTime] = useState<number|null>(null);
+  const terminal = useTerminal(instrument, visibleRange);
+  const onVisibleRange = useCallback((range:{from:number;to:number}) => setVisibleRange(previous => previous?.from===range.from&&previous?.to===range.to?previous:range),[]);
+  const followWallet = (key:string) => setFollowed(previous => {const next=previous.includes(key)?previous.filter(k=>k!==key):[...previous,key];try{localStorage.setItem("terminal-followed",JSON.stringify(next));}catch{}return next;});
+  const selectTrade = (trade:TradeEvent) => {setSelectedTrade(trade);setRailTab("trader");chartRef.current?.seekTime(trade.time);};
+  useEffect(()=>{setSelectedTrade(null);setVisibleRange(null);setReplayTime(null);},[instrument.chain,instrument.address,interval]);
+
 
   useEffect(() => {
     if (!solana) { setBoard({}); return; }
@@ -161,14 +183,19 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   useEffect(() => {
     let active = true;
     const requested = instrument;
-    setSpot((current) => (current && sameInstrument(current.instrument, requested) ? current : null));
-    const load = () => api.market(requested.chain, requested.address, marketIntervalFor(interval))
+    setSpot((current) => (current && sameInstrument(current.instrument, requested) && current.interval === marketIntervalFor(interval) ? current : null));
+    let loading = false;
+    const load = () => {
+      if (loading || !active) return;
+      loading = true;
+      return api.market(requested.chain, requested.address, marketIntervalFor(interval))
       .then((value) => {
         if (!active || !sameInstrument(value.instrument, requested)) return;
         setError(value.error || "");
-        if (!isEmptyMarket(value)) setSpot(value);
+        setSpot(value);
       })
-      .catch((reason) => active && setError(reason instanceof Error ? reason.message : String(reason)));
+      .catch((reason) => active && setError(reason instanceof Error ? reason.message : String(reason))).finally(() => { loading = false; });
+    };
     load();
     const timer = setInterval(load, 45_000);
     return () => { active = false; clearInterval(timer); };
@@ -182,17 +209,24 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     if (!ownInterval || !isValidInstrument(instrument)) return;
     let active = true;
     const requested = instrument;
-    const load = () => api.flowCandles(requested.chain, requested.address, ownInterval)
+    let loading = false;
+    const load = () => {
+      if (loading || !active) return;
+      loading = true;
+      return api.capturedCandles(requested.chain, requested.address, ownInterval)
       .then((value) => { if (active) setOwnCandles(value); })
       .catch((reason) => {
         if (!active) return;
         const error = reason instanceof Error ? reason.message : String(reason);
         setOwnCandles({ chain: requested.chain, address: requested.address, interval: ownInterval, candles: [], source: "own tape", spanMs: 0, prints: 0, priced: 0, firstPrintAt: null, pricedBySource: {}, observedAt: Date.now(), error });
-      });
+      }).finally(() => { loading = false; });
+    };
+    capturedLoader.current = load;
     load();
     const timer = setInterval(load, OWN_TAPE_POLL_MS);
-    return () => { active = false; clearInterval(timer); };
+    return () => { active = false; capturedLoader.current = null; clearInterval(timer); };
   }, [instrument, ownInterval]);
+  useEffect(()=>{capturedLoader.current?.();},[terminal.snapshot?.revision]);
 
   useEffect(() => {
     let active = true;
@@ -229,13 +263,18 @@ export function DeskPage({ config }: { config: PublicConfig }) {
       return;
     }
     let active = true;
-    const load = () => api.flowToken(instrument.chain, instrument.address, marketIntervalFor(interval))
+    let loading = false;
+    const load = () => {
+      if (loading || !active) return;
+      loading = true;
+      return api.flowToken(instrument.chain, instrument.address, marketIntervalFor(interval))
       .then((value) => {
         if (active) setFlowState((previous) => nextFlowState(previous, value));
       })
       .catch((reason) => {
         if (active) setFlowState((previous) => nextFlowState(previous, null, reason instanceof Error ? reason.message : String(reason)));
-      });
+      }).finally(() => { loading = false; });
+    };
     load();
     const timer = setInterval(load, 15_000);
     return () => { active = false; clearInterval(timer); };
@@ -244,7 +283,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   useEffect(() => {
     if (!feed || lastNotifiedInstrument.current === instrumentKey(feed.instrument)) return;
     lastNotifiedInstrument.current = instrumentKey(feed.instrument);
-    notify({ title: `${feed.instrument.symbol} ONLINE`, message: solana ? "Chart, project intelligence, pools, and social flow are synchronized." : "Chart and flow are live. Project intel and execution are Solana-only.", tone: "success" });
+    notify({ title: `${feed.instrument.symbol} LOADED`, message: "Market response received. Check the source status for live trade coverage and provider availability.", tone: "success" });
   }, [feed, notify, solana]);
   useEffect(() => {
     if (!error || lastNotifiedError.current === error) return;
@@ -264,7 +303,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   const useMcap = chartUnit === "mcap" && hasMcap;
   /** One candle source per series: own tape for 5S/15S when served, else the market feed (with a visible note). */
   const active = useMemo(() => selectCandles(interval, feed, ownCandles), [interval, feed, ownCandles]);
-  const rawSpotCandles = active.candles;
+  const rawSpotCandles = useMemo(() => replayTime == null ? active.candles : active.candles.filter(c => c.time + (parseIntervalMs(active.source === "market" && ownInterval ? SUB_MINUTE_MARKET_INTERVAL : interval) || 60000) <= replayTime), [active.candles, active.source, ownInterval, interval, replayTime]);
   const candles = useMemo(() => {
     return useMcap ? scaleCandlesToMcap(rawSpotCandles, scale.supply) : rawSpotCandles;
   }, [rawSpotCandles, scale.supply, useMcap]);
@@ -272,15 +311,27 @@ export function DeskPage({ config }: { config: PublicConfig }) {
   /** Bar size of the series actually on screen: a sub-minute chip served by the market fallback is drawing 1m bars. */
   const activeInterval = active.source === "market" && ownInterval ? SUB_MINUTE_MARKET_INTERVAL.toUpperCase() : interval;
   const intervalMs = parseIntervalMs(activeInterval);
-  const livePrints = useMemo(() => livePrintsAfter(flowState?.tape, active.observedAt), [flowState?.tape, active.observedAt]);
-  const liveTape = hasLiveTape(flowState);
+  // External candle inclusion is unknown. Never blend cross-venue tape into provider OHLCV.
+  // Captured candles are rebuilt server-side from durable observations, including late events.
+  const livePrints = useMemo(() => [], []);
+  const participants=useParticipants(instrument.chain,terminal.events,selectedTrade);
+  const visible = useMemo(() => filterTradesWithBreakdown(terminal.events.filter(e => replayTime==null||e.time<=replayTime), tradeFilter, followed, participants.snapshots, terminal.now), [terminal.events,tradeFilter,followed,replayTime,participants.snapshots,terminal.now]);
+  const visibleTrades = visible.trades;
+  const aggregate = useAggregateFlow(instrument, rawSpotCandles[0]?.time, replayTime ?? (rawSpotCandles.at(-1)?.time != null ? rawSpotCandles.at(-1)!.time+(intervalMs||60000)-1 : undefined), intervalMs||60000);
+  // `coverage` carries the first captured print of the very population these bars are summed from: bars before it are
+  // muted and the last uncovered candle gets the "no tape ◀" marker, so a half-covered range never reads as a full one.
+  const aggregateChart = useMemo(()=>aggregate.data?{bars:aggregate.data.bars,pairs:[],coverage:{firstPrintAt:aggregate.data.firstPrintAt},candleTimes:rawSpotCandles.map(c=>c.time)}:undefined,[aggregate.data,rawSpotCandles]);
+  const participantMarkers = useMemo(() => tradeMarkers(visibleTrades, rawSpotCandles, intervalMs || 60000, selectedTrade?.id??null, followed, visibleRange), [visibleTrades,rawSpotCandles,intervalMs,selectedTrade?.id,followed,visibleRange]);
+  const pickCandle = (time:number) => {const candidates=visibleTrades.filter(e=>e.time>=time&&e.time<time+(intervalMs||60000));if(candidates.length){setSelectedTrade(candidates[0]);setRailTab("trader");}};
+
+  const liveTape = hasLiveTape(flowState) || terminal.recent.length > 0;
   const intervals = visibleIntervals(liveTape || Boolean(ownInterval));
   const chartTitle = feed ? `${feed.instrument.symbol}/USD` : `LOADING ${instrument.address.slice(0, 6)}…`;
-  const chartPrice = useMcap ? scale.mcap : feed?.priceUsd;
+  const chartPrice = replayTime != null ? candles.at(-1)?.close : useMcap ? scale.mcap : feed?.priceUsd;
   const chartPriceCompact = useMcap;
-  const chartChange = feed?.change24Pct;
-  const chartUnitLabel = hasMcap ? (useMcap ? "MCAP" : "USD") : "NO MCAP";
-  const chartSub = hasMcap ? (useMcap ? money(feed?.priceUsd) : money(scale.mcap, true)) : null;
+  const chartChange = replayTime != null ? undefined : feed?.change24Pct;
+  const chartUnitLabel = hasMcap ? (useMcap ? "EST. MCAP" : "USD") : "NO MCAP";
+  const chartSub = replayTime == null && hasMcap ? (useMcap ? money(feed?.priceUsd) : money(scale.mcap, true)) : null;
   // Reference-stable across flow polls whose bars/coverage/candle span did not change, so the chart takes its in-place path.
   const chartFlowRef = useRef<StableFlow | null>(null);
   const chartFlow = useMemo(() => {
@@ -293,23 +344,27 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     () => buildEventMarkers(eventMarkerInput(launchRow, flowState), chartFlow?.candleTimes ?? [], { theme }),
     [launchRow, flowState, chartFlow?.candleTimes, theme]
   );
+  const chartMarkers = useMemo(()=>[...events.markers.filter(m=>m.shape==="square"),...participantMarkers.markers],[events.markers,participantMarkers.markers]);
   const eventsMeta = [events.dropped ? `+${events.dropped} large prints capped` : "", events.beforeRange ? `${events.beforeRange} events off-chart` : ""].filter(Boolean).join(" · ");
   const liveMeta = liveStats && livePrints.length ? `LIVE ${liveStats.applied} ticked · ${liveStats.volumeOnly} vol-only` : "";
-  const readout = flowReadoutCells(flowState);
   const analysisFlow = useMemo(() => analysisFlowFromWindows(flowState?.windows), [flowState?.windows]);
-  /** FOMO arrows ride the candle series; `dropped` is surfaced in the chart meta so a capped view never looks complete. */
-  const fomo = useMemo(
-    () => buildFomoMarkers(flowState?.fomo?.fills ?? [], chartFlow?.candleTimes ?? [], { theme }),
-    [flowState?.fomo?.fills, chartFlow?.candleTimes, theme]
-  );
-  // Fill counts, not bucket counts: a bucket is one candle+side and can mix FOMO and seeded fills.
-  const fomoFills = fomo.markers.reduce((sum, marker) => sum + marker.fomoFills, 0);
-  const seededFills = fomo.markers.reduce((sum, marker) => sum + marker.seededFills, 0);
-  const fomoMeta = [fomoFills ? `${fomoFills} FOMO` : "", seededFills ? `${seededFills} SEEDED` : "", fomo.dropped ? `+${fomo.dropped} more` : "", fomo.beforeRange ? `${fomo.beforeRange} off-chart` : ""].filter(Boolean).join(" ");
   const sourceLabel = active.source === "own tape" ? "OWN TAPE" : feed?.primaryPair?.dex || feed?.source || "GECKO";
   /** R6 provenance: which series the market candles are and how far the chain backfill reaches. */
   const provenanceMeta = candleSourceMeta(feed, active.source);
   const statusLine = systemStatusLine(health, Date.now());
+  /** What the aggregate sums cover, said in the readout itself rather than only inside the coverage disclosure. */
+  const aggregateWindow = `the ${candles.length} loaded ${activeInterval} bars`;
+  const aggregateState = useMemo(() => ({ error: aggregate.error, data: aggregate.data ? { capturedPools: aggregate.data.capturedPools, knownPools: aggregate.data.knownPools, buyUsd: aggregate.data.buyUsd, sellUsd: aggregate.data.sellUsd, delta: aggregate.data.delta, trades: aggregate.data.trades, unpriced: aggregate.data.unpriced } : null }), [aggregate.error, aggregate.data]);
+  const aggregateCells = aggregateReadoutCells(aggregateState, aggregateWindow);
+  /** The five caveat lines that used to stack above the canvas, folded into one disclosure; the headline counts the partial ones. */
+  const seriesMeta = [provenanceMeta, active.label, liveMeta, eventsMeta].filter(Boolean).join(" · ");
+  const coverage = useMemo(() => coverageNotes({
+    series: { bars: candles.length, source: sourceLabel, interval: activeInterval, meta: seriesMeta, note: active.note ?? null },
+    aggregate: aggregateState,
+    launch: launchRow ? { launchpad: launchRow.launchpad, createdAt: launchRow.createdAt } : null,
+    replay: replayTime != null,
+    baselines: { checked: participants.snapshots.filter(s => s.checkedAt != null).length, total: participants.snapshots.length, refreshMs: participants.refreshMs, error: participants.error }
+  }), [candles.length, sourceLabel, activeInterval, seriesMeta, active.note, aggregateState, launchRow, replayTime, participants.snapshots, participants.refreshMs, participants.error]);
 
   const technicals = useMemo(() => {
     if (!candles.length) return null;
@@ -367,27 +422,13 @@ export function DeskPage({ config }: { config: PublicConfig }) {
     }
   };
 
-  const openPastedContract = (event: ClipboardEvent<HTMLInputElement>) => {
-    const parsed = extractAddress(event.clipboardData.getData("text"));
-    if (!parsed || "error" in parsed) return;
-    event.preventDefault();
-    setQuery(parsed.address);
-    focusInstrument(parsed);
-  };
-
   const mintLabel = `${instrument.address.slice(0, 4)}…${instrument.address.slice(-4)}`;
   const spotLoading = !feed;
-  const scannerSearch = <div className="scanner-search">
-    <AnimatePresence initial={false} mode="sync">
-      {!searchOpen ? <motion.button key="scanner-closed" type="button" className="scanner-search-head" aria-label="Discover markets" aria-expanded="false" aria-controls="scanner-search-field" initial={{ opacity: 0, scaleX: 0.22 }} animate={{ opacity: 1, scaleX: 1 }} exit={{ opacity: 0, scaleX: 0.22 }} transition={{ type: "spring", stiffness: 1500, damping: 70, mass: 0.22 }} style={{ transformOrigin: "right center" }} onClick={() => setSearchOpen(true)}><span>Discover markets</span><span className="search-icon" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
-      </span></motion.button> : <motion.form key="scanner-open" id="scanner-search-field" className="command-form" initial={{ opacity: 0, scaleX: 0.2 }} animate={{ opacity: 1, scaleX: 1 }} exit={{ opacity: 0, scaleX: 0.2 }} transition={{ type: "spring", stiffness: 1500, damping: 70, mass: 0.22 }} style={{ transformOrigin: "right center" }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false); }} onSubmit={event => { event.preventDefault(); void submitQuery(); }}>
-        <input autoFocus className="command-input" value={query} aria-label="Paste a Solana or Robinhood contract address" placeholder="Paste contract address" spellCheck={false} autoComplete="off" onPaste={openPastedContract} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key === "Escape") setSearchOpen(false); }} />
-        <button className="search-submit" type="submit" aria-label="Open token"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button>
-        <button className="search-close" type="button" aria-label="Close market search" onClick={() => setSearchOpen(false)}>×</button>
-      </motion.form>}
-    </AnimatePresence>
-  </div>;
+  const scannerSearch = <form className="persistent-ca-search" role="search" onSubmit={event=>{event.preventDefault();void submitQuery();}}>
+    <label htmlFor="market-ca">CONTRACT / TOKEN</label>
+    <input id="market-ca" className="command-input" value={query} aria-label="Paste a Solana or Robinhood contract address" placeholder="Paste contract address · Enter to open" spellCheck={false} autoComplete="off" onChange={event=>setQuery(event.target.value)}/>
+    <button type="submit">OPEN ↵</button>
+  </form>;
 
   return (
     <main className="onchain-desk">
@@ -405,11 +446,12 @@ export function DeskPage({ config }: { config: PublicConfig }) {
         <SfxToggle />
         <AuthControls />
       </header>
+      {scannerSearch}
       {legacy && <MarketStrips market={legacy} onPick={focusSolana} />}
       {section !== "Trade" && <AccountScreen section="Portfolio" onBack={() => setSection("Trade")} />}
       <div className="desk-grid" style={section !== "Trade" ? {display:"none"} : undefined}>
         <WatchPanel
-          search={scannerSearch}
+
           market={{ provider: mergedProvider } as OnchainMarket}
           selected={instrument.address}
           onSpot={focusSolana}
@@ -430,7 +472,6 @@ export function DeskPage({ config }: { config: PublicConfig }) {
                   <button type="button" className={scaleMode === "log" ? "on" : ""} onClick={() => selectScale("log")}>LOG</button>
               </span>
               <span className="intervals">{intervals.map((item) => <button key={item} className={interval === item ? "on" : ""} title={ownTapeInterval(item) ? "Own-tape candles (priced ring prints, minutes of history)" : undefined} onClick={() => setIntervalValue(item)}>{item}</button>)}</span>
-              <button type="button" className="analyze-trigger" title="Synthesize token data into executable trade setups" disabled={!solana || !feed || !feed.candles.length} onClick={() => { setAnalysisOpen(true); notify({ title: `ANALYZING ${feed?.instrument.symbol || "TOKEN"}`, message: "Synthesizing momentum, Tier A net flow, liquidity, whale flow, and project intelligence.", tone: "success" }); }}>✦ ANALYZE</button>
             </div>
             <div className="chart-head-right">
               <span className="chart-hero">
@@ -439,20 +480,38 @@ export function DeskPage({ config }: { config: PublicConfig }) {
                 {chartUnitLabel && <em className={chartUnitLabel === "NO MCAP" ? "chart-unit warn" : "chart-unit"}>{chartUnitLabel}</em>}
                 {chartSub && <small className={`chart-sub${!useMcap ? " mcap-value" : ""}`}>{chartSub}</small>}
               </span>
-              <span className="chart-meta">{candles.length} BARS · {sourceLabel} · {activeInterval}{provenanceMeta ? ` · ${provenanceMeta}` : ""}{active.label ? ` · ${active.label}` : ""}{liveMeta ? ` · ${liveMeta}` : ""}{eventsMeta ? ` · ${eventsMeta}` : ""}{fomoMeta ? ` · ${fomoMeta}` : ""}</span>
-              {active.note && <span className="chart-meta chart-note" role="status">{active.note}</span>}
+              <button type="button" className="analyze-trigger" title="Synthesize token data into executable trade setups" disabled={!solana || !feed || !feed.candles.length} onClick={() => { setAnalysisOpen(true); notify({ title: `ANALYZING ${feed?.instrument.symbol || "TOKEN"}`, message: "Synthesizing momentum, Tier A net flow, liquidity, whale flow, and project intelligence.", tone: "success" }); }}>✦ ANALYZE</button>
             </div>
           </div>
+          <details className="chart-coverage">
+            <summary title={coverage.map(note => `${note.label}${note.partial ? " (partial or unknown)" : ""}: ${note.detail}`).join("\n")}>COVERAGE <small role="status" className={coverage.some(note => note.partial) ? "is-partial" : undefined}>{coverageHeadline(coverage)}</small></summary>
+            <dl className="coverage-notes">
+              {coverage.map(note => <div key={note.key} className={note.partial ? "is-partial" : undefined}>
+                <dt>{note.label}{note.partial ? <i title="Partial or unknown coverage" aria-label="partial or unknown coverage"> ●</i> : null}</dt>
+                <dd>{note.detail}{note.key === "event" && launchRow ? <button type="button" onClick={()=>chartRef.current?.seekTime(launchRow.createdAt)}>SEEK {new Date(launchRow.createdAt).toLocaleDateString("en-GB")}</button> : null}</dd>
+              </div>)}
+            </dl>
+          </details>
           <IndicatorBar value={indicators} onChange={setIndicators} />
-          <div className="chart-tools" role="toolbar" aria-label="Chart navigation tools">
-            <span className="chart-tool-status" title="Drag to pan. Scroll or pinch to zoom.">PAN · CROSSHAIR</span>
+          <div className="chart-tools" role="group" aria-label="Chart navigation tools">
+            <span className="chart-tool-status" id="chart-navigation-help" title="Drag to pan · scroll/pinch to zoom · drag either axis to scale · double-click an axis to reset · focus chart for +/− and arrow keys">DRAG · SCROLL TO ZOOM</span>
             {statusLine ? <span className="chart-tool-status system-status" title={statusLine.title}>{statusLine.text}</span> : null}
-            <DrawingToolbar tool={drawings?.tool ?? null} count={drawings?.count ?? 0} onTool={(tool) => drawingsApi?.setTool(tool)} onClear={() => drawingsApi?.clear()} />
             <button type="button" title="Zoom in" aria-label="Zoom chart in" onClick={() => chartRef.current?.zoomIn()}>＋</button>
             <button type="button" title="Zoom out" aria-label="Zoom chart out" onClick={() => chartRef.current?.zoomOut()}>−</button>
-            <button type="button" title="Restore the close candle view" onClick={() => chartRef.current?.resetView()}>RESET</button>
             <button type="button" title="Jump to the latest candle" onClick={() => chartRef.current?.goToRealtime()}>LIVE</button>
             <button type="button" title={chartExpanded ? "Exit expanded chart" : "Expand chart"} aria-pressed={chartExpanded} onClick={() => setChartExpanded((expanded) => !expanded)}>{chartExpanded ? "CLOSE" : "EXPAND"}</button>
+            <details className="tool-overflow">
+              <summary title="Drawing tools, candle height, and view controls">TOOLS ▾</summary>
+              <div className="tool-overflow-menu">
+                <DrawingToolbar tool={drawings?.tool ?? null} count={drawings?.count ?? 0} onTool={(tool) => drawingsApi?.setTool(tool)} onClear={() => drawingsApi?.clear()} />
+                <button type="button" aria-label="Increase candle height" title="Make candles taller (Shift + scroll also scales price)" onClick={() => chartRef.current?.tallerCandles()}>HEIGHT ＋</button>
+                <button type="button" aria-label="Decrease candle height" title="Make candles shorter" onClick={() => chartRef.current?.shorterCandles()}>HEIGHT −</button>
+                <button type="button" title="Unlock vertical movement; drag the chart to pan price and time. Reset restores automatic scaling." onClick={() => chartRef.current?.freeMove()}>FREE MOVE</button>
+                <button type="button" title="Fit all loaded price history" onClick={() => chartRef.current?.fitHistory()}>FIT ALL</button>
+                <button type="button" title="Restore automatic price scaling and the latest candles" onClick={() => chartRef.current?.resetView()}>RESET</button>
+                <button type="button" onClick={()=>setCommandsOpen(true)} title="Command palette (Ctrl/Cmd K)">⌘ K</button>
+              </div>
+            </details>
           </div>
           {spotLoading ? (
             <div className="integration-empty chart-loading"><span className="notification-pixel chart-loader" aria-hidden="true"><i /><i /><i /><i /></span><h2>LOADING {mintLabel}</h2><p>{error || "Fetching chart, intel, holders, and social for this contract."}</p></div>
@@ -466,9 +525,10 @@ export function DeskPage({ config }: { config: PublicConfig }) {
             mcapScale={useMcap ? scale.supply : null}
             onLiveStats={setLiveStats}
             scaleMode={scaleMode}
-            eventMarkers={events.markers}
-            flow={chartFlow}
-            fomoMarkers={fomo.markers}
+            eventMarkers={chartMarkers}
+            flow={aggregateChart}
+            onSelectTime={pickCandle}
+            onVisibleRange={onVisibleRange}
             compactAxis={useMcap}
             theme={theme}
             legendLabel={chartTitle}
@@ -482,13 +542,18 @@ export function DeskPage({ config }: { config: PublicConfig }) {
             <span>ATR14 <b>{money(technicals?.atr, chartPriceCompact)}</b></span>
             <span>SUP <b>{money(technicals?.low, chartPriceCompact)}</b></span>
             <span>RES <b>{money(technicals?.high, chartPriceCompact)}</b></span>
-            {readout.map((cell) => <span key={cell.key} title="Tier A pairs · ledger">{cell.label} <b className={cell.tone}>{cell.value}</b></span>)}
+            {aggregateCells.map(cell => <span key={cell.key} title={cell.title}>{cell.label} <b className={cell.tone}>{cell.value}</b></span>)}
             <span>REGIME <b className={biasTone(regimeLabel)}>{regimeLabel}</b></span>
           </div>
         </section>
-        <aside className="execution-rail">
-          <ExecutionRail instrument={instrument} feed={feed} legacy={legacy} iconUrl={tokenIconUrl} config={config} />
+        <aside className="execution-rail terminal-rail">
+          <div className="rail-tabs"><button className={railTab==="trader"?"active":""} onClick={()=>setRailTab("trader")}>TRADER CONTEXT</button><button className={railTab==="order"?"active":""} onClick={()=>setRailTab("order")}>ORDER &amp; PROJECT</button></div>
+          {railTab==="trader"?<TraderInspector baseline={participants.snapshots.find(s=>s.chain===selectedTrade?.chain&&s.wallet===selectedTrade?.wallet)} event={selectedTrade} events={terminal.events.filter(e=>replayTime==null||e.time<=replayTime)} candles={rawSpotCandles} intervalMs={intervalMs||60000} followed={followed} onFollow={followWallet} onSelect={selectTrade} onClose={()=>setSelectedTrade(null)}/>:<ExecutionRail instrument={instrument} feed={feed} legacy={legacy} iconUrl={tokenIconUrl} config={config} />}
         </aside>
+        <div className="terminal-tape-slot">
+          <TraderToolbar filter={tradeFilter} onFilter={setTradeFilter} status={replayTime?"REPLAY":terminal.status} connected={terminal.connected} matched={terminal.matched} loaded={visibleTrades.length} unplaced={participantMarkers.unplaced} following={followed.length} onClear={()=>setTradeFilter(DEFAULT_TRADE_FILTER)} paused={replayTime!=null} onPause={()=>setReplayTime(time=>time==null?Date.now():null)} breakdown={visible.breakdown} />
+          <TradeTape events={visibleTrades} selected={selectedTrade?.id??null} onSelect={selectTrade} loading={terminal.loading} hasMore={Boolean(terminal.nextCursor)} onMore={terminal.loadMore} paused={replayTime!=null} replayTime={replayTime} onReplay={setReplayTime} error={terminal.error}/>
+        </div>
         <FeatureSection id="social" className="radar-panel" meta={<span className="social-live"><i /> LIVE</span>}>
         {legacy && solana ? <SocialPanel
           market={{ ...legacy, provider: mergedProvider }}
@@ -512,6 +577,7 @@ export function DeskPage({ config }: { config: PublicConfig }) {
           </section>
         )}
       </div>
+      <TerminalCommand open={commandsOpen} onClose={()=>setCommandsOpen(false)} events={terminal.events} onSelect={selectTrade} onAction={action=>{if(action==="live"){setReplayTime(null);chartRef.current?.goToRealtime();}if(action==="fit")chartRef.current?.fitHistory();if(action==="reset")chartRef.current?.resetView();if(action==="expand")setChartExpanded(v=>!v);if(action==="replay")setReplayTime(t=>t==null?Date.now():null);}} />
       {legacy && solana && <AgenticAnalysisPanel open={analysisOpen} market={legacy} candles={legacy.candles} flow={analysisFlow} provider={analysisProvider} config={config} onClose={() => setAnalysisOpen(false)} />}
     </main>
   );

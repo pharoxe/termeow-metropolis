@@ -5,6 +5,7 @@ export type Side = "buy" | "sell";
 /** One pool print as ingested into the flow ledger. `usd` is null when it cannot be priced honestly. */
 export type FlowPrint = {
   eventId?: string;
+  /** Whole tokens as the producer decoded them (Solana swap delta, Robinhood Transfer units); never a usd/price back-calculation, which the archive derives for itself and labels as such. */
   quantity?: number;
   identitySource?: string;
   chain: Chain;
@@ -297,6 +298,8 @@ export type FomoFill = {
   symbol?: string | null;
   /** USD per token at the fill when the print carried one; null or absent otherwise. */
   price?: number | null;
+  /** Whole tokens the producer decoded for this fill; absent when the decoder had no decimals. */
+  quantity?: number;
   /** Transfer-decoded fills only: usd from the wallet's own quote Transfer ("wallet_leg") or the custody hub's USDG leg ("hub_leg"); absent when usd came with the print or is null. */
   usdVia?: "wallet_leg" | "hub_leg";
 };

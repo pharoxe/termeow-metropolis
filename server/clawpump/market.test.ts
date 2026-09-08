@@ -200,7 +200,7 @@ describe("resolveGeckoCandles", () => {
     expect(notes.some((note) => note.includes("GECKO_"))).toBe(true);
   });
 
-  it("stitches pump 1h history when 5m starts after launch", async () => {
+  it("keeps a uniform 5m history even when the provider caps it before launch", async () => {
     const created = 1_700_000_000_000;
     const fineStart = created + 2 * 86_400_000;
     const fineCount = 1000;
@@ -222,11 +222,11 @@ describe("resolveGeckoCandles", () => {
     vi.stubGlobal("fetch", fetchMock);
     const notes: string[] = [];
     const result = await resolveGeckoCandles(mint, pairs, "5m", notes);
-    expect(result.candles.length).toBeGreaterThan(fineCount);
-    expect(result.candles[0]?.time).toBe(created);
+    expect(result.candles.length).toBe(fineCount);
+    expect(result.candles[0]?.time).toBe(fineStart);
     expect(notes).toEqual(["OHLCV from pump.fun (gecko empty)"]);
     expect(geckoOhlcvCalls(fetchMock)).toHaveLength(1);
-    expect(pumpFunCalls(fetchMock).some((call) => String(call[0]).includes("interval=1h"))).toBe(true);
+    expect(pumpFunCalls(fetchMock).some((call) => String(call[0]).includes("interval=1h"))).toBe(false);
     expect(pumpFunCalls(fetchMock).some((call) => String(call[0]).includes("interval=4h"))).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import { ZodError } from "zod";
 import { config } from "./config.js";
 import { systemRouter } from "./routes/system.js";
 import { onchainRouter } from "./routes/onchain.js";
+import { terminalRouter } from "./routes/terminal.js";
 import { flowRouter } from "./routes/flow.js";
 import { flowCandlesRouter } from "./routes/flowCandles.js";
 import { marketRouter } from "./routes/market.js";
@@ -27,6 +28,7 @@ app.use(express.json({ limit: "256kb" }));
 
 app.use("/api", systemRouter);
 app.use("/api/onchain", onchainRouter);
+app.use("/api/terminal", terminalRouter);
 app.use("/api/flow", flowRouter);
 app.use("/api/flow", flowCandlesRouter);
 app.use("/api/market", marketRouter);

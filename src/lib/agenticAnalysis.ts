@@ -106,6 +106,7 @@ export function analyzeToken({ market, candles, flow, provider }: AgenticAnalysi
     providerRecord.top_movers,
     providerRecord.holders
   ]).toLowerCase();
+  const hasDistributionData = Boolean(providerRecord.intelligence_signals || providerRecord.anomalies || providerRecord.intelligence_market);
   const whaleSellRisk = /(whale.{0,35}(sell|exit|distribution))|((large|smart).{0,20}sell)/.test(intelligenceText);
   const sentiment = String(record(providerRecord.get_indicators).sentiment || "").toLowerCase();
   const bullishIntel = /(bull|positive|accumul)/.test(`${sentiment} ${intelligenceText.slice(0, 3500)}`);
@@ -125,7 +126,7 @@ export function analyzeToken({ market, candles, flow, provider }: AgenticAnalysi
     { label: "Stochastic RSI is at a local bottom", met: oversold },
     { label: `Positive ${flowName.toLowerCase()} confluence`, met: positiveFlow },
     { label: "Price is near local support", met: nearSupport },
-    { label: "No whale distribution signal", met: !whaleSellRisk }
+    { label: "Provider distribution coverage available with no sell signal", met: hasDistributionData && !whaleSellRisk }
   ];
   const score = (conditions: TradeCondition[], bias = 0) => bounded(35 + conditions.filter((item) => item.met).length * 14 + bias);
   const confidenceA = score(optionAConditions, bullishIntel ? 5 : 0);
@@ -135,7 +136,7 @@ export function analyzeToken({ market, candles, flow, provider }: AgenticAnalysi
   const confidence = riskOff ? bounded(55 + (overbought ? 15 : 0)) : Math.max(confidenceA, confidenceB);
   const flowPhrase = netFlowUsd == null ? "Tier A flow is still resolving" : positiveFlow ? `Tier A net flow over the last ${flowWindow} confirms net buying` : `Tier A net flow over the last ${flowWindow} is dominated by sells`;
   const momentumPhrase = stochK == null ? "momentum is warming up" : stochK <= 25 ? "Stochastic RSI is in its lower range" : stochK >= 80 ? "Stochastic RSI is extended" : "Stochastic RSI is mid-range";
-  const summary = `${market.symbol} is a ${signal.toLowerCase()} at the current structure: ${momentumPhrase}, ${flowPhrase}, and price is ${nearSupport ? "near" : "away from"} local support.${whaleSellRisk ? " Whale distribution risk is present." : " No whale sell alert is currently present."}`;
+  const summary = `${market.symbol} is a ${signal.toLowerCase()} at the current structure: ${momentumPhrase}, ${flowPhrase}, and price is ${nearSupport ? "near" : "away from"} local support.${whaleSellRisk ? " Whale distribution risk is present." : hasDistributionData ? " No whale sell alert was found in the available provider data." : " Whale distribution coverage is unavailable."}`;
 
   return {
     signal,

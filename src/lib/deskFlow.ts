@@ -165,7 +165,7 @@ function signTone(value: number | null | undefined): Tone {
   return value > 0 ? "up" : value < 0 ? "dn" : "";
 }
 
-export type ReadoutCell = { key: string; label: string; value: string; tone: Tone };
+export type ReadoutCell = { key: string; label: string; value: string; tone: Tone; title?: string };
 
 /**
  * Chart readout cells from the flow response (Tier A ledger). Windows are rolling and end at observedAt; the anchor
@@ -330,4 +330,101 @@ export function systemStatusLine(health: SystemHealth | null, now: number): Stat
     lines.push("no snapshot restored in this process");
   }
   return { text: parts.join(" · "), title: lines.join("\n") };
+}
+
+/** The aggregate-flow figures the desk shows, from AggregateFlow: captured pool trades in the requested range. */
+export type AggregateReadout = { capturedPools: number; knownPools: number; buyUsd: number; sellUsd: number; delta: number; trades: number; unpriced: number };
+export type AggregateState = { error: string; data: AggregateReadout | null };
+
+/**
+ * The three aggregate cells in the always-visible readout. Each one names the population and window it covers in its
+ * title rather than standing as a bare dollar figure, and both caveats travel with the numbers: rows the server could
+ * not price are summed as 0 (so the totals are floors, and `unpriced` says how many), and a failed poll leaves the
+ * previous window's numbers on screen, which is marked STALE here instead of only inside the coverage disclosure.
+ */
+export function aggregateReadoutCells(aggregate: AggregateState, windowLabel: string): ReadoutCell[] {
+  const flow = aggregate.data;
+  const stale = Boolean(aggregate.error) && Boolean(flow);
+  const coverage = flow
+    ? `Captured pool trades only, over ${windowLabel}. ${flow.capturedPools}/${flow.knownPools} known pools captured · ${flow.unpriced} of ${flow.trades} rows carry no USD and are summed as 0, so this is a floor, not a total.`
+    : aggregate.error || `Captured pool trades over ${windowLabel}; not loaded yet.`;
+  const title = stale ? `NOT CURRENT — the last aggregate poll failed (${aggregate.error}). Showing the previous response. ${coverage}` : coverage;
+  const value = (amount: number) => (flow ? `${money(amount, true)}${flow.unpriced ? ` (${flow.unpriced}u)` : ""}${stale ? " · STALE" : ""}` : EM_DASH);
+  return [
+    { key: "aggBuy", label: "AGG BUY", value: value(flow?.buyUsd ?? 0), tone: flow ? "up" : "", title },
+    { key: "aggSell", label: "AGG SELL", value: value(flow?.sellUsd ?? 0), tone: flow ? "dn" : "", title },
+    { key: "aggDelta", label: "WINDOW DELTA", value: value(flow?.delta ?? 0), tone: signTone(flow?.delta), title }
+  ];
+}
+
+export type CoverageNote = { key: string; label: string; detail: string; partial: boolean };
+export type CoverageInput = {
+  series: { bars: number; source: string; interval: string; meta: string; note: string | null };
+  aggregate: AggregateState;
+  launch: { launchpad: string; createdAt: number } | null;
+  replay: boolean;
+  baselines: { checked: number; total: number; refreshMs: number; error: string };
+};
+
+/**
+ * The caveat lines that used to stack above the canvas, folded into one ordered list for a single disclosure.
+ * Nothing is dropped: every line still names the population it covers, and `partial` marks the ones whose
+ * coverage is incomplete or unknown so the collapsed headline can say how many are.
+ */
+export function coverageNotes(input: CoverageInput): CoverageNote[] {
+  const { series, aggregate, launch, replay, baselines } = input;
+  const flow = aggregate.data;
+  const aggregateDetail = aggregate.error
+    ? aggregate.error
+    : flow
+      ? `${flow.capturedPools}/${flow.knownPools} known pools with captured trades · Buy ${money(flow.buyUsd, true)} · Sell ${money(flow.sellUsd, true)} · Delta ${money(flow.delta, true)} · ${flow.unpriced} of ${flow.trades} rows unpriced and summed as 0`
+      : "Loading captured pool flow…";
+  return [
+    {
+      key: "series",
+      label: "SERIES",
+      // The note is the caveat and the meta is provenance detail, so the note goes first: the headline is clipped
+      // from the right, and what gets dropped must be the detail, never the reason this series is not the usual one.
+      detail: `${series.bars} BARS · ${series.source} · ${series.interval}${series.note ? ` · ${series.note}` : ""}${series.meta ? ` · ${series.meta}` : ""}`,
+      partial: series.bars === 0 || Boolean(series.note)
+    },
+    {
+      key: "aggregate",
+      label: "AGGREGATE FLOW",
+      detail: aggregateDetail,
+      partial: Boolean(aggregate.error) || !flow || flow.capturedPools < flow.knownPools || flow.unpriced > 0
+    },
+    {
+      key: "cvd",
+      label: "CVD",
+      detail: "CVD starts at first displayed candle · all captured sizes · partial coverage · pool turnover, not net wallet inflow",
+      partial: true
+    },
+    {
+      key: "event",
+      label: "EVENT CONTEXT",
+      detail: `${launch ? `${launch.launchpad} launch` : "No sourced launch event in the loaded index"} · ${replay ? "REPLAY · completed candles only" : "Provider OHLCV · trade markers may cover additional venues"}`,
+      partial: !launch || replay
+    },
+    {
+      key: "baselines",
+      label: "PARTICIPANT BASELINES",
+      detail: `${baselines.checked}/${baselines.total} checked · refresh target ${Math.round(baselines.refreshMs / 60000)}m · up to 32 active wallets${baselines.error ? ` · ${baselines.error}` : ""}`,
+      partial: baselines.checked < baselines.total || Boolean(baselines.error)
+    }
+  ];
+}
+
+/**
+ * The one line a reader meets with the disclosure closed. The partial-coverage warning leads and names which notes
+ * are partial: the summary is clipped to one row, so whatever is last is what a narrow chart column drops, and that
+ * must never be the caveat. The series detail follows.
+ */
+export function coverageHeadline(notes: CoverageNote[]): string {
+  const partial = notes.filter((note) => note.partial);
+  const series = notes.find((note) => note.key === "series");
+  const head = partial.length
+    ? `${partial.length}/${notes.length} PARTIAL OR UNKNOWN: ${partial.map((note) => note.label).join(" · ")}`
+    : `${notes.length} coverage notes · none partial`;
+  return `${head} · ${series ? series.detail : "NO SERIES"}`;
 }

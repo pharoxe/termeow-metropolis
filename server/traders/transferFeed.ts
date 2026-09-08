@@ -381,6 +381,9 @@ export class TransferFeed {
         usd: fill.usd,
         source: "own",
         price: fill.price,
+        // The decoder's own token amount (whole tokens, decimals known). Carried even when usd is null: the size is
+        // decoded whether or not a cash leg could be tied to it, and the archive must not re-derive what it already has.
+        ...(fill.units !== null && fill.units > 0 ? { quantity: fill.units } : {}),
         ...(fill.usdVia ? { usdVia: fill.usdVia } : {}),
         trader: fill.wallet,
         token: fill.token,

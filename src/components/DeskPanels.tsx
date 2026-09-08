@@ -119,7 +119,7 @@ export function WatchPanel({
   const [tab, setTab] = useState<WatchTab>("TRENDING");
   /** R6: the ROBINHOOD/SOLANA toggle routes the discovery tabs; the ClawPump paths below stay Solana-only. */
   const { network } = useFundingNetwork();
-  const robinhoodDiscovery = network === "robinhood" && isDiscoverTab(tab);
+  const robinhoodDiscovery = isDiscoverTab(tab);
   const provider = record(market?.provider);
   const gems = rows(provider.anomalies, ["gems", "signals"]);
   const smartHolderRows = [...rows(provider.intelligence_signals, ["signals"]), ...gems].filter((item, index, all) => {
@@ -145,7 +145,8 @@ export function WatchPanel({
         <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW", "LAUNCHES", "FOMO", "ALERTS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
       </div>
       <div className="panel-scroll">
-        {robinhoodDiscovery && isDiscoverTab(tab) ? <DiscoverTab tab={tab} onOpen={onInstrument} selected={selected} /> : tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
+        <p className="terminal-notice">{tab === "TRENDING" ? "ATTENTION · provider-ranked tokens; compare activity with liquidity." : tab === "BIGGEST MOVERS" ? "MOMENTUM · change over the selected window, within the discovered universe." : tab === "SMART HOLDERS" ? "PARTICIPANTS · observed verified-FOMO buyers; not proven current holders or profitability." : tab === "NEW" || tab === "LAUNCHES" ? "EARLY MARKETS · inspect age, liquidity and launch stage before opening the chart." : tab === "FOMO" ? "SOCIAL FLOW · observed participant activity on the selected network." : "CATALYSTS · sourced events and their observation time."}</p>
+        {robinhoodDiscovery && isDiscoverTab(tab) ? <DiscoverTab chain={network} tab={tab} onOpen={onInstrument} selected={selected} /> : tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab chain={network} /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
           <table className="terminal-table"><thead><tr><th>TOKEN / SOCIAL</th><th className="r">MCAP / VOL</th></tr></thead><tbody>{sourceRows.slice(0, 48).map((item) => {
             const mint = String(item.mintAddress || "");
             return <tr className={mint && mint === selected ? "selected" : ""} key={mint || String(item.symbol)} onClick={() => pickSpot(item)}>

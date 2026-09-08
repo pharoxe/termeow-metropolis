@@ -19,6 +19,8 @@ import {
 const A = "https://robinhood-rpc.publicnode.com";
 const B = "https://rpc-robinhood.blockmachine.io";
 const C = "https://rpc.mainnet.chain.robinhood.com";
+/** A host with no measured cap, no logs ban and no 429 history: pure configured-order/in-flight ranking. */
+const NEUTRAL = "https://rpc.neutral.example.test";
 const T0 = 1_788_788_395_478; // 2026-09-07 19:09:55 IST
 
 type Reply = { status: number; body?: unknown; text?: string };
@@ -308,7 +310,9 @@ describe("EndpointPool recovery", () => {
       await new Promise<void>((resolve) => gates.push(resolve));
       return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: String(input) }), { status: 200 });
     });
-    const pool = new EndpointPool({ urls: [A, B, C], fetchImpl: slowNet as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
+    // Three hosts none of which is in DEPRIORITIZED_HOSTS: a 429-penalised host ranks last by design (that ordering is
+    // covered separately), which would collapse the fan-out onto two endpoints and hide what this test is about.
+    const pool = new EndpointPool({ urls: [A, B, NEUTRAL], fetchImpl: slowNet as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
     // nothing verified yet: the reservation is taken before the chain check, so the fan-out still spreads
     const fanOut = Promise.all(Array.from({ length: 6 }, () => pool.fetch(A, rpcInit("eth_blockNumber"))));
     await vi.waitFor(() => expect(gates).toHaveLength(6));
@@ -496,13 +500,14 @@ describe("EndpointPool logs routing by request shape", () => {
     expect(await small.json()).toMatchObject({ result: "0xb" });
     const atThreshold = await pool.fetch(A, logsInit(1, 2_000));
     expect(await atThreshold.json()).toMatchObject({ result: "0xb" });
-    // 9,999 blocks fit blockmachine's cap but exceed the backfill threshold: a backfill span goes to the largest range first
+    // 9,999 blocks are a backfill span, which prefers the largest range cap — but C is a DEPRIORITIZED_HOSTS 429 host,
+    // and that outranks the cap: it is used only for the span nothing cleaner can serve.
     const wide = await pool.fetch(A, logsInit(1, 9_999));
-    expect(await wide.json()).toMatchObject({ result: "0xc" });
+    expect(await wide.json()).toMatchObject({ result: "0xb" });
     const overCap = await pool.fetch(A, logsInit(1, 10_000));
     expect(await overCap.json()).toMatchObject({ result: "0xc" });
-    expect(getLogsCalls(net, B)).toHaveLength(2);
-    expect(getLogsCalls(net, C)).toHaveLength(2);
+    expect(getLogsCalls(net, B)).toHaveLength(3);
+    expect(getLogsCalls(net, C)).toHaveLength(1);
   });
 
   it("never sends a batched tick (speculative toBlock) to blockmachine, so one 429 on the tick endpoint does not also stall small getLogs there", async () => {

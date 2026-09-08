@@ -1,9 +1,11 @@
+import type { WalletPortfolio } from "../../shared/portfolio";
 import type { PublicConfig } from "../types";
 import type { AlertRule, AlertsResponse, Chain, DiscoverResponse, DiscoverView, DiscoverWindow, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, SystemHealth, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
+    signal: init?.signal ?? AbortSignal.timeout(45_000),
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) }
   });
   const body = await response.json().catch(() => null);
@@ -14,6 +16,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  capturedCandles: (chain: Chain, address: string, interval: FlowCandleInterval) => request<FlowCandlesResponse>(`/api/terminal/${chain}/${address}/candles?interval=${interval}`),
   config: () => request<PublicConfig>("/api/config"),
   market: (chain: Chain, address: string, interval = "5m") => request<MarketResponse>(`/api/market/${chain}/${address}?interval=${encodeURIComponent(interval)}`),
   flowToken: (chain: Chain, address: string, interval: string, anchor: TokenFlowResponse["anchor"] = "window") =>
@@ -50,7 +53,7 @@ export const api = {
   trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
   board: () => request<Record<string, unknown>>("/api/onchain/board"),
   holders: (mint: string) => request<Record<string, unknown>>(`/api/onchain/holders/${mint}`),
-  portfolio: (wallet: string) => request<Record<string, unknown>>(`/api/onchain/portfolio/${wallet}`),
+  portfolio: (wallet: string) => request<WalletPortfolio>(`/api/onchain/portfolio/${wallet}`),
   rpc: async <T>(method: string, params: unknown[]) => {
     const body = await request<{ result?: T; error?: { message?: string } }>("/api/rpc", {
       method: "POST",

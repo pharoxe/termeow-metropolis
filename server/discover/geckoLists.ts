@@ -54,7 +54,9 @@ export function tokenFromRelationshipId(id: unknown, network: Chain): string | n
   if (typeof id !== "string") return null;
   const prefix = `${network}_`;
   if (!id.startsWith(prefix)) return null;
-  const address = id.slice(prefix.length).trim().toLowerCase();
+  const raw = id.slice(prefix.length).trim();
+  if(network === "solana") return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(raw) ? raw : null;
+  const address=raw.toLowerCase();
   return /^0x[0-9a-f]{40}$/.test(address) ? address : null;
 }
 
@@ -77,7 +79,7 @@ export function normalizeGeckoListRow(row: GeckoListRow, index: number, kind: Ge
   if (!token) return null;
   const key = WINDOW_KEY[window];
   const createdAt = Date.parse(String(attrs.pool_created_at ?? ""));
-  const pool = typeof attrs.address === "string" && attrs.address.trim() ? attrs.address.trim().toLowerCase() : null;
+  const pool = typeof attrs.address === "string" && attrs.address.trim() ? (network === "solana" ? attrs.address.trim() : attrs.address.trim().toLowerCase()) : null;
   const dex = row.relationships?.dex?.data?.id;
   return {
     token,

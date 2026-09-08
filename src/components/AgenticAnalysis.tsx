@@ -95,7 +95,7 @@ function AnalysisSurface({ open, market, candles, flow, provider, config, onClos
       </header>
 
       <section className="analysis-verdict">
-        <div><span className={`analysis-signal ${analysis.signal === "BUY WATCH" ? "up" : analysis.signal === "RISK OFF" ? "dn" : ""}`}>{analysis.signal}</span><b>{analysis.confidence}% CONFIDENCE</b></div>
+        <div><span className={`analysis-signal ${analysis.signal === "BUY WATCH" ? "up" : analysis.signal === "RISK OFF" ? "dn" : ""}`}>{analysis.signal}</span><b>{analysis.confidence}/100 SETUP SCORE</b></div>
         <p>{analysis.summary}</p>
       </section>
 
@@ -117,7 +117,7 @@ function AnalysisSurface({ open, market, candles, flow, provider, config, onClos
           <span className="analysis-option-price">{setup.entryLabel} · {money(setup.entryPrice)}{setup.exitPrice ? ` → ${money(setup.exitPrice)}` : ""}</span>
           <span className="analysis-option-copy">{setup.rationale}</span>
           <span className="analysis-condition-row">{setup.conditions.map((condition) => <i key={condition.label} className={condition.met ? "met" : ""}>{condition.met ? "◆" : "◇"} {condition.label}</i>)}</span>
-          <span className="analysis-option-footer"><b>{setup.confidence}%</b><em>SELECT SETUP →</em></span>
+          <span className="analysis-option-footer"><b>{setup.confidence}/100</b><em>SELECT SETUP →</em></span>
         </button>)}
       </div>
 

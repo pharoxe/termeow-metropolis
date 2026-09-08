@@ -68,6 +68,26 @@ describe("LaunchService.enrichNames", () => {
     expect(resolve.mock.calls[0][0]).toBe(`0x${"1".padStart(40, "0")}`);
   });
 
+  it("rotates unresolved lookups so older names are eventually requested", async () => {
+    const resolve = vi.fn(async (_token: string) => null);
+    const { svc, index } = service({ resolve });
+    for (let i = 0; i < NAME_BATCH + 5; i++) index.upsert({ chain: "robinhood", token: `0x${String(i + 1).padStart(40, "0")}`, createdAt: NOW - i * 1000 });
+    await svc.refresh();
+    await svc.refresh();
+    expect(new Set(resolve.mock.calls.map(([token]) => token)).size).toBe(NAME_BATCH + 5);
+  });
+
+  it("keeps successful names when another contract lookup throws", async () => {
+    const { svc, index } = service({ resolve: async (token) => {
+      if (token === PONS) throw new Error("upstream failed");
+      return { symbol: "OK" };
+    } });
+    for (const token of [PONS, PROFILE]) index.upsert({ chain: "robinhood", token, createdAt: NOW });
+    await svc.refresh();
+    expect(index.get("robinhood", PROFILE)?.symbol).toBe("OK");
+    expect(svc.status().sources.find(source => source.name === ERC20_META_SOURCE)?.lastError).toBe("upstream failed");
+  });
+
   it("records a throwing lookup on the source health and keeps the rows unnamed", async () => {
     const { svc, index } = service({ resolve: async () => Promise.reject(new Error("eth_call: upstream returned 429")) });
     index.upsert({ chain: "robinhood", token: PONS, launchpad: "pons", createdAt: NOW - 1_000 });

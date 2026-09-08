@@ -274,6 +274,18 @@ describe("TraderService.recordTransferFills / fillsForToken", () => {
     expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)[0]).not.toHaveProperty("usdVia");
     expect(h.svc.fillsForToken("robinhood", "0x9999999999999999999999999999999999999999", 10)).toEqual([]);
   });
+
+  it("keeps a decoded quantity on both archive paths: the FOMO ledger print and the tape row bindArchive backfills from", () => {
+    const h = service({});
+    h.svc.recordTransferFills([fill(W1, "fomo", { quantity: 25 })]);
+    // Live path: fomoLedger.observe -> tradeArchive.ingest (server/terminal/live.ts).
+    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)[0]).toMatchObject({ quantity: 25 });
+    // Backfill path: fillsForToken -> tradeArchive.ingest on bindArchive, which is all a restarted archive sees.
+    expect(h.svc.fillsForToken("robinhood", TOKEN, 10)[0]).toMatchObject({ quantity: 25 });
+    // A fill the decoder could not size stays sizeless rather than arriving as 0.
+    h.svc.recordTransferFills([fill(W2, "fomo", { tx: "0xt9", time: NOW - 500 })]);
+    expect("quantity" in h.svc.fillsForToken("robinhood", TOKEN, 10)[0]).toBe(false);
+  });
 });
 
 describe("HandleBook -> seed wiring", () => {
