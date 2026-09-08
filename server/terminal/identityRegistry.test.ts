@@ -99,7 +99,38 @@ describe('identity registry',()=>{
       expect(coverage.observedWallets?.solana).toEqual({seen:3,named:1});
       expect(coverage.observedWallets?.robinhood).toEqual({seen:0,named:0});
       expect(coverage.boards[0].walletsRanked).toBe(316007);
+      // Both clocks and the sweep's own coverage reach the page: capturedAt is upstream's sample instant, observedAt
+      // this server's read of it, and the live boards hold them 4.8 days apart.
+      expect(coverage.boards[0].coverage).toBe(1);
+      expect(coverage.boards[0].capturedAt).toBe(1788464524000);
+      expect(coverage.boards[0].observedAt).toBe(NOW);
+      // Only the chains the registry holds rows for: robinhood is absent, never 0, because nothing named one.
+      expect(coverage.byChain).toEqual({solana:3});
       expect(coverage.bySource['fomoscan-board']).toBe(3);
+    }finally{registry.close();}
+  });
+
+  it('replaces the stored ranking rather than interleaving two capture instants',()=>{
+    const registry=new IdentityRegistry(':memory:');
+    const snapshot=(capturedAt:number,wallets:string[]):BoardSnapshot=>({
+      board:'fomoscan-traders',window:'24h',capturedAt,count:wallets.length,walletsRanked:316007,coverage:1,complete:true,
+      identities:[],
+      rankings:wallets.map((wallet,index)=>({
+        board:'fomoscan-traders' as const,window:'24h',rank:index+1,chain:'solana' as const,wallet,capturedAt,
+        pnlUsd:null,realizedPnlUsd:null,unrealizedPnlUsd:null,returnPct:null,volumeUsd:null,trades:null,
+        uniqueTokens:null,winRate:null,avgHoldSeconds:null,tokensCreated:null,walletFirstSeenAt:null
+      }))
+    });
+    try{
+      registry.record(snapshot(1000,['W1','W2','W3']),1000);
+      // The 24h board is a rolling window over 316,007 wallets and turns over most of its top rows between daily
+      // reads. The ranking rows are keyed on the wallet, so without a delete yesterday's W2 and W3 survive at ranks 2
+      // and 3 beside today's W4 and W5 — six rows, every rank printed twice, from two capture instants.
+      registry.record(snapshot(2000,['W1','W4','W5']),2000);
+      const rows=registry.ranked('fomoscan-traders','24h');
+      expect(rows.map((row)=>row.wallet)).toEqual(['W1','W4','W5']);
+      expect(rows.map((row)=>row.rank)).toEqual([1,2,3]);
+      expect([...new Set(rows.map((row)=>row.capturedAt))]).toEqual([2000]);
     }finally{registry.close();}
   });
 });
@@ -162,5 +193,29 @@ describe('board collector',()=>{
       expect(coverage.budget?.budget).toBe(25000);
       expect(coverage.identities).toBe(0);
     }finally{registry.close();meter.close();}
+  });
+
+  it('hands a ranked row the name the registry already holds, and null when it holds none',()=>{
+    const registry=new IdentityRegistry(':memory:');
+    try{
+      registry.record(normalizeFomoscanTraders(fixture('traders-fomoscan-24h'),NOW),NOW);
+      const ranked=registry.ranked('fomoscan-traders','24h');
+      // The board deposits the identity and the ranking in the same call, so every named row must come back named.
+      expect(ranked[0].identity?.handle).toBe('0xdedrater');
+      expect(ranked[0].identity?.displayName).toBe('Dedrater');
+      expect(ranked[0].identity?.followers).toBe(10695);
+      expect(ranked[0].rank).toBe(1);
+      expect(ranked[0].realizedPnlUsd).toBe(26005.26);
+      // A ranked wallet no board has named keeps its row and reports null rather than being dropped or guessed at.
+      const board=fixture('traders-fomoscan-24h');
+      board.entries[0].handle=null;board.entries[0].displayName=null;
+      const anonymous=new IdentityRegistry(':memory:');
+      anonymous.record(normalizeFomoscanTraders(board,NOW),NOW);
+      const rows=anonymous.ranked('fomoscan-traders','24h');
+      expect(rows).toHaveLength(3);
+      expect(rows[0].identity).toBeNull();
+      expect(rows[0].wallet).toBe(board.entries[0].wallet);
+      anonymous.close();
+    }finally{registry.close();}
   });
 });

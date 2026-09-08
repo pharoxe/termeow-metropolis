@@ -1,3 +1,4 @@
+import type { BoardKind, IdentityBoardResponse, IdentityCoverageResponse } from "../../shared/identity";
 import type { WalletPortfolio } from "../../shared/portfolio";
 import type { PublicConfig } from "../types";
 import type { AlertRule, AlertsResponse, Chain, DiscoverResponse, DiscoverView, DiscoverWindow, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, SystemHealth, TokenFlowResponse } from "../../shared/wire";
@@ -36,6 +37,14 @@ export const api = {
   },
   fomoBoard: (params: { chain?: FomoChainScope; window?: FomoBoardWindow } = {}) =>
     request<FomoBoardResponse>(`/api/fomo/board?${new URLSearchParams({ chain: params.chain ?? "all", window: params.window ?? "24h" }).toString()}`),
+  /** Registry size, the boards read and the CU meter; `account` is the whole key's balance, repolled every 5 min. */
+  identityCoverage: () => request<IdentityCoverageResponse>("/api/identity/coverage"),
+  /** A stored board snapshot, never a fresh sweep. The server 400s outside 1-100, so `limit` is clamped here. */
+  identityBoard: (board: BoardKind, window: string, limit?: number) => {
+    const rows = limit == null || !Number.isFinite(limit) ? null : Math.min(100, Math.max(1, Math.trunc(limit)));
+    const search = rows == null ? "" : `?${new URLSearchParams({ limit: String(rows) }).toString()}`;
+    return request<IdentityBoardResponse>(`/api/identity/board/${board}/${encodeURIComponent(window)}${search}`);
+  },
   /** Alert ring (newest first); `since` = the last observedAt seen, `rule` narrows to one rule. 200 + error/stale on failure. */
   alerts: (params: { chain?: FomoChainScope; since?: number; rule?: AlertRule; limit?: number } = {}) => {
     const search = new URLSearchParams({ chain: params.chain ?? "all" });

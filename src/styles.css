@@ -830,8 +830,10 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .trade-links > a { display:block; margin:10px 11px 0; padding:9px 10px; border:1px solid var(--line2); color:var(--amber2); font-size:11px; font-weight:600; letter-spacing:.06em; text-decoration:none; background:var(--surface); }
 .trade-links > a:hover { border-color:var(--accent); }
 .trade-links > a small { display:block; margin-top:3px; color:var(--muted); font-size:9px; font-weight:400; letter-spacing:0; }
-/* LAUNCHES tab (WatchPanel): fifth tab spans the 2-column tab grid; chips bar + 4-column table. */
-.watch-tabs button:last-child { grid-column:1 / -1; }
+/* WatchPanel tab grid is 2 columns, so a trailing odd tab spans both rather than leaving a dead cell beside it. The
+   :nth-child(odd) guard is what makes that self-maintaining: at 7 tabs ALERTS spanned, at 8 it pairs with SMART MONEY
+   and an unguarded rule would have left 164px empty. */
+.watch-tabs button:last-child:nth-child(odd) { grid-column:1 / -1; }
 .launch-bar { display:flex; align-items:center; flex-wrap:wrap; gap:4px; padding:5px 8px; border-bottom:1px solid var(--line); background:var(--panel-hi); }
 .launch-bar button { min-height:22px; border:1px solid var(--line2); padding:2px 6px; background:var(--surface); color:var(--muted); font-size:var(--fs-1); font-weight:700; letter-spacing:.6px; }
 .launch-bar button.on { color:var(--amber); border-color:var(--accent); background:var(--accent-soft); }
@@ -860,10 +862,16 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .alert-table td .chip { margin:0 4px 0 0; vertical-align:middle; }
 .alert-table .alert-lag { color:var(--red); }
 
+/* SMART MONEY watch tab: the rank/stat column wants the wider half back from the workspace's 38%, and the PAPER chip
+   needs the same in-`small` sizing every other rail table declares for itself. */
+.terminal-workspace .terminal-table.smart-money-table th:first-child { width:56%; }
+.smart-money-table td .chip { margin:0 0 0 3px; vertical-align:middle; }
+.smart-money-table td small .chip { font-size:var(--fs-1); padding:0 3px; }
+
 /* R6 desk integration: discovery tabs, feed health, toolbar status line */
 .discover-table th:first-child { width:46%; }
 .discover-sources { display:flex; flex-wrap:wrap; gap:3px; margin-top:2px; }
 .discover-sources .chip { font-size:var(--fs-1); padding:0 3px; }
-.discover-coverage { margin:0; padding:4px 8px; border-bottom:1px solid var(--line); }
+.discover-coverage,.smart-money-coverage { margin:0; padding:4px 8px; border-bottom:1px solid var(--line); }
 .flow-health { display:flex; flex-wrap:wrap; gap:4px; margin:0; padding:4px 8px; }
 .chart-tool-status.system-status { margin-right:0; margin-left:8px; }

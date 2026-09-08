@@ -1,6 +1,6 @@
 import {DatabaseSync} from 'node:sqlite';
 import type {Chain} from '../../shared/wire.js';
-import type {BoardKind,BoardSnapshot,IdentityCoverage,IdentitySource,TraderIdentity,TraderRanking} from '../../shared/identity.js';
+import type {BoardKind,BoardSnapshot,IdentityCoverage,IdentitySource,RankedTrader,TraderIdentity,TraderRanking} from '../../shared/identity.js';
 import {chainKey} from '../../shared/terminal.js';
 import type {CuBudget,CuBudgetState} from './cuBudget.js';
 import {FomoscanError,fetchBoard,type BoardRequest} from './fomoscanBoards.js';
@@ -45,6 +45,11 @@ export class IdentityRegistry{
     this.db.exec('BEGIN');
     try{
       for(const identity of snapshot.identities)this.upsert(identity);
+      // A stored ranking is one snapshot, never a pile of them. The rows are keyed on the wallet, so INSERT OR REPLACE
+      // alone leaves the previous read's wallets behind: the 24h/7d boards are a rolling window over 316,007 wallets
+      // and turn over most of their top 100 between daily reads, which would interleave two capture instants at the
+      // same ranks and hand ranked() a table that is half a day old with every rank printed twice.
+      this.db.prepare('DELETE FROM rankings WHERE board=? AND window=?').run(snapshot.board,snapshot.window);
       for(const ranking of snapshot.rankings)
         this.db.prepare('INSERT OR REPLACE INTO rankings VALUES(?,?,?,?,?,?,?)')
           .run(ranking.board,ranking.window,ranking.chain,ranking.wallet,ranking.rank,ranking.capturedAt,JSON.stringify(ranking));
@@ -63,10 +68,22 @@ export class IdentityRegistry{
     return this.db.prepare(`SELECT ${COLUMNS} FROM identities WHERE handle=? COLLATE NOCASE ORDER BY chain`)
       .all(handle) as TraderIdentity[];
   }
-  ranked(board:BoardKind,window:string,limit=100):TraderRanking[]{
-    const rows=this.db.prepare('SELECT body FROM rankings WHERE board=? AND window=? ORDER BY rank LIMIT ?')
-      .all(board,window,limit) as {body:string}[];
-    return rows.map((row)=>JSON.parse(row.body) as TraderRanking);
+  /**
+   * A board's rows with the name the registry already holds for each wallet. The boards deposit those identities
+   * themselves, so the join is a local read costing nothing — without it the tab renders an address where the same
+   * database row two tables over says "Dedrater". A null identity means no board we have read named that wallet.
+   */
+  ranked(board:BoardKind,window:string,limit=100):RankedTrader[]{
+    const rows=this.db.prepare(`SELECT r.body, ${COLUMNS.split(',').map((c)=>`i.${c} AS i_${c}`).join(',')}
+      FROM rankings r LEFT JOIN identities i ON i.chain=r.chain AND i.wallet=r.wallet
+      WHERE r.board=? AND r.window=? ORDER BY r.rank LIMIT ?`)
+      .all(board,window,limit) as Array<{body:string}&Record<string,unknown>>;
+    return rows.map((row)=>{
+      const ranking=JSON.parse(row.body) as TraderRanking;
+      const identity=row.i_wallet==null?null:Object.fromEntries(
+        COLUMNS.split(',').map((column)=>[column,row[`i_${column}`]])) as unknown as TraderIdentity;
+      return {...ranking,identity};
+    });
   }
   /** When a board was last read, so a collector can pace itself without a second source of truth. */
   boardObservedAt(board:BoardKind,window:string):number|null{
@@ -75,7 +92,7 @@ export class IdentityRegistry{
     return row?.observedAt??null;
   }
   private counts(){
-    const byChain={} as Record<Chain,number>,bySource={} as Record<IdentitySource,number>;
+    const byChain:Partial<Record<Chain,number>>={},bySource={} as Record<IdentitySource,number>;
     for(const source of SOURCES)bySource[source]=0;
     const rows=this.db.prepare('SELECT chain,source,COUNT(*) n FROM identities GROUP BY chain,source')
       .all() as {chain:Chain;source:IdentitySource;n:number}[];
@@ -102,7 +119,7 @@ export class IdentityRegistry{
     const budget=options.budget;
     return {
       identities,byChain,bySource,observedWallets,
-      boards:this.db.prepare('SELECT board,window,capturedAt,count,walletsRanked FROM boards ORDER BY board,window')
+      boards:this.db.prepare('SELECT board,window,capturedAt,count,walletsRanked,coverage,observedAt FROM boards ORDER BY board,window')
         .all() as IdentityCoverage['boards'],
       budget:budget?{period:budget.period,spent:budget.spent,budget:budget.budget,allowance:Math.floor(budget.allowance),
         accountRemaining:budget.accountRemaining,checkedAt:budget.checkedAt}:null,

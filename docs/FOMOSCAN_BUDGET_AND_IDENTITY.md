@@ -69,6 +69,10 @@ Three boards refreshed daily cost about 22,500 CU a month. The first sweep on 20
 identities for 500 CU and named one wallet already trading in this server's own Solana tape — the first named Solana
 trader the desk has had.
 
+A stored ranking is one snapshot, not an accumulation: `record()` clears the previous rows for that board and window
+inside the same transaction. The rows are keyed on the wallet, and a rolling 24h board over 316,007 wallets turns over
+most of its top 100 between daily reads, so without that clear the two reads interleave and every rank appears twice.
+
 Sources are ranked when two of them name the same wallet: `fomo-profile` > `pump-profile` > `fomoscan-board` >
 `pump-board`. A board listing never overwrites a resolved profile.
 
@@ -79,13 +83,21 @@ Sources are ranked when two of them name the same wallet: `fomo-profile` > `pump
   separately and must be presented separately.
 - `walletsRanked` and `coverage` describe the population a board was drawn from. A board is the top of a sweep, never
   the top of everyone trading.
-- `capturedAt` is a single instant; upstream samples every 30 seconds.
+- `capturedAt` is a single instant, and it is **upstream's, not ours**. The boards table stores this server's read as
+  `observedAt` beside it, and they run days apart: on 2026-09-08 the fomoscan 24h board carried capturedAt
+  2026-09-03 19:42Z against observedAt 15:27Z the same day — a 4.8-day-old sample this desk had fetched 28 minutes
+  earlier, with the meter unthrottled. `/coverage` returns both and the tab prints both ("captured 5d ago · read 28m
+  ago"), because attaching our verb to upstream's clock blames the wrong side for the staleness.
+- A board's `rank` is the board's own, and the two boards rank on different numbers: the FomoScan sweep on realized
+  PnL, pump.fun on realized **plus** unrealized. So the pump weekly realized column climbs down the ranking
+  (-$1.15K, +$9.58K, +$538.5K, +$1.29M across ranks 1-4, with 18 of 100 rows negative on the taken leg). Anything
+  showing the rank has to say which number produced it.
 
 ## Routes
 
 | Route | What it does |
 | --- | --- |
-| `GET /api/identity/coverage` | registry size by chain and source, boards read, named share of the wallets this server has seen, budget and account state |
+| `GET /api/identity/coverage` | registry size by chain (only the chains with rows — an absent chain was never observed) and source, each board with both clocks and its sweep coverage, named share of the wallets this server has seen, budget and account state |
 | `GET /api/identity/board/:board/:window` | a stored ranking |
 | `GET /api/identity/wallet/:chain/:address` | registry lookup only — a miss means "not named by a board we have read", never "this wallet has no owner" |
 | `GET /api/identity/handle/:handle` | every address held for one handle, which is how a trader is linked across chains |
