@@ -8,6 +8,7 @@ import { chainKey, type TradeEvent, type TradeHistory } from "../../shared/termi
 export class TradeArchive {
   private db: DatabaseSync;
   private sequence = 0;
+  private scopeRevisions = new Map<string,number>();
   private listeners = new Set<() => void>();
   private pairs = new Map<string, { token: string; dex: string }>();
   private walletCache = new Map<Chain, { at: number; wallets: string[] }>();
@@ -23,6 +24,7 @@ export class TradeArchive {
       CREATE TABLE IF NOT EXISTS changes (revision INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL, received INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS pairs (chain TEXT, pair TEXT, token TEXT, dex TEXT, PRIMARY KEY(chain,pair));`);
     this.sequence = Number((this.db.prepare("SELECT COALESCE(MAX(revision),0) AS n FROM changes").get() as {n:number}).n);
+    for (const row of this.db.prepare("SELECT chain,token,MAX(revision) revision FROM trades GROUP BY chain,token").all() as Array<{chain:string;token:string;revision:number}>) this.scopeRevisions.set(`${row.chain}:${row.token}`,row.revision);
     for (const row of this.db.prepare("SELECT * FROM pairs").all() as Array<{chain: Chain; pair: string; token: string; dex: string}>) this.pairs.set(`${row.chain}:${row.pair}`, row);
   }
   bind(chain: Chain, token: string, rows: PairRow[]) {
@@ -38,6 +40,7 @@ export class TradeArchive {
   }
   ingest(prints: FlowPrint[], tokenHint?: string, dexHint?: string) {
     let changed = false;
+    const changedScopes=new Map<string,number>();
     try {
       this.db.exec("BEGIN");
       for (const p of prints) {
@@ -88,13 +91,14 @@ export class TradeArchive {
         event.revision = Number(this.db.prepare("INSERT INTO changes(id,received) VALUES (?,?)").run(id, Date.now()).lastInsertRowid);
         this.sequence = event.revision;
         this.db.prepare("INSERT OR REPLACE INTO trades VALUES (?,?,?,?,?,?,?,?)").run(id, p.chain, token, pair, tx, event.time, event.revision, JSON.stringify(event));
+        changedScopes.set(`${p.chain}:${token}`,event.revision);
         changed = true;
       }
-      this.db.exec("COMMIT"); this.error = null;
+      this.db.exec("COMMIT"); for(const [key,revision] of changedScopes)this.scopeRevisions.set(key,revision); this.error = null;
     } catch (e) { try { this.db.exec("ROLLBACK"); } catch {} this.error = String(e); }
     if (changed) for (const fn of this.listeners) fn();
   }
-  revision() { return this.sequence; }
+  revision(chain?:Chain,token?:string) { return chain&&token ? this.scopeRevisions.get(`${chain}:${chainKey(chain,token)}`)??0 : this.sequence; }
   subscribe(fn: () => void) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; }
   history(chain: Chain, token: string, from: number, to: number, limit = 500, cursor?: string): TradeHistory {
     token = chainKey(chain, token);

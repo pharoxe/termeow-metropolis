@@ -99,8 +99,8 @@ function providerImageUrl(value: unknown): string | null {
   return visit(value);
 }
 
-export type TileProps={config:PublicConfig;tile:ChartTileState;isActive:boolean;slots:{header:HTMLElement;discovery:HTMLElement;context:HTMLElement;rail:HTMLElement};onInstrument:(id:string,instrument:InstrumentRef)=>void;onInterval:(id:string,interval:string)=>void;onNew:(instrument:InstrumentRef)=>void;onSection:(section:string)=>void;onReplay:(id:string,time:number|null)=>void;linkedReplay?:{source:string;time:number|null;revision:number};crosshairBus:CrosshairBus;theme:"dark"|"light";setTheme:(value:"dark"|"light")=>void;onCrosshair:(id:string,time:number|null)=>void};
-export function InstrumentTile({ config,tile,isActive,slots,onInstrument,onInterval,onNew,onSection,onReplay,linkedReplay,crosshairBus,onCrosshair,theme,setTheme }: TileProps) {
+export type TileProps={onName:(key:string,name:string)=>void;config:PublicConfig;tile:ChartTileState;isActive:boolean;slots:{header:HTMLElement;discovery:HTMLElement;context:HTMLElement;rail:HTMLElement};onInstrument:(id:string,instrument:InstrumentRef)=>void;onInterval:(id:string,interval:string)=>void;onNew:(instrument:InstrumentRef)=>void;onSection:(section:string)=>void;onReplay:(id:string,time:number|null)=>void;linkedReplay?:{source:string;time:number|null;revision:number};crosshairBus:CrosshairBus;theme:"dark"|"light";setTheme:(value:"dark"|"light")=>void;onCrosshair:(id:string,time:number|null)=>void};
+export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,onInterval,onNew,onSection,onReplay,linkedReplay,crosshairBus,onCrosshair,theme,setTheme }: TileProps) {
 
   const { network, setNetwork } = useFundingNetwork();
   const { notify } = useNotifications();
@@ -121,20 +121,12 @@ export function InstrumentTile({ config,tile,isActive,slots,onInstrument,onInter
   const lastNotifiedError = useRef("");
   const [indicators, setIndicators] = useState(()=>{try{return {...initialIndicators,...JSON.parse(localStorage.getItem(`tile-indicators:${tile.id}`)??'{}')};}catch{return initialIndicators;}});
   useEffect(()=>{try{localStorage.setItem(`tile-indicators:${tile.id}`,JSON.stringify(indicators));}catch{}},[indicators,tile.id]);
-  const [board, setBoard] = useState<Row>({});
-  const [spot, setSpot] = useState<MarketResponse | null>(null);
   const [error, setError] = useState("");
   const [trenchSort, setTrenchSort] = useState<"hot" | "new" | "mcap" | "volume">("hot");
-  const [trenches, setTrenches] = useState<Row>({});
-  const [holders, setHolders] = useState<Row>({});
-  const [flowState, setFlowState] = useState<TokenFlowResponse | null>(null);
   /** Own-tape candles for the 5S/15S chips; null until the route answered (or while a minute+ interval is selected). */
   const capturedLoader = useRef<(()=>void)|null>(null);
-  const [ownCandles, setOwnCandles] = useState<FlowCandlesResponse | null>(null);
-  const [launchRows, setLaunchRows] = useState<LaunchRow[]>([]);
   const [liveStats, setLiveStats] = useState<LiveCandleStats | null>(null);
   /** GET /api/health for the toolbar status line (RPC endpoint pool + snapshot age); null until answered. */
-  const [health, setHealth] = useState<SystemHealth | null>(null);
   const [drawingsApi, setDrawingsApi] = useState<DrawingsApi | null>(null);
   const [drawings, setDrawings] = useState<DrawingsSnapshot | null>(null);
   const [chartUnit, setChartUnit] = useState<ChartUnit>(()=>readStored(`tile-unit:${tile.id}`,["price","mcap"],"price"));
@@ -178,16 +170,18 @@ export function InstrumentTile({ config,tile,isActive,slots,onInstrument,onInter
   const healthQuery=useResource('health',()=>api.health(),30000);
   const launchesQuery=useResource(`launches:${instrument.chain}`,()=>api.launches({chain:instrument.chain,window:'24h',stocks:true}),LAUNCH_POLL_MS);
   const capturedQuery=useResource(ownInterval?`captured:${instrumentKey(instrument)}:${ownInterval}`:null,()=>api.capturedCandles(instrument.chain,instrument.address,ownInterval!),OWN_TAPE_POLL_MS);
-  useEffect(()=>{setSpot(marketQuery.data);setError(marketQuery.error||marketQuery.data?.error||'');},[marketQuery.data,marketQuery.error]);
-  useEffect(()=>{setFlowState(flowQuery.data);},[flowQuery.data]);
-  useEffect(()=>{setBoard(object(boardQuery.data));},[boardQuery.data]);
-  useEffect(()=>{setTrenches(object(trenchesQuery.data));},[trenchesQuery.data]);
-  useEffect(()=>{setHolders(object(holderQuery.data));},[holderQuery.data]);
-  useEffect(()=>{setHealth(healthQuery.data);},[healthQuery.data]);
-  useEffect(()=>{setLaunchRows(launchesQuery.data?.launches??[]);},[launchesQuery.data]);
-  useEffect(()=>{setOwnCandles(capturedQuery.data);},[capturedQuery.data]);
+  const spot=marketQuery.data;
+  const flowState=flowQuery.data;
+  const board=useMemo(()=>object(boardQuery.data),[boardQuery.data]);
+  const trenches=useMemo(()=>object(trenchesQuery.data),[trenchesQuery.data]);
+  const holders=useMemo(()=>object(holderQuery.data),[holderQuery.data]);
+  const health=healthQuery.data;
+  const launchRows=useMemo(()=>launchesQuery.data?.launches??[],[launchesQuery.data]);
+  const ownCandles=capturedQuery.data;
+  useEffect(()=>{setError(marketQuery.error||marketQuery.data?.error||'');},[marketQuery.data,marketQuery.error]);
 
   const feed = spot && sameInstrument(spot.instrument, instrument) ? spot : null;
+  useEffect(()=>{if(feed?.instrument.symbol)onName(instrumentKey(instrument),feed.instrument.symbol);},[feed?.instrument.symbol,instrument.chain,instrument.address,onName]);
   const legacy = useMemo(() => (feed ? legacyMarket(feed) : null), [feed]);
   useEffect(() => {
     if (!drawingsApi) {
@@ -301,8 +295,6 @@ export function InstrumentTile({ config,tile,isActive,slots,onInstrument,onInter
     if (!isValidInstrument(next)) return;
     if (!sameInstrument(next, instrument)) notify({ title: `OPENING ${symbol?.toUpperCase() || "TOKEN"}`, message: "Loading the selected contract and its live market context.", tone: "info" });
     setInstrument(next);
-    setSpot((current) => (current && sameInstrument(current.instrument, next) ? current : null));
-    setFlowState(null);
     setQuery(symbol ? symbol.toUpperCase() : next.address);
     setError("");
   };
@@ -366,6 +358,13 @@ export function InstrumentTile({ config,tile,isActive,slots,onInstrument,onInter
         <AuthControls />
       </header>
       {scannerSearch}
+      <div className="data-health-strip" role="status" aria-label="Market data health">
+        <b>{terminal.connected?'STREAM CONNECTED':'RECONNECTING'}</b>
+        <span>Market {marketQuery.updatedAt?`${Math.max(0,Math.floor((terminal.now-marketQuery.updatedAt)/1000))}s ago${terminal.now-marketQuery.updatedAt>90000?' · STALE':''}`:'pending'}</span>
+        <span>Flow {flowQuery.updatedAt?`${Math.max(0,Math.floor((terminal.now-flowQuery.updatedAt)/1000))}s ago${terminal.now-flowQuery.updatedAt>45000?' · STALE':''}`:'pending'}</span>
+        <span>Captured coverage · expand COVERAGE for pools</span>
+        {(marketQuery.error||flowQuery.error||terminal.error)&&<span className="amber">{marketQuery.error||flowQuery.error||terminal.error}</span>}
+      </div>
       {legacy && <MarketStrips market={legacy} onPick={focusSolana} />}
       {section !== "Trade" && <AccountScreen section="Portfolio" onBack={() => setSection("Trade")} />}
       </>,slots.header)}

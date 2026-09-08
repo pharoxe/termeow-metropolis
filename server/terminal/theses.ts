@@ -6,7 +6,12 @@ import {THESIS_WINDOWS,type ThesisWindow,type ThesisSummary,type TokenThesis} fr
 import type {ThesisPage} from './thesisSource.js';
 import type {CuBudget} from './cuBudget.js';
 
-type Job={chain:Chain;token:string;cursor:string|null;scanStarted:number|null;scanInvalid:boolean;scanCount:number;coverageFrom:number|null;coverageTo:number|null;lastOk:number|null;error:string|null};
+type Job={chain:Chain;token:string;cursor:string|null;scanStarted:number|null;scanInvalid:boolean;scanCount:number;coverageFrom:number|null;coverageTo:number|null;lastOk:number|null;error:string|null;headNext?:boolean};
+export function decodeThesisCursor(cursor:string):[number,string]{
+  const value=JSON.parse(Buffer.from(cursor,'base64url').toString());
+  if(!Array.isArray(value)||value.length!==2||!Number.isSafeInteger(value[0])||value[0]<0||typeof value[1]!=='string'||!value[1].startsWith('fomoscan:'))throw new Error('Invalid thesis cursor');
+  return value as [number,string];
+}
 const REFRESH=300000,HISTORY=14*86400000;
 export class ThesisStore{
   private db:DatabaseSync;
@@ -43,7 +48,7 @@ export class ThesisStore{
     const invalid=job.scanInvalid||page.skipped>0;
     const finished=!page.hasMore||(oldest!=null&&oldest<=started-HISTORY);
     const count=job.scanCount+page.items.length;
-    const next:Job={...job,lastOk:now,error:null,scanInvalid:invalid,scanCount:count,scanStarted:started,cursor:page.nextBefore};
+    const next:Job={...job,lastOk:now,error:null,scanInvalid:invalid,scanCount:count,scanStarted:started,cursor:page.nextBefore,headNext:true};
     if(finished){
       // An empty first response can mean the provider is still harvesting; never interpret that as full zero coverage.
       if(count>0&&!invalid){next.coverageFrom=page.hasMore?oldest:0;next.coverageTo=started;}
@@ -51,27 +56,32 @@ export class ThesisStore{
     }else if(page.nextBefore===job.cursor)throw new Error('Thesis cursor did not advance');
     this.save(next,now+REFRESH);
   }
+  completeHead(job:Job,page:ThesisPage,now:number){
+    this.ingest(page.items);
+    const contiguous=page.skipped===0&&page.items.length>0&&job.coverageTo!=null&&page.oldestTime!=null&&page.oldestTime<=job.coverageTo;
+    this.save({...job,lastOk:now,error:null,headNext:false,coverageTo:contiguous?now:job.coverageTo},now+REFRESH);
+  }
   /**
    * Hold a job without losing its backfill position. A budget refusal is not a source failure: the cursor and the
    * scan so far are still valid, and throwing them away would make the next affordable page restart the walk.
    */
   defer(job:Job,reason:string,until:number){this.save({...job,error:reason},until);}
-  fail(job:Job,now:number,error:string){this.save({...job,error,cursor:null,scanStarted:null,scanCount:0,scanInvalid:false},now+REFRESH);}
+  fail(job:Job,now:number,error:string){this.save({...job,error},now+REFRESH);}
   private save(job:Job,due:number){this.db.prepare('UPDATE thesis_jobs SET due=?,body=? WHERE key=?').run(due,JSON.stringify(job),`${job.chain}:${job.token}`);}
   summary(chain:Chain,token:string,window:ThesisWindow,now:number,connected:boolean,cursor?:string):ThesisSummary{
     token=chainKey(chain,token);
     const row=this.db.prepare('SELECT body FROM thesis_jobs WHERE key=?').get(`${chain}:${token}`) as {body:string}|undefined;
     const job:Job|undefined=row?JSON.parse(row.body):undefined;
-    const end=job?.coverageTo??job?.lastOk??now;
+    const end=job?.lastOk??now;
     const duration=THESIS_WINDOWS[window],from=end-duration,previousFrom=from-duration;
     const where="chain=? AND token=? AND json_extract(body,'$.deletedAt') IS NULL";
     const count=(a:number,b:number)=>(this.db.prepare(`SELECT COUNT(*) n FROM thesis_posts WHERE ${where} AND time>? AND time<=?`).get(chain,token,a,b) as {n:number}).n;
     const current=count(from,end),previous=count(previousFrom,from);
-    const completeCurrent=job?.coverageFrom!=null&&job.coverageTo!=null&&job.coverageFrom<=from;
+    const completeCurrent=job?.coverageFrom!=null&&job.coverageTo!=null&&job.coverageTo>=end&&job.coverageFrom<=from;
     const completePrevious=completeCurrent&&job!.coverageFrom!<=previousFrom;
     const authorRows=this.db.prepare(`SELECT COUNT(DISTINCT json_extract(body,'$.authorId')) n,SUM(json_extract(body,'$.authorId') IS NULL) missing FROM thesis_posts WHERE ${where} AND time>? AND time<=?`).get(chain,token,from,end) as {n:number;missing:number|null};
     let after:[number,string]|null=null;
-    if(cursor){const value=JSON.parse(Buffer.from(cursor,'base64url').toString());if(!Array.isArray(value)||!Number.isFinite(value[0])||typeof value[1]!=='string')throw new Error('Invalid thesis cursor');after=value as [number,string];}
+    if(cursor)after=decodeThesisCursor(cursor);
     const rows=this.db.prepare(`SELECT body FROM thesis_posts WHERE ${where} AND time>? AND time<=? ${after?'AND (time<? OR (time=? AND id<?))':''} ORDER BY time DESC,id DESC LIMIT 26`).all(chain,token,from,end,...(after?[after[0],after[0],after[1]]:[])) as {body:string}[];
     const items:TokenThesis[]=rows.slice(0,25).map(r=>JSON.parse(r.body));const last=items.at(-1);
     const known=Boolean(job?.lastOk);
@@ -106,14 +116,14 @@ export class ThesisCollector{
     }
     this.busy=true;
     try{
-      const page=await this.load(job.chain,job.token,job.cursor);
-      this.budget?.record(now,'thesisPage');
-      this.store.completePage(job,page,this.now());
+      const recent=Boolean(job.cursor&&job.headNext!==false);
+      const page=await this.load(job.chain,job.token,recent?null:job.cursor);
+      if(recent)this.store.completeHead(job,page,this.now());
+      else this.store.completePage(job,page,this.now());
     }catch(e){
       // A served error still cost a page; only a refusal before the meter does not, and /v2/me reconciles either way.
-      this.budget?.record(now,'thesisPage');
       this.store.fail(job,this.now(),e instanceof Error?e.message:'Thesis source unavailable');
-    }finally{this.busy=false;}
+    }finally{this.budget?.record(now,'thesisPage');this.busy=false;}
   }
   state(){return {deferred:this.deferred};}
 }

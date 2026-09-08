@@ -1,3 +1,4 @@
+import {TERMINAL_COLORS} from "../../lib/themeTokens";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type { IPrimitivePaneRenderer, IPrimitivePaneView, ISeriesPrimitive, PrimitiveHoveredItem, SeriesAttachedParameter, Time } from "lightweight-charts";
 import {
@@ -18,9 +19,10 @@ import { EMPTY_STATE, type Draft, type Drawing, type DrawingsState } from "./sta
 /** Colours are CSS strings supplied by the host; these defaults mirror src/styles.css tokens. */
 export type DrawingTheme = { line: string; selected: string; text: string; labelBg: string; up: string; down: string; handle: string; font: string };
 
-const FONT = '10px "Home Video", monospace';
-export const DARK_DRAWING_THEME: DrawingTheme = { line: "#8c9daf", selected: "#69acff", text: "#f4fff6", labelBg: "#101611", up: "#42c99a", down: "#ef7885", handle: "#f4fff6", font: FONT };
-export const LIGHT_DRAWING_THEME: DrawingTheme = { line: "#1269bd", selected: "#007c40", text: "#172019", labelBg: "#f7faf5", up: "#00d86a", down: "#ce2945", handle: "#172019", font: FONT };
+const FONT = '10px ui-monospace, monospace';
+function drawingTheme(mode:'dark'|'light'):DrawingTheme{const c=TERMINAL_COLORS[mode];return {line:c.label,selected:c.select,text:c['text-strong'],labelBg:c.surface,up:c.up,down:c.down,handle:c['text-strong'],font:FONT};}
+export const DARK_DRAWING_THEME=drawingTheme('dark');
+export const LIGHT_DRAWING_THEME=drawingTheme('light');
 
 export type Formatters = { price: (price: number) => string; time: (epochMs: number) => string };
 

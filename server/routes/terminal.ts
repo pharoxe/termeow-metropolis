@@ -25,7 +25,7 @@ async function prepare(params: unknown) {
 }
 function snapshot(chain: "solana"|"robinhood", address:string):TerminalSnapshot {
   const history=tradeArchive.history(chain,address,0,Date.now(),200);
-  return { chain,token:address,events:history.events,revision:history.revision,observedAt:Date.now(),health:liveDeps.collector.status?.(chain,address).feedHealth??null,archiveError:tradeArchive.error };
+  return { chain,token:address,events:history.events,revision:tradeArchive.revision(chain,address),observedAt:Date.now(),health:liveDeps.collector.status?.(chain,address).feedHealth??null,archiveError:tradeArchive.error };
 }
 terminalRouter.get("/:chain/:address/history",async(req,res,next)=>{
   try {
@@ -59,24 +59,24 @@ terminalRouter.get("/:chain/:address/aggregate",(req,res,next)=>{
   }catch(e){next(e);}
 });
 let connections=0;
-const workspaceScopes=new Map<string,{refs:number;scope:ReturnType<typeof flowParamsSchema.parse>;ready:ReturnType<typeof prepare>|null;lastTouch:number}>();
+const workspaceScopes=new Map<string,{refs:number;scope:ReturnType<typeof flowParamsSchema.parse>;ready:ReturnType<typeof prepare>|null;lastTouch:number;lastRegistry:number;cached?:{key:string;body:TerminalSnapshot}}>();
 terminalRouter.get('/workspace/stream',async(req,res,next)=>{
   let scopes:Array<{chain:'solana'|'robinhood';address:string}>;
   try{scopes=z.array(flowParamsSchema).min(1).max(4).parse(JSON.parse(String(req.query.scopes))).filter((s,i,all)=>all.findIndex(x=>x.chain===s.chain&&x.address===s.address)===i);}catch(e){res.status(400).json({error:'Invalid workspace scopes'});return;}
   if(connections>=16){res.status(503).json({error:'Live connection limit reached'});return;}
   connections++;let closed=false;
   const keys=scopes.map(s=>`${s.chain}:${s.address}`);
-  for(let i=0;i<scopes.length;i++){const existing=workspaceScopes.get(keys[i]);if(existing)existing.refs++;else workspaceScopes.set(keys[i],{refs:1,scope:scopes[i],ready:null,lastTouch:0});}
+  for(let i=0;i<scopes.length;i++){const existing=workspaceScopes.get(keys[i]);if(existing)existing.refs++;else workspaceScopes.set(keys[i],{refs:1,scope:scopes[i],ready:null,lastTouch:0,lastRegistry:0});}
   res.setHeader('Content-Type','text/event-stream');res.setHeader('Cache-Control','no-cache, no-transform');res.flushHeaders();res.write('retry: 2000\n\n');
   const revisions=new Map<string,string>();
   const timer=setInterval(()=>{
     if(closed||res.writableNeedDrain)return;
     for(const key of keys){
       const entry=workspaceScopes.get(key);if(!entry)continue;
-      if(Date.now()-entry.lastTouch>10000){entry.lastTouch=Date.now();if(!entry.ready)entry.ready=prepare(entry.scope);void entry.ready.then(scope=>{if(entry.refs>0)liveDeps.collector.subscribe(scope.chain,scope.address,scope.pairs.filter(p=>!isLaunchpadRow(p)));}).catch(()=>{entry.ready=null;if(!closed)res.write(`event: scope-error\ndata: ${JSON.stringify({...entry.scope,error:'Pool source unavailable; retrying'})}\n\n`);});}
-      const revision=`${tradeArchive.revision()}:${Math.floor(Date.now()/10000)}`;
+      if(Date.now()-entry.lastTouch>10000){entry.lastTouch=Date.now();if(!entry.ready||Date.now()-entry.lastRegistry>60000){entry.lastRegistry=Date.now();entry.ready=prepare(entry.scope);}void entry.ready.then(scope=>{if(entry.refs>0)liveDeps.collector.subscribe(scope.chain,scope.address,scope.pairs.filter(p=>!isLaunchpadRow(p)));}).catch(()=>{entry.ready=null;if(!closed)res.write(`event: scope-error\ndata: ${JSON.stringify({...entry.scope,error:'Pool source unavailable; retrying'})}\n\n`);});}
+      const revision=`${tradeArchive.revision(entry.scope.chain,entry.scope.address)}:${Math.floor(Date.now()/10000)}:${tradeArchive.error??""}`;
       if(revisions.get(key)===revision)continue;
-      try{const body=snapshot(entry.scope.chain,entry.scope.address);res.write(`event: snapshot\ndata: ${JSON.stringify(body)}\n\n`);revisions.set(key,revision);}catch{/* Retry at the next tick. */}
+      try{const body=entry.cached?.key===revision?entry.cached.body:snapshot(entry.scope.chain,entry.scope.address);entry.cached={key:revision,body};res.write(`event: snapshot\ndata: ${JSON.stringify(body)}\n\n`);revisions.set(key,revision);}catch{/* Retry at the next tick. */}
     }
   },1000);timer.unref();
   res.on('close',()=>{closed=true;connections--;clearInterval(timer);for(const key of keys){const entry=workspaceScopes.get(key);if(entry&&--entry.refs===0)workspaceScopes.delete(key);}});

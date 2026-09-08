@@ -1,11 +1,29 @@
 import {describe,it,expect} from 'vitest';
-import {ThesisCollector,ThesisStore} from './theses';
+import {ThesisCollector,ThesisStore,decodeThesisCursor} from './theses';
 import {normalizeThesisPage} from './thesisSource';
 import {CuBudget} from './cuBudget';
 const token='So11111111111111111111111111111111111111112',now=1800000000000;
 const raw=(items:unknown[])=>({tokenAddress:token,tokenNetwork:'sol',hasMore:false,nextBefore:null,items});
 const post=(id:string,time:number,text='A thesis')=>({id,authorHandle:'trader',authorId:'one',thesis:text,fomoCreatedAt:time});
 describe('thesis source and aggregate',()=>{
+  it('alternates recent pages with backfill without losing the history cursor',async()=>{
+    const store=new ThesisStore(':memory:');let clock=now;const cursors:Array<string|null>=[];
+    const collector=new ThesisCollector(store,async(_chain,_token,cursor)=>{
+      cursors.push(cursor);
+      return normalizeThesisPage({...raw([post(String(cursors.length),clock-1000)]),hasMore:true,nextBefore:cursor?'older-2':'older-1'},'solana',token,clock);
+    },()=>clock);
+    try{
+      store.watch('solana',token,clock);
+      await collector.tick();clock+=300000;await collector.tick();clock+=300000;await collector.tick();
+      expect(cursors).toEqual([null,null,'older-1']);
+      expect(store.summary('solana',token,'1h',clock,true).count).toBe(3);
+      expect(store.summary('solana',token,'1h',clock,true).change).toBeNull();
+    }finally{store.close();}
+  });
+  it('rejects invalid cursors before querying storage',()=>{
+    for(const value of ['bad',JSON.stringify([-1,'fomoscan:a']),JSON.stringify([1,'wrong']),JSON.stringify([1,'fomoscan:a',3])])expect(()=>decodeThesisCursor(Buffer.from(value).toString('base64url'))).toThrow();
+    expect(decodeThesisCursor(Buffer.from('[1,"fomoscan:a"]').toString('base64url'))).toEqual([1,'fomoscan:a']);
+  });
   it('deduplicates deliveries and edits while comparing equal windows',()=>{
     const store=new ThesisStore(':memory:');
     try{

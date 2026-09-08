@@ -9,6 +9,13 @@ const pair={pairAddress:"pool",dex:"test"} as PairRow;
 const print=(extra:Partial<FlowPrint>={}):FlowPrint=>({chain:"solana",pair:"pool",tx:"CaseSensitiveTx",time:1000,side:"buy",usd:10,price:2,source:"geckoterminal",...extra});
 function archive(){const a=new TradeArchive();archives.push(a);a.bind("solana","Token",[pair]);return a;}
 describe("durable event archive",()=>{
+  it("keeps unrelated token revisions unchanged",()=>{
+    const a=archive();a.ingest([print()]);const before=a.revision('solana','Token');
+    a.ingest([print({tx:'other'})],'AnotherToken');
+    expect(a.revision('solana','Token')).toBe(before);
+    expect(a.revision('solana','AnotherToken')).toBeGreaterThan(before);
+    expect(a.revision('solana','Unknown')).toBe(0);
+  });
   it("deduplicates provider deliveries and upgrades identity without changing event identity",()=>{
     const a=archive();a.ingest([print(),print()]);const revision=a.revision();a.ingest([print()]);expect(a.revision()).toBe(revision);
     a.ingest([print({source:"own",trader:{address:"Wallet",kind:"other",handle:null,followers:null}})]);

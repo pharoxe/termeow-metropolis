@@ -1,22 +1,8 @@
 /* Final visual contract for the trading workspace. Legacy pages keep their own styling. */
 .terminal-workspace{
-  --bg:#070b09;--bg2:#0c120f;--surface:#0c120f;--surface2:#142019;
-  --panel:#0c120f;--panel-hi:#111b15;--hover:#1a3022;
-  --line:#213428;--line2:#34523e;--chart-bg:#0c120f;
-  --text:#cbded1;--text-strong:#edfff3;--muted:#94ad9d;--meta:#94ad9d;
-  --label:#abc8b5;--select:#39ff88;--warning:#e0c374;--warning-bg:#292416;
-  --up:#42c99a;--down:#ef7885;--accent:#39ff88;
   --amber:var(--label);--amber2:var(--text-strong);--blue:var(--select);--green:var(--up);--red:var(--down);
   --terminal-font:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   font:12px/1.45 var(--terminal-font)!important;color:var(--text);
-}
-:root[data-theme=light] .terminal-workspace{
-  --bg:#e5eee7;--bg2:#f6faf7;--surface:#f6faf7;--surface2:#e7f0ea;
-  --panel:#f6faf7;--panel-hi:#edf5ef;--hover:#d9efdf;
-  --line:#cfdfd4;--line2:#abc4b3;--chart-bg:#f6faf7;
-  --text:#263d2f;--text-strong:#142a1c;--muted:#506b5b;--meta:#506b5b;
-  --label:#45634f;--select:#087443;--warning:#715700;--warning-bg:#fff5cf;
-  --up:#0a7a4b;--down:#c02d43;--accent:#087443;
 }
 .terminal-workspace :is(button,input,select,textarea,table,th,td,.pt,.chart-head-right,.chart-head-right *,.chart-readout,.mcap-value,.project-description,.thesis-heading,.thesis-metrics,.trader-toolbar,.participant-tape,.terminal-rail){font-family:var(--terminal-font)!important;letter-spacing:0;font-variant-numeric:tabular-nums;}
 .terminal-workspace :is(button,select,input,textarea){border-radius:0!important;}
@@ -63,7 +49,6 @@
 .terminal-workspace *::-webkit-scrollbar{display:block!important;width:6px!important;height:6px!important;}
 .terminal-workspace *::-webkit-scrollbar-thumb{background:var(--line2);}
 @media(prefers-reduced-motion:reduce){.terminal-workspace *{animation:none!important;transition:none!important;}}
-
 /* Pixel typography identifies the terminal; values retain the tabular data face. */
 .terminal-workspace .app-header button,
 .terminal-workspace .workspace-controls>strong,

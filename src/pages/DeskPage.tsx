@@ -1,3 +1,5 @@
+import {instrumentKey} from "../lib/instrument";
+import {terminalStyle} from "../lib/themeTokens";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PublicConfig } from '../types';
 import type { InstrumentRef } from '../lib/address';
@@ -10,6 +12,10 @@ import {useTheme} from '../components/ThemeToggle';
 
 export function DeskPage({config}:{config:PublicConfig}){
   const [theme,setTheme]=useTheme();
+  const [names,setNames]=useState<Record<string,string>>({});
+  const reportName=useCallback((key:string,name:string)=>setNames(old=>old[key]===name?old:{...old,[key]:name}),[]);
+  const [panels,setPanels]=useState(()=>{try{const p=JSON.parse(localStorage.getItem('terminal-panels')??'{}');return {left:Math.max(170,Math.min(360,Number(p.left)||240)),right:Math.max(230,Math.min(420,Number(p.right)||280)),hideLeft:p.hideLeft===true,hideRight:p.hideRight===true};}catch{return {left:240,right:280,hideLeft:false,hideRight:false};}});
+  useEffect(()=>{try{localStorage.setItem('terminal-panels',JSON.stringify(panels));}catch{}},[panels]);
   const [crosshairBus]=useState(createCrosshairBus);
   const [workspace,setWorkspace]=useState<WorkspaceState>(()=>{const fallback={chain:'solana' as const,address:config.ansemMint};try{return restoreWorkspace(JSON.parse(localStorage.getItem(WORKSPACE_KEY)??'null'),fallback);}catch{return initialWorkspace(fallback);}});
   const [header,setHeader]=useState<HTMLDivElement|null>(null);
@@ -33,7 +39,7 @@ export function DeskPage({config}:{config:PublicConfig}){
     const handle=(e:KeyboardEvent)=>{if(!(e.altKey&&/^[1-4]$/.test(e.key)))return;const tile=workspace.tiles[Number(e.key)-1];if(tile){e.preventDefault();setWorkspace(w=>({...w,activeId:tile.id}));}};
     window.addEventListener('keydown',handle);return()=>window.removeEventListener('keydown',handle);
   },[workspace.tiles]);
-  return <main className="onchain-desk terminal-workspace" data-layout={workspace.layout} data-section={section}>
+  return <main className="onchain-desk terminal-workspace" style={{...terminalStyle(theme),...{"--discovery-width":`${panels.left}px`,"--context-width":`${panels.right}px`} as React.CSSProperties}} data-hide-left={panels.hideLeft} data-hide-right={panels.hideRight} data-layout={workspace.layout} data-section={section}>
     <div ref={setHeader} className="workspace-header"/>
     <div className="workspace-controls" aria-label="Chart workspace controls">
       <strong>WORKSPACE</strong>
@@ -45,9 +51,15 @@ export function DeskPage({config}:{config:PublicConfig}){
       <label><input type="checkbox" checked={linkInterval} onChange={e=>setLinkInterval(e.target.checked)}/>Timeframe</label>
       <label><input type="checkbox" checked={linkCrosshair} onChange={e=>setLinkCrosshair(e.target.checked)}/>Crosshair</label>
       <label><input type="checkbox" checked={linkReplay} onChange={e=>setLinkReplay(e.target.checked)}/>Replay</label>
+      <details className="panel-options"><summary>PANELS</summary><div>
+        <label><input type="checkbox" checked={!panels.hideLeft} onChange={e=>{const hideLeft=!e.currentTarget.checked;setPanels(p=>({...p,hideLeft}));}}/>Discovery</label>
+        <label>Discovery width <input aria-label="Discovery panel width" type="range" min="170" max="360" value={panels.left} onChange={e=>{const left=Number(e.currentTarget.value);setPanels(p=>({...p,left}));}}/></label>
+        <label><input type="checkbox" checked={!panels.hideRight} onChange={e=>{const hideRight=!e.currentTarget.checked;setPanels(p=>({...p,hideRight}));}}/>Trader context</label>
+        <label>Context width <input aria-label="Trader context panel width" type="range" min="230" max="420" value={panels.right} onChange={e=>{const right=Number(e.currentTarget.value);setPanels(p=>({...p,right}));}}/></label>
+      </div></details>
       <small>{workspace.tiles.length}/4 charts · Alt + 1–4 to focus</small>
     </div>
-    <div className="workspace-tabs" aria-label="Open charts">{workspace.tiles.map((tile,index)=><button key={tile.id} aria-pressed={tile.id===workspace.activeId} onClick={()=>setWorkspace(w=>({...w,activeId:tile.id}))}>{index+1} · {tile.instrument.chain==='solana'?'SOL':'RHC'} · {tile.instrument.address.slice(0,6)}… · {tile.interval}</button>)}</div>
+    <div className="workspace-tabs" aria-label="Open charts">{workspace.tiles.map((tile,index)=><button key={tile.id} aria-pressed={tile.id===workspace.activeId} onClick={()=>setWorkspace(w=>({...w,activeId:tile.id}))}>{index+1} · {tile.instrument.chain==='solana'?'SOL':'RHC'} · {names[instrumentKey(tile.instrument)]??'TOKEN'} · {tile.instrument.address.slice(0,6)}… · {tile.interval}</button>)}</div>
     <div className="workspace-body">
       <div ref={setDiscovery} className="workspace-discovery"/>
       <div className="workspace-center"><div className="workspace-charts">
@@ -58,7 +70,7 @@ export function DeskPage({config}:{config:PublicConfig}){
             <button title="Maximize chart" onClick={()=>setWorkspace(w=>({...w,activeId:tile.id,layout:w.layout==='single'?(w.tiles.length>2?'grid':'columns'):'single'}))}>{workspace.layout==='single'?'RESTORE':'MAX'}</button>
             <button aria-label={`Close chart ${index+1}`} disabled={workspace.tiles.length===1} onClick={()=>setWorkspace(w=>closeTile(w,tile.id))}>×</button>
           </div>
-          <InstrumentTile config={config} tile={tile} isActive={tile.id===workspace.activeId} slots={{header,discovery,context,rail}} onInstrument={changeInstrument} onInterval={changeInterval} onNew={openNew} onSection={setSection} linkedReplay={linkReplay?replay:undefined} onReplay={reportReplay} crosshairBus={crosshairBus} onCrosshair={reportCrosshair} theme={theme} setTheme={setTheme}/>
+          <InstrumentTile onName={reportName} config={config} tile={tile} isActive={tile.id===workspace.activeId} slots={{header,discovery,context,rail}} onInstrument={changeInstrument} onInterval={changeInterval} onNew={openNew} onSection={setSection} linkedReplay={linkReplay?replay:undefined} onReplay={reportReplay} crosshairBus={crosshairBus} onCrosshair={reportCrosshair} theme={theme} setTheme={setTheme}/>
         </article>)}
       </div>
       <div ref={setContext} className="workspace-context"/>

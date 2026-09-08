@@ -1,3 +1,4 @@
+import {chartPalette} from "../lib/themeTokens";
 import { rebaseViewport, zoomViewport } from "../lib/chartViewport";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
@@ -89,10 +90,7 @@ const MIN_FLOW_BARS = 2;
 const compactFormat = { type: "custom" as const, minMove: 1, formatter: (value: number) => axisUsd(value) };
 /** Canvas colours cannot read CSS custom properties, so the chart's copy of the roles lives here: `up`/`down` are
  *  the direction hues (--up / --down), `select` is the one selection hue (--select) shared with markers and drawings. */
-const PALETTE = {
-  light: { background: "#f6faf7", text: "#506b5b", grid: "#e2ece5", crosshair: "#729680", border: "#cfdfd4", up: "#0a7a4b", down: "#c02d43", select: "#087443" },
-  dark: { background: "#0c120f", text: "#94ad9d", grid: "rgba(100,145,120,0.10)", crosshair: "#638671", border: "#213428", up: "#42c99a", down: "#ef7885", select: "#39ff88" }
-} as const;
+const PALETTE = {light:chartPalette("light"),dark:chartPalette("dark")};
 
 const closes = (candles: Candle[]) => candles.map((candle) => candle.close);
 const utc = (candle: Candle) => toSeconds(candle.time) as UTCTimestamp;
