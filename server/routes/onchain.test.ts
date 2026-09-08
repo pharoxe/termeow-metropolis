@@ -10,7 +10,9 @@ import { onchainRouter } from "./onchain";
 import { clawpumpMcp } from "../clawpump/mcp";
 import { fetchJson } from "../lib/http";
 let server: Server, base: string;
-const order = { inputMint: "So11111111111111111111111111111111111111112", outputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", amount: "1000000000", slippageBps: 50, walletAddress: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump" };
+// `router` is explicit because the schema defaults it to "0x": these cases are about the ClawPump route checks, and
+// a default would quietly send them down the 0x builder instead.
+const order = { router: "clawpump" as const, inputMint: "So11111111111111111111111111111111111111112", outputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", amount: "1000000000", slippageBps: 50, walletAddress: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump" };
 beforeAll(async()=>{ const app=express();app.use(express.json());app.use(onchainRouter);server=app.listen(0,"127.0.0.1");await new Promise<void>(r=>server.once("listening",r));base=`http://127.0.0.1:${(server.address() as {port:number}).port}`; });
 afterAll(()=>new Promise<void>(r=>server.close(()=>r())));
 const post=(path:string,body:unknown)=>fetch(base+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
@@ -18,7 +20,7 @@ it("rejects changed order without consuming quote, then builds matching order on
  vi.mocked(clawpumpMcp.call).mockResolvedValue({ok:true,tool:"swap_quote",data:{...order,inAmount:order.amount,routePlan:[]}});
  const q=await (await post("/quote",order)).json();
  expect(q.expiresAt).toBeGreaterThan(Date.now());
- for(const change of [{amount:"99"},{slippageBps:500},{inputMint:order.outputMint},{outputMint:order.inputMint},{walletAddress:order.inputMint}]) {
+ for(const change of [{amount:"99"},{slippageBps:500},{inputMint:order.outputMint},{outputMint:order.inputMint},{walletAddress:order.inputMint},{router:"0x" as const}]) {
   expect((await post("/transaction",{...order,...change,quoteId:q.quoteId})).status).toBe(409);
  }
  expect(fetchJson).not.toHaveBeenCalled();

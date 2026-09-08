@@ -8,11 +8,12 @@ import App from "./App";
 import { WalletProviders } from "./auth/WalletProviders";
 import { WorkspaceFeatures } from "./features/WorkspaceFeatures";
 import { NotificationProvider } from "./components/NotificationSystem";
+import { TermeowAgentProvider } from "./features/voice-agent";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <NotificationProvider><WalletProviders><WorkspaceFeatures><App /></WorkspaceFeatures></WalletProviders></NotificationProvider>
+      <NotificationProvider><WalletProviders><WorkspaceFeatures><TermeowAgentProvider><App /></TermeowAgentProvider></WorkspaceFeatures></WalletProviders></NotificationProvider>
     </BrowserRouter>
   </StrictMode>
 );

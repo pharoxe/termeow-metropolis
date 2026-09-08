@@ -5,16 +5,18 @@ export function matchesOrder(a: Order, b: Order): boolean {
 export function matchesRoute(route: Record<string, unknown>, order: Order): boolean {
   return route.inputMint === order.inputMint && route.outputMint === order.outputMint && route.inAmount === order.amount && route.slippageBps === order.slippageBps;
 }
+/** Which venue produced a quote. A quote is only executable through the router that built it. */
+export type RouterId = "0x" | "clawpump";
 export class QuoteCache {
-  private entries = new Map<string, { expiresAt: number; quote: unknown; order: Order }>();
+  private entries = new Map<string, { expiresAt: number; quote: unknown; order: Order; router: RouterId }>();
   constructor(private readonly max = 1000, private readonly ttl = 60_000, private readonly now = Date.now) {}
   prune() { for (const [id, entry] of this.entries) if (entry.expiresAt <= this.now()) this.entries.delete(id); }
-  set(id: string, quote: unknown, order: Order) {
+  set(id: string, quote: unknown, order: Order, router: RouterId) {
     this.prune();
     this.entries.delete(id);
     while (this.entries.size >= this.max) this.entries.delete(this.entries.keys().next().value!);
     const expiresAt = this.now() + this.ttl;
-    this.entries.set(id, { expiresAt, quote, order: { ...order } });
+    this.entries.set(id, { expiresAt, quote, order: { ...order }, router });
     return expiresAt;
   }
   get(id: string) { this.prune(); return this.entries.get(id); }

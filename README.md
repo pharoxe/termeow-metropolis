@@ -45,16 +45,16 @@ The repo is a single Node service: `npm run build` then `npm start`.
 | `railway.toml` | Railway Dockerfile builder and `/api/health` check |
 | `Procfile` | `web: npm start` for Heroku-style hosts |
 
-Do not copy `.env` into the image. Set secrets on the host. Typical platform variables: `NODE_ENV=production`, `PORT` (provided by the host), `HOST=0.0.0.0`, plus the keys in [API keys](docs/API_KEYS.md). Keep `ENABLE_MAINNET_EXECUTION=false` until a controlled wallet test has passed.
+Do not copy `.env` into the image. Set secrets on the host. Typical platform variables: `NODE_ENV=production`, `PORT` (provided by the host), `HOST=0.0.0.0`, plus the keys in [API keys](docs/API_KEYS.md).
 
 ## Safety model
 
-- Mainnet execution is opt-in through `ENABLE_MAINNET_EXECUTION=true`.
-- Spot transactions are returned unsigned and signed by the connected Phantom/Solflare wallet. Private keys never enter this app.
+- Mainnet routing is available by default through the selected 0x or ClawPump/Jupiter adapter.
+- Spot transactions are returned unsigned and signed by the connected Privy wallet. Private keys never enter this app.
 - Privy is the embedded-wallet path when `VITE_PRIVY_APP_ID` is set.
-- Session permissions are stored locally until MagicBlock delegation scopes are finalized; wallet signatures remain mandatory.
+- Wallet signatures remain mandatory for every submitted spot transaction.
 - Phoenix writes are isolated from spot routes and use the configured ClawPump agent.
-- ElevenLabs is intentionally not installed yet.
+- ElevenLabs is lazy-loaded and activated only after explicit user interaction.
 
 ## Commands
 

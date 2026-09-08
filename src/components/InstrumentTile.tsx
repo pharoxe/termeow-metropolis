@@ -44,6 +44,7 @@ import { AccountScreen } from "../components/AccountScreens";
 import { AgenticAnalysisPanel } from "../components/AgenticAnalysis";
 import { SfxToggle, useNotifications } from "../components/NotificationSystem";
 import { useFundingNetwork } from "../features/NetworkContext";
+import { AgentHeaderButton, useAgent } from "../features/voice-agent";
 
 type ChartUnit = "price" | "mcap";
 type Row = Record<string, unknown>;
@@ -106,6 +107,18 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
   const { notify } = useNotifications();
   const [section, setSectionLocal] = useState("Trade");
   useEffect(()=>{if(isActive)onSection(section);},[isActive,section,onSection]);
+  // Only the focused tile describes the desk to the voice agent: with up to four charts open, every tile reporting
+  // would leave the agent answering about whichever one re-rendered last rather than the one being looked at.
+  const voiceAgent = useAgent();
+  useEffect(() => {
+    if (!isActive) return;
+    voiceAgent.updateContext({
+      route: section.toLowerCase(),
+      chain: tile.instrument.chain,
+      token: { address: tile.instrument.address, symbol: undefined },
+      chart: { timeframe: tile.interval }
+    });
+  }, [isActive, section, tile.instrument.chain, tile.instrument.address, tile.interval, voiceAgent.updateContext]);
   const setSection=(value:string)=>{setSectionLocal(value);onSection(value);};
 
   const instrument=tile.instrument;
@@ -346,7 +359,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
       <div className="desk-grainient" aria-hidden="true" />
       <header className="app-header desk-header">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">▦</span><strong>termeow</strong><b>{brandSuffix(instrument.chain)}</b>
+          <span className="brand-mark" aria-hidden="true"><img src="/termeow-logo.svg" alt="" /></span><strong>termeow</strong><b>{brandSuffix(instrument.chain)}</b>
         </div>
         <nav className="primary-navigation" aria-label="Main navigation">{["Trade", "Portfolio"].map(item => <button key={item} aria-current={section === item ? "page" : undefined} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
         <nav className="mode-switch funding-network-picker header-network-picker" aria-label="Funding network">
@@ -355,6 +368,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
         </nav>
         <ThemeToggle theme={theme} onChange={setTheme} />
         <SfxToggle />
+        <AgentHeaderButton />
         <AuthControls />
       </header>
       {scannerSearch}

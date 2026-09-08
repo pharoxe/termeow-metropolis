@@ -15,6 +15,7 @@ function decodeBase64(value: string) {
 }
 
 type Props = { config: PublicConfig; mint?: string; symbol?: string };
+type RouterId = "0x" | "clawpump";
 
 function PrivySpotTradeTicket(props: Props) {
   const { wallets } = useWallets();
@@ -35,6 +36,7 @@ function TradeTicketSurface({ config, mint, symbol, walletAddress, send }: Props
   const tokenMint = mint || config.ansemMint;
   const tokenSymbol = (symbol || "TOKEN").toUpperCase();
   const [side, setSide] = useState<"buy" | "sell">("buy");
+  const [router, setRouter] = useState<RouterId>("0x");
   const [amount, setAmount] = useState("25");
   const [slippagePct, setSlippagePct] = useState(0.5);
   const [quote, setQuote] = useState<Record<string, unknown> | null>(null);
@@ -44,7 +46,9 @@ function TradeTicketSurface({ config, mint, symbol, walletAddress, send }: Props
   const revision = useRef(0);
   const orderRef = useRef<Record<string, unknown> | null>(null);
   const invalidate = () => { revision.current++; orderRef.current = null; setQuote(null); setConfirmed(false); };
-  useEffect(() => { invalidate(); return () => { revision.current++; }; }, [tokenMint, walletAddress, network]);
+  // Router belongs in here with the rest: a quote is only executable through the router that priced it, and the
+  // server rejects a mismatch with a 409, so switching routers has to drop the held quote rather than resubmit it.
+  useEffect(() => { invalidate(); return () => { revision.current++; }; }, [tokenMint, walletAddress, network, router]);
   useEffect(() => {
     if (!quote || loading) return;
     const timer = setTimeout(invalidate, Math.max(0, Number(quote.expiresAt) - Date.now()));
@@ -60,7 +64,7 @@ function TradeTicketSurface({ config, mint, symbol, walletAddress, send }: Props
       const inputMint = side === "buy" ? config.usdcMint : tokenMint;
       const outputMint = side === "buy" ? tokenMint : config.usdcMint;
       const supply = await api.rpc<{ value: { decimals: number } }>("getTokenSupply", [inputMint]);
-      const input = { inputMint, outputMint, amount: tokenAmount(amount, supply.value.decimals), slippageBps, walletAddress };
+      const input = { router, inputMint, outputMint, amount: tokenAmount(amount, supply.value.decimals), slippageBps, walletAddress };
       const result = await api.quote(input);
       if (revision.current !== requestRevision) return;
       orderRef.current = input;
@@ -89,19 +93,35 @@ function TradeTicketSurface({ config, mint, symbol, walletAddress, send }: Props
   };
   const outAmount = deepFind(quote, ["outAmount", "outputAmount"]);
   const impact = deepFind(quote, ["priceImpactPct", "priceImpact"]);
-  const executable = Boolean(config.executionEnabled && network === "solana" && walletAddress && send);
+  const routers = config.routers?.length ? config.routers : [
+    { id: "0x" as const, label: "0x Protocol", available: false },
+    { id: "clawpump" as const, label: "ClawPump + Jupiter", available: Boolean(config.integrations.clawpump) }
+  ];
+  const selectedRouter = routers.find((item) => item.id === router);
+  const routeLabels = Array.isArray(quote?.routePlan)
+    ? quote.routePlan.map((leg) => String((leg as Record<string, unknown>).dex_label || "")).filter(Boolean).join(" → ")
+    : "";
+  const executable = Boolean(network === "solana" && walletAddress && send);
 
   return <section className="panel trade-ticket">
-    <div className="panel-title"><span>SPOT ORDER</span><span className="tag">PRIVY · CLAWPUMP</span></div>
+    <div className="panel-title"><span>SPOT ORDER</span><span className="tag">PRIVY · SOLANA</span></div>
+    {/* Every control locks while a quote is in flight and clears through invalidate(), which bumps the revision the
+        in-flight response is checked against: a bare setQuote(null) leaves that response free to land on a changed order. */}
+    <label className="router-field">ROUTING API<select disabled={loading} value={router} onChange={event => { setRouter(event.target.value as RouterId); setStatus(""); }}>
+      {routers.map((item) => <option key={item.id} value={item.id}>{item.label}{item.available ? "" : " · NOT CONFIGURED"}</option>)}
+    </select></label>
+    <div className={`router-status${selectedRouter?.available ? " ready" : ""}`}><span>{selectedRouter?.available ? "ROUTER ONLINE" : "API KEY REQUIRED"}</span><b>{selectedRouter?.label || router}</b></div>
     <div className="side-tabs"><button disabled={loading} className={side === "buy" ? "buy active" : ""} onClick={() => { setSide("buy"); invalidate(); }}>BUY {tokenSymbol}</button><button disabled={loading} className={side === "sell" ? "sell active" : ""} onClick={() => { setSide("sell"); invalidate(); }}>SELL {tokenSymbol}</button></div>
     <label>NOTIONAL {side === "buy" ? "USDC" : tokenSymbol}<input disabled={loading} type="number" min="0" value={amount} onChange={event => { setAmount(event.target.value); invalidate(); }} /></label>
     <label>MAX SLIPPAGE <div className="input-suffix"><input disabled={loading} type="number" min="0.01" max="5" step="0.01" value={slippagePct} onChange={event => { setSlippagePct(Number(event.target.value)); invalidate(); }} /><span>%</span></div></label>
     <div className="wallet-line"><span>SOLANA SIGNER</span><b>{shortAddress(walletAddress)}</b></div>
-    {!quote ? <button className="primary" disabled={loading || !Number(amount)} onClick={() => void getQuote()}>{network !== "solana" ? "SWITCH TO SOLANA" : loading ? <PixelLoader label="QUOTING" /> : "PREVIEW ROUTE"}</button> : <div className="quote-box">
+    {!quote ? <button className="primary" disabled={loading || !Number(amount) || !selectedRouter?.available} onClick={() => void getQuote()}>{!selectedRouter?.available ? "CONFIGURE ROUTER" : network !== "solana" ? "SWITCH TO SOLANA" : loading ? <PixelLoader label="QUOTING" /> : "PREVIEW ROUTE"}</button> : <div className="quote-box">
       <div><span>EXPECTED OUTPUT</span><b>{outAmount == null ? "See route payload" : String(outAmount)}</b></div>
+      <div><span>ROUTER</span><b>{selectedRouter?.label || router}</b></div>
+      {routeLabels && <div className="quote-route"><span>LIQUIDITY PATH</span><b>{routeLabels}</b></div>}
       <div><span>PRICE IMPACT</span><b>{impact == null ? "—" : `${impact}%`}</b></div>
-      <label className="confirm-row"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I verified the mint, route, amount, and mainnet risk.</label>
-      <button className="primary execute" disabled={!executable || !confirmed || loading} onClick={() => void execute()}>{!config.executionEnabled ? "TRADING UNAVAILABLE" : network !== "solana" ? "SWITCH TO SOLANA" : !walletAddress ? "LOG IN TO EXECUTE" : loading ? "WORKING…" : "SIGN & SUBMIT"}</button>
+      <label className="confirm-row"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> I verified the token, route, amount, and slippage.</label>
+      <button className="primary execute" disabled={!executable || !confirmed || loading} onClick={() => void execute()}>{network !== "solana" ? "SWITCH TO SOLANA" : !walletAddress ? "LOG IN TO EXECUTE" : loading ? "WORKING…" : "SIGN & SUBMIT"}</button>
     </div>}
     {status && <p className="ticket-status">{status}</p>}
   </section>;

@@ -76,7 +76,7 @@ function AnalysisSurface({ open, market, candles, flow, provider, config, onClos
       const quote = await api.quote(input);
       const payload = await api.transaction({ ...input, quoteId: quote.quoteId });
       const base64 = deepFind(payload, ["transaction", "swapTransaction", "unsignedTransaction", "serializedTransaction"]);
-      if (typeof base64 !== "string") throw new Error("ClawPump did not return a recognizable unsigned transaction");
+      if (typeof base64 !== "string") throw new Error("The selected router did not return a recognizable unsigned transaction");
       const signature = await send(decodeBase64(base64));
       setExecutionMessage(`Submitted · ${signature.slice(0, 12)}…`);
       notify({ title: "AGENT TRADE SUBMITTED", message: `${market.symbol} execution was submitted successfully.`, tone: "success" });

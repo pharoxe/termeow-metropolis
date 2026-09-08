@@ -59,6 +59,8 @@ const envSchema = z.object({
   CLAWPUMP_MCP_ENABLED: z.preprocess(emptyAsUndefined, z.string().default("true")),
   JUPITER_API_KEY: optionalString,
   JUPITER_API_URL: urlWithDefault("https://lite-api.jup.ag/swap/v1"),
+  ZEROEX_API_KEY: optionalString,
+  ZEROEX_API_URL: urlWithDefault("https://api.0x.org"),
   HELIUS_API_KEY: optionalString,
   HELIUS_SOLANA_RPC_URL: optionalUrl,
   ALCHEMY_API_KEY: optionalString,
@@ -82,7 +84,8 @@ const envSchema = z.object({
   SNAPSHOT_INTERVAL_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().positive().default(30_000)),
   PRIVY_APP_ID: optionalString,
   PRIVY_APP_SECRET: optionalString,
-  ENABLE_MAINNET_EXECUTION: z.preprocess(emptyAsUndefined, z.string().default("false")),
+  ELEVENLABS_API_KEY: optionalString,
+  ELEVENLABS_AGENT_ID: optionalString,
   ANSEM_MINT: z.preprocess(emptyAsUndefined, z.string().default("9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump")),
   USDC_MINT: z.preprocess(emptyAsUndefined, z.string().default("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"))
 });
@@ -109,7 +112,6 @@ export const config = {
   host: env.HOST || (env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1"),
   port: env.PORT,
   appOrigin: env.APP_ORIGIN,
-  executionEnabled: env.ENABLE_MAINNET_EXECUTION.toLowerCase() === "true",
   ansemMint: env.ANSEM_MINT,
   usdcMint: env.USDC_MINT,
   fomoscan: {
@@ -154,6 +156,14 @@ export const config = {
   privy: {
     appId: env.PRIVY_APP_ID,
     appSecret: env.PRIVY_APP_SECRET
+  },
+  zeroEx: {
+    apiKey: env.ZEROEX_API_KEY,
+    apiUrl: env.ZEROEX_API_URL.replace(/\/$/, "")
+  },
+  elevenlabs: {
+    apiKey: env.ELEVENLABS_API_KEY,
+    agentId: env.ELEVENLABS_AGENT_ID
   }
 };
 
@@ -165,6 +175,7 @@ export function integrationStatus() {
     primaryRpc: config.rpc.primary.includes("api.mainnet-beta.solana.com") ? "public" : "helius",
     fallbackRpc: Boolean(config.rpc.fallback),
     privy: Boolean(config.privy.appId && config.privy.appSecret),
-    executionEnabled: config.executionEnabled
+    voiceAgent: Boolean(config.elevenlabs.apiKey && config.elevenlabs.agentId),
+    zeroEx: Boolean(config.zeroEx.apiKey)
   };
 }

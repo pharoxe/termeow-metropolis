@@ -3,6 +3,7 @@ import { walletPortfolio } from "../market/walletPortfolio.js";
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
+import { AddressLookupTableAccount, Connection, PublicKey, TransactionInstruction, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import { config } from "../config.js";
 import { clawpumpMcp } from "../clawpump/mcp.js";
 import { getBoard, getHolders, getOnchainMarket, getTrenches, trenchSorts } from "../clawpump/market.js";
@@ -10,6 +11,7 @@ import { errorMessage, fetchJson } from "../lib/http.js";
 
 const address = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
 const quoteSchema = z.object({
+  router: z.enum(["0x", "clawpump"]).default("0x"),
   inputMint: address,
   outputMint: address,
   amount: z.string().regex(/^[1-9]\d*$/).refine(value => BigInt(value) <= 18446744073709551615n, "Amount exceeds token range"),
@@ -18,9 +20,56 @@ const quoteSchema = z.object({
 });
 
 export const onchainRouter = Router();
+// One bounded, pruned cache for both routers: an unbounded Map keyed on quote id never releases a quote that was
+// requested and then abandoned, which is the common case.
 const quoteCache = new QuoteCache();
 const quoteCleanup = setInterval(() => quoteCache.prune(), 30_000);
 quoteCleanup.unref();
+
+type ZeroExInstruction = {
+  accounts: Array<{ pubkey: number[]; is_signer: boolean; is_writable: boolean }>;
+  data: number[];
+  program_id: number[];
+};
+type ZeroExQuote = {
+  address_lookup_tables?: string[];
+  amount_out: number | string;
+  min_amount_out: number | string;
+  instructions: ZeroExInstruction[];
+  route_plan?: Array<{ dex_label?: string }>;
+  zid?: string;
+};
+
+async function zeroExTransaction(quote: ZeroExQuote, taker: string) {
+  const connection = new Connection(config.rpc.primary, "confirmed");
+  const instructions = quote.instructions.map((instruction) => new TransactionInstruction({
+    programId: new PublicKey(Uint8Array.from(instruction.program_id)),
+    keys: instruction.accounts.map((account) => ({
+      pubkey: new PublicKey(Uint8Array.from(account.pubkey)),
+      isSigner: account.is_signer,
+      isWritable: account.is_writable
+    })),
+    data: Buffer.from(instruction.data)
+  }));
+  const lookupKeys = quote.address_lookup_tables ?? [];
+  const [lookupInfos, latestBlockhash] = await Promise.all([
+    lookupKeys.length ? connection.getMultipleAccountsInfo(lookupKeys.map((key) => new PublicKey(key))) : Promise.resolve([]),
+    connection.getLatestBlockhash("confirmed")
+  ]);
+  const lookups = lookupInfos.map((info, index) => {
+    if (!info) throw new Error(`0x address lookup table was unavailable: ${lookupKeys[index]}`);
+    return new AddressLookupTableAccount({
+      key: new PublicKey(lookupKeys[index]),
+      state: AddressLookupTableAccount.deserialize(info.data)
+    });
+  });
+  const message = new TransactionMessage({
+    payerKey: new PublicKey(taker),
+    recentBlockhash: latestBlockhash.blockhash,
+    instructions
+  }).compileToV0Message(lookups);
+  return Buffer.from(new VersionedTransaction(message).serialize()).toString("base64");
+}
 
 function findJupiterQuote(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -80,6 +129,45 @@ onchainRouter.get("/market/:mint", async (request, response, next) => {
 onchainRouter.post("/quote", async (request, response, next) => {
   try {
     const input = quoteSchema.parse(request.body);
+    if (input.router === "0x") {
+      if (!config.zeroEx.apiKey) {
+        response.status(503).json({ error: "0x routing is not configured", hint: "Set ZEROEX_API_KEY on the server." });
+        return;
+      }
+      if (!input.walletAddress) {
+        response.status(400).json({ error: "Connect the Solana wallet before requesting a firm 0x quote." });
+        return;
+      }
+      const amountIn = Number(input.amount);
+      if (!Number.isSafeInteger(amountIn)) {
+        response.status(400).json({ error: "The atomic input amount is outside the supported range." });
+        return;
+      }
+      const result = await fetchJson<ZeroExQuote>(`${config.zeroEx.apiUrl}/solana/swap-instructions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "0x-api-key": config.zeroEx.apiKey },
+        body: JSON.stringify({
+          token_in: input.inputMint,
+          token_out: input.outputMint,
+          amount_in: amountIn,
+          taker: input.walletAddress,
+          slippage_bps: input.slippageBps
+        })
+      });
+      const quoteId = randomUUID();
+      const expiresAt = quoteCache.set(quoteId, result, input, "0x");
+      response.json({
+        quoteId,
+        router: "0x",
+        source: "0x Solana Swap API",
+        observedAt: Date.now(),
+        outAmount: String(result.amount_out),
+        minimumOutAmount: String(result.min_amount_out),
+        routePlan: result.route_plan ?? [],
+        zid: result.zid
+      });
+      return;
+    }
     const result = await clawpumpMcp.call("swap_quote", {
       ...(config.clawpump.agentId ? { agent_id: config.clawpump.agentId } : {}),
       input_mint: input.inputMint,
@@ -97,28 +185,40 @@ onchainRouter.post("/quote", async (request, response, next) => {
       response.status(502).json({ error: "Quote route differs from requested order" });
       return;
     }
-    const expiresAt = quoteCache.set(quoteId, result.data, input);
-    response.json({ quoteId, expiresAt, source: "clawpump", observedAt: Date.now(), ...result });
+    const expiresAt = quoteCache.set(quoteId, result.data, input, "clawpump");
+    response.json({ quoteId, expiresAt, router: "clawpump", source: "ClawPump + Jupiter", observedAt: Date.now(), ...result });
   } catch (error) { next(error); }
 });
 
 onchainRouter.post("/transaction", async (request, response, next) => {
   try {
-    if (!config.executionEnabled) {
-      response.status(403).json({ error: "Mainnet execution is disabled", hint: "Set ENABLE_MAINNET_EXECUTION=true after configuring credentials." });
-      return;
-    }
     const input = quoteSchema.extend({
       walletAddress: address,
-      quoteId: z.string().uuid().optional()
+      quoteId: z.string().uuid()
     }).parse(request.body);
-    const cached = input.quoteId ? quoteCache.get(input.quoteId) : undefined;
+    const cached = quoteCache.get(input.quoteId);
     if (!cached || cached.expiresAt < Date.now()) {
-      response.status(409).json({ error: "Quote expired", hint: "Request a fresh ClawPump quote before building the transaction." });
+      response.status(409).json({ error: "Quote expired", hint: "Request a fresh router quote before building the transaction." });
       return;
     }
+    if (cached.router !== input.router) {
+      response.status(409).json({ error: "The selected router no longer matches the quoted route." });
+      return;
+    }
+    if (cached.order.walletAddress && cached.order.walletAddress !== input.walletAddress) {
+      response.status(409).json({ error: "The connected wallet no longer matches the quoted route." });
+      return;
+    }
+    // The order is re-checked for every router: a quote is only good for the order it was priced against, and the 0x
+    // branch below builds a signable transaction, so letting a changed amount or mint through here would sign it.
     if (!matchesOrder(cached.order, input)) {
       response.status(409).json({ error: "Order changed; request a fresh quote" });
+      return;
+    }
+    quoteCache.delete(input.quoteId);
+    if (cached.router === "0x") {
+      const transaction = await zeroExTransaction(cached.quote as ZeroExQuote, input.walletAddress);
+      response.json({ source: "0x Solana Swap API", router: "0x", signingMode: "user-wallet", transaction });
       return;
     }
     const quoteResponse = findJupiterQuote(cached.quote);

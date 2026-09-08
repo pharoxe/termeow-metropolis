@@ -19,7 +19,7 @@ Phases 1 and 2 are independent of each other after Phase 0; 3 needs 2.
 What this plan will **not** do, and why:
 
 - Scrape fomo.family. Its robots.txt disallows `/profile/`, `/user`, `/token`, `/coin`; profiles sit behind a Privy login; there is no public API (probed today: every `/api/*` path returns the HTML shell). Handles link out to `https://fomo.family/profile/<handle>`, nothing more.
-- Execute trades on Robinhood Chain. The spot ticket is a Solana wallet-adapter flow and the server's Jupiter bridge is Solana-only. Robinhood tokens get "open on Uniswap / DexScreener" links; `ENABLE_MAINNET_EXECUTION` semantics are untouched.
+- Execute trades on Robinhood Chain. Robinhood tokens still get link-outs; the provider-based ticket currently executes Solana routes through 0x or ClawPump/Jupiter.
 - Sum figures from different populations. Tracked-trader USD (147 wallets) and DEX-wide volume (all wallets) are shown side by side, labelled, never added.
 
 ## 2. What exists today (from the code read)
