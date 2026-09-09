@@ -1,4 +1,4 @@
-import { ConversationProvider, useConversationControls, useConversationInput, useConversationMode, useConversationStatus } from "@elevenlabs/react";
+import { ConversationProvider, useConversationClientTool, useConversationControls, useConversationInput, useConversationMode, useConversationStatus } from "@elevenlabs/react";
 import { useEffect, useMemo } from "react";
 import type { AgentRuntime } from "./AgentRuntime";
 import type { TermeowAgentContext } from "./agentTypes";
@@ -53,7 +53,7 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
   return null;
 }
 
-export default function ElevenLabsBridge(props: Props) {
+function ClientToolsBridge() {
   const clientTools = useMemo(() => ({
     read_terminal_state: async () => {
       const connected = Boolean(await getAccessToken().catch(() => null));
@@ -113,8 +113,18 @@ export default function ElevenLabsBridge(props: Props) {
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
     }
   }), []);
+
+  // Register through the SDK's live registry instead of relying on provider option merging.
+  // This makes every handler available before startSession and keeps it attached for the full call.
+  useConversationClientTool("read_terminal_state", clientTools.read_terminal_state);
+  useConversationClientTool("propose_swap", clientTools.propose_swap);
+  useConversationClientTool("propose_automation", clientTools.propose_automation);
+  useConversationClientTool("list_automations", clientTools.list_automations);
+  return null;
+}
+
+export default function ElevenLabsBridge(props: Props) {
   return <ConversationProvider
-    clientTools={clientTools}
     onConnect={({ conversationId }) => useAgentStore.getState().setConversationId(conversationId)}
     onDisconnect={() => useAgentStore.getState().resetSession()}
     onError={(message) => useAgentStore.getState().setStatus("error", message)}
@@ -123,5 +133,5 @@ export default function ElevenLabsBridge(props: Props) {
     onAgentToolRequest={() => useAgentStore.getState().setStatus("executing")}
     onAgentToolResponse={() => useAgentStore.getState().setStatus("success")}
     onInterruption={() => useAgentStore.getState().setStatus("listening")}
-  ><ControlsBridge {...props} /></ConversationProvider>;
+  ><ClientToolsBridge /><ControlsBridge {...props} /></ConversationProvider>;
 }
