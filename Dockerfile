@@ -4,6 +4,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+
+# Vite inlines public client configuration during the image build. Railway only
+# exposes service variables to Docker build steps when the argument is declared.
+ARG VITE_PRIVY_APP_ID
 RUN npm run build
 
 ENV NODE_ENV=production

@@ -23,6 +23,7 @@
 .terminal-workspace .desk-grainient{display:none;}
 .terminal-workspace .app-header.desk-header{min-height:42px;padding:5px 12px;gap:12px;}
 .terminal-workspace .app-header .brand strong{font-size:18px;}
+.terminal-workspace .app-header .brand-mark{width:32px;height:39px;flex:0 0 32px;}
 .terminal-workspace .app-header button{font-size:10px;padding:6px 9px;}
 .terminal-workspace .persistent-ca-search{padding:6px 10px;gap:8px;box-shadow:none;}
 .terminal-workspace .persistent-ca-search .command-input{padding:7px 10px;font-size:12px;border-radius:0;}

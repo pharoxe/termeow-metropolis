@@ -6,9 +6,9 @@ import type { ChartTileState } from '../lib/workspace';
 import { ThesisActivity } from './ThesisActivity';
 import { useAggregateFlow } from "../hooks/useAggregateFlow";
 import { TerminalCommand } from "../components/TerminalCommand";
-import { TraderInspector, TraderToolbar, TradeTape } from "../components/TraderContext";
+import { TraderInspector, TradeTape } from "../components/TraderContext";
 import { useTerminal } from "../hooks/useTerminal";
-import { DEFAULT_TRADE_FILTER, filterTradesWithBreakdown, tradeMarkers, type TradeFilter } from "../lib/terminal";
+import { DEFAULT_TRADE_FILTER, filterTradesWithBreakdown, tradeMarkers } from "../lib/terminal";
 import type { TradeEvent } from "../../shared/terminal";
 import "../components/terminal.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,7 +24,7 @@ import { money, pct } from "../lib/format";
 import { atr, macd, rsi } from "../lib/indicators";
 import { MINT_RE } from "../lib/mint";
 import { extractAddress, type InstrumentRef } from "../lib/address";
-import { brandSuffix, instrumentKey, isValidInstrument, legacyMarket, sameInstrument, tapeRows } from "../lib/instrument";
+import { brandSuffix, instrumentKey, isValidInstrument, legacyMarket, sameInstrument } from "../lib/instrument";
 import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
 import type { FlowCandlesResponse, LaunchRow, MarketResponse, TokenFlowResponse } from "../../shared/wire";
 import { buildEventMarkers } from "../lib/chartMarkers";
@@ -36,7 +36,7 @@ import {
   livePrintsAfter, marketIntervalFor, nextFlowState, noCandlesReason, ownTapeInterval, selectCandles, stableChartFlow, systemStatusLine, visibleIntervals, SUB_MINUTE_MARKET_INTERVAL, type StableFlow
 } from "../lib/deskFlow";
 import { DrawingToolbar, type DrawingsApi, type DrawingsSnapshot } from "../chart/drawings";
-import { BothSidesPanel, MarketStrips, SocialPanel, WatchPanel } from "../components/DeskPanels";
+import { MarketStrips, SocialPanel, WatchPanel } from "../components/DeskPanels";
 import { FomoTapePanel } from "../components/FomoTapePanel";
 import { ThemeToggle, useTheme } from "../components/ThemeToggle";
 import { FeatureSection } from "../features/WorkspaceFeatures";
@@ -143,7 +143,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
   };
   const ownInterval = ownTapeInterval(interval);
   const [visibleRange, setVisibleRange] = useState<{from:number;to:number}|null>(null);
-  const [tradeFilter, setTradeFilter] = useState<TradeFilter>(DEFAULT_TRADE_FILTER);
+  const tradeFilter = DEFAULT_TRADE_FILTER;
   const [followed, setFollowed] = useState<string[]>(() => {try {const value=JSON.parse(localStorage.getItem("terminal-followed")??"[]");return Array.isArray(value)?value.filter((v:unknown)=>typeof v==="string"):[];}catch{return [];}});
   const [selectedTrade, setSelectedTrade] = useState<TradeEvent|null>(null);
   const [commandsOpen,setCommandsOpen]=useState(false);
@@ -210,7 +210,6 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
   const analysisProvider = { ...mergedProvider, holders, trenches };
   const clawSentiment = String(object(mergedProvider.get_indicators).sentiment || "").trim();
   const regimeLabel = clawSentiment ? clawSentiment.toUpperCase() : "—";
-  const tape = useMemo(() => tapeRows(flowState?.tape), [flowState?.tape]);
   const scale = feed ? mcapScale(feed) : { mcap: null, supply: null, source: null as "mcap" | "fdv" | null };
   const hasMcap = Boolean(scale.source && scale.supply);
   const useMcap = chartUnit === "mcap" && hasMcap;
@@ -381,13 +380,6 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
         <AuthControls />
       </header>
       {scannerSearch}
-      <div className="data-health-strip" role="status" aria-label="Market data health">
-        <b>{terminal.connected?'STREAM CONNECTED':'RECONNECTING'}</b>
-        <span>Market {marketQuery.updatedAt?`${Math.max(0,Math.floor((terminal.now-marketQuery.updatedAt)/1000))}s ago${terminal.now-marketQuery.updatedAt>90000?' · STALE':''}`:'pending'}</span>
-        <span>Flow {flowQuery.updatedAt?`${Math.max(0,Math.floor((terminal.now-flowQuery.updatedAt)/1000))}s ago${terminal.now-flowQuery.updatedAt>45000?' · STALE':''}`:'pending'}</span>
-        <span>Captured coverage · expand COVERAGE for pools</span>
-        {(marketQuery.error||flowQuery.error||terminal.error)&&<span className="amber">{marketQuery.error||flowQuery.error||terminal.error}</span>}
-      </div>
       {legacy && <MarketStrips market={legacy} onPick={focusSolana} />}
       {section !== "Trade" && <AccountScreen section={section as "Automation" | "Portfolio"} onBack={() => setSection("Trade")} />}
       </>,slots.header)}
@@ -501,7 +493,6 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
         </>,slots.rail)}
         {isActive && createPortal(<>
         <div className="terminal-tape-slot">
-          <TraderToolbar filter={tradeFilter} onFilter={setTradeFilter} status={replayTime?"REPLAY":terminal.status} connected={terminal.connected} matched={terminal.matched} loaded={visibleTrades.length} unplaced={participantMarkers.unplaced} following={followed.length} onClear={()=>setTradeFilter(DEFAULT_TRADE_FILTER)} paused={replayTime!=null} onPause={()=>setReplayTime(time=>time==null?Date.now():null)} breakdown={visible.breakdown} />
           <TradeTape events={visibleTrades} selected={selectedTrade?.id??null} onSelect={selectTrade} loading={terminal.loading} hasMore={Boolean(terminal.nextCursor)} onMore={terminal.loadMore} paused={replayTime!=null} replayTime={replayTime} onReplay={setReplayTime} error={terminal.error}/>
         </div>
         <ThesisActivity instrument={instrument} />
@@ -516,17 +507,6 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
           </section>
         ) : <FomoTapePanel onInstrument={focusInstrument} onNewChart={onNew} />}
         </FeatureSection>
-        {legacy ? <BothSidesPanel
-          market={legacy}
-          tape={tape}
-          coverage={flowState?.coverage}
-          tokenFlow={flowState}
-        /> : (
-          <section className="panel sides-panel flow-panel research-panel">
-            <div className="ph"><span className="pt">LIQUIDITY &amp; ORDER FLOW</span><span className="pm">LOADING {mintLabel}</span></div>
-            <p className="empty-copy">Fetching pool and tape intelligence for this contract.</p>
-          </section>
-        )}
       </>,slots.context)}
       <TerminalCommand open={commandsOpen} onClose={()=>setCommandsOpen(false)} events={terminal.events} onSelect={selectTrade} onAction={action=>{if(action==="live"){setReplayTime(null);chartRef.current?.goToRealtime();}if(action==="fit")chartRef.current?.fitHistory();if(action==="reset")chartRef.current?.resetView();if(action==="expand")setChartExpanded(v=>!v);if(action==="replay")setReplayTime(t=>t==null?Date.now():null);}} />
       {legacy && solana && <AgenticAnalysisPanel open={analysisOpen} market={legacy} candles={legacy.candles} flow={analysisFlow} provider={analysisProvider} config={config} onClose={() => setAnalysisOpen(false)} />}
