@@ -1,7 +1,7 @@
 import type { BoardKind, IdentityCoverage, TraderRanking } from "../../shared/identity";
 import type { Tone } from "./deskFlow";
 import { durationLabel, EM_DASH, printAgeLabel } from "./flowPanel";
-import { money, shortAddress, signedMoney } from "./format";
+import { shortAddress, signedMoney } from "./format";
 
 /**
  * Pure derivations for the SMART MONEY tab (GET /api/identity/*). No React, no Date.now(): callers pass `now`.
@@ -112,26 +112,17 @@ export function pnlSplit(row: TraderRanking): PnlSplit {
   };
 }
 
-/**
- * Exact dollars for a leg that is routinely negative. money() picks precision from the raw value (`value < 0.01 ? 7`),
- * so every negative takes the sub-cent branch: the live pump rank-1 taken leg rendered "-$1,152.8068407". Formatting
- * the magnitude and carrying the sign keeps it at cents, which is where the claim about what was taken lives.
- */
-function exactUsd(value: number): string {
-  return value < 0 ? `-${money(-value, false)}` : signedMoney(value, false);
-}
-
 function pnlTitle(row: TraderRanking, realizedUsd: number | null, unrealizedUsd: number | null, paperDominant: boolean): string {
   const total = finite(row?.pnlUsd);
   const openLeg = row?.board === "fomoscan-traders"
     ? "unrealized not measured by the FomoScan sweep, which reports realized PnL only"
     : "unrealized not reported by this board";
   const parts = [
-    realizedUsd == null ? "realized not reported by this board" : `realized ${exactUsd(realizedUsd)} (taken)`,
-    unrealizedUsd == null ? openLeg : `unrealized ${exactUsd(unrealizedUsd)} (open, not taken)`
+    realizedUsd == null ? "realized not reported by this board" : `realized ${signedMoney(realizedUsd, false)} (taken)`,
+    unrealizedUsd == null ? openLeg : `unrealized ${signedMoney(unrealizedUsd, false)} (open, not taken)`
   ];
   // The sum is only ever named where both legs are known, so a one-legged board can never look like it netted out.
-  if (total != null && realizedUsd != null && unrealizedUsd != null) parts.push(`board total ${exactUsd(total)} = realized + unrealized`);
+  if (total != null && realizedUsd != null && unrealizedUsd != null) parts.push(`board total ${signedMoney(total, false)} = realized + unrealized`);
   if (paperDominant) parts.push("the open leg dominates — a mark-to-market position, not a result");
   // The rank in the cell beside this one is the board's, and pump ranked it on the sum: say so where the legs are read.
   if (row?.board === "pump-traders") parts.push("this board ranks on realized + unrealized, not on the taken leg");

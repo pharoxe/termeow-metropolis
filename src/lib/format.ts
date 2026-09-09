@@ -1,7 +1,14 @@
+/**
+ * Precision is chosen by magnitude, so a sub-cent token price keeps its significant digits while a dollar amount stops
+ * at cents. The branch reads `Math.abs` because every negative is below both thresholds otherwise: a realized PnL of
+ * -1152.80684065719 took the sub-cent branch and rendered as -$1,152.8068407, and -12.3456789 as -$12.3456789.
+ * Negative values on this desk are PnL, deltas and flow, never prices, so they want cents rather than seven places.
+ */
 export function money(value: number | null | undefined, compact = false) {
   if (value == null || !Number.isFinite(value)) return "—";
   if (compact) return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 }).format(value);
-  const digits = value < 0.01 ? 7 : value < 1 ? 5 : 2;
+  const magnitude = Math.abs(value);
+  const digits = magnitude < 0.01 ? 7 : magnitude < 1 ? 5 : 2;
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: digits }).format(value);
 }
 
