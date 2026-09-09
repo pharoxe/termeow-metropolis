@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { useAgent } from "../context/AgentProvider";
 import { useAgentStore } from "../store/agentStore";
+import { AgentApproval } from "./AgentApproval";
 
 const AgentVisual = lazy(() => import("../visual/AgentVisual"));
 
@@ -50,6 +51,7 @@ export function AgentOverlayHost() {
           {transcript.length ? transcript.slice(mode === "expanded" ? -8 : -2).map((message) => <p key={message.id} className={message.role}><b>{message.role === "agent" ? "TM" : "YOU"}</b><span>{message.text}</span></p>) : <p className="system"><b>SYS</b><span>Ask about the selected token, portfolio, or market setup.</span></p>}
           {error && <p className="error"><b>ERR</b><span>{error}</span></p>}
         </div>
+        <AgentApproval />
         <form className="agent-text-entry" onSubmit={(event) => { event.preventDefault(); if (!text.trim() || !conversationId) return; agent.send(text.trim()); setText(""); }}>
           <input value={text} disabled={!conversationId} onChange={(event) => setText(event.target.value)} placeholder={conversationId ? "TYPE A FOLLOW-UP" : "START VOICE TO CHAT"} aria-label="Message Termeow" />
           <button disabled={!conversationId || !text.trim()} type="submit">SEND</button>

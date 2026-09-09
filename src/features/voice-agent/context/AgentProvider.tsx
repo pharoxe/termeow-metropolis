@@ -3,6 +3,8 @@ import type { AgentRuntime } from "../runtime/AgentRuntime";
 import type { AgentStatus, OverlayMode, TermeowAgentContext } from "../runtime/agentTypes";
 import { useAgentStore } from "../store/agentStore";
 import { AgentOverlayHost } from "../surfaces/AgentOverlay";
+import { VoiceExecutionBridge } from "../VoiceExecutionBridge";
+import { hasPrivy } from "../../../auth/WalletProviders";
 
 const ElevenLabsBridge = lazy(() => import("../runtime/ElevenLabsBridge"));
 
@@ -76,6 +78,7 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
     {children}
     {(overlayMode !== "hidden" || conversationId) && <Suspense fallback={null}><ElevenLabsBridge onRuntime={registerRuntime} initialContext={context} /></Suspense>}
     <AgentOverlayHost />
+    {hasPrivy && <VoiceExecutionBridge />}
   </AgentContext.Provider>;
 }
 

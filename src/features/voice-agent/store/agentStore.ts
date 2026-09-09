@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentMessage, AgentStatus, OverlayMode, TermeowAgentContext } from "../runtime/agentTypes";
+import type { AgentMessage, AgentStatus, OverlayMode, PendingAgentApproval, TermeowAgentContext } from "../runtime/agentTypes";
 
 interface AgentState {
   status: AgentStatus;
@@ -9,12 +9,14 @@ interface AgentState {
   conversationId?: string;
   context: TermeowAgentContext;
   transcript: AgentMessage[];
+  pendingApproval?: PendingAgentApproval;
   setStatus: (status: AgentStatus, error?: string) => void;
   setOverlayMode: (mode: OverlayMode) => void;
   setMuted: (muted: boolean) => void;
   setConversationId: (id?: string) => void;
   setContext: (context: TermeowAgentContext) => void;
   addMessage: (message: Omit<AgentMessage, "id" | "at">) => void;
+  setPendingApproval: (pendingApproval?: PendingAgentApproval) => void;
   resetSession: () => void;
 }
 
@@ -32,5 +34,6 @@ export const useAgentStore = create<AgentState>((set) => ({
   addMessage: (message) => set((state) => ({
     transcript: [...state.transcript, { ...message, id: crypto.randomUUID(), at: Date.now() }].slice(-40)
   })),
+  setPendingApproval: (pendingApproval) => set({ pendingApproval }),
   resetSession: () => set({ status: "dormant", conversationId: undefined, muted: false })
 }));

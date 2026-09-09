@@ -107,18 +107,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
   const { notify } = useNotifications();
   const [section, setSectionLocal] = useState("Trade");
   useEffect(()=>{if(isActive)onSection(section);},[isActive,section,onSection]);
-  // Only the focused tile describes the desk to the voice agent: with up to four charts open, every tile reporting
-  // would leave the agent answering about whichever one re-rendered last rather than the one being looked at.
   const voiceAgent = useAgent();
-  useEffect(() => {
-    if (!isActive) return;
-    voiceAgent.updateContext({
-      route: section.toLowerCase(),
-      chain: tile.instrument.chain,
-      token: { address: tile.instrument.address, symbol: undefined },
-      chart: { timeframe: tile.interval }
-    });
-  }, [isActive, section, tile.instrument.chain, tile.instrument.address, tile.interval, voiceAgent.updateContext]);
   const setSection=(value:string)=>{setSectionLocal(value);onSection(value);};
 
   const instrument=tile.instrument;
@@ -304,6 +293,26 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
     };
   }, [candles]);
 
+  // Only the focused tile reports. The snapshot is deliberately compact, but it contains the actual chart series,
+  // viewport, indicators and captured order flow the user can see instead of asking the model to infer from a symbol.
+  useEffect(() => {
+    if (!isActive) return;
+    const latest = candles.at(-1);
+    voiceAgent.updateContext({
+      route: section.toLowerCase(), chain: instrument.chain,
+      token: { address: instrument.address, symbol: feed?.instrument.symbol, name: feed?.instrument.name },
+      chart: {
+        timeframe: activeInterval, unit: useMcap ? "mcap" : "price", scale: scaleMode,
+        priceUsd: feed?.priceUsd, marketCapUsd: scale.mcap, change24Pct: feed?.change24Pct,
+        visibleFrom: visibleRange?.from ?? null, visibleTo: visibleRange?.to ?? null, loadedBars: candles.length,
+        latestCandle: latest ? { time: latest.time, open: latest.open, high: latest.high, low: latest.low, close: latest.close, volume: latest.volume } : null
+      },
+      indicators: { rsi14: technicals?.rsi, macd: technicals?.macd, signal: technicals?.signal, atr14: technicals?.atr, support: technicals?.low, resistance: technicals?.high },
+      flow: { buyUsd: aggregate.data?.buyUsd, sellUsd: aggregate.data?.sellUsd, deltaUsd: aggregate.data?.delta, trades: aggregate.data?.trades, regime: regimeLabel },
+      observedAt: feed?.observedAt ?? Date.now()
+    });
+  }, [activeInterval, aggregate.data?.buyUsd, aggregate.data?.delta, aggregate.data?.sellUsd, aggregate.data?.trades, candles, feed?.change24Pct, feed?.instrument.name, feed?.instrument.symbol, feed?.observedAt, feed?.priceUsd, instrument.address, instrument.chain, isActive, regimeLabel, scale.mcap, scaleMode, section, technicals, useMcap, visibleRange?.from, visibleRange?.to, voiceAgent.updateContext]);
+
   const focusInstrument = (next: InstrumentRef, symbol?: string) => {
     if (!isValidInstrument(next)) return;
     if (!sameInstrument(next, instrument)) notify({ title: `OPENING ${symbol?.toUpperCase() || "TOKEN"}`, message: "Loading the selected contract and its live market context.", tone: "info" });
@@ -361,7 +370,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
         <div className="brand">
           <span className="brand-mark" aria-hidden="true"><img src="/termeow-logo.svg" alt="" /></span><strong>termeow</strong><b>{brandSuffix(instrument.chain)}</b>
         </div>
-        <nav className="primary-navigation" aria-label="Main navigation">{["Trade", "Portfolio"].map(item => <button key={item} aria-current={section === item ? "page" : undefined} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
+        <nav className="primary-navigation" aria-label="Main navigation">{["Trade", "Automation", "Portfolio"].map(item => <button key={item} aria-current={section === item ? "page" : undefined} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
         <nav className="mode-switch funding-network-picker header-network-picker" aria-label="Funding network">
           <button type="button" className={network === "robinhood" ? "active" : ""} aria-pressed={network === "robinhood"} onClick={() => { setNetwork("robinhood"); notify({ title: "ROBINHOOD WALLET", message: "ETH funding is selected. Solana execution remains disabled until you switch back.", tone: "info" }); }}>ROBINHOOD</button>
           <button type="button" className={network === "solana" ? "active" : ""} aria-pressed={network === "solana"} onClick={() => { setNetwork("solana"); notify({ title: "SOLANA WALLET", message: "SOL funding and Solana spot execution are selected.", tone: "info" }); }}>SOLANA</button>
@@ -380,7 +389,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
         {(marketQuery.error||flowQuery.error||terminal.error)&&<span className="amber">{marketQuery.error||flowQuery.error||terminal.error}</span>}
       </div>
       {legacy && <MarketStrips market={legacy} onPick={focusSolana} />}
-      {section !== "Trade" && <AccountScreen section="Portfolio" onBack={() => setSection("Trade")} />}
+      {section !== "Trade" && <AccountScreen section={section as "Automation" | "Portfolio"} onBack={() => setSection("Trade")} />}
       </>,slots.header)}
       {isActive && createPortal(<>
         <WatchPanel

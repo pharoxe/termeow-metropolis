@@ -17,6 +17,7 @@ import { fomoRouter } from "./routes/fomo.js";
 import { liveAlertsRouter } from "./routes/alerts.js";
 import { discoverRouter } from "./routes/discover.js";
 import { agentRouter } from "./routes/agent.js";
+import { automationsRouter } from "./routes/automations.js";
 import { clawpumpMcp } from "./clawpump/mcp.js";
 import { errorMessage, UpstreamError } from "./lib/http.js";
 import { installSnapshots } from "./persist/live.js";
@@ -42,6 +43,7 @@ app.use("/api/fomo", fomoRouter);
 app.use("/api/alerts", liveAlertsRouter());
 app.use("/api/discover", discoverRouter);
 app.use("/api/agent", agentRouter);
+app.use("/api/automations", automationsRouter);
 
 if (config.nodeEnv === "production") {
   const dist = path.resolve(process.cwd(), "dist");

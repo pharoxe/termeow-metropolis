@@ -1,5 +1,6 @@
 import type { BoardKind, IdentityBoardResponse, IdentityCoverageResponse } from "../../shared/identity";
 import type { WalletPortfolio } from "../../shared/portfolio";
+import type { AutomationIntent, AutomationRecord, TerminalAgentSnapshot } from "../../shared/automation";
 import type { PublicConfig } from "../types";
 import type { AlertRule, AlertsResponse, Chain, DiscoverResponse, DiscoverView, DiscoverWindow, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, SystemHealth, TokenFlowResponse } from "../../shared/wire";
 
@@ -15,6 +16,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return body as T;
 }
+
+const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 export const api = {
   capturedCandles: (chain: Chain, address: string, interval: FlowCandleInterval) => request<FlowCandlesResponse>(`/api/terminal/${chain}/${address}/candles?interval=${interval}`),
@@ -76,7 +79,18 @@ export const api = {
   }),
   transaction: (body: object) => request<Record<string, unknown>>("/api/onchain/transaction", {
     method: "POST", body: JSON.stringify(body)
-  })
+  }),
+  automations: (token: string) => request<{ automations: AutomationRecord[] }>("/api/automations", { headers: bearer(token) }),
+  createAutomation: (token: string, body: { intent: AutomationIntent; source: "elevenlabs_voice" | "terminal"; conversationId?: string; context?: TerminalAgentSnapshot }) =>
+    request<{ automation: AutomationRecord }>("/api/automations", { method: "POST", headers: bearer(token), body: JSON.stringify(body) }),
+  approveAutomation: (token: string, id: string) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}/approve`, {
+    method: "POST", headers: bearer(token), body: JSON.stringify({ passkeyVerified: true })
+  }),
+  cancelAutomation: (token: string, id: string) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}/cancel`, {
+    method: "POST", headers: bearer(token), body: "{}"
+  }),
+  reportAutomation: (token: string, id: string, body: { status: "executing" | "completed" | "failed"; transactionHash?: string; failure?: string }) =>
+    request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}/report`, { method: "POST", headers: bearer(token), body: JSON.stringify(body) })
 };
 
 export function deepFind(value: unknown, keys: string[]): unknown {

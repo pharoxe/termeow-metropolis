@@ -927,6 +927,34 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .agent-transcript b { color:var(--accent); font-family:"Silkscreen",monospace; font-size:7px; }
 .agent-transcript .user b { color:#35d9ff; }
 .agent-transcript .error { color:var(--red); }
+.agent-approval { margin:0 8px 8px; padding:10px; border:1px solid var(--accent); background:color-mix(in srgb,var(--panel) 94%,var(--accent)); box-shadow:0 0 18px color-mix(in srgb,var(--accent) 18%,transparent); }
+.agent-approval-head { display:flex; justify-content:space-between; gap:10px; font:7px "Silkscreen",monospace; color:var(--accent); }
+.agent-approval-head span { color:var(--red); }
+.agent-approval-copy { display:grid; gap:5px; margin-top:9px; font-family:"VCR JP",monospace; }
+.agent-approval-copy>span { text-transform:uppercase; color:var(--muted); font-size:9px; }
+.agent-approval-copy>strong { font-size:11px; line-height:1.35; }
+.agent-approval-copy dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; margin:2px 0 0; }
+.agent-approval-copy dl div { padding:6px; border:1px solid var(--line); min-width:0; }
+.agent-approval-copy dt { color:var(--muted); font-size:7px; }
+.agent-approval-copy dd { margin:3px 0 0; overflow:hidden; text-overflow:ellipsis; font-size:9px; }
+.agent-approval p,.agent-approval small { display:block; margin:8px 0 0; font:9px/1.4 "VCR JP",monospace; color:var(--muted); }
+.agent-approval small { color:var(--amber); }
+.agent-approval-actions { display:grid; grid-template-columns:1fr 2fr; gap:6px; margin-top:9px; }
+.agent-approval-actions button { min-height:34px; border:1px solid var(--line); background:transparent; color:var(--text); font:7px "Silkscreen",monospace; }
+.agent-approval-actions .confirm { border-color:var(--accent); background:var(--accent); color:#031108; }
+.agent-approval-actions button:disabled { opacity:.55; }
+.automation-policy { margin:12px 0; padding:10px; border:1px solid var(--line); font:11px/1.55 "VCR JP",monospace; color:var(--muted); }
+.automation-list { display:grid; gap:8px; }
+.automation-list>article { display:grid; grid-template-columns:minmax(240px,2fr) minmax(220px,1fr) auto; gap:12px; align-items:center; padding:12px; border:1px solid var(--line); background:var(--panel); }
+.automation-list>article[data-status="armed"],.automation-list>article[data-status="executing"] { border-color:var(--accent); }
+.automation-list article>div { display:grid; gap:4px; }
+.automation-list article span,.automation-list article small { color:var(--muted); font:9px "VCR JP",monospace; text-transform:uppercase; }
+.automation-list article strong { font:10px/1.4 "Silkscreen",monospace; }
+.automation-list dl { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; margin:0; }
+.automation-list dl div { padding:6px; border:1px solid var(--line); }
+.automation-list dt { color:var(--muted); font-size:8px; }.automation-list dd { margin:2px 0 0; text-transform:uppercase; }
+.automation-list article>button { min-height:34px; padding:0 12px; border:1px solid var(--red); background:transparent; color:var(--red); font:8px "Silkscreen",monospace; }
+@media (max-width:800px) { .automation-list>article { grid-template-columns:1fr; }.automation-list dl { grid-template-columns:repeat(3,1fr); } }
 .agent-text-entry { display:flex; gap:5px; padding:0 10px 9px; }
 .agent-text-entry input { min-width:0; flex:1; min-height:34px; padding:6px 8px; border:1px solid var(--line2); outline:0; background:var(--surface); color:var(--text); font-family:"VCR JP",monospace; font-size:10px; }
 .agent-text-entry input:focus { border-color:var(--accent); }

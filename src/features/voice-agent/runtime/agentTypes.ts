@@ -19,10 +19,6 @@ export interface AgentMessage {
   at: number;
 }
 
-export interface TermeowAgentContext {
-  route?: string;
-  chain?: string;
-  token?: { address: string; symbol?: string };
-  chart?: { timeframe: string };
-  wallet?: { connected: boolean };
-}
+export type TermeowAgentContext = TerminalAgentSnapshot;
+export type PendingAgentApproval = AutomationRecord;
+import type { AutomationRecord, TerminalAgentSnapshot } from "../../../../shared/automation";
