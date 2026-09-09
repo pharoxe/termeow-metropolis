@@ -1,0 +1,162 @@
+/* Terminal data typography: branding stays pixel-based, working surfaces prioritize legibility. */
+/* The one wide-viewport definition. The chart row is a definite, viewport-sized track so .chart-host absorbs
+   whatever the head, coverage line and tool row do not use, instead of being their leftover.
+   --desk-chrome is the measured height of everything above the grid (header, search, ticker, padding); it is the
+   only thing that changes per breakpoint, so the grid itself stays defined once. */
+.onchain-desk {--desk-chrome:220px;}
+@media(max-width:1450px){.onchain-desk{--desk-chrome:250px;}} /* the app header wraps to two rows below 1450 */
+.onchain-desk .desk-grid {display:grid;flex:1;min-height:0;grid-template-columns:minmax(190px,17%) minmax(420px,1fr) minmax(290px,25%);grid-template-rows:clamp(480px,calc(100vh - var(--desk-chrome)),1100px) auto auto;grid-template-areas:"watch chart rail" "watch tape rail" "radar research rail";gap:8px;padding:8px;background:var(--bg);}
+.onchain-desk .chart-panel,.terminal-rail,.participant-tape {border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--surface);}
+.onchain-desk .chart-panel {background:var(--chart-bg);}
+.onchain-desk .chart-head-right,.onchain-desk .chart-head-right *,.onchain-desk .chart-legend,.onchain-desk .chart-readout,.onchain-desk .chart-meta {font-family:ui-monospace,SFMono-Regular,Menlo,monospace!important;letter-spacing:0;font-variant-numeric:tabular-nums;}
+.onchain-desk .chart-head {padding:8px 10px;gap:4px;border-bottom:1px solid var(--line);}
+.onchain-desk .chart-head .chart-price {font-size:var(--fs-5);font-weight:650;}
+.onchain-desk .chart-head .chart-meta {font-size:var(--fs-1);color:var(--muted);line-height:1.7;}
+.onchain-desk .chart-legend {font-size:var(--fs-1);line-height:1.6;border-radius:4px;}
+.onchain-desk .chart-readout {font-size:var(--fs-1);line-height:1.7;}
+.onchain-desk .chart-tools {gap:4px;padding:6px 10px;flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;}
+.onchain-desk .chart-tools button {font:var(--fs-1) ui-monospace,monospace;padding:5px;}
+.onchain-desk .chart-tool-status {font:var(--fs-1) ui-monospace,monospace;}
+.trader-toolbar,.participant-tape,.terminal-rail {font:var(--fs-3)/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums;color:var(--text);}
+.trader-toolbar {flex:0 0 auto;padding:10px 12px;background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+.trader-toolbar-heading {display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:var(--fs-1);letter-spacing:.06em;}
+.trader-toolbar-heading strong {color:var(--text-strong);}
+.trader-toolbar-heading small {font-size:var(--fs-1);color:var(--muted);letter-spacing:0;}
+.terminal-health {display:inline-flex;align-items:center;gap:5px;color:var(--warning);font:var(--fs-1) ui-monospace,monospace;}
+.terminal-health i {width:5px;height:5px;border-radius:50%;background:currentColor;}
+.terminal-health.fresh {color:var(--up);}
+.trader-filters {display:flex;align-items:end;gap:8px;flex-wrap:wrap;}
+.trader-filters label {display:flex;flex-direction:column;gap:3px;color:var(--muted);font-size:var(--fs-1);}
+.trader-filters select,.trader-filters input,.replay-control input {background:var(--bg);color:var(--text);border:1px solid var(--line2);border-radius:4px;height:29px;padding:4px 6px;font:var(--fs-2) ui-monospace,monospace;max-width:145px;}
+.trader-filters input {width:82px;}
+.trader-filters button,.tape-pagination button,.inspector-actions button,.inspector-actions a {background:var(--surface2);color:var(--text);border:1px solid var(--line2);border-radius:4px;padding:6px 8px;font:var(--fs-1) ui-monospace,monospace;text-decoration:none;min-height:29px;}
+.trader-filters button[aria-pressed="true"] {border-color:var(--warning);color:var(--warning);}
+.trader-count {font-size:var(--fs-1);color:var(--muted);margin-left:auto;align-self:center;}
+.terminal-tape-slot {grid-area:tape;min-width:0;}
+.participant-tape-head {display:flex;gap:10px;padding:12px;border-bottom:1px solid var(--line);font-size:var(--fs-1);align-items:center;}
+.participant-tape-head strong {letter-spacing:.08em;white-space:nowrap;}
+.participant-tape-head span {color:var(--muted);}
+.participant-tape-head b {margin-left:auto;font-size:var(--fs-1);color:var(--muted);}
+.participant-table-wrap {max-height:300px;overflow:auto;}
+.participant-tape table {width:100%;border-collapse:collapse;font:var(--fs-2) ui-monospace,SFMono-Regular,monospace;}
+.participant-tape th {position:sticky;top:0;background:var(--surface);z-index:1;text-align:left;color:var(--muted);font-weight:400;font-size:var(--fs-1);}
+.participant-tape th,.participant-tape td {padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+.participant-tape td:nth-child(4),.participant-tape td:nth-child(5) {text-align:right;}
+.participant-tape td small {display:block;color:var(--muted);font-size:var(--fs-1);}
+.participant-tape td button {border:0;background:transparent;color:inherit;padding:0;text-align:left;font:inherit;}
+.participant-tape tr:hover {background:var(--hover);}
+.participant-tape tr.selected {background:color-mix(in srgb,var(--select) 15%,var(--surface));box-shadow:inset 2px 0 var(--select);}
+.tape-pagination {display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;font-size:var(--fs-1);color:var(--muted);}
+.terminal-notice {color:var(--warning);font-size:var(--fs-2);line-height:1.6;padding:8px 10px;background:var(--warning-bg);border-left:2px solid var(--warning);margin:8px 0;}
+.terminal-empty {color:var(--muted);padding:18px;font-size:var(--fs-3);line-height:1.7;}
+.terminal-rail {max-height:1200px;overflow-y:auto;align-self:start;position:sticky;top:8px;gap:0;}
+.rail-tabs {display:flex;position:sticky;top:0;background:var(--surface);z-index:4;border-bottom:1px solid var(--line2);}
+.rail-tabs button {flex:1;padding:12px 5px;background:none;border:0;color:var(--muted);font:var(--fs-1) ui-monospace,monospace;}
+.rail-tabs button.active {color:var(--select);box-shadow:inset 0 -2px var(--select);}
+.trader-inspector {padding:18px;background:var(--surface);}
+.inspector-kicker {font:var(--fs-1) ui-monospace,monospace;letter-spacing:.08em;color:var(--muted);display:flex;justify-content:space-between;}
+.inspector-kicker button {background:none;border:0;color:var(--muted);font-size:var(--fs-5);line-height:12px;}
+.trader-inspector h2 {font-size:var(--fs-5);font-weight:550;letter-spacing:-.03em;line-height:1.3;color:var(--text-strong);margin:18px 0 8px;overflow-wrap:anywhere;}
+.trader-inspector p {color:var(--muted);font-size:var(--fs-3);line-height:1.7;}
+.trader-inspector .wallet-address {font:var(--fs-1)/1.7 ui-monospace,monospace;overflow-wrap:anywhere;}
+.inspector-actions {display:flex;flex-wrap:wrap;gap:8px;margin:16px 0;}
+.selected-trade {display:flex;flex-direction:column;gap:5px;border-radius:5px;padding:14px;background:color-mix(in srgb,var(--up) 9%,var(--surface));border:1px solid color-mix(in srgb,var(--up) 25%,var(--line));}
+.selected-trade strong {color:var(--up);font:600 var(--fs-5) ui-monospace,monospace;}
+.selected-trade span {color:var(--muted);font:var(--fs-1) ui-monospace,monospace;}
+.selected-trade.sell {background:color-mix(in srgb,var(--down) 9%,var(--surface));border-color:color-mix(in srgb,var(--down) 25%,var(--line));}
+.selected-trade.sell strong {color:var(--down);}
+.trade-facts {display:grid;grid-template-columns:1fr 1.3fr;gap:10px;font-size:var(--fs-2);margin:20px 0;}
+.trade-facts dt {color:var(--muted);}
+.trade-facts dd {margin:0;text-align:right;overflow-wrap:anywhere;}
+.trade-facts dd small {display:block;color:var(--muted);}
+.inspector-section {border-top:1px solid var(--line);padding-top:14px;margin-top:18px;}
+.inspector-section h3 {font:var(--fs-1) ui-monospace,monospace;letter-spacing:.07em;color:var(--text);margin:0 0 12px;}
+.inspector-section h3 small {display:block;margin-top:6px;color:var(--muted);letter-spacing:0;}
+.motive-label {display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--surface2);font-size:var(--fs-1);color:var(--muted);}
+.motive-label b {font-size:var(--fs-3);color:var(--text);font-weight:400;}
+.timeline-row {display:flex;width:100%;justify-content:space-between;padding:8px 4px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--muted);font:var(--fs-1) ui-monospace,monospace;}
+.timeline-row.active {background:var(--hover);color:var(--text);}
+.inspector-explainer {margin:28px 0;padding:20px 0;border-block:1px solid var(--line);}
+.inspector-explainer b {color:var(--blue);font:var(--fs-1) ui-monospace,monospace;}
+.inspector-explainer p {margin:5px 0 20px;}
+.empty-inspector>small {color:var(--muted);font-size:var(--fs-2);line-height:1.7;}
+.replay-control {display:flex;align-items:center;gap:10px;padding:12px;color:var(--warning);font-size:var(--fs-1);flex-wrap:wrap;}
+.replay-control input {max-width:240px;}
+.onchain-desk .watch-panel {max-height:1200px;overflow:auto;}
+@media(min-width:1100px){:root:not([data-theme="light"]) .onchain-desk {--surface:#11171e;--surface2:#18212b;--chart-bg:#10151c;--line:#212d39;--line2:#2b3949;--text:#c9d4e0;--text-strong:#eff5fb;--muted:#8c9daf;--hover:#1a2835;}}
+/* The one stacked definition. */
+@media(max-width:740px){.onchain-desk .desk-grid{display:flex;flex-direction:column;}.onchain-desk .chart-panel{height:800px;}.terminal-rail{max-height:none;}.onchain-desk .watch-panel{max-height:320px;}.trader-count{margin-left:0;}.trader-toolbar-heading{flex-wrap:wrap;}.participant-tape{overflow:auto;}}
+.terminal-event-lane {display:flex;gap:10px;align-items:center;padding:7px 12px;border-bottom:1px solid var(--line);font:var(--fs-1) ui-monospace,monospace;color:var(--muted);flex:0 0 auto;flex-wrap:wrap;}
+.terminal-event-lane>span {color:var(--blue);font-size:var(--fs-1);}
+.terminal-event-lane button {border:0;background:transparent;color:var(--text);font:inherit;padding:2px;}
+/* The one narrow-viewport definition (it replaces the two rules that both claimed this range). */
+@media(max-width:1150px){.onchain-desk .desk-grid{grid-template-columns:minmax(0,1fr) 290px;grid-template-rows:clamp(420px,calc(100vh - var(--desk-chrome)),1100px) auto auto auto;grid-template-areas:"chart rail" "tape rail" "watch watch" "radar research";}.onchain-desk .watch-panel{max-height:320px;}.terminal-rail{position:sticky;top:8px;max-height:1180px;}}
+:root:not([data-theme="light"]) .onchain-desk {--surface:#11171e;--surface2:#18212b;--chart-bg:#10151c;--line:#212d39;--line2:#2b3949;--text:#c9d4e0;--text-strong:#eff5fb;--muted:#8c9daf;--hover:#1a2835;}
+.onchain-desk .terminal-rail {display:flex;flex-direction:column;grid-template-columns:none;min-width:0;}
+.terminal-rail > * {min-width:0;max-width:100%;flex-shrink:0;}
+.trade-facts {grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);}
+.trade-facts dd {min-width:0;overflow-wrap:anywhere;}
+.rail-tabs button {min-width:0;white-space:normal;line-height:1.5;}
+.terminal-command {width:min(520px,90vw);padding:16px;border:1px solid var(--line2);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:0 20px 80px #0008;font:var(--fs-3)/1.5 -apple-system,BlinkMacSystemFont,sans-serif;}
+.terminal-command::backdrop {background:#0009;backdrop-filter:blur(3px);}
+.command-title {display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font:var(--fs-2) ui-monospace,monospace;}
+.command-title button {border:1px solid var(--line2);background:none;color:var(--muted);font:var(--fs-1) ui-monospace,monospace;padding:4px;}
+.terminal-command>input {width:100%;padding:12px;background:var(--bg);border:1px solid var(--blue);border-radius:5px;color:var(--text);font:var(--fs-3) -apple-system,sans-serif;outline:0;}
+.command-results {display:flex;flex-direction:column;max-height:420px;overflow:auto;margin-top:10px;}
+.command-results>button {display:flex;justify-content:space-between;padding:12px 8px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--text);font:var(--fs-3) -apple-system,sans-serif;text-align:left;}
+.command-results>button:hover,.command-results>button:focus-visible{background:var(--hover);}
+.command-results>button>span,.command-results>small {color:var(--muted);font:var(--fs-1) ui-monospace,monospace;}
+.command-results>small {margin:14px 8px 4px;}
+.onchain-desk .persistent-ca-search {position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line2);box-shadow:0 4px 14px #0003;}
+.persistent-ca-search label {font:var(--fs-2) ui-monospace,monospace;white-space:nowrap;color:var(--muted);}
+.onchain-desk .persistent-ca-search .command-input {flex:1;width:auto;min-width:0;border:1px solid var(--line2);border-radius:5px;background:var(--chart-bg);padding:11px 12px;font:var(--fs-4) ui-monospace,monospace;color:var(--text-strong);}
+.persistent-ca-search input:focus {outline:2px solid var(--accent);outline-offset:1px;}
+.baseline-status {display:flex;flex-direction:column;gap:7px;padding:12px;border:1px solid var(--line2);border-radius:5px;animation:baseline-update 1.2s ease-out;}
+.baseline-status small {color:var(--muted);line-height:1.5;}
+.baseline-summary {padding:7px 12px;color:var(--muted);font:var(--fs-1) ui-monospace,monospace;}
+.baseline-checking {display:inline-block;animation:baseline-pulse 1s ease-in-out infinite;color:#69acff;}
+@keyframes baseline-pulse {50%{opacity:.35;}}
+@keyframes baseline-update {from{border-color:#69acff;background:#69acff18;}to{border-color:var(--line2);background:transparent;}}
+@media(prefers-reduced-motion:reduce){.baseline-status,.baseline-checking{animation:none;}}
+@media(max-width:600px){.persistent-ca-search label{display:none;}.onchain-desk .persistent-ca-search{padding:8px;gap:6px;}}
+
+/* Chart space: the seven lanes that used to stack between the chart head and the canvas are now one head,
+   one coverage disclosure, one indicator row and one tool row. Nothing is deleted — the caveats moved inside
+   the disclosure, whose summary line stays visible and says how many of them report partial coverage. */
+.onchain-desk .chart-head-left,.onchain-desk .chart-head-right {flex-wrap:nowrap;overflow-x:auto;padding-bottom:0;}
+.onchain-desk .chart-head-left>*,.onchain-desk .chart-head-right>* {flex:0 0 auto;}
+.onchain-desk .chart-head-right .analyze-trigger {margin-left:auto;} /* pinned right of the price row, not scrolled off the end of the control row */
+.onchain-desk .chart-coverage {flex:0 0 auto;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--surface) 76%,transparent);font:var(--fs-1)/1.5 ui-monospace,SFMono-Regular,monospace;}
+.onchain-desk .chart-coverage>summary {display:flex;align-items:baseline;gap:8px;min-height:26px;padding:5px 10px;color:var(--label);letter-spacing:.08em;cursor:pointer;}
+.onchain-desk .chart-coverage>summary::-webkit-details-marker {display:none;}
+.onchain-desk .chart-coverage>summary::before {content:"▸";color:var(--meta);}
+.onchain-desk .chart-coverage[open]>summary::before {content:"▾";}
+.onchain-desk .chart-coverage>summary small {flex:1;min-width:0;overflow:hidden;color:var(--muted);font-size:inherit;letter-spacing:0;text-overflow:ellipsis;white-space:nowrap;}
+.onchain-desk .chart-coverage>summary small.is-partial {color:var(--warning);}
+.coverage-notes {display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0;padding:4px 10px 9px;}
+.coverage-notes>div {display:contents;}
+.coverage-notes dt {color:var(--label);letter-spacing:.06em;white-space:nowrap;}
+.coverage-notes dt i {font-style:normal;color:var(--muted);}
+.coverage-notes .is-partial dt i {color:var(--warning);}
+.coverage-notes dd {margin:0;color:var(--muted);line-height:1.6;overflow-wrap:anywhere;}
+.coverage-notes dd button {margin-left:8px;padding:1px 6px;border:1px solid var(--line2);background:transparent;color:var(--select);font:inherit;}
+/* One tool row: the view controls that are not needed on every glance sit behind TOOLS, not on a second row. */
+/* Feed health and staleness keep their full width: the row above scrolls (overflow-x:auto), so clipping this to
+   an ellipsis would hide the snapshot age -- which is appended last -- behind a hover-only title. */
+.onchain-desk .chart-tools .chart-tool-status {flex:0 0 auto;white-space:nowrap;}
+.onchain-desk .chart-tools .chart-tool-status.system-status {margin-left:0;}
+.tool-overflow {position:relative;flex:0 0 auto;margin-left:auto;}
+.tool-overflow>summary {min-height:28px;display:flex;align-items:center;padding:4px 10px;border:1px solid var(--line2);color:var(--muted);font:var(--fs-2) ui-monospace,monospace;white-space:nowrap;cursor:pointer;}
+.tool-overflow>summary::-webkit-details-marker {display:none;}
+.tool-overflow[open]>summary {color:var(--accent);border-color:var(--accent);}
+.tool-overflow-menu {position:absolute;right:0;top:calc(100% + 4px);z-index:60;display:flex;flex-wrap:wrap;gap:4px;width:max-content;max-width:min(320px,80vw);padding:8px;border:1px solid var(--line2);background:var(--panel);box-shadow:4px 4px 0 var(--line);}
+.tool-overflow-menu .drawing-toolbar {flex:1 0 100%;}
+/* The indicator row and the readout stay one row each and scroll rather than wrapping into extra lanes. */
+.onchain-desk .indicator-bar {flex-wrap:nowrap;overflow-x:auto;min-height:36px;padding:5px 10px;}
+.onchain-desk .indicator-group {flex-wrap:nowrap;flex:0 0 auto;}
+.onchain-desk .chart-panel>.chart-readout {display:flex;flex-wrap:nowrap;overflow-x:auto;min-height:32px;padding:6px 10px;}
+.onchain-desk .chart-panel>.chart-readout>span {flex:0 0 auto;}
+/* The participant filter now sits with the rows it governs, directly above the tape. */
+.terminal-tape-slot {display:flex;flex-direction:column;}
+.terminal-tape-slot .trader-toolbar {border:1px solid var(--line2);border-bottom:0;border-radius:8px 8px 0 0;}
+.terminal-tape-slot .participant-tape {border-radius:0 0 8px 8px;}

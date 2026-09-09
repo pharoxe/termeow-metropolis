@@ -8,8 +8,11 @@ import { EvmQuotePrice, type EvmQuotePriceStatus } from "../tape/robinhood/price
 import type { TraderFill } from "./book.js";
 import type { Erc20MetaEntry } from "./erc20Meta.js";
 import type { HandleEntry } from "./handles.js";
+import { QUOTES } from "../launch/robinhood/pads.js";
 import { LruMap } from "./lru.js";
 import {
+  TRANSFER_CHUNK,
+  TRANSFER_WATCH_CAP,
   buildTransferLegs,
   decodeTxTransfers,
   fomoPair,
@@ -45,6 +48,8 @@ export type TransferBlocksLike = { timeMs(blockNumber: number): Promise<number |
 export type TransferFeedTraders = {
   /** Lowercase wallets to watch: classified FOMO plus seeded (robinhoodtrenches) minus those proven "other". */
   transferWallets(): string[];
+  /** Seeded, named, or in-book: these occupy the watch budget before anonymous classified FOMO, and are the only overflow. */
+  watchPriority?(wallet: string): boolean;
   /** Bumps whenever transferWallets() would change. */
   populationVersion(): number;
   peekKind(wallet: string): TraderKind | null;
@@ -155,6 +160,12 @@ export class TransferFeed {
     this.now = opts.now ?? (() => Date.now());
     this.log = opts.log ?? ((msg) => console.warn(msg));
     this.checkMs = opts.checkMs ?? LEGS_CHECK_MS;
+    void this.prices.prime([QUOTES.weth, QUOTES.usdg]);
+    try {
+      this.applyLegs(true);
+    } catch (error) {
+      this.fail(`legs: ${errorMessage(error)}`);
+    }
   }
 
   /** The poller the launch stream should use: same API, transfer legs appended, Transfer logs diverted here. */
@@ -167,6 +178,7 @@ export class TransferFeed {
       },
       start: (onLogs: LogsHandler) => {
         void this.traders.handles.refresh?.();
+        void this.prices.prime([QUOTES.weth, QUOTES.usdg]);
         this.startTimer();
         poller.start((logs, head) => this.split(logs, head, onLogs));
       },
@@ -232,7 +244,7 @@ export class TransferFeed {
     const version = this.traders.populationVersion();
     if (!force && version === this.appliedVersion) return;
     if (version !== this.appliedVersion) {
-      this.built = buildTransferLegs(this.traders.transferWallets());
+      this.built = this.watchLegs();
       this.appliedVersion = version;
     }
     this.inner?.setExtraLegs([...this.baseLegs, ...this.built.legs]);
@@ -314,7 +326,37 @@ export class TransferFeed {
     return decodeTxTransfers(tx, receipt.logs, ctx);
   }
 
+  /**
+   * Seeded/named/in-book wallets are the ones overflow must not silently drop. The default 1,500 cap (3x500) left
+   * the oldest in-book wallets out while the classifier tail drove overflow without bound. Matter wallets get up to
+   * 6 chunks of 500 (each leg still inside the measured 1,000-address envelope); anonymous classified FOMO only fill
+   * leftover slots and never count as overflow.
+   */
+  private watchLegs(): TransferLegs {
+    const ordered = this.traders.transferWallets();
+    const priority = this.traders.watchPriority?.bind(this.traders);
+    if (!priority) return buildTransferLegs(ordered);
+    const matter = ordered.filter((wallet) => priority(wallet));
+    const rest = ordered.filter((wallet) => !priority(wallet));
+    const chunks = Math.max(TRANSFER_WATCH_CAP / TRANSFER_CHUNK, Math.min(6, Math.ceil(matter.length / TRANSFER_CHUNK) || 1));
+    const cap = TRANSFER_CHUNK * chunks;
+    const keptMatter = matter.slice(0, cap);
+    const room = cap - keptMatter.length;
+    const kept = room > 0 ? [...keptMatter, ...rest.slice(0, room)] : keptMatter;
+    return { ...buildTransferLegs(kept, TRANSFER_CHUNK, chunks), overflow: Math.max(0, matter.length - cap) };
+  }
+
+  /** Token USD from the same DexScreener quote cache the market path uses, when the cash leg could not be tied. */
+  private async priceFromMarket(fill: TransferFill): Promise<TransferFill> {
+    if (fill.usd !== null || fill.units == null || !(fill.units > 0)) return fill;
+    await this.prices.prime([fill.token, fill.quote ?? "", QUOTES.weth, QUOTES.usdg]);
+    const px = this.prices.get(fill.token);
+    if (px == null || !(px > 0)) return fill;
+    return { ...fill, usd: fill.units * px, price: px };
+  }
+
   private async toRow(fill: TransferFill, block: number | null): Promise<TraderFill[]> {
+    fill = await this.priceFromMarket(fill);
     const key = transferFillKey(CHAIN, fill);
     if (this.seen.has(key)) {
       this.counters.duplicates += 1;
@@ -339,6 +381,9 @@ export class TransferFeed {
         usd: fill.usd,
         source: "own",
         price: fill.price,
+        // The decoder's own token amount (whole tokens, decimals known). Carried even when usd is null: the size is
+        // decoded whether or not a cash leg could be tied to it, and the archive must not re-derive what it already has.
+        ...(fill.units !== null && fill.units > 0 ? { quantity: fill.units } : {}),
         ...(fill.usdVia ? { usdVia: fill.usdVia } : {}),
         trader: fill.wallet,
         token: fill.token,

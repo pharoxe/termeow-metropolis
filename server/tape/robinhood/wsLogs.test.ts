@@ -111,7 +111,7 @@ describe("RobinhoodWsLogs", () => {
     const h = handlers();
     ws.setLegs([USEROP]);
     ws.start(h);
-    await until(() => node.clients[0]?.subs.size === 2);
+    await until(() => node.clients[0]?.subs.size === 2 && ws.status().subscriptions === 1);
     const client = node.clients[0]!;
     expect(client.requests.map((req) => [req.method, req.params[0]])).toEqual([["eth_subscribe", "newHeads"], ["eth_subscribe", "logs"]]);
     expect(client.requests[1]!.params[1]).toEqual(USEROP);
@@ -223,7 +223,7 @@ describe("RobinhoodWsLogs", () => {
     await until(() => h.closes === 1);
     expect(ws.status()).toMatchObject({ connected: false, subscriptions: 0 });
     expect(ws.status().lastError).toMatch(/^closed \(1006\)/);
-    await until(() => node.clients[1]?.subs.size === 2, 5_000);
+    await until(() => node.clients[1]?.subs.size === 2 && ws.status().subscriptions === 1, 5_000);
     expect(h.opens).toBe(2);
     expect(ws.status()).toMatchObject({ connected: true, reconnects: 1, subscriptions: 1 });
   });

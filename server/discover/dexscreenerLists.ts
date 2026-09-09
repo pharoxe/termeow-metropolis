@@ -40,7 +40,7 @@ export function discoveryAddresses(chain: Chain, profiles: readonly TokenProfile
   const seen = new Set<string>();
   for (const profile of [...profiles, ...boosts]) {
     if (profile.chain !== chain) continue;
-    const address = profile.address.toLowerCase();
+    const address = chain === "solana" ? profile.address : profile.address.toLowerCase();
     if (seen.has(address)) continue;
     seen.add(address);
     out.push(address);
@@ -50,14 +50,14 @@ export function discoveryAddresses(chain: Chain, profiles: readonly TokenProfile
 }
 
 /** One best pair as the token's partial for `window`. marketCap is not backfilled from fdv: they differ on tokens with locked supply. */
-export function normalizeDexScreenerPair(token: string, pair: DexScreenerPair, window: DiscoverWindow, now: number, lastOkAt: number | null, stale: boolean): DiscoverPartial {
+export function normalizeDexScreenerPair(token: string, pair: DexScreenerPair, window: DiscoverWindow, now: number, lastOkAt: number | null, stale: boolean, chain: Chain = "robinhood"): DiscoverPartial {
   const key = WINDOW_KEY[window];
   const createdAt = finiteOrNull(pair.pairCreatedAt);
   const symbol = String(pair.baseToken?.symbol ?? "").trim();
   const name = String(pair.baseToken?.name ?? "").trim();
   const pool = String(pair.pairAddress ?? "").trim();
   return {
-    token: token.toLowerCase(),
+    token: chain === "solana" ? token : token.toLowerCase(),
     source: DEXSCREENER_DISCOVERY_SOURCE,
     lastOkAt,
     stale,
@@ -71,7 +71,7 @@ export function normalizeDexScreenerPair(token: string, pair: DexScreenerPair, w
     changePct: finiteOrNull(pair.priceChange?.[key]),
     txns: txns(pair.txns?.[key]),
     ageMs: createdAt === null ? null : Math.max(0, now - createdAt),
-    pool: pool ? pool.toLowerCase() : null,
+    pool: pool ? (chain === "solana" ? pool : pool.toLowerCase()) : null,
     dex: pair.dexId ? String(pair.dexId) : null,
     fomoHolders: null,
     trackedBuyers: null
@@ -85,7 +85,7 @@ export function normalizeDexScreenerPair(token: string, pair: DexScreenerPair, w
  */
 export function dexScreenerListPartials(chain: Chain, load: DexScreenerListLoad, window: DiscoverWindow, now: number, lastOkAt: number | null, stale: boolean): DiscoverPartial[] {
   const best = bestPairsOf(chain, load.requested, load.pairs);
-  return [...best.entries()].map(([token, pair]) => normalizeDexScreenerPair(token, pair, window, now, lastOkAt, stale));
+  return [...best.entries()].map(([token, pair]) => normalizeDexScreenerPair(token, pair, window, now, lastOkAt, stale, chain));
 }
 
 /**

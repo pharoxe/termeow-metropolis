@@ -1,9 +1,12 @@
+import type { BoardKind, IdentityBoardResponse, IdentityCoverageResponse } from "../../shared/identity";
+import type { WalletPortfolio } from "../../shared/portfolio";
 import type { PublicConfig } from "../types";
 import type { AlertRule, AlertsResponse, Chain, DiscoverResponse, DiscoverView, DiscoverWindow, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, SystemHealth, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
+    signal: init?.signal ?? AbortSignal.timeout(45_000),
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) }
   });
   const body = await response.json().catch(() => null);
@@ -14,6 +17,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  capturedCandles: (chain: Chain, address: string, interval: FlowCandleInterval) => request<FlowCandlesResponse>(`/api/terminal/${chain}/${address}/candles?interval=${interval}`),
   config: () => request<PublicConfig>("/api/config"),
   market: (chain: Chain, address: string, interval = "5m") => request<MarketResponse>(`/api/market/${chain}/${address}?interval=${encodeURIComponent(interval)}`),
   flowToken: (chain: Chain, address: string, interval: string, anchor: TokenFlowResponse["anchor"] = "window") =>
@@ -33,6 +37,14 @@ export const api = {
   },
   fomoBoard: (params: { chain?: FomoChainScope; window?: FomoBoardWindow } = {}) =>
     request<FomoBoardResponse>(`/api/fomo/board?${new URLSearchParams({ chain: params.chain ?? "all", window: params.window ?? "24h" }).toString()}`),
+  /** Registry size, the boards read and the CU meter; `account` is the whole key's balance, repolled every 5 min. */
+  identityCoverage: () => request<IdentityCoverageResponse>("/api/identity/coverage"),
+  /** A stored board snapshot, never a fresh sweep. The server 400s outside 1-100, so `limit` is clamped here. */
+  identityBoard: (board: BoardKind, window: string, limit?: number) => {
+    const rows = limit == null || !Number.isFinite(limit) ? null : Math.min(100, Math.max(1, Math.trunc(limit)));
+    const search = rows == null ? "" : `?${new URLSearchParams({ limit: String(rows) }).toString()}`;
+    return request<IdentityBoardResponse>(`/api/identity/board/${board}/${encodeURIComponent(window)}${search}`);
+  },
   /** Alert ring (newest first); `since` = the last observedAt seen, `rule` narrows to one rule. 200 + error/stale on failure. */
   alerts: (params: { chain?: FomoChainScope; since?: number; rule?: AlertRule; limit?: number } = {}) => {
     const search = new URLSearchParams({ chain: params.chain ?? "all" });
@@ -50,7 +62,7 @@ export const api = {
   trenches: (sort = "hot") => request<Record<string, unknown>>(`/api/onchain/trenches?sort=${encodeURIComponent(sort)}`),
   board: () => request<Record<string, unknown>>("/api/onchain/board"),
   holders: (mint: string) => request<Record<string, unknown>>(`/api/onchain/holders/${mint}`),
-  portfolio: (wallet: string) => request<Record<string, unknown>>(`/api/onchain/portfolio/${wallet}`),
+  portfolio: (wallet: string) => request<WalletPortfolio>(`/api/onchain/portfolio/${wallet}`),
   rpc: async <T>(method: string, params: unknown[]) => {
     const body = await request<{ result?: T; error?: { message?: string } }>("/api/rpc", {
       method: "POST",

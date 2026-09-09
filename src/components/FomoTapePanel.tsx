@@ -10,7 +10,7 @@ import { FOMO_TAPE_POLL_MS, fomoCoverageLabel, fomoTapeRow } from "../lib/fomoPa
  * robinhoodtrenches traders list whose check has not answered yet is tagged SEEDED (its provenance, never an upgrade).
  * A row without a robinhoodtrenches handle shows its address and links nowhere (fomo.family has no public API to resolve one).
  */
-export function FomoTapePanel({ onInstrument }: { onInstrument?: (ref: InstrumentRef, symbol?: string) => void }) {
+export function FomoTapePanel({ onInstrument,onNewChart }: { onInstrument?: (ref: InstrumentRef, symbol?: string) => void;onNewChart?:(ref:InstrumentRef)=>void }) {
   const [feed, setFeed] = useState<FomoTapeResponse | null>(null);
   const [failure, setFailure] = useState("");
   const [now, setNow] = useState(() => Date.now());
@@ -54,7 +54,7 @@ export function FomoTapePanel({ onInstrument }: { onInstrument?: (ref: Instrumen
                       <small>{row.followers} FOLLOWERS{row.tag ? ` · ${row.tag}` : ""}</small>
                     </td>
                     <td className={`r ${row.tone}`}><b>{row.usd}</b><small>{row.side}</small></td>
-                    <td className="r"><b>{row.token}</b><small>{row.age}</small></td>
+                    <td className="r"><button onClick={e=>{e.stopPropagation();onInstrument?.({chain:fill.chain,address:fill.token});}}>{row.token}</button>{onNewChart&&<button title="Open in new chart" onClick={e=>{e.stopPropagation();onNewChart({chain:fill.chain,address:fill.token});}}>＋</button>}<small>{row.age}</small></td>
                   </tr>
                 );
               })}

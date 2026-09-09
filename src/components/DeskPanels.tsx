@@ -15,11 +15,14 @@ import type { InstrumentRef } from "../lib/address";
 import { FlowSideOutputs } from "./FlowSideOutputs";
 import { AlertsTab } from "./AlertsTab";
 import { FomoBoardTab } from "./FomoBoardTab";
+import { SmartMoneyTab } from "./SmartMoneyTab";
+import { ThesisActivity } from "./ThesisActivity";
 import { LaunchesTab } from "./LaunchesTab";
 import { useNotifications } from "./NotificationSystem";
 
 type Row = Record<string, unknown>;
-type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW" | "LAUNCHES" | "FOMO" | "ALERTS";
+/** SMART HOLDERS is this server's own observed FOMO buyers per token; SMART MONEY is FomoScan's external board — 100 ranked wallets swept from 316,007 — so the two never share a population. */
+type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW" | "LAUNCHES" | "FOMO" | "SMART MONEY" | "ALERTS";
 type TrenchSort = "hot" | "new" | "mcap" | "volume";
 
 function record(value: unknown): Row {
@@ -105,13 +108,15 @@ export function MarketStrips({ market, onPick }: { market: OnchainMarket; onPick
 }
 
 export function WatchPanel({
-  market, selected, onSpot, onInstrument, trenches = [], onTrenchSort, search
+  market, selected, activeInstrument, onSpot, onInstrument, onNewChart, trenches = [], onTrenchSort, search
 }: {
   market?: OnchainMarket | null;
   selected?: string;
+  activeInstrument?: InstrumentRef;
   onSpot?: (mint: string, symbol?: string) => void;
   /** Opens a token on its own chain (LAUNCHES rows carry Solana mints and Robinhood addresses). */
   onInstrument?: (ref: InstrumentRef, symbol?: string) => void;
+  onNewChart?: (ref: InstrumentRef)=>void;
   trenches?: Row[];
   onTrenchSort?: (sort: TrenchSort) => void;
   search?: ReactNode;
@@ -119,7 +124,7 @@ export function WatchPanel({
   const [tab, setTab] = useState<WatchTab>("TRENDING");
   /** R6: the ROBINHOOD/SOLANA toggle routes the discovery tabs; the ClawPump paths below stay Solana-only. */
   const { network } = useFundingNetwork();
-  const robinhoodDiscovery = network === "robinhood" && isDiscoverTab(tab);
+  const robinhoodDiscovery = isDiscoverTab(tab);
   const provider = record(market?.provider);
   const gems = rows(provider.anomalies, ["gems", "signals"]);
   const smartHolderRows = [...rows(provider.intelligence_signals, ["signals"]), ...gems].filter((item, index, all) => {
@@ -142,10 +147,12 @@ export function WatchPanel({
     <section className="panel watch-panel">
       {search}
       <div className="ph">
-        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW", "LAUNCHES", "FOMO", "ALERTS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
+        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW", "LAUNCHES", "FOMO", "SMART MONEY", "ALERTS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
       </div>
       <div className="panel-scroll">
-        {robinhoodDiscovery && isDiscoverTab(tab) ? <DiscoverTab tab={tab} onOpen={onInstrument} selected={selected} /> : tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
+        {tab==='FOMO'&&activeInstrument&&<ThesisActivity instrument={activeInstrument} compact/>}
+        <p className="terminal-notice">{tab === "TRENDING" ? "ATTENTION · provider-ranked tokens; compare activity with liquidity." : tab === "BIGGEST MOVERS" ? "MOMENTUM · change over the selected window, within the discovered universe." : tab === "SMART HOLDERS" ? "PARTICIPANTS · observed verified-FOMO buyers; not proven current holders or profitability." : tab === "NEW" || tab === "LAUNCHES" ? "EARLY MARKETS · inspect age, liquidity and launch stage before opening the chart." : tab === "FOMO" ? "SOCIAL FLOW · observed participant activity on the selected network." : tab === "SMART MONEY" ? "EXTERNAL RANKING · a third-party board's top rows, not this server's own observations; the population each board was drawn from is stated below." : "CATALYSTS · sourced events and their observation time."}</p>
+        {robinhoodDiscovery && isDiscoverTab(tab) ? <DiscoverTab chain={network} tab={tab} onOpen={onInstrument} onNewChart={onNewChart} selected={selected} /> : tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab chain={network} /> : tab === "SMART MONEY" ? <SmartMoneyTab /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
           <table className="terminal-table"><thead><tr><th>TOKEN / SOCIAL</th><th className="r">MCAP / VOL</th></tr></thead><tbody>{sourceRows.slice(0, 48).map((item) => {
             const mint = String(item.mintAddress || "");
             return <tr className={mint && mint === selected ? "selected" : ""} key={mint || String(item.symbol)} onClick={() => pickSpot(item)}>
@@ -162,7 +169,7 @@ export function WatchPanel({
             return <tr className={mint && mint === selected ? "selected" : ""} key={String(item.contract || item.symbol || index)} onClick={() => pickSpot(item)}><td><b>{clean(item.symbol || item.name)}</b><small>{clean(item.signal || item.name)}{item.chain && String(item.chain) !== "sol" ? ` · ${String(item.chain).toUpperCase()}` : ""}</small></td><td className="r"><b className="mcap-value">{cap != null ? compact(cap) : "—"}</b>{px != null ? <small>{money(px)}</small> : null}</td><td className={`r ${change == null ? "" : changeClass(change)}`}>{change == null ? "—" : pct(change)}</td></tr>;
           })}</tbody></table>
         )}
-        {!robinhoodDiscovery && tab !== "LAUNCHES" && tab !== "FOMO" && tab !== "ALERTS" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
+        {!robinhoodDiscovery && tab !== "LAUNCHES" && tab !== "FOMO" && tab !== "SMART MONEY" && tab !== "ALERTS" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
       </div>
     </section>
   );
@@ -358,4 +365,3 @@ export function ResearchPanel({ market }: { market: MarketResponse }) {
     </section>
   );
 }
-

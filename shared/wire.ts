@@ -4,6 +4,10 @@ export type Side = "buy" | "sell";
 
 /** One pool print as ingested into the flow ledger. `usd` is null when it cannot be priced honestly. */
 export type FlowPrint = {
+  eventId?: string;
+  /** Whole tokens as the producer decoded them (Solana swap delta, Robinhood Transfer units); never a usd/price back-calculation, which the archive derives for itself and labels as such. */
+  quantity?: number;
+  identitySource?: string;
   chain: Chain;
   pair: string;
   tx: string;
@@ -126,16 +130,18 @@ export type MarketCandle = { time: number; open: number; high: number; low: numb
 export type FlowCandleInterval = "5s" | "15s" | "1m";
 
 /**
- * Candles built only from ledger ring prints that carry `price` (OHLC = price, volume = summed usd); buckets with no
- * priced print are absent, never filled. `prints` counts every ring print merged, `priced` those that made candles;
- * `spanMs` is newest minus oldest priced print. The ring is 200 prints per pair, so this is minutes of history, not hours.
+ * Candles from ledger ring prints that carry `price` when the own tape has any; otherwise the same candle series the
+ * market route already serves (on-chain public fallback / robinhood assembly), labeled with that route's `source`.
+ * `prints`/`priced`/`spanMs` describe the series that was actually returned. An empty own-tape ring is never the
+ * answer when market candles exist.
  */
 export type FlowCandlesResponse = {
   chain: Chain;
   address: string;
   interval: FlowCandleInterval;
   candles: MarketCandle[];
-  source: "own tape";
+  /** "own tape" or the market route's source string when that series is the fallback. */
+  source: "own tape" | string;
   spanMs: number;
   prints: number;
   priced: number;
@@ -292,6 +298,8 @@ export type FomoFill = {
   symbol?: string | null;
   /** USD per token at the fill when the print carried one; null or absent otherwise. */
   price?: number | null;
+  /** Whole tokens the producer decoded for this fill; absent when the decoder had no decimals. */
+  quantity?: number;
   /** Transfer-decoded fills only: usd from the wallet's own quote Transfer ("wallet_leg") or the custody hub's USDG leg ("hub_leg"); absent when usd came with the print or is null. */
   usdVia?: "wallet_leg" | "hub_leg";
 };

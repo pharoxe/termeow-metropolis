@@ -183,6 +183,8 @@ export function decodeSwapLog(log: EvmLog, pools: Map<string, EvmPoolRef>, ctx: 
     side: leg.side,
     usd,
     source: "own",
+    eventId: logKey(log),
+    quantity: Math.abs(quoteUnits(leg.tokenAmount, pool.tokenDecimals)),
     ...perTokenPrice(usd, quoteUnits(leg.tokenAmount, pool.tokenDecimals))
   };
 }

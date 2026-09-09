@@ -1,3 +1,5 @@
+import { QuoteCache, matchesOrder, matchesRoute } from "../trading/quotes.js";
+import { walletPortfolio } from "../market/walletPortfolio.js";
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
@@ -15,7 +17,7 @@ export const quoteSchema = z.object({
   router: z.enum(["0x", "jupiter", "clawpump"]).default("jupiter"),
   inputMint: chainAddress,
   outputMint: chainAddress,
-  amount: z.string().regex(/^\d+$/),
+  amount: z.string().regex(/^[1-9]\d*$/),
   slippageBps: z.number().int().min(1).max(500).default(50),
   walletAddress: chainAddress.optional()
 }).superRefine((input, ctx) => {
@@ -23,15 +25,18 @@ export const quoteSchema = z.object({
   for (const [field, value] of [["inputMint", input.inputMint], ["outputMint", input.outputMint], ["walletAddress", input.walletAddress]] as const) {
     if (value && !validator.safeParse(value).success) ctx.addIssue({ code: "custom", path: [field], message: `${field} is not valid for ${input.chain}` });
   }
+  if (input.chain === "solana" && /^[1-9]\d*$/.test(input.amount) && BigInt(input.amount) > 18446744073709551615n) ctx.addIssue({ code: "custom", path: ["amount"], message: "Amount exceeds token range" });
   if (input.chain === "robinhood" && input.router !== "0x") ctx.addIssue({ code: "custom", path: ["router"], message: "Robinhood Chain currently routes through 0x." });
   if (input.chain === "solana" && input.router === "jupiter" && input.inputMint.startsWith("0x")) ctx.addIssue({ code: "custom", path: ["inputMint"], message: "Jupiter requires Solana mint addresses." });
 });
 
 export const onchainRouter = Router();
-type RouterId = "0x" | "jupiter" | "clawpump";
-type ChainId = "solana" | "robinhood";
 type QuoteInput = z.infer<typeof quoteSchema>;
-const quoteCache = new Map<string, { expiresAt: number; router: RouterId; chain: ChainId; walletAddress?: string; request: QuoteInput; quote: unknown }>();
+// One bounded, pruned cache for both routers: an unbounded Map keyed on quote id never releases a quote that was
+// requested and then abandoned, which is the common case.
+const quoteCache = new QuoteCache();
+const quoteCleanup = setInterval(() => quoteCache.prune(), 30_000);
+quoteCleanup.unref();
 
 type ZeroExInstruction = {
   accounts: Array<{ pubkey: number[]; is_signer: boolean; is_writable: boolean }>;
@@ -100,17 +105,13 @@ async function zeroExSolanaTransaction(quote: ZeroExSolanaQuote, taker: string) 
 }
 
 export function sameQuoteRequest(left: QuoteInput, right: QuoteInput) {
-  return left.chain === right.chain && left.router === right.router && left.inputMint.toLowerCase() === right.inputMint.toLowerCase()
-    && left.outputMint.toLowerCase() === right.outputMint.toLowerCase() && left.amount === right.amount
-    && left.slippageBps === right.slippageBps && left.walletAddress?.toLowerCase() === right.walletAddress?.toLowerCase();
+  return matchesOrder(left, right);
 }
 
 function cacheQuote(input: QuoteInput, quote: unknown) {
-  const now = Date.now();
-  for (const [id, cached] of quoteCache) if (cached.expiresAt < now) quoteCache.delete(id);
   const quoteId = randomUUID();
-  quoteCache.set(quoteId, { expiresAt: now + 60_000, router: input.router, chain: input.chain, walletAddress: input.walletAddress, request: input, quote });
-  return quoteId;
+  const expiresAt = quoteCache.set(quoteId, quote, input, input.router);
+  return { quoteId, expiresAt };
 }
 
 function findJupiterQuote(value: unknown): Record<string, unknown> | undefined {
@@ -192,9 +193,10 @@ onchainRouter.post("/quote", async (request, response, next) => {
         const result = await fetchJson<ZeroExEvmQuote>(`${config.zeroEx.apiUrl}/swap/allowance-holder/quote?${params}`, {
           headers: { "0x-api-key": config.zeroEx.apiKey, "0x-version": "v2" }
         });
-        const quoteId = cacheQuote(input, result);
+        const { quoteId, expiresAt } = cacheQuote(input, result);
         response.json({
           quoteId,
+          expiresAt,
           chain: input.chain,
           router: "0x",
           source: "0x AllowanceHolder · Robinhood Chain",
@@ -224,9 +226,10 @@ onchainRouter.post("/quote", async (request, response, next) => {
           slippage_bps: input.slippageBps
         })
       });
-      const quoteId = cacheQuote(input, result);
+      const { quoteId, expiresAt } = cacheQuote(input, result);
       response.json({
         quoteId,
+        expiresAt,
         router: "0x",
         source: "0x Solana Swap API",
         observedAt: Date.now(),
@@ -249,8 +252,12 @@ onchainRouter.post("/quote", async (request, response, next) => {
       const result = await fetchJson<Record<string, unknown>>(`${config.jupiter.apiUrl}/quote?${params}`, {
         headers: config.jupiter.apiKey ? { "x-api-key": config.jupiter.apiKey } : undefined
       });
-      const quoteId = cacheQuote(input, result);
-      response.json({ quoteId, chain: input.chain, router: "jupiter", source: "Jupiter Swap API", observedAt: Date.now(), ...result });
+      if (!matchesRoute(result, input)) {
+        response.status(502).json({ error: "Quote route differs from requested order" });
+        return;
+      }
+      const { quoteId, expiresAt } = cacheQuote(input, result);
+      response.json({ quoteId, expiresAt, chain: input.chain, router: "jupiter", source: "Jupiter Swap API", observedAt: Date.now(), ...result });
       return;
     }
     const result = await clawpumpMcp.call("swap_quote", {
@@ -264,8 +271,13 @@ onchainRouter.post("/quote", async (request, response, next) => {
       response.status(502).json({ error: "ClawPump quote failed", detail: result.error });
       return;
     }
-    const quoteId = cacheQuote(input, result.data);
-    response.json({ quoteId, router: "clawpump", source: "ClawPump + Jupiter", observedAt: Date.now(), ...result });
+    const route = findJupiterQuote(result.data);
+    if (route && !matchesRoute(route, input)) {
+      response.status(502).json({ error: "Quote route differs from requested order" });
+      return;
+    }
+    const { quoteId, expiresAt } = cacheQuote(input, result.data);
+    response.json({ quoteId, expiresAt, router: "clawpump", source: "ClawPump + Jupiter", observedAt: Date.now(), ...result });
   } catch (error) { next(error); }
 });
 
@@ -282,8 +294,10 @@ onchainRouter.post("/transaction", async (request, response, next) => {
       response.status(400).json({ error: "A connected wallet is required to build the transaction." });
       return;
     }
-    if (!sameQuoteRequest(cached.request, input)) {
-      response.status(409).json({ error: "The transaction request no longer matches the quoted route." });
+    // The order is re-checked for every router: a quote is only good for the order it was priced against, and the 0x
+    // branch below builds a signable transaction, so letting a changed amount or mint through here would sign it.
+    if (!matchesOrder(cached.order, input)) {
+      response.status(409).json({ error: "Order changed; request a fresh quote" });
       return;
     }
     quoteCache.delete(quoteId);
@@ -316,6 +330,10 @@ onchainRouter.post("/transaction", async (request, response, next) => {
       response.status(502).json({ error: "ClawPump quote did not contain a Jupiter-compatible route" });
       return;
     }
+    if (!matchesRoute(quoteResponse, input)) {
+      response.status(409).json({ error: "Quote route differs from requested order" });
+      return;
+    }
     const result = await fetchJson<Record<string, unknown>>(`${config.jupiter.apiUrl}/swap`, {
       method: "POST",
       headers: {
@@ -336,8 +354,6 @@ onchainRouter.post("/transaction", async (request, response, next) => {
 onchainRouter.get("/portfolio/:wallet", async (request, response, next) => {
   try {
     const walletAddress = address.parse(request.params.wallet);
-    const args = { walletAddress, ...(config.clawpump.agentId ? { agentId: config.clawpump.agentId } : {}) };
-    const result = await clawpumpMcp.call("get_portfolio", args);
-    response.status(result.ok ? 200 : 502).json(result);
+    response.json(await walletPortfolio(walletAddress));
   } catch (error) { next(error); }
 });

@@ -6,13 +6,17 @@ const optionalString = z.preprocess(emptyAsUndefined, z.string().min(1).optional
 const optionalUrl = z.preprocess(emptyAsUndefined, z.string().url().optional());
 const urlWithDefault = (fallback: string) => z.preprocess(emptyAsUndefined, z.string().url().default(fallback));
 
-/** Public Robinhood Chain (4663) JSON-RPC endpoints, measured 2026-09-07 19:20 IST, in eth_blockNumber latency order. */
+/**
+ * Public Robinhood Chain (4663) JSON-RPC endpoints. Working hosts lead (publicnode / pocket / blxrbdn, not rate
+ * limited). The official RPC and nodeflare are kept in the pool but last: both answered upstream 429s and must not
+ * win a configured-order tie. The health-based picker also ranks any host with rateLimited > 0 behind clean ones.
+ */
 export const DEFAULT_ROBINHOOD_RPC_URLS = [
   "https://robinhood-rpc.publicnode.com",
-  "https://rpc-robinhood.blockmachine.io",
-  "https://rpc.mainnet.chain.robinhood.com",
   "https://robinhood.api.pocket.network",
   "https://robinhood.rpc.blxrbdn.com",
+  "https://rpc-robinhood.blockmachine.io",
+  "https://rpc.mainnet.chain.robinhood.com",
   "https://rpc.nodeflare.app/robinhood/public"
 ] as const;
 const LEGACY_ROBINHOOD_RPC_URL = "https://rpc.mainnet.chain.robinhood.com";
@@ -37,6 +41,18 @@ const envSchema = z.object({
   HOST: optionalString,
   PORT: z.preprocess(emptyAsUndefined, z.coerce.number().int().positive().default(9300)),
   APP_ORIGIN: z.preprocess(emptyAsUndefined, z.string().default("http://localhost:5173")),
+  FOMOSCAN_API_KEY: optionalString,
+  /**
+   * FomoScan units. The plan grant is monthly, does not roll over, and every read is priced: 250 CU for a thesis page
+   * or any leaderboard, 2,500 to resolve a handle, 50,000 to resolve an unknown address. Shares are the fraction of
+   * the grant each consumer may spend, released evenly across the UTC month; the burst is what a newly watched token
+   * may spend at once. Defaults keep an unattended server inside a 250,000 CU starter plan.
+   */
+  FOMOSCAN_MONTHLY_UNITS: z.preprocess(emptyAsUndefined, z.coerce.number().int().nonnegative().default(250_000)),
+  FOMOSCAN_THESIS_SHARE: z.preprocess(emptyAsUndefined, z.coerce.number().min(0).max(1).default(0.5)),
+  FOMOSCAN_BOARD_SHARE: z.preprocess(emptyAsUndefined, z.coerce.number().min(0).max(1).default(0.1)),
+  FOMOSCAN_BURST_UNITS: z.preprocess(emptyAsUndefined, z.coerce.number().int().nonnegative().default(5_000)),
+  FOMOSCAN_BOARD_INTERVAL_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().positive().default(86_400_000)),
   CLAWPUMP_API_KEY: optionalString,
   CLAWPUMP_AGENT_ID: optionalString,
   CLAWPUMP_API_URL: urlWithDefault("https://ai-agents-production-6ca0.up.railway.app"),
@@ -98,6 +114,14 @@ export const config = {
   appOrigin: env.APP_ORIGIN,
   ansemMint: env.ANSEM_MINT,
   usdcMint: env.USDC_MINT,
+  fomoscan: {
+    apiKey: env.FOMOSCAN_API_KEY,
+    monthlyUnits: env.FOMOSCAN_MONTHLY_UNITS,
+    thesisShare: env.FOMOSCAN_THESIS_SHARE,
+    boardShare: env.FOMOSCAN_BOARD_SHARE,
+    burstUnits: env.FOMOSCAN_BURST_UNITS,
+    boardIntervalMs: env.FOMOSCAN_BOARD_INTERVAL_MS
+  },
   clawpump: {
     apiKey: env.CLAWPUMP_API_KEY,
     agentId: env.CLAWPUMP_AGENT_ID,
@@ -146,6 +170,7 @@ export const config = {
 export function integrationStatus() {
   return {
     clawpump: Boolean(config.clawpump.apiKey),
+    fomoscan: Boolean(config.fomoscan.apiKey),
     clawpumpAgent: Boolean(config.clawpump.agentId),
     primaryRpc: config.rpc.primary.includes("api.mainnet-beta.solana.com") ? "public" : "helius",
     fallbackRpc: Boolean(config.rpc.fallback),

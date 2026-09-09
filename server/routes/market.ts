@@ -113,3 +113,8 @@ const liveDeps: MarketRouteDeps = {
 };
 
 export const marketRouter = createMarketRouter(liveDeps);
+
+/** Same builder the market route uses (on-chain public fallback / robinhood assembly). For empty-tape candle fallback. */
+export function liveMarketResponse(params: MarketParams): Promise<MarketResponse> {
+  return buildMarketResponse(params, liveDeps);
+}

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { tokenAmount } from "../lib/tokenAmount";
+import { useEffect, useRef, useState } from "react";
 import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { api, deepFind } from "../api/client";
 import type { PublicConfig } from "../types";
@@ -68,32 +69,52 @@ function TradeTicketSurface({ config, mint, symbol, walletAddress, send }: Props
       .catch(() => { if (live) setTokenDecimals(null); });
     return () => { live = false; };
   }, [tokenMint]);
-  const input = useMemo(() => side === "buy"
-    ? { chain: "solana" as const, router, inputMint: config.usdcMint, outputMint: tokenMint, amount: toAtomic(amount, 6) }
-    : { chain: "solana" as const, router, inputMint: tokenMint, outputMint: config.usdcMint, amount: toAtomic(amount, tokenDecimals ?? 0) }, [side, router, amount, config.usdcMint, tokenMint, tokenDecimals]);
+  const revision = useRef(0);
+  const orderRef = useRef<Record<string, unknown> | null>(null);
+  const invalidate = () => { revision.current++; orderRef.current = null; setQuote(null); setConfirmed(false); };
+  // Router belongs in here with the rest: a quote is only executable through the router that priced it, and the
+  // server rejects a mismatch with a 409, so switching routers has to drop the held quote rather than resubmit it.
+  useEffect(() => { invalidate(); return () => { revision.current++; }; }, [tokenMint, walletAddress, network, router]);
+  useEffect(() => {
+    if (!quote || loading) return;
+    const timer = setTimeout(invalidate, Math.max(0, Number(quote.expiresAt) - Date.now()));
+    return () => clearTimeout(timer);
+  }, [quote, loading]);
   const slippageBps = Math.round(Math.min(5, Math.max(0.01, Number.isFinite(slippagePct) ? slippagePct : 0.5)) * 100);
 
   const getQuote = async () => {
     if (network !== "solana") { setNetwork("solana"); setStatus("Switched to the Solana wallet for spot execution."); return; }
+    const requestRevision = ++revision.current;
     setLoading(true); setStatus(""); setConfirmed(false);
     try {
-      setQuote(await api.quote({ ...input, slippageBps, walletAddress }));
+      const inputMint = side === "buy" ? config.usdcMint : tokenMint;
+      const outputMint = side === "buy" ? tokenMint : config.usdcMint;
+      const supply = await api.rpc<{ value: { decimals: number } }>("getTokenSupply", [inputMint]);
+      const input = { chain: "solana" as const, router, inputMint, outputMint, amount: tokenAmount(amount, supply.value.decimals), slippageBps, walletAddress };
+      const result = await api.quote(input);
+      if (revision.current !== requestRevision) return;
+      orderRef.current = input;
+      setQuote(result);
       notify({ title: "ROUTE READY", message: `${side.toUpperCase()} ${tokenSymbol} quote is ready for review.`, tone: "success" });
     } catch (error) { const message = error instanceof Error ? error.message : String(error); setStatus(message); notify({ title: "QUOTE UNAVAILABLE", message, tone: "warning" }); }
     finally { setLoading(false); }
   };
   const execute = async () => {
-    if (!walletAddress || !quote || !confirmed || !send || network !== "solana") return;
+    if (!walletAddress || !quote || !confirmed || !send || network !== "solana" || !orderRef.current) return;
+    if (Number(quote.expiresAt) <= Date.now()) { invalidate(); setStatus("Quote expired. Preview a new route."); return; }
+    const executionRevision = revision.current;
     setLoading(true); setStatus("Preparing the Privy wallet transaction…");
     try {
-      const payload = await api.transaction({ ...input, slippageBps, walletAddress, quoteId: quote.quoteId });
+      const payload = await api.transaction({ ...orderRef.current, quoteId: quote.quoteId });
+      if (executionRevision !== revision.current) throw new Error("Wallet or order changed. Preview a new route.");
       const base64 = deepFind(payload, ["transaction", "swapTransaction", "unsignedTransaction", "serializedTransaction"]);
       if (typeof base64 !== "string") throw new Error("The selected router did not return a recognizable unsigned transaction");
       setStatus("Confirm with your Privy embedded wallet…");
       const signature = await send(decodeBase64(base64));
+      invalidate();
       setStatus(`Submitted ${shortAddress(signature)}`);
       notify({ title: "TRADE SUBMITTED", message: `${side.toUpperCase()} ${tokenSymbol} was sent to Solana.`, tone: "success" });
-    } catch (error) { const message = error instanceof Error ? error.message : String(error); setStatus(message); notify({ title: "TRADE NOT SENT", message, tone: "warning" }); }
+    } catch (error) { invalidate(); const message = error instanceof Error ? error.message : String(error); setStatus(message); notify({ title: "TRADE NOT SENT", message, tone: "warning" }); }
     finally { setLoading(false); }
   };
   const outAmount = deepFind(quote, ["outAmount", "outputAmount"]);
@@ -112,13 +133,15 @@ function TradeTicketSurface({ config, mint, symbol, walletAddress, send }: Props
 
   return <section className="panel trade-ticket">
     <div className="panel-title"><span>SPOT ORDER</span><span className="tag">PRIVY · SOLANA</span></div>
-    <label className="router-field">ROUTING API<select value={router} onChange={event => { setRouter(event.target.value as RouterId); setQuote(null); setConfirmed(false); setStatus(""); }}>
+    {/* Every control locks while a quote is in flight and clears through invalidate(), which bumps the revision the
+        in-flight response is checked against: a bare setQuote(null) leaves that response free to land on a changed order. */}
+    <label className="router-field">ROUTING API<select disabled={loading} value={router} onChange={event => { setRouter(event.target.value as RouterId); setStatus(""); }}>
       {solanaRouters.map((item) => <option key={item.id} value={item.id}>{item.label}{item.available ? "" : " · NOT CONFIGURED"}</option>)}
     </select></label>
     <div className={`router-status${selectedRouter?.available ? " ready" : ""}`}><span>{selectedRouter?.available ? "ROUTER ONLINE" : "API KEY REQUIRED"}</span><b>{selectedRouter?.label || router}</b></div>
-    <div className="side-tabs"><button className={side === "buy" ? "buy active" : ""} onClick={() => { setSide("buy"); setQuote(null); }}>BUY {tokenSymbol}</button><button className={side === "sell" ? "sell active" : ""} onClick={() => { setSide("sell"); setQuote(null); }}>SELL {tokenSymbol}</button></div>
-    <label>NOTIONAL {side === "buy" ? "USDC" : tokenSymbol}<input type="number" min="0" value={amount} onChange={event => { setAmount(event.target.value); setQuote(null); }} /></label>
-    <label>MAX SLIPPAGE <div className="input-suffix"><input type="number" min="0.01" max="5" step="0.01" value={slippagePct} onChange={event => { setSlippagePct(Number(event.target.value)); setQuote(null); }} /><span>%</span></div></label>
+    <div className="side-tabs"><button disabled={loading} className={side === "buy" ? "buy active" : ""} onClick={() => { setSide("buy"); invalidate(); }}>BUY {tokenSymbol}</button><button disabled={loading} className={side === "sell" ? "sell active" : ""} onClick={() => { setSide("sell"); invalidate(); }}>SELL {tokenSymbol}</button></div>
+    <label>NOTIONAL {side === "buy" ? "USDC" : tokenSymbol}<input disabled={loading} type="number" min="0" value={amount} onChange={event => { setAmount(event.target.value); invalidate(); }} /></label>
+    <label>MAX SLIPPAGE <div className="input-suffix"><input disabled={loading} type="number" min="0.01" max="5" step="0.01" value={slippagePct} onChange={event => { setSlippagePct(Number(event.target.value)); invalidate(); }} /><span>%</span></div></label>
     <div className="wallet-line"><span>SOLANA SIGNER</span><b>{shortAddress(walletAddress)}</b></div>
     {!quote ? <button className="primary" disabled={loading || !Number(amount) || !selectedRouter?.available} onClick={() => void getQuote()}>{!selectedRouter?.available ? "CONFIGURE ROUTER" : network !== "solana" ? "SWITCH TO SOLANA" : loading ? <PixelLoader label="QUOTING" /> : "PREVIEW ROUTE"}</button> : <div className="quote-box">
       <div><span>EXPECTED OUTPUT</span><b>{fromAtomic(outAmount, side === "buy" ? tokenDecimals : 6)} {side === "buy" ? tokenSymbol : "USDC"}</b></div>

@@ -219,12 +219,13 @@ export function toFomoFill(row: TraderTapeRow, dex: string, followers: number | 
     trader: { address: row.trader, kind: row.kind ?? "other", handle: row.handle, followers },
     ...(symbol === undefined ? {} : { symbol }),
     ...(typeof row.price === "number" ? { price: row.price } : {}),
+    ...(typeof row.quantity === "number" ? { quantity: row.quantity } : {}),
     ...(row.usdVia ? { usdVia: row.usdVia } : {})
   };
 }
 
 /** A recorded fill as a FlowPrint for the FOMO ledger; only called for wallets whose 7702 check passed (the fill's own stale kind is ignored). */
-function toFomoPrint(fill: TraderFill): FlowPrint {
+export function toFomoPrint(fill: TraderFill): FlowPrint {
   const { trader, token: _token, handle, followers, kind: _kind, usdVia: _usdVia, ...print } = fill;
   return { ...print, trader: { address: trader, kind: "fomo", handle: handle ?? null, followers: followers ?? null } };
 }
@@ -412,6 +413,18 @@ export class TraderService {
       lastFillAt: (wallet) => this.book.stats("robinhood", wallet)?.lastSeenAt ?? null,
       verifiedRank: (wallet) => verifiedRank.get(wallet) ?? null
     });
+  }
+
+  /**
+   * Wallets the transfer legs must not drop when the FOMO classifier outgrows the watch budget: seeded handles,
+   * named wallets, and any wallet already in the book. Anonymous never-filled FOMO stay behind them and do not
+   * count as overflow.
+   */
+  watchPriority(wallet: string): boolean {
+    const key = wallet.toLowerCase();
+    if (this.seeded.has(key)) return true;
+    if (this.handles.get(key) !== null) return true;
+    return this.book.stats("robinhood", key)?.lastSeenAt != null;
   }
 
   /** R5 coverage every FOMO route carries: legs' watched count against transferWallets(), seeded-pending named apart, plus the named handles. */

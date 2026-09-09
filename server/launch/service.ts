@@ -111,6 +111,7 @@ export class LaunchService {
   private readonly deps: LaunchServiceDeps;
   private readonly health = new Map<string, Health>();
   /** launchKey -> when the token was last sent to DexScreener tokens/v1, priced or not; drives batch rotation. */
+  private readonly nameAttemptAt = new Map<string, number>();
   private readonly enrichAttemptAt = new Map<string, number>();
   private robinhood: RobinhoodStreamLike | null = null;
   private pumpportal: PumpPortalLike | null = null;
@@ -242,22 +243,24 @@ export class LaunchService {
   /**
    * R6: Robinhood rows still without a symbol after every feed (Pons events, DexScreener profile rows, curve-phase tokens
    * DexScreener does not list) ask the contract itself. erc20Meta caches hits forever and failures for 10 min, so
-   * re-asking the same tokens each round is free; at most NAME_BATCH newest rows per round bound the RPC cost.
+   * rotate unresolved tokens across rounds; at most NAME_BATCH lookups per round bound the RPC cost.
    */
   private async enrichNames(): Promise<void> {
     const meta = this.deps.erc20Meta ?? getTraderService().erc20Meta;
-    const unnamed = this.index.list({ chain: "robinhood", windowMs: ENRICH_WINDOW_MS }).filter((row) => row.symbol === null).slice(0, NAME_BATCH);
-    if (!unnamed.length) return;
-    try {
-      const entries = await Promise.all(unnamed.map((row) => meta.resolve(row.token)));
-      unnamed.forEach((row, index) => {
-        const upsert = erc20MetaUpsert(row.token, entries[index]);
-        if (upsert) this.index.upsert(upsert);
-      });
-      this.ok(ERC20_META_SOURCE);
-    } catch (error) {
-      this.fail(ERC20_META_SOURCE, error);
-    }
+    const candidates = this.index.list({ chain: "robinhood", windowMs: ENRICH_WINDOW_MS }).filter((row) => row.symbol === null).map((row) => row.token);
+    pruneAttempts(this.nameAttemptAt, "robinhood", candidates);
+    const tokens = pickEnrichBatch(candidates, (token) => this.nameAttemptAt.get(launchKey("robinhood", token)) ?? null, NAME_BATCH);
+    if (!tokens.length) return;
+    for (const token of tokens) this.nameAttemptAt.set(launchKey("robinhood", token), this.now());
+    const entries = await Promise.allSettled(tokens.map((token) => meta.resolve(token)));
+    entries.forEach((entry, index) => {
+      if (entry.status !== "fulfilled") return;
+      const upsert = erc20MetaUpsert(tokens[index], entry.value);
+      if (upsert) this.index.upsert(upsert);
+    });
+    const failed = entries.find((entry) => entry.status === "rejected");
+    if (entries.some((entry) => entry.status === "fulfilled")) this.ok(ERC20_META_SOURCE);
+    if (failed?.status === "rejected") this.fail(ERC20_META_SOURCE, failed.reason);
   }
 
   private async enrichTrenches(): Promise<void> {

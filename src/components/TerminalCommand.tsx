@@ -1,0 +1,9 @@
+import { useEffect, useRef, useState } from "react";
+import type { TradeEvent } from "../../shared/terminal";
+export function TerminalCommand({open,onClose,onAction,onSelect,events}:{open:boolean;onClose:()=>void;onAction:(action:string)=>void;onSelect:(event:TradeEvent)=>void;events:TradeEvent[]}){
+  const dialog=useRef<HTMLDialogElement>(null);const input=useRef<HTMLInputElement>(null);const [query,setQuery]=useState("");
+  useEffect(()=>{if(open){setQuery("");dialog.current?.showModal();input.current?.focus();}else dialog.current?.close();},[open]);
+  const commands=[{id:"live",label:"Jump to live candles"},{id:"fit",label:"Fit loaded history"},{id:"reset",label:"Reset chart scales"},{id:"expand",label:"Toggle expanded chart"},{id:"replay",label:"Pause / resume replay"}];
+  const wallets=[...new Map(events.filter(e=>e.wallet).map(e=>[e.wallet,e])).values()].filter(e=>`${e.handle??""} ${e.wallet}`.toLowerCase().includes(query.toLowerCase())).slice(0,8);
+  return <dialog ref={dialog} className="terminal-command" onCancel={onClose} onClick={e=>{if(e.target===dialog.current)onClose();}}><div className="command-title"><strong>TERMEOW / COMMAND</strong><button onClick={onClose}>ESC</button></div><input ref={input} aria-label="Search commands and captured traders" placeholder="Search commands or captured traders…" value={query} onChange={e=>setQuery(e.target.value)}/><div className="command-results">{commands.filter(c=>c.label.toLowerCase().includes(query.toLowerCase())).map(c=><button key={c.id} onClick={()=>{onAction(c.id);onClose();}}>{c.label}<span>↵</span></button>)}{wallets.length>0&&<small>CAPTURED PARTICIPANTS</small>}{wallets.map(e=><button key={e.wallet} onClick={()=>{onSelect(e);onClose();}}>{e.handle?`@${e.handle}`:e.wallet?.slice(0,18)+"…"}<span>{e.side.toUpperCase()}</span></button>)}</div></dialog>;
+}

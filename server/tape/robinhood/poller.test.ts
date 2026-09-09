@@ -52,13 +52,14 @@ function mkLog(block: number, tx: string, logIndex: number, address: string, top
  * appends `raw` entries unfiltered, answers batches only when `batch` is true, and returns 429 for the next `rateLimit` HTTP requests.
  */
 function fakeNode(initial: { head: number; logs?: RawLog[]; batch?: boolean }) {
-  const chain = { head: initial.head, logs: initial.logs ?? [], raw: [] as unknown[], batch: initial.batch ?? true, rateLimit: 0, status: 200 };
+  const chain = { head: initial.head, logs: initial.logs ?? [], raw: [] as unknown[], batch: initial.batch ?? true, rateLimit: 0, status: 200, rejectFuture: false };
   const calls: Call[] = [];
   const answer = (req: RpcRequest) => {
     if (req.method === "eth_blockNumber") return { jsonrpc: "2.0", id: req.id, result: hex(chain.head) };
     const filter = (req.params[0] as LogsFilter) ?? {};
     const from = Number.parseInt(filter.fromBlock, 16);
     const to = Math.min(Number.parseInt(filter.toBlock, 16), chain.head);
+    if (chain.rejectFuture && Number.parseInt(filter.toBlock, 16) > chain.head) return { jsonrpc: "2.0", id: req.id, error: { code: -32000, message: "invalid block range params" } };
     if (from > to) return { jsonrpc: "2.0", id: req.id, error: { code: -32000, message: "invalid block range" } };
     const addresses = new Set(filter.address.map((a) => a.toLowerCase()));
     const topics = new Set(filter.topics[0] ?? []);
@@ -111,6 +112,22 @@ afterEach(() => {
 });
 
 describe("RobinhoodLogPoller", () => {
+  it("recovers when a previously accepted batch starts rejecting ranges beyond the head", async () => {
+    const node = fakeNode({ head: HEAD });
+    const { poller, onLogs } = build(node);
+    poller.setFilter([V3_POOL], []);
+    poller.start(onLogs);
+    await tick();
+    await tick(DEFAULT_INTERVAL_MS);
+    node.chain.rejectFuture = true;
+    node.chain.head += 2;
+    await tick(DEFAULT_INTERVAL_MS);
+    expect(poller.stats().cursor).toBe(HEAD + 2);
+    expect(poller.stats().errors).toBe(0);
+    expect(node.calls.at(-1)?.batched).toBe(false);
+    expect(Number.parseInt(node.logsCalls().at(-1)!.toBlock, 16)).toBe(HEAD + 2);
+  });
+
   it("first poll is sequential: eth_blockNumber then eth_getLogs over [head-20-reorg, head], delivering matching logs", async () => {
     const wanted = mkLog(HEAD - 3, "0xaa", 7, V3_POOL, V3_SWAP_TOPIC);
     const tooOld = mkLog(HEAD - 40, "0xbb", 1, V3_POOL, V3_SWAP_TOPIC);

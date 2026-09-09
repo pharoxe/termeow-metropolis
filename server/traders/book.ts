@@ -51,6 +51,8 @@ export type TraderTapeRow = {
   time: number;
   /** USD per token at the fill when the source carried one (R4 transfer fills); null otherwise. */
   price: number | null;
+  /** Whole tokens as the producer decoded them; absent when it decoded none (never 0). */
+  quantity?: number;
   /** Provenance of usd for transfer-decoded fills; absent otherwise. */
   usdVia?: TraderFill["usdVia"];
 };
@@ -291,6 +293,7 @@ function toTapeRow(fill: TraderFill, handle: string | null, kind: TraderKind | n
     usd: fill.usd,
     time: fill.time,
     price: fill.price ?? null,
+    ...(typeof fill.quantity === "number" ? { quantity: fill.quantity } : {}),
     ...(fill.usdVia ? { usdVia: fill.usdVia } : {})
   };
 }

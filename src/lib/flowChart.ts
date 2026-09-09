@@ -9,7 +9,9 @@ export type FlowChartPair = { pairAddress: string; dex: string; tier: "A" | "B";
 export type FlowChartInput = {
   bars: FlowBar[];
   pairs: FlowChartPair[];
-  coverage: FlowCoverage | null;
+  /** Only the coverage start is read here, so a caller whose population reports nothing else can still say where
+   *  its capture begins instead of passing null and silently losing the "no tape" boundary. */
+  coverage: Pick<FlowCoverage, "firstPrintAt"> | null;
   /** Candle open times in ms, ascending. */
   candleTimes: number[];
 };
@@ -39,23 +41,27 @@ export type FlowPalette = {
   midline: string;
 };
 
-/** Muted variants are the buy/sell colors at 0.25 alpha so the tape boundary stays visible. */
+/**
+ * Muted variants are the buy/sell colors at 0.25 alpha so the tape boundary stays visible.
+ * buy/sell are the same direction hues the candles, drawings and trade markers use (--up / --down): the flow bars
+ * and the FOMO arrows sit on the same pane, so a second "buy green" here would mean two greens on one chart.
+ */
 export const FLOW_PALETTE: Record<FlowChartTheme, FlowPalette> = {
   dark: {
-    buy: "#39ff88",
-    sell: "#ff5268",
-    buyMuted: "rgba(57,255,136,0.25)",
-    sellMuted: "rgba(255,82,104,0.25)",
+    buy: "#42c99a",
+    sell: "#ef7885",
+    buyMuted: "rgba(66,201,154,0.25)",
+    sellMuted: "rgba(239,120,133,0.25)",
     cvd: "#28d7d0",
     pair: ["#f5cf5f", "#d08cff", "#64b5ff", "#ff9f0a"],
     marker: "#8c9a91",
     midline: "#526357"
   },
   light: {
-    buy: "#18b85d",
-    sell: "#c44854",
-    buyMuted: "rgba(24,184,93,0.25)",
-    sellMuted: "rgba(196,72,84,0.25)",
+    buy: "#0a7a4b",
+    sell: "#c02d43",
+    buyMuted: "rgba(10,122,75,0.25)",
+    sellMuted: "rgba(192,45,67,0.25)",
     cvd: "#0e8f8a",
     pair: ["#b58a00", "#8a3fd9", "#1f6fd0", "#d97706"],
     marker: "#516058",

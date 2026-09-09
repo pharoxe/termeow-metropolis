@@ -150,7 +150,15 @@ export class FlowLedger {
     this.now = opts.now ?? (() => Date.now());
   }
 
+  private listeners = new Set<(prints: FlowPrint[]) => void>();
+  observe(listener: (prints: FlowPrint[]) => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
   ingest(prints: FlowPrint[]): IngestResult {
+    // Archive sees repeats as well as new rows, so late attribution and corrections are retained.
+    for (const listener of this.listeners) listener(prints);
     let accepted = 0;
     let duplicates = 0;
     for (const print of prints) {

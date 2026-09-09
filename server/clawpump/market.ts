@@ -171,41 +171,27 @@ export function mergeCandles(...series: Candle[][]): Candle[] {
   return [...byTime.values()].sort((a, b) => a.time - b.time);
 }
 
-async function pumpCreatedMs(mint: string): Promise<number | null> {
-  try {
-    const result = await fetchJson<{ created_timestamp?: unknown }>(
-      `https://frontend-api-v3.pump.fun/coins/${mint}`,
-      { headers: GECKO_HEADERS }
-    );
-    const created = Number(result?.created_timestamp);
-    return Number.isFinite(created) ? created : null;
-  } catch {
-    return null;
+/** Aggregate only finer bars; never relabel coarse candles as a finer timeframe. */
+export function aggregateCandles(rows: Candle[], interval: string): Candle[] {
+  const buckets = new Map<number, Candle>();
+  const width = intervalMs(interval);
+  for (const row of [...rows].sort((a, b) => a.time - b.time)) {
+    const time = Math.floor(row.time / width) * width;
+    const current = buckets.get(time);
+    if (!current) buckets.set(time, { ...row, time });
+    else {
+      current.high = Math.max(current.high, row.high);
+      current.low = Math.min(current.low, row.low);
+      current.close = row.close;
+      current.volume += row.volume;
+    }
   }
+  return [...buckets.values()];
 }
 
 async function pumpFunHistory(mint: string, interval: string): Promise<Candle[]> {
-  const fine = await pumpFunCandles(mint, interval);
-  const created = await pumpCreatedMs(mint);
-  const coversLaunch = Boolean(fine.length) && (created == null || fine[0].time <= created + 2 * intervalMs(interval));
-  const looksCapped = fine.length >= 200;
-  if (fine.length && coversLaunch && (created != null || !looksCapped)) return fine;
-
-  const hourly = await pumpFunCandles(mint, "1h");
-  const cutoff = fine[0]?.time;
-  const olderHourly = cutoff == null ? hourly : hourly.filter((row) => row.time < cutoff);
-  let merged = mergeCandles(fine, olderHourly);
-
-  const oldest = merged[0]?.time;
-  const stillAfterLaunch = created != null && oldest != null && oldest > created + 4 * 3600e3;
-  const hourlyLooksCapped = created == null && hourly.length >= 200;
-  if (stillAfterLaunch || hourlyLooksCapped) {
-    const fourH = await pumpFunCandles(mint, "4h");
-    const left = merged[0]?.time;
-    const olderFour = left == null ? fourH : fourH.filter((row) => row.time < left);
-    merged = mergeCandles(merged, olderFour);
-  }
-  return merged;
+  // A capped history is preferable to silently mixing hourly bars into minute charts.
+  return pumpFunCandles(mint, interval);
 }
 
 async function pumpFunCandles(mint: string, interval: string): Promise<Candle[]> {
@@ -217,7 +203,7 @@ async function pumpFunCandles(mint: string, interval: string): Promise<Candle[]>
       } catch {
         /* pump.fun interval=1d is 400 */
       }
-      return await fetchPumpFunSeries(mint, "4h");
+      return aggregateCandles(await fetchPumpFunSeries(mint, "4h"), "1d");
     }
     const mapped = interval === "1m" || interval === "5m" || interval === "15m" || interval === "1h" || interval === "4h"
       ? interval
@@ -507,7 +493,8 @@ async function loadOnchainMarket(mint: string, interval: string, cacheKey: strin
           dex = resolved.pair.dexId || dex;
         }
       } else {
-        candles = base.candles;
+        candles = intervalMs(interval) >= intervalMs("5m") ? aggregateCandles(base.candles, interval) : [];
+        notes.push(candles.length ? `History aggregated from 5m candles for ${interval}.` : `No ${interval} candle history available; retry when the provider recovers.`);
       }
     }
     const result = { ...base, candles, pairAddress, dex, notes, observedAt: Date.now() };

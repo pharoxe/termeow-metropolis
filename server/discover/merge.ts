@@ -84,7 +84,7 @@ function mergeOne(chain: Chain, token: string, partials: readonly DiscoverPartia
 export function mergeDiscover(chain: Chain, partials: readonly DiscoverPartial[], precedence: readonly string[]): DiscoverRow[] {
   const byToken = new Map<string, DiscoverPartial[]>();
   for (const partial of partials) {
-    const key = partial.token.toLowerCase();
+    const key = chain === "solana" ? partial.token : partial.token.toLowerCase();
     if (!key) continue;
     byToken.set(key, [...(byToken.get(key) ?? []), { ...partial, token: key }]);
   }

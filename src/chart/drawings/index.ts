@@ -225,6 +225,8 @@ export function attachDrawings(opts: AttachDrawingsOptions): DrawingsApi {
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
+    const tile=el.closest('.workspace-chart');
+    if(tile && !tile.classList.contains('active'))return;
     if (isEditableTarget(e.target)) return;
     if (e.key === "Escape") {
       if (state.draft || tool) { setTool(null); e.preventDefault(); return; }

@@ -6,6 +6,7 @@ import type { OwnHealthStats, OwnSourceHealth, SourceHealth, SourceName } from "
  * bad cycle is a 15 s RPC abort plus a 20 s endpoint backoff, so 30 s flapped ok/down between reads; 60 s rides it out.
  */
 export const OWN_FRESH_MS = 60_000;
+export const POLLED_FRESH_MS = 180_000;
 
 export type FeedHealthInput = {
   sources: Record<SourceName, SourceHealth>;
@@ -20,9 +21,9 @@ function retryAt(until: number | null | undefined, now: number): number | null {
 }
 
 /** A polled source is ok when its last attempt succeeded (fail() sets lastError, ok() clears it) and no backoff is pending. */
-function polledHealth(source: SourceHealth, nextRetryAt: number | null): FeedSourceHealth {
+function polledHealth(source: SourceHealth, nextRetryAt: number | null, now: number): FeedSourceHealth {
   return {
-    ok: nextRetryAt === null && source.lastOkAt !== null && source.lastError === null,
+    ok: nextRetryAt === null && source.lastOkAt !== null && now - source.lastOkAt <= POLLED_FRESH_MS && source.lastError === null,
     lastOkAt: source.lastOkAt,
     lastError: source.lastError,
     nextRetryAt
@@ -66,8 +67,8 @@ export function ownTapeHealthy(own: OwnSourceHealth, now: number): boolean {
 export function feedHealthOf(input: FeedHealthInput): FeedHealth {
   return {
     own: ownFeedHealth(input.own, input.now),
-    gecko: polledHealth(input.sources.geckoterminal, retryAt(input.geckoBlockedUntil, input.now)),
-    pumpfun: polledHealth(input.sources.pumpfun, null)
+    gecko: polledHealth(input.sources.geckoterminal, retryAt(input.geckoBlockedUntil, input.now), input.now),
+    pumpfun: polledHealth(input.sources.pumpfun, null, input.now)
   };
 }
 

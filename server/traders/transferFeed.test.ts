@@ -6,6 +6,8 @@ import { TRANSFER_TOPIC } from "./attribute.js";
 import type { TraderFill } from "./book.js";
 import type { Erc20MetaEntry } from "./erc20Meta.js";
 import type { HandleEntry } from "./handles.js";
+import { TradeArchive } from "../terminal/archive.js";
+import { toFomoPrint } from "./service.js";
 import { LEGS_CHECK_MS, MAX_QUEUED_BATCHES, TransferFeed, type TransferFeedTraders } from "./transferFeed.js";
 import { padTopic, type TransferLogLike } from "./transfers.js";
 
@@ -20,6 +22,10 @@ const WALLET = "0x8ab8c0843d9738885d6273dfe3de86c56eea364c";
 const QC = "0xf2e122a481b440c40eee7a7ca6d5eef65a591b76";
 const USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168";
 const OTHER_WALLET = "0x0a6ebed0155edb4b21d92ad02897a626cd90119e";
+/** QUOTES.weth: the constructor warms the two cash quotes before any batch is decoded. */
+const WETH = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
+/** The QC leg of that same capture, in whole tokens: the decoder reads it off the Transfer's own data word. */
+const QC_UNITS = 5151565.591056616;
 
 function walletLogs(tx: string, wallet: string): RawLog[] {
   const entry = FIXTURE.txs[tx];
@@ -170,7 +176,8 @@ describe("TransferFeed batch processing", () => {
     expect(h.traders.recorded[0].price).toBeCloseTo(1987.05953 / 5151565.591056616, 12);
     expect(h.blocks.asked).toEqual([56_168_785]);
     expect(h.traders.resolved).toEqual([QC]);
-    expect(h.prices.primed).toEqual([[USDG]]);
+    // The constructor warms WETH/USDG; the receipt decode then primes only the quote its own fills name.
+    expect(h.prices.primed).toEqual([[WETH, USDG], [USDG]]);
     expect(h.feed.stats()).toMatchObject({ batches: 1, logsSeen: 1, fills: 1, duplicates: 0, unpriced: 0, untimed: 0, receiptsMissing: 0, lastOkAt: NOW, lastError: null });
     await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
     expect(h.traders.recorded).toHaveLength(1);
@@ -183,7 +190,8 @@ describe("TransferFeed batch processing", () => {
     h.traders.receiptFor = async () => null;
     await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
     expect(h.traders.recorded).toHaveLength(1);
-    expect(h.traders.recorded[0]).toMatchObject({ side: "buy", usd: null, price: null, token: QC });
+    // The size is decoded from the token leg whether or not a cash leg could be tied to it: unpriced is not unsized.
+    expect(h.traders.recorded[0]).toMatchObject({ side: "buy", usd: null, price: null, token: QC, quantity: QC_UNITS });
     expect("usdVia" in h.traders.recorded[0]).toBe(false);
     expect(h.feed.stats()).toMatchObject({ fills: 1, unpriced: 1, receiptsMissing: 1 });
   });
@@ -204,6 +212,27 @@ describe("TransferFeed batch processing", () => {
     h.traders.recorded = [];
     await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
     expect(h.traders.recorded).toEqual([]);
+  });
+
+  it("hands the archive the quantity it decoded, which stamps it decoded rather than dividing usd by price", async () => {
+    const h = harness();
+    await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
+    const fill = h.traders.recorded[0];
+    expect(fill.quantity).toBe(QC_UNITS);
+    const archive = new TradeArchive();
+    try {
+      archive.ingest([toFomoPrint(fill)], QC);
+      // Same pair id and token, one coarse provider row alongside the decoded one.
+      archive.ingest([{ chain: "robinhood", pair: `fomo:${QC}`, tx: "0xprovider", time: BLOCK_TIME, side: "buy", usd: 500, price: 0.0002, source: "geckoterminal" }], QC);
+      const events = new Map(archive.history("robinhood", QC, BLOCK_TIME - 1, BLOCK_TIME + 1).events.map((event) => [event.tx, event] as const));
+      const decoded = events.get(TX);
+      expect(decoded).toMatchObject({ quantity: QC_UNITS, quantitySource: "decoded" });
+      // The division the archive used to call "estimated" lands on the same number, which is why the old label misread ~12.4k rows.
+      expect(decoded!.usd! / decoded!.price!).toBeCloseTo(QC_UNITS, 6);
+      expect(events.get("0xprovider")).toMatchObject({ quantity: 2_500_000, quantitySource: "provider-estimated" });
+    } finally {
+      archive.close();
+    }
   });
 
   it("keeps a failing batch in lastError and processes the next one", async () => {

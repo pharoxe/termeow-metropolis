@@ -45,6 +45,15 @@ export const NO_LOGS_HOSTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Kept in the pool, but new calls skip them while any other host can serve the lane. Both returned
+ * "upstream returned 429" on 2026-09-08; a restart zeroes rateLimited, so the penalty is not only the counter.
+ */
+export const DEPRIORITIZED_HOSTS: ReadonlySet<string> = new Set([
+  "rpc.mainnet.chain.robinhood.com",
+  "rpc.nodeflare.app"
+]);
+
+/**
  * Measured 2026-09-07: blockmachine caps one eth_getLogs at 9,999 blocks (-32602 with data.max_blocks); the official
  * RPC answered a PoolManager+poolId filter over 1M blocks in 3.0 s and timed out at 3M. Hosts absent here carry no
  * known cap. A request wider than an endpoint's cap is never sent to it (it would only burn that endpoint's budget).
@@ -170,6 +179,11 @@ function initialState(url: string, rules: HostRules, backoffMs: number): Endpoin
 /** The failure streak as ranking sees it: the raw streak while the last failure is recent, 0 once it has decayed. */
 function recentStreak(state: EndpointState, now: number): number {
   return now - state.lastFailureAt < FAIL_STREAK_DECAY_MS ? state.failStreak : 0;
+}
+
+/** A host that has already drawn a 429 ranks behind every host that has not, even after its block expires. */
+function rateLimitedRank(state: EndpointState): number {
+  return state.rateLimited > 0 || DEPRIORITIZED_HOSTS.has(state.host) ? 1 : 0;
 }
 
 function p50(values: readonly number[]): number | null {
@@ -345,11 +359,13 @@ export class EndpointPool {
 
   /**
    * Healthiest candidate: enabled, unblocked, right lane, untried, and for eth_getLogs able to serve the request's span
-   * (a speculative tick never goes to a host that rejects toBlock beyond head). Order: not slow first; then for a
+   * (a speculative tick never goes to a host that rejects toBlock beyond head). Order: never-429 first (a 429 host is
+   * only used when no cleaner endpoint can serve this lane — the pool is not dropped); then not slow; then for a
    * backfill span the largest known range cap (unknown caps last) and for a small single getLogs the smallest cap that
    * fits (so top-ups and shrunk chunks leave the largest endpoint's budget to ticks and backfills); then fewest
    * requests in flight (reserved synchronously here, so N callers in one tick land on N endpoints rather than all on
-   * the "healthiest"); then fewest recent consecutive failures (FAIL_STREAK_DECAY_MS), then p50, then configured order.
+   * the "healthiest"); then fewest recent consecutive failures (FAIL_STREAK_DECAY_MS), then fewer lifetime 429s,
+   * then p50, then configured order.
    */
   private async pick(shape: RequestShape, tried: ReadonlySet<string>): Promise<EndpointState | null> {
     const now = this.now();
@@ -361,10 +377,12 @@ export class EndpointPool {
       .filter(({ endpoint }) => endpoint.enabled && endpoint.blockedUntil <= now && !tried.has(endpoint.key))
       .filter(({ endpoint }) => lane !== "logs" || this.servesLogs(endpoint, shape, now))
       .sort((a, b) =>
+        rateLimitedRank(a.endpoint) - rateLimitedRank(b.endpoint) ||
         slow(a.endpoint) - slow(b.endpoint) ||
         capRank(a.endpoint) - capRank(b.endpoint) ||
         a.endpoint.inFlight - b.endpoint.inFlight ||
         recentStreak(a.endpoint, now) - recentStreak(b.endpoint, now) ||
+        a.endpoint.rateLimited - b.endpoint.rateLimited ||
         (p50(a.endpoint.latencies) ?? 0) - (p50(b.endpoint.latencies) ?? 0) ||
         a.index - b.index
       );

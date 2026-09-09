@@ -1,3 +1,5 @@
+import {chartPalette} from "../lib/themeTokens";
+import { rebaseViewport, zoomViewport } from "../lib/chartViewport";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
   CandlestickSeries,
@@ -49,10 +51,16 @@ export type IndicatorSet = {
 
 export type ChartScaleMode = "linear" | "log";
 export type MarketChartHandle = {
+  setCrosshair: (time: number|null) => void;
+  seekTime: (time: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
   resetView: () => void;
   goToRealtime: () => void;
+  fitHistory: () => void;
+  freeMove: () => void;
+  tallerCandles: () => void;
+  shorterCandles: () => void;
 };
 
 type PaneMode = "flow" | "none";
@@ -66,6 +74,8 @@ type Built = {
   flow: FlowSeriesRefs | null;
   sr: boolean;
   compactAxis: boolean;
+  /** The palette this chart was built with, so price lines drawn later use the same direction hues as the candles. */
+  theme: Theme;
 };
 /** Mutable bookkeeping per build: what the series currently hold, so data effects can diff instead of rebuild. */
 type Held = { candles: Candle[]; srLines: IPriceLine[]; minMove: number | null; flow: FlowChartSeries | null; markers: ChartMarker[] | null };
@@ -75,12 +85,12 @@ const EMPTY_EVENTS: ChartMarker[] = [];
 const EMPTY_PRINTS: TapePrint[] = [];
 const INDICATOR_KEYS: Array<keyof IndicatorSet> = ["ema", "bollinger", "vwap", "sr", "volume", "cvd", "rsi", "macd", "obv"];
 const DEFAULT_VISIBLE_BARS = 88;
+/** A flow pane needs at least two bars to draw anything; below that the pane would be axes and nothing else. */
 const MIN_FLOW_BARS = 2;
 const compactFormat = { type: "custom" as const, minMove: 1, formatter: (value: number) => axisUsd(value) };
-const PALETTE = {
-  light: { background: "rgba(247,250,245,0.86)", text: "#516058", grid: "rgba(190,207,194,0.62)", crosshair: "#7b8d82", border: "#cad7cc" },
-  dark: { background: "rgba(8,11,9,0.82)", text: "#8c9a91", grid: "rgba(35,51,40,0.62)", crosshair: "#526357", border: "#253129" }
-} as const;
+/** Canvas colours cannot read CSS custom properties, so the chart's copy of the roles lives here: `up`/`down` are
+ *  the direction hues (--up / --down), `select` is the one selection hue (--select) shared with markers and drawings. */
+const PALETTE = {light:chartPalette("light"),dark:chartPalette("dark")};
 
 const closes = (candles: Candle[]) => candles.map((candle) => candle.close);
 const utc = (candle: Candle) => toSeconds(candle.time) as UTCTimestamp;
@@ -110,18 +120,19 @@ function buildChart(node: HTMLDivElement, cfg: BuildConfig): Built {
     width: Math.max(node.clientWidth || 0, 320),
     height: Math.max(node.clientHeight || 0, 280),
     autoSize: true,
-    layout: { background: { type: ColorType.Solid, color: palette.background }, textColor: palette.text, fontFamily: "Home Video, monospace" },
+    layout: { background: { type: ColorType.Solid, color: palette.background }, textColor: palette.text, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11, panes: { enableResize: true, separatorColor: palette.border, separatorHoverColor: palette.select } },
     grid: { vertLines: { color: palette.grid }, horzLines: { color: palette.grid } },
     crosshair: { vertLine: { color: palette.crosshair }, horzLine: { color: palette.crosshair } },
     rightPriceScale: { borderColor: palette.border, mode: scaleModeOf(cfg.scaleMode) },
-    timeScale: { borderColor: palette.border, ...istTimeScaleOptions(cfg.granularity) },
+    timeScale: { rightOffset: 5, minBarSpacing: 0.2, rightBarStaysOnScroll: true, shiftVisibleRangeOnNewBar: true, borderColor: palette.border, ...istTimeScaleOptions(cfg.granularity) },
     localization: istLocalization(cfg.granularity),
-    handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
-    handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true }
+    handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
+    handleScale: { axisPressedMouseMove: { time: true, price: true }, axisDoubleClickReset: { time: true, price: true }, mouseWheel: false, pinch: true },
+    kineticScroll: { mouse: false, touch: true }
   });
   const price = chart.addSeries(CandlestickSeries, {
-    upColor: "#39ff88", downColor: "#ff5268", borderVisible: false,
-    wickUpColor: "#18b85d", wickDownColor: "#c44854", priceLineVisible: false,
+    upColor: palette.up, downColor: palette.down, borderVisible: false,
+    wickUpColor: palette.up, wickDownColor: palette.down, priceLineVisible: false,
     priceFormat: cfg.compactAxis ? compactFormat : pricePriceFormat(cfg.sample)
   });
   const markers = createSeriesMarkers(price, []);
@@ -168,7 +179,7 @@ function buildChart(node: HTMLDivElement, cfg: BuildConfig): Built {
     for (let index = 1; index < panes.length; index += 1) panes[index].setStretchFactor(1);
     if (sidePane !== null && panes[sidePane]) panes[sidePane].setStretchFactor(SIDE_PANE_STRETCH);
   }
-  return { chart, price, markers, lines, volume, flow, sr: cfg.indicators.sr, compactAxis: cfg.compactAxis };
+  return { chart, price, markers, lines, volume, flow, sr: cfg.indicators.sr, compactAxis: cfg.compactAxis, theme: cfg.theme };
 }
 
 function applySupportResistance(built: Built, held: Held, candles: Candle[]): IPriceLine[] {
@@ -177,7 +188,7 @@ function applySupportResistance(built: Built, held: Held, candles: Candle[]): IP
   const high = Math.max(...candles.map((candle) => candle.high));
   const low = Math.min(...candles.map((candle) => candle.low));
   const windowOpen = candles[0].close;
-  const specs = [[high, "RES", "#ff4d5e"], [low, "SUP", "#39ff88"], [windowOpen, "OPEN", "#00b86b"]] as const;
+  const specs = [[high, "RES", PALETTE[built.theme].down], [low, "SUP", PALETTE[built.theme].up], [windowOpen, "OPEN", PALETTE[built.theme].crosshair]] as const;
   return specs.filter(([value]) => Number.isFinite(value)).map(([value, title, color]) =>
     built.price.createPriceLine({ price: value, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title }));
 }
@@ -211,6 +222,8 @@ function applyCandles(built: Built, held: Held, next: Candle[], plan: CandlePlan
 }
 
 type MarketChartProps = {
+  onSelectTime?: (time: number) => void;
+  onVisibleRange?: (range: {from:number;to:number}) => void;
   candles: Candle[];
   indicators: IndicatorSet;
   /** Identity of the candle stream (e.g. `${chain}:${address}:${interval}`); a change forces setData + the default viewport. */
@@ -236,11 +249,14 @@ type MarketChartProps = {
   legendLabel?: string | null;
   /** Drawings persistence namespace (instrument key); drawings attach to the candle series while it is set. */
   drawingsKey?: string | null;
+  onCrosshairTime?: (time:number|null)=>void;
   /** Receives the drawings API when attached and null when detached (chart rebuilt or instrument changed). */
   onDrawings?: (api: DrawingsApi | null) => void;
 };
 
 export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(function MarketChart(props, ref) {
+  const crosshairCallback=useRef(props.onCrosshairTime);crosshairCallback.current=props.onCrosshairTime;
+  const syncingCrosshair=useRef(false);
   const {
     candles, indicators, seriesKey = "", intervalMs = null, livePrints = EMPTY_PRINTS, mcapScale = null, onLiveStats,
     scaleMode = "linear", eventMarkers = EMPTY_EVENTS, flow, fomoMarkers = EMPTY_MARKERS,
@@ -254,14 +270,24 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   const visibleRangeRef = useRef<{ from: number; to: number } | null>(null);
   const hoverIndexRef = useRef<number | null>(null);
   const frameRef = useRef<number | null>(null);
+  const savedPrice = useRef<{ range: { from: number; to: number } | null; auto: boolean; unit: boolean; key: string } | null>(null);
+  const drawingActive = useRef(false);
+  const disposeDrawings = useRef<(()=>void)|null>(null);
+  const paneHeights = useRef<number[]>([]);
   const [legend, setLegend] = useState<LegendState | null>(null);
   const [fomoHover, setFomoHover] = useState<FomoHoverView | null>(null);
 
+  const interactionRef = useRef({onSelectTime:props.onSelectTime,onVisibleRange:props.onVisibleRange});
+  interactionRef.current = {onSelectTime:props.onSelectTime,onVisibleRange:props.onVisibleRange};
   const resolvedIntervalMs = intervalMs != null && intervalMs > 0 ? intervalMs : inferIntervalMs(candles);
+  const intervalRef = useRef(resolvedIntervalMs);
+  intervalRef.current = resolvedIntervalMs;
   const granularity = granularityFor(resolvedIntervalMs);
   const live = useMemo(() => applyPrintsToCandles(candles, livePrints, resolvedIntervalMs, Date.now(), mcapScale), [candles, livePrints, resolvedIntervalMs, mcapScale]);
   const displayCandles = useMemo(() => dedupeAscending(live.candles), [live.candles]);
   const flowSeries = useMemo(() => (indicators.cvd && flow ? buildFlowSeries(flow, theme) : null), [indicators.cvd, flow, theme]);
+  // No pane rather than an empty one: with the toggle on and no captured flow yet, an axes-only pane would read as
+  // "no flow in this window" when the truth is "not loaded / not captured", which the coverage note states instead.
   const flowUsable = Boolean(flowSeries && !flowSeries.empty && flowSeries.buys.length >= MIN_FLOW_BARS);
   const paneMode: PaneMode = flowUsable ? "flow" : "none";
   const merged = useMemo(() => mergeMarkers(fomoMarkers, eventMarkers), [fomoMarkers, eventMarkers]);
@@ -279,21 +305,60 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   const scaleRange = (factor: number) => {
     const chart = builtRef.current?.chart;
     const current = chart?.timeScale().getVisibleLogicalRange() || visibleRangeRef.current || defaultRange();
-    const center = (Number(current.from) + Number(current.to)) / 2;
-    const half = Math.max(12, (Number(current.to) - Number(current.from)) * factor / 2);
-    const next = { from: center - half, to: center + half };
+    const next = zoomViewport(current, factor);
     visibleRangeRef.current = next;
     chart?.timeScale().setVisibleLogicalRange(next);
   };
+  const scalePrice = (factor: number) => {
+    const priceScale = builtRef.current?.price.priceScale();
+    const range = priceScale?.getVisibleRange();
+    if (!range || !priceScale) return;
+    const log = priceScale.options().mode === PriceScaleMode.Logarithmic && range.from > 0;
+    const low = log ? Math.log(range.from) : range.from;
+    const high = log ? Math.log(range.to) : range.to;
+    const middle = (low + high) / 2;
+    const half = (high - low) * factor / 2;
+    const next = { from: log ? Math.exp(middle - half) : middle - half, to: log ? Math.exp(middle + half) : middle + half };
+    if (!Number.isFinite(next.from) || !Number.isFinite(next.to) || next.from >= next.to) return;
+    priceScale.applyOptions({ autoScale: false });
+    priceScale.setVisibleRange(next);
+  };
   useImperativeHandle(ref, () => ({
+    setCrosshair:(time)=>{
+      const built=builtRef.current;if(!built)return;
+      syncingCrosshair.current=true;
+      if(time==null)built.chart.clearCrosshairPosition();
+      else {const bars=heldRef.current.candles;const bar=bars.find((bar,i)=>bar.time<=time&&(i===bars.length-1||bars[i+1].time>time));if(bar)built.chart.setCrosshairPosition(bar.close,Math.floor(bar.time/1000) as UTCTimestamp,built.price);else built.chart.clearCrosshairPosition();}
+      syncingCrosshair.current=false;
+    },
+    seekTime: (time) => {
+      const bars = heldRef.current.candles;
+      const index = bars.findIndex((bar, i) => bar.time <= time && (i === bars.length - 1 || bars[i + 1].time > time));
+      if (index < 0) return;
+      const current = builtRef.current?.chart.timeScale().getVisibleLogicalRange();
+      const width = current ? current.to - current.from : DEFAULT_VISIBLE_BARS;
+      builtRef.current?.chart.timeScale().setVisibleLogicalRange({from:index-width/2,to:index+width/2});
+      hoverIndexRef.current = index; refreshLegend();
+    },
     zoomIn: () => scaleRange(0.72),
     zoomOut: () => scaleRange(1.38),
     resetView: () => {
+      builtRef.current?.chart.priceScale("right").applyOptions({ autoScale: true });
       const next = defaultRange();
       visibleRangeRef.current = next;
       builtRef.current?.chart.timeScale().setVisibleLogicalRange(next);
     },
-    goToRealtime: () => builtRef.current?.chart.timeScale().scrollToRealTime()
+    goToRealtime: () => {
+      builtRef.current?.chart.priceScale("right").applyOptions({ autoScale: true });
+      builtRef.current?.chart.timeScale().scrollToRealTime();
+    },
+    fitHistory: () => {
+      builtRef.current?.chart.priceScale("right").applyOptions({ autoScale: true });
+      builtRef.current?.chart.timeScale().fitContent();
+    },
+    tallerCandles: () => scalePrice(0.75),
+    shorterCandles: () => scalePrice(1.33),
+    freeMove: () => builtRef.current?.chart.priceScale("right").applyOptions({ autoScale: false })
   }), []);
 
   const refreshLegend = () => {
@@ -338,12 +403,55 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     applyMarkers(built, held, snapshot.merged);
     barCountRef.current = snapshot.displayCandles.length;
     const chart = built.chart;
+    if (savedPrice.current && savedPrice.current.unit === compactAxis && savedPrice.current.key === keyRef.current && !savedPrice.current.auto && savedPrice.current.range) {
+      built.price.priceScale().applyOptions({ autoScale: false });
+      built.price.priceScale().setVisibleRange(savedPrice.current.range);
+    }
+    if (paneHeights.current.length === chart.panes().length) chart.panes().forEach((pane, index) => pane.setStretchFactor(paneHeights.current[index]));
+    const node = host.current;
+    const onWheel = (event: WheelEvent) => {
+      const range = chart.timeScale().getVisibleLogicalRange();
+      if (!range) return;
+      event.preventDefault();
+      const bounds = node.getBoundingClientRect();
+      const plotWidth = chart.timeScale().width();
+      const x = Math.max(0, Math.min(plotWidth, event.clientX - bounds.left));
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? node.clientHeight : 1);
+      if (event.shiftKey || event.clientX - bounds.left >= plotWidth) {
+        scalePrice(Math.exp(Math.max(-0.3, Math.min(0.3, delta * 0.003))));
+      } else if (Math.abs(event.deltaX) > Math.abs(event.deltaY) && !event.ctrlKey) {
+        const shift = event.deltaX / Math.max(1, plotWidth) * (range.to - range.from);
+        chart.timeScale().setVisibleLogicalRange({ from: range.from + shift, to: range.to + shift });
+      } else {
+        const width = Math.max(5, Math.min(100000, (range.to - range.from) * Math.exp(Math.max(-0.5, Math.min(0.5, delta * 0.003)))));
+        const anchor = chart.timeScale().coordinateToLogical(x) ?? ((range.from + range.to) / 2);
+        const fraction = (anchor - range.from) / (range.to - range.from);
+        chart.timeScale().setVisibleLogicalRange({ from: anchor - width * fraction, to: anchor + width * (1 - fraction) });
+      }
+    };
+    const unlockDrag = (event: PointerEvent) => {
+      if (event.button !== 0 || drawingActive.current) return;
+      const bounds = node.getBoundingClientRect();
+      if (event.clientX - bounds.left < chart.timeScale().width() && event.clientY - bounds.top < chart.paneSize(0).height) {
+        built.price.priceScale().applyOptions({ autoScale: false });
+        node.parentElement?.focus({ preventScroll: true });
+      }
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    node.addEventListener("pointerdown", unlockDrag, true);
     chart.timeScale().setVisibleLogicalRange(visibleRangeRef.current || defaultRange());
     const rememberRange = (next: { from: number; to: number } | null) => {
-      if (next) visibleRangeRef.current = { from: Number(next.from), to: Number(next.to) };
+      if (next) {
+        visibleRangeRef.current = { from: Number(next.from), to: Number(next.to) };
+        const bars = heldRef.current.candles;
+        const first = bars[Math.max(0, Math.floor(next.from))];
+        const last = bars[Math.min(bars.length - 1, Math.ceil(next.to))];
+        if(first && last) interactionRef.current.onVisibleRange?.({from:first.time,to:last.time+intervalRef.current});
+      }
     };
     // One legend update per frame; a hidden tab gets no frames, so apply synchronously there to avoid a stale hover.
     const onCrosshair = (param: MouseEventParams<Time>) => {
+      if(!syncingCrosshair.current && param.sourceEvent)crosshairCallback.current?.(typeof param.time==='number'?param.time*1000:null);
       const index = param.time == null || param.logical == null ? null : Math.round(Number(param.logical));
       if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
       const apply = () => {
@@ -356,15 +464,26 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(rememberRange);
     chart.subscribeCrosshairMove(onCrosshair);
+    const selectTime = (param: MouseEventParams<Time>) => {
+      if (!drawingActive.current && typeof param.time === "number") interactionRef.current.onSelectTime?.(param.time * 1000);
+    };
+    chart.subscribeClick(selectTime);
+    rememberRange(chart.timeScale().getVisibleLogicalRange());
     refreshLegend();
     return () => {
+      node.removeEventListener("wheel", onWheel);
+      node.removeEventListener("pointerdown", unlockDrag, true);
+      savedPrice.current = { range: built.price.priceScale().getVisibleRange(), auto: built.price.priceScale().options().autoScale, unit: compactAxis, key: keyRef.current };
+      paneHeights.current = chart.panes().map(pane => pane.getStretchFactor());
       const current = chart.timeScale().getVisibleLogicalRange();
       if (current) visibleRangeRef.current = { from: Number(current.from), to: Number(current.to) };
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(rememberRange);
       chart.unsubscribeCrosshairMove(onCrosshair);
+      chart.unsubscribeClick(selectTime);
       if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
       if (builtRef.current === built) builtRef.current = null;
+      disposeDrawings.current?.();
       chart.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -379,14 +498,18 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     keyRef.current = seriesKey;
     if (!keyChanged && held.candles === displayCandles) return;
     const plan: CandlePlan = keyChanged ? { kind: "reset", bars: displayCandles } : planCandleUpdate(held.candles, displayCandles);
+    const previousRange = built.chart.timeScale().getVisibleLogicalRange();
+    const preservedRange = previousRange ? rebaseViewport(previousRange, held.candles, displayCandles) : null;
     applyCandles(built, held, displayCandles, plan);
     barCountRef.current = displayCandles.length;
     if (keyChanged) {
+      savedPrice.current = null;
+      built.price.priceScale().applyOptions({ autoScale: true });
       const next = defaultRange();
       visibleRangeRef.current = next;
       built.chart.timeScale().setVisibleLogicalRange(next);
     } else if (plan.kind === "reset") {
-      built.chart.timeScale().setVisibleLogicalRange(visibleRangeRef.current || defaultRange());
+      built.chart.timeScale().setVisibleLogicalRange(preservedRange || defaultRange());
     }
     refreshLegend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -415,11 +538,20 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
         time: (ms) => formatIst(ms, latest.current.granularity)
       }
     });
+    const unsubscribe = api.subscribe(state => { drawingActive.current = Boolean(state.tool || state.drafting || state.selectedId); });
     onDrawings?.(api);
-    return () => {
+    let disposed=false;
+    const dispose=() => {
+      if(disposed)return;
+      disposed=true;
+      unsubscribe();
+      drawingActive.current = false;
       onDrawings?.(null);
       api.destroy();
+      if(disposeDrawings.current===dispose)disposeDrawings.current=null;
     };
+    disposeDrawings.current=dispose;
+    return dispose;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mountKey, drawingsKey]);
 
@@ -450,7 +582,23 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   }, [live.stats]);
 
   return (
-    <div className="chart-host">
+    <div className="chart-host" tabIndex={0} role="region" aria-label="Interactive price chart" aria-describedby="chart-navigation-help"
+      onKeyDown={event => {
+        if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button")) return;
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const chart = builtRef.current?.chart;
+        if (!chart) return;
+        if (event.key === "+" || event.key === "=") { event.preventDefault(); scaleRange(0.8); }
+        else if (event.key === "-") { event.preventDefault(); scaleRange(1.25); }
+        else if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); scalePrice(event.key === "ArrowUp" ? 0.8 : 1.25); }
+        else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          const range = chart.timeScale().getVisibleLogicalRange();
+          if (!range) return;
+          event.preventDefault();
+          const shift = (range.to - range.from) * (event.key === "ArrowLeft" ? -0.15 : 0.15);
+          chart.timeScale().setVisibleLogicalRange({ from: range.from + shift, to: range.to + shift });
+        } else if (event.key === "End") { event.preventDefault(); chart.timeScale().scrollToRealTime(); }
+      }}>
       <div className="chart-canvas" ref={host} />
       <ChartLegend state={legend} compact={compactAxis} granularity={granularity} label={legendLabel} />
       <FomoHover view={fomoHover} />

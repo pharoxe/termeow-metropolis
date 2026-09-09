@@ -76,7 +76,8 @@ describe("EvmQuotePrice prime", () => {
     expect(fetchImpl.mock.calls[0][0]).toBe(`https://api.dexscreener.com/tokens/v1/robinhood/${ETH},${WETH.toLowerCase()}`);
     expect(cache.get(WETH)).toBe(2498.87);
     expect(cache.get(ETH)).toBeCloseTo(ETH_USD, 6);
-    expect(cache.status()).toEqual({ cached: 2, lastOkAt: T0, lastError: null });
+    // 3, not 2: USDG is a stable, so prime() records its known price of 1 without a fetch and it counts as cached.
+    expect(cache.status()).toEqual({ cached: 3, lastOkAt: T0, lastError: null });
   });
 
   it("splits more than 30 addresses across calls", async () => {
