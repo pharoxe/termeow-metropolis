@@ -788,7 +788,7 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .header-network-picker { display:flex!important; min-width:190px; }
 .header-network-picker button { flex:1; min-height:42px; }
 .primary-auth { color:var(--accent)!important; border-color:var(--accent)!important; }
-.onchain-desk > .app-header.desk-header { z-index:300; overflow:visible; }
+.onchain-desk .app-header.desk-header { position:relative; z-index:300; overflow:visible; }
 .profile-control { position:relative; z-index:2; }
 .wallet-popover,.profile-popover { z-index:310; }
 .profile-popover { position:absolute; top:calc(100% + 8px); right:0; width:min(500px,calc(100vw - 24px)); padding:16px; border:1px solid var(--accent); background:color-mix(in srgb,var(--panel) 98%,transparent); box-shadow:7px 7px 0 color-mix(in srgb,var(--accent) 18%,transparent),0 18px 55px #000b; }
