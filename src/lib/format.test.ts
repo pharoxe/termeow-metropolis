@@ -33,6 +33,8 @@ describe("money", () => {
     expect(money(1_757_367.63, true)).toBe("$1.76M");
     expect(money(-1_757_367.63, true)).toBe("-$1.76M");
     expect(money(-1152.8, true)).toBe("-$1.15K");
+    expect(money(1_500, true)).toBe("$1.5K");
+    expect(money(0, true)).toBe("$0");
   });
 });
 

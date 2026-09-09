@@ -6,7 +6,13 @@
  */
 export function money(value: number | null | undefined, compact = false) {
   if (value == null || !Number.isFinite(value)) return "—";
-  if (compact) return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 }).format(value);
+  if (compact) return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
   const magnitude = Math.abs(value);
   const digits = magnitude < 0.01 ? 7 : magnitude < 1 ? 5 : 2;
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: digits }).format(value);
