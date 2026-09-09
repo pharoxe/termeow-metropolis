@@ -3,29 +3,17 @@ import type { MarketResponse } from "../../shared/wire";
 import type { OnchainMarket, PublicConfig } from "../types";
 import type { InstrumentRef } from "../lib/address";
 import { money, shortAddress } from "../lib/format";
-import { instrumentLabel, tradeLinks } from "../lib/instrument";
+import { instrumentLabel } from "../lib/instrument";
 import { mcapScale } from "../lib/mcap";
 import { FeatureSection } from "../features/WorkspaceFeatures";
 import { AuditChips, ResearchPanel } from "./DeskPanels";
 import { SpotTradeTicket } from "./SpotTradeTicket";
+import { RobinhoodTradeTicket } from "./RobinhoodTradeTicket";
 
 function TokenIcon({ symbol, src }: { symbol: string; src: string | null }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);
   return <span className={`asset-icon${src && !failed ? " has-image" : ""}`}>{src && !failed ? <img src={src} alt="" onError={() => setFailed(true)} /> : (symbol || "T").slice(0, 1)}</span>;
-}
-
-/** Robinhood has no wallet execution path yet: two link-outs, no ticket, no session card. */
-function TradeLinks({ instrument, pairAddress }: { instrument: InstrumentRef; pairAddress: string | null }) {
-  const links = tradeLinks(instrument.address, pairAddress);
-  return (
-    <section className="panel trade-ticket trade-links">
-      <div className="panel-title"><span>TRADE ON</span><span className="tag">LINK-OUT · NO EXECUTION</span></div>
-      <a href={links.uniswap} target="_blank" rel="noreferrer">UNISWAP ↗<small>opens app.uniswap.org with this token as output · route unverified</small></a>
-      <a href={links.dexscreener} target="_blank" rel="noreferrer">DEXSCREENER ↗<small>{pairAddress ? `primary pair ${shortAddress(pairAddress)}` : "token page · no primary pair known"}</small></a>
-      <p className="ticket-status">Robinhood orders are not signed here. The Solana ticket returns when a Solana token is focused.</p>
-    </section>
-  );
 }
 
 type Props = {
@@ -42,7 +30,7 @@ export function ExecutionRail({ instrument, feed, legacy, iconUrl, config }: Pro
   const label = instrumentLabel(instrument.chain);
   const execution = solana
     ? <SpotTradeTicket key={instrument.address} config={config} mint={instrument.address} symbol={feed?.instrument.symbol || "TOKEN"} />
-    : <TradeLinks instrument={instrument} pairAddress={feed?.primaryPair?.pairAddress ?? null} />;
+    : <RobinhoodTradeTicket key={instrument.address} config={config} token={instrument.address} symbol={(feed?.instrument.symbol || "TOKEN").toUpperCase()} />;
   if (!feed) {
     return (
       <>

@@ -25,8 +25,9 @@ systemRouter.get("/config", (_request, response) => {
     network: "mainnet-beta",
     rpcEndpoint: "/api/rpc",
     routers: [
-      { id: "0x", label: "0x Protocol", available: Boolean(config.zeroEx.apiKey) },
-      { id: "clawpump", label: "ClawPump + Jupiter", available: Boolean(config.clawpump.apiKey) }
+      { id: "0x", label: "0x Protocol", available: Boolean(config.zeroEx.apiKey), chains: ["solana", "robinhood"] },
+      { id: "jupiter", label: "Jupiter", available: Boolean(config.jupiter.apiKey || config.jupiter.apiUrl.includes("lite-api.jup.ag")), chains: ["solana"] },
+      { id: "clawpump", label: "ClawPump + Jupiter", available: Boolean(config.clawpump.apiKey), chains: ["solana"] }
     ],
     ansemMint: config.ansemMint,
     usdcMint: config.usdcMint,

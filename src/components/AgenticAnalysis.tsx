@@ -72,7 +72,7 @@ function AnalysisSurface({ open, market, candles, flow, provider, config, onClos
     if (!selected || !walletAddress || !reviewed || !send || network !== "solana") return;
     setExecutionMessage("Preparing the Privy wallet transaction…");
     try {
-      const input = { inputMint: config.usdcMint, outputMint: market.mint, amount: String(Math.round(Number(notional) * 1_000_000)), slippageBps: Math.round(Number(slippage) * 100), walletAddress };
+      const input = { chain: "solana" as const, router: "jupiter" as const, inputMint: config.usdcMint, outputMint: market.mint, amount: String(Math.round(Number(notional) * 1_000_000)), slippageBps: Math.round(Number(slippage) * 100), walletAddress };
       const quote = await api.quote(input);
       const payload = await api.transaction({ ...input, quoteId: quote.quoteId });
       const base64 = deepFind(payload, ["transaction", "swapTransaction", "unsignedTransaction", "serializedTransaction"]);

@@ -8,25 +8,37 @@ import { getBoard, getHolders, getOnchainMarket, getTrenches, trenchSorts } from
 import { errorMessage, fetchJson } from "../lib/http.js";
 
 const address = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
-const quoteSchema = z.object({
-  router: z.enum(["0x", "clawpump"]).default("0x"),
-  inputMint: address,
-  outputMint: address,
+const evmAddress = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
+const chainAddress = z.union([address, evmAddress]);
+export const quoteSchema = z.object({
+  chain: z.enum(["solana", "robinhood"]).default("solana"),
+  router: z.enum(["0x", "jupiter", "clawpump"]).default("jupiter"),
+  inputMint: chainAddress,
+  outputMint: chainAddress,
   amount: z.string().regex(/^\d+$/),
   slippageBps: z.number().int().min(1).max(500).default(50),
-  walletAddress: address.optional()
+  walletAddress: chainAddress.optional()
+}).superRefine((input, ctx) => {
+  const validator = input.chain === "solana" ? address : evmAddress;
+  for (const [field, value] of [["inputMint", input.inputMint], ["outputMint", input.outputMint], ["walletAddress", input.walletAddress]] as const) {
+    if (value && !validator.safeParse(value).success) ctx.addIssue({ code: "custom", path: [field], message: `${field} is not valid for ${input.chain}` });
+  }
+  if (input.chain === "robinhood" && input.router !== "0x") ctx.addIssue({ code: "custom", path: ["router"], message: "Robinhood Chain currently routes through 0x." });
+  if (input.chain === "solana" && input.router === "jupiter" && input.inputMint.startsWith("0x")) ctx.addIssue({ code: "custom", path: ["inputMint"], message: "Jupiter requires Solana mint addresses." });
 });
 
 export const onchainRouter = Router();
-type RouterId = "0x" | "clawpump";
-const quoteCache = new Map<string, { expiresAt: number; router: RouterId; walletAddress?: string; quote: unknown }>();
+type RouterId = "0x" | "jupiter" | "clawpump";
+type ChainId = "solana" | "robinhood";
+type QuoteInput = z.infer<typeof quoteSchema>;
+const quoteCache = new Map<string, { expiresAt: number; router: RouterId; chain: ChainId; walletAddress?: string; request: QuoteInput; quote: unknown }>();
 
 type ZeroExInstruction = {
   accounts: Array<{ pubkey: number[]; is_signer: boolean; is_writable: boolean }>;
   data: number[];
   program_id: number[];
 };
-type ZeroExQuote = {
+type ZeroExSolanaQuote = {
   address_lookup_tables?: string[];
   amount_out: number | string;
   min_amount_out: number | string;
@@ -35,7 +47,28 @@ type ZeroExQuote = {
   zid?: string;
 };
 
-async function zeroExTransaction(quote: ZeroExQuote, taker: string) {
+type ZeroExEvmQuote = {
+  allowanceTarget?: string;
+  buyAmount: string;
+  minBuyAmount?: string;
+  price?: string;
+  estimatedPriceImpact?: string;
+  issues?: { allowance?: { actual?: string; spender?: string } | null };
+  route?: { fills?: Array<{ source?: string; proportionBps?: string }> };
+  transaction: {
+    to: string;
+    data: string;
+    value?: string;
+    gas?: string;
+    gasPrice?: string;
+    maxFeePerGas?: string;
+    maxPriorityFeePerGas?: string;
+  };
+};
+
+const ROBINHOOD_CHAIN_ID = 4663;
+
+async function zeroExSolanaTransaction(quote: ZeroExSolanaQuote, taker: string) {
   const connection = new Connection(config.rpc.primary, "confirmed");
   const instructions = quote.instructions.map((instruction) => new TransactionInstruction({
     programId: new PublicKey(Uint8Array.from(instruction.program_id)),
@@ -64,6 +97,20 @@ async function zeroExTransaction(quote: ZeroExQuote, taker: string) {
     instructions
   }).compileToV0Message(lookups);
   return Buffer.from(new VersionedTransaction(message).serialize()).toString("base64");
+}
+
+export function sameQuoteRequest(left: QuoteInput, right: QuoteInput) {
+  return left.chain === right.chain && left.router === right.router && left.inputMint.toLowerCase() === right.inputMint.toLowerCase()
+    && left.outputMint.toLowerCase() === right.outputMint.toLowerCase() && left.amount === right.amount
+    && left.slippageBps === right.slippageBps && left.walletAddress?.toLowerCase() === right.walletAddress?.toLowerCase();
+}
+
+function cacheQuote(input: QuoteInput, quote: unknown) {
+  const now = Date.now();
+  for (const [id, cached] of quoteCache) if (cached.expiresAt < now) quoteCache.delete(id);
+  const quoteId = randomUUID();
+  quoteCache.set(quoteId, { expiresAt: now + 60_000, router: input.router, chain: input.chain, walletAddress: input.walletAddress, request: input, quote });
+  return quoteId;
 }
 
 function findJupiterQuote(value: unknown): Record<string, unknown> | undefined {
@@ -130,7 +177,35 @@ onchainRouter.post("/quote", async (request, response, next) => {
         return;
       }
       if (!input.walletAddress) {
-        response.status(400).json({ error: "Connect the Solana wallet before requesting a firm 0x quote." });
+        response.status(400).json({ error: `Connect the ${input.chain === "solana" ? "Solana" : "Robinhood"} wallet before requesting a firm 0x quote.` });
+        return;
+      }
+      if (input.chain === "robinhood") {
+        const params = new URLSearchParams({
+          chainId: String(ROBINHOOD_CHAIN_ID),
+          sellToken: input.inputMint,
+          buyToken: input.outputMint,
+          sellAmount: input.amount,
+          taker: input.walletAddress,
+          slippageBps: String(input.slippageBps)
+        });
+        const result = await fetchJson<ZeroExEvmQuote>(`${config.zeroEx.apiUrl}/swap/allowance-holder/quote?${params}`, {
+          headers: { "0x-api-key": config.zeroEx.apiKey, "0x-version": "v2" }
+        });
+        const quoteId = cacheQuote(input, result);
+        response.json({
+          quoteId,
+          chain: input.chain,
+          router: "0x",
+          source: "0x AllowanceHolder · Robinhood Chain",
+          observedAt: Date.now(),
+          outAmount: result.buyAmount,
+          minimumOutAmount: result.minBuyAmount,
+          price: result.price,
+          priceImpactPct: result.estimatedPriceImpact,
+          allowanceRequired: Boolean(result.issues?.allowance),
+          routePlan: result.route?.fills ?? []
+        });
         return;
       }
       const amountIn = Number(input.amount);
@@ -138,7 +213,7 @@ onchainRouter.post("/quote", async (request, response, next) => {
         response.status(400).json({ error: "The atomic input amount is outside the supported range." });
         return;
       }
-      const result = await fetchJson<ZeroExQuote>(`${config.zeroEx.apiUrl}/solana/swap-instructions`, {
+      const result = await fetchJson<ZeroExSolanaQuote>(`${config.zeroEx.apiUrl}/solana/swap-instructions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "0x-api-key": config.zeroEx.apiKey },
         body: JSON.stringify({
@@ -149,8 +224,7 @@ onchainRouter.post("/quote", async (request, response, next) => {
           slippage_bps: input.slippageBps
         })
       });
-      const quoteId = randomUUID();
-      quoteCache.set(quoteId, { expiresAt: Date.now() + 60_000, router: "0x", walletAddress: input.walletAddress, quote: result });
+      const quoteId = cacheQuote(input, result);
       response.json({
         quoteId,
         router: "0x",
@@ -161,6 +235,22 @@ onchainRouter.post("/quote", async (request, response, next) => {
         routePlan: result.route_plan ?? [],
         zid: result.zid
       });
+      return;
+    }
+    if (input.router === "jupiter") {
+      const params = new URLSearchParams({
+        inputMint: input.inputMint,
+        outputMint: input.outputMint,
+        amount: input.amount,
+        slippageBps: String(input.slippageBps),
+        swapMode: "ExactIn",
+        restrictIntermediateTokens: "true"
+      });
+      const result = await fetchJson<Record<string, unknown>>(`${config.jupiter.apiUrl}/quote?${params}`, {
+        headers: config.jupiter.apiKey ? { "x-api-key": config.jupiter.apiKey } : undefined
+      });
+      const quoteId = cacheQuote(input, result);
+      response.json({ quoteId, chain: input.chain, router: "jupiter", source: "Jupiter Swap API", observedAt: Date.now(), ...result });
       return;
     }
     const result = await clawpumpMcp.call("swap_quote", {
@@ -174,38 +264,54 @@ onchainRouter.post("/quote", async (request, response, next) => {
       response.status(502).json({ error: "ClawPump quote failed", detail: result.error });
       return;
     }
-    const quoteId = randomUUID();
-    quoteCache.set(quoteId, { expiresAt: Date.now() + 60_000, router: "clawpump", walletAddress: input.walletAddress, quote: result.data });
+    const quoteId = cacheQuote(input, result.data);
     response.json({ quoteId, router: "clawpump", source: "ClawPump + Jupiter", observedAt: Date.now(), ...result });
   } catch (error) { next(error); }
 });
 
 onchainRouter.post("/transaction", async (request, response, next) => {
   try {
-    const input = quoteSchema.extend({
-      walletAddress: address,
-      quoteId: z.string().uuid()
-    }).parse(request.body);
-    const cached = quoteCache.get(input.quoteId);
+    const quoteId = z.string().uuid().parse(request.body?.quoteId);
+    const input = quoteSchema.parse(request.body);
+    const cached = quoteCache.get(quoteId);
     if (!cached || cached.expiresAt < Date.now()) {
       response.status(409).json({ error: "Quote expired", hint: "Request a fresh router quote before building the transaction." });
       return;
     }
-    if (cached.router !== input.router) {
-      response.status(409).json({ error: "The selected router no longer matches the quoted route." });
+    if (!input.walletAddress) {
+      response.status(400).json({ error: "A connected wallet is required to build the transaction." });
       return;
     }
-    if (cached.walletAddress && cached.walletAddress !== input.walletAddress) {
-      response.status(409).json({ error: "The connected wallet no longer matches the quoted route." });
+    if (!sameQuoteRequest(cached.request, input)) {
+      response.status(409).json({ error: "The transaction request no longer matches the quoted route." });
       return;
     }
-    quoteCache.delete(input.quoteId);
+    quoteCache.delete(quoteId);
     if (cached.router === "0x") {
-      const transaction = await zeroExTransaction(cached.quote as ZeroExQuote, input.walletAddress);
-      response.json({ source: "0x Solana Swap API", router: "0x", signingMode: "user-wallet", transaction });
+      if (cached.chain === "robinhood") {
+        const quote = cached.quote as ZeroExEvmQuote;
+        const allowance = quote.issues?.allowance;
+        response.json({
+          source: "0x AllowanceHolder · Robinhood Chain",
+          router: "0x",
+          chain: "robinhood",
+          signingMode: "user-wallet",
+          transaction: { ...quote.transaction, chainId: ROBINHOOD_CHAIN_ID },
+          approval: allowance ? {
+            required: true,
+            token: input.inputMint,
+            spender: allowance.spender || quote.allowanceTarget,
+            amount: input.amount,
+            currentAllowance: allowance.actual
+          } : { required: false }
+        });
+        return;
+      }
+      const transaction = await zeroExSolanaTransaction(cached.quote as ZeroExSolanaQuote, input.walletAddress);
+      response.json({ source: "0x Solana Swap API", router: "0x", chain: "solana", signingMode: "user-wallet", transaction });
       return;
     }
-    const quoteResponse = findJupiterQuote(cached.quote);
+    const quoteResponse = cached.router === "jupiter" ? cached.quote as Record<string, unknown> : findJupiterQuote(cached.quote);
     if (!quoteResponse) {
       response.status(502).json({ error: "ClawPump quote did not contain a Jupiter-compatible route" });
       return;
@@ -223,7 +329,7 @@ onchainRouter.post("/transaction", async (request, response, next) => {
         prioritizationFeeLamports: "auto"
       })
     });
-    response.json({ source: "clawpump+jupiter", signingMode: "user-wallet", ...result });
+    response.json({ source: cached.router === "jupiter" ? "Jupiter Swap API" : "clawpump+jupiter", router: cached.router, chain: "solana", signingMode: "user-wallet", ...result });
   } catch (error) { next(error); }
 });
 

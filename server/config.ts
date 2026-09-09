@@ -151,6 +151,7 @@ export function integrationStatus() {
     fallbackRpc: Boolean(config.rpc.fallback),
     privy: Boolean(config.privy.appId && config.privy.appSecret),
     voiceAgent: Boolean(config.elevenlabs.apiKey && config.elevenlabs.agentId),
-    zeroEx: Boolean(config.zeroEx.apiKey)
+    zeroEx: Boolean(config.zeroEx.apiKey),
+    jupiter: Boolean(config.jupiter.apiKey || config.jupiter.apiUrl.includes("lite-api.jup.ag"))
   };
 }
