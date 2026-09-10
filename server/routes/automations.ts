@@ -8,11 +8,13 @@ import { AutomationStore } from "../automation/store.js";
 
 const intentSchema = z.object({
   kind: z.enum(["swap", "monitor_deployer", "conditional_swap"]),
-  chain: z.enum(["solana", "robinhood"]),
-  tokenAddress: z.string().min(20).max(64), tokenSymbol: z.string().max(20).optional(),
+  chain: z.enum(["solana", "robinhood"]), tokenAddress: z.string().min(20).max(64),
+  tokenSymbol: z.string().max(20).optional(), tokenName: z.string().max(120).optional(), tokenLogoUrl: z.string().url().max(1000).optional(),
+  trackedWallet: z.string().min(20).max(64).optional(), trackedWalletUsername: z.string().max(80).optional(),
   side: z.enum(["buy", "sell"]).optional(), router: z.enum(["0x", "jupiter"]).optional(),
   amountMode: z.enum(["fixed", "wallet_percent"]).optional(), amount: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),
   allocationPercent: z.number().positive().max(25).optional(), durationHours: z.number().int().positive().max(24 * 30).optional(),
+  marketCapMinUsd: z.number().nonnegative().optional(), marketCapMaxUsd: z.number().nonnegative().optional(),
   condition: z.string().max(1000).optional(), description: z.string().min(3).max(1000)
 }).superRefine((intent, context) => {
   if (intent.kind === "swap" && (!intent.side || !intent.amountMode)) context.addIssue({ code: "custom", message: "A swap requires side and amountMode" });
@@ -20,6 +22,8 @@ const intentSchema = z.object({
   if (intent.amountMode === "wallet_percent" && !intent.allocationPercent) context.addIssue({ code: "custom", message: "A wallet-percent action requires allocationPercent" });
   if (intent.chain === "robinhood" && intent.router && intent.router !== "0x") context.addIssue({ code: "custom", message: "Robinhood actions must use 0x" });
   if (intent.chain === "solana" && intent.router && intent.router !== "jupiter" && intent.router !== "0x") context.addIssue({ code: "custom", message: "Unsupported Solana router" });
+  if (intent.marketCapMinUsd != null && intent.marketCapMaxUsd != null && intent.marketCapMinUsd > intent.marketCapMaxUsd)
+    context.addIssue({ code: "custom", message: "Minimum market cap cannot exceed maximum market cap" });
 });
 const createSchema = z.object({ intent: intentSchema, conversationId: z.string().max(200).optional(), context: z.unknown().optional(), source: z.enum(["elevenlabs_voice", "terminal"]).default("terminal") });
 const approveSchema = z.object({ passkeyVerified: z.literal(true) });

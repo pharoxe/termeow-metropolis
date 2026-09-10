@@ -70,6 +70,24 @@ function Portfolio({ address, onBack }: { address: string; onBack: () => void })
   </section>;
 }
 
+function marketCapRange(row: AutomationRecord) {
+  const min = row.intent.marketCapMinUsd;
+  const max = row.intent.marketCapMaxUsd;
+  if (min != null && max != null) return `${money(min, true)} – ${money(max, true)}`;
+  if (min != null) return `≥ ${money(min, true)}`;
+  if (max != null) return `≤ ${money(max, true)}`;
+  return "ANY MARKET CAP";
+}
+
+function AutomationToken({ row }: { row: AutomationRecord }) {
+  const symbol = (row.intent.tokenSymbol || "TOKEN").replace(/^\$/, "").toUpperCase();
+  return <div className="automation-token">
+    <span aria-hidden="true">{symbol.slice(0, 1)}</span>
+    {row.intent.tokenLogoUrl && <img src={row.intent.tokenLogoUrl} alt="" onError={(event) => { event.currentTarget.remove(); }} />}
+    <div><strong>${symbol}</strong><small>{row.intent.tokenName || shortAddress(row.intent.tokenAddress)}</small></div>
+  </div>;
+}
+
 function AutomationControlPlane({ onBack }: { onBack: () => void }) {
   const [rows, setRows] = useState<AutomationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,9 +111,13 @@ function AutomationControlPlane({ onBack }: { onBack: () => void }) {
     <div className="account-summary"><article><span>LIVE STRATEGIES</span><strong>{live}</strong><small>Passkey-approved only</small></article><article><span>PENDING APPROVAL</span><strong>{rows.filter((row) => row.status === "pending_approval").length}</strong><small>Voice cannot self-approve</small></article><article><span>EXECUTION</span><strong>PRIVY</strong><small>0x · Jupiter</small></article></div>
     <p className="automation-policy">Immediate swaps hand off to the connected Privy wallet after passkey MFA. Monitoring rules are stored and armed here; unattended future swaps require a scoped Privy server signer and spend policy.</p>
     {loading ? <div className="account-empty"><PixelLoader label="READING AUTOMATIONS" /></div> : error ? <div className="account-empty"><h2>Control plane unavailable</h2><p>{error}</p><button onClick={() => void load()}>Retry</button></div> : rows.length ? <div className="automation-list">{rows.map((row) => <article key={row.id} data-status={row.status}>
-      <div><span>{row.intent.kind.replaceAll("_", " ")} · {row.intent.chain}</span><strong>{row.intent.description}</strong><small>{row.intent.tokenSymbol || row.intent.tokenAddress} · {new Date(row.createdAt).toLocaleString()}</small></div>
-      <dl><div><dt>STATUS</dt><dd>{row.status}</dd></div><div><dt>SIZE</dt><dd>{row.intent.amountMode === "wallet_percent" ? `${row.intent.allocationPercent}%` : row.intent.amount || "—"}</dd></div><div><dt>ROUTER</dt><dd>{row.intent.router || "—"}</dd></div></dl>
-      {row.failure && <p>{row.failure}</p>}{row.transactionHash && <small>TX · {row.transactionHash}</small>}
+      <div className="automation-main"><AutomationToken row={row} /><span className="automation-kind">{row.intent.kind.replaceAll("_", " ")} · {row.intent.chain}</span><strong className="automation-description">{row.intent.description}</strong>
+        <p className="automation-condition"><b>WHEN</b>{row.intent.condition || "Execute immediately after approval."}</p>
+        <small className="automation-wallet">TRACKED WALLET · <b>{row.intent.trackedWalletUsername ? `@${row.intent.trackedWalletUsername.replace(/^@/, "")}` : "UNATTRIBUTED"}</b> · {shortAddress(row.intent.trackedWallet || row.intent.tokenAddress)}</small>
+        <small className="automation-timing">CREATED · {new Date(row.createdAt).toLocaleString()}{row.intent.durationHours ? ` · EXPIRES ${new Date(row.createdAt + row.intent.durationHours * 3_600_000).toLocaleString()}` : ""}</small>
+      </div>
+      <dl><div><dt>STATUS</dt><dd>{row.status}</dd></div><div><dt>ACTION</dt><dd>{row.intent.side || "monitor"}</dd></div><div><dt>ALLOCATION</dt><dd>{row.intent.amountMode === "wallet_percent" ? `${row.intent.allocationPercent}% OF WALLET` : row.intent.amount || "—"}</dd></div><div><dt>MARKET CAP RANGE</dt><dd>{marketCapRange(row)}</dd></div><div><dt>WINDOW</dt><dd>{row.intent.durationHours ? `${row.intent.durationHours}H` : "IMMEDIATE"}</dd></div><div><dt>ROUTER</dt><dd>{row.intent.router || "—"}</dd></div></dl>
+      {row.failure && <p className="automation-failure">{row.failure}</p>}{row.transactionHash && <small>TX · {row.transactionHash}</small>}
       {!["completed", "cancelled"].includes(row.status) && <button type="button" onClick={() => void cancel(row.id)}>CANCEL</button>}
     </article>)}</div> : <div className="account-empty"><h2>No strategies yet</h2><p>Ask Termeow to propose a monitored strategy or swap. Nothing arms until you confirm the exact action with a passkey.</p></div>}
   </section>;

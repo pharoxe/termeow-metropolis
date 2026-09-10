@@ -8,6 +8,7 @@ export type BoardKind='fomoscan-traders'|'pump-traders';
 export type TraderIdentity={
   chain:Chain;wallet:string;handle:string|null;displayName:string|null;twitter:string|null;
   followers:number|null;userId:string|null;source:IdentitySource;observedAt:number;
+  avatarUrl?:string|null;verified?:boolean|null;
 };
 
 /**
@@ -20,6 +21,8 @@ export type TraderIdentity={
 export type TraderRanking={
   board:BoardKind;window:string;rank:number;chain:Chain;wallet:string;capturedAt:number;
   pnlUsd:number|null;realizedPnlUsd:number|null;unrealizedPnlUsd:number|null;returnPct:number|null;
+  /** FomoScan's current board ranks quote received minus quote spent. This is cash flow, not realized profit. */
+  netUsd?:number|null;
   volumeUsd:number|null;trades:number|null;uniqueTokens:number|null;winRate:number|null;
   avgHoldSeconds:number|null;tokensCreated:number|null;walletFirstSeenAt:number|null;
 };

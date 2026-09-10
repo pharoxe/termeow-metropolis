@@ -1,5 +1,6 @@
 import { useState, type JSX } from "react";
 import type { IdentityBoardResponse, IdentityCoverageResponse, RankedTrader, TraderRanking } from "../../shared/identity";
+import type { Chain } from "../../shared/wire";
 import { api } from "../api/client";
 import { printAgeLabel } from "../lib/flowPanel";
 import {
@@ -11,6 +12,7 @@ import { useResource } from "../lib/resource";
 /** What this row carried, not what the board publishes: the same row on a filled board would say something else. */
 const NO_STATS = "no per-row stats in this snapshot";
 const NO_UNREALIZED = "unrealized not reported";
+const NET_FLOW_NOTE = "cash flow · not PnL";
 const POPULATION_TITLE = "a board is the top of the population it was swept from, never the top of everyone trading";
 const CAPTURED_TITLE = "two clocks: capturedAt is the instant the board itself was sampled upstream, and the read time beside it is when this server last fetched it";
 
@@ -51,7 +53,7 @@ function SmartMoneyRow({ row, now }: { row: RankedTrader; now: number }) {
       <td title={title}><b>{row.rank} · {name ?? shortWallet(row.wallet)}</b><small>{stats || NO_STATS}</small></td>
       <td className={`r ${split.tone}`} title={split.title}>
         <b className={split.tone}>{split.realized}</b>
-        <small>{split.unrealized ?? NO_UNREALIZED}{split.paperDominant ? <span className="chip warn" title={split.title}>PAPER</span> : null}</small>
+        <small>{row.board === "fomoscan-traders" && row.netUsd != null ? NET_FLOW_NOTE : split.unrealized ?? NO_UNREALIZED}{split.paperDominant ? <span className="chip warn" title={split.title}>PAPER</span> : null}</small>
       </td>
     </tr>
   );
@@ -71,11 +73,11 @@ function SmartMoneyRow({ row, now }: { row: RankedTrader; now: number }) {
  * behind /api/identity/wallet. Naming them here wants the board response to carry the handle, not 100 row fetches.
  * The 50,000 CU price is on resolving an address FomoScan has never named, which that route deliberately never does.
  */
-export function SmartMoneyTab(): JSX.Element {
+export function SmartMoneyTab({ chain }: { chain: Chain }): JSX.Element {
   const [choice, setChoice] = useState<BoardChoice>(BOARD_CHOICES[0]);
   const coverageQuery = useResource<IdentityCoverageResponse>("identity:coverage", () => api.identityCoverage(), IDENTITY_POLL_MS);
   // No limit: the stored snapshot is 100 rows and trimming it here would hide rows the server actually holds.
-  const boardQuery = useResource<IdentityBoardResponse>(`identity:board:${choice.board}:${choice.window}`, () => api.identityBoard(choice.board, choice.window), IDENTITY_POLL_MS);
+  const boardQuery = useResource<IdentityBoardResponse>(`identity:board:${choice.board}:${choice.window}:${chain}`, () => api.identityBoard(choice.board, choice.window, undefined, chain), IDENTITY_POLL_MS);
 
   const now = Date.now();
   const coverage = coverageQuery.data;
@@ -106,7 +108,7 @@ export function SmartMoneyTab(): JSX.Element {
       {coverage?.lastError ? <p className="empty-copy">Board collector · {coverage.lastError}</p> : null}
       {entries.length ? (
         <table className="terminal-table smart-money-table">
-          <thead><tr><th>RANK · WALLET</th><th className="r">REALIZED · UNREAL</th></tr></thead>
+          <thead><tr><th>RANK · WALLET</th><th className="r">{choice.board === "fomoscan-traders" ? "NET FLOW" : "REALIZED · UNREAL"}</th></tr></thead>
           <tbody>{entries.map((row) => <SmartMoneyRow key={`${row.rank}:${row.wallet}`} row={row} now={now} />)}</tbody>
         </table>
       ) : <p className="empty-copy">{emptyCopy(choice, { loaded: boardQuery.updatedAt > 0, failure: boardQuery.error }, coverage ?? null)}</p>}

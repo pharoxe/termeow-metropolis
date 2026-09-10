@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useFundWallet as useEvmFundWallet, usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
-import { useFundWallet as useSolanaFundWallet, useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
+import { useAddFunds, usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useWorkspaceFeatures } from "../features/WorkspaceFeatures";
 import { networkLabel, networkNativeToken, ROBINHOOD_CHAIN, type FundingNetwork, useFundingNetwork } from "../features/NetworkContext";
 import { useNotifications } from "../components/NotificationSystem";
 import { shortAddress } from "../lib/format";
 import { hasPrivy } from "./WalletProviders";
+
+async function copyWalletAddress(address: string) {
+  if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(address); return; }
+  const field = document.createElement("textarea");
+  field.value = address; field.style.position = "fixed"; field.style.opacity = "0";
+  document.body.appendChild(field); field.select();
+  const copied = document.execCommand("copy"); field.remove();
+  if (!copied) throw new Error("Copy the wallet address shown above.");
+}
 
 function NetworkPicker({ compact = false }: { compact?: boolean }) {
   const { network, setNetwork } = useFundingNetwork();
@@ -24,8 +33,7 @@ function LivePrivyControl() {
   const { authenticated, login, logout, ready, user } = usePrivy();
   const { wallets: evmWallets } = useEvmWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
-  const { fundWallet: fundEvmWallet } = useEvmFundWallet();
-  const { fundWallet: fundSolanaWallet } = useSolanaFundWallet();
+  const { addFunds } = useAddFunds();
   const { notify } = useNotifications();
   const { network, setNetwork } = useFundingNetwork();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -52,18 +60,23 @@ function LivePrivyControl() {
   };
   const fund = async (target: FundingNetwork) => {
     setNetwork(target);
+    const address = target === "solana" ? solanaWallet?.address : evmWallet?.address;
     try {
-      if (target === "solana") {
-        if (!solanaWallet?.address) throw new Error("Solana wallet is still being created.");
-        await fundSolanaWallet({ address: solanaWallet.address, options: { chain: "solana:mainnet", asset: "native-currency" } });
-      } else {
-        if (!evmWallet?.address) throw new Error("Robinhood wallet is still being created.");
-        await fundEvmWallet({ address: evmWallet.address, options: { chain: ROBINHOOD_CHAIN } });
-      }
+      if (!address) throw new Error(`${networkLabel(target)} wallet is still being created.`);
+      await addFunds({
+        destination: { address, chain: target === "solana" ? "solana:mainnet" : `eip155:${ROBINHOOD_CHAIN.id}`, asset: "native-currency" },
+        crypto: {}
+      });
       notify({ title: `FUND ${networkNativeToken(target)}`, message: `${networkLabel(target)} deposit flow opened.`, tone: "success" });
       finishOnboarding();
     } catch (reason) {
-      notify({ title: "DEPOSIT UNAVAILABLE", message: reason instanceof Error ? reason.message : String(reason), tone: "warning" });
+      if (!address) { notify({ title: "WALLET NOT READY", message: reason instanceof Error ? reason.message : String(reason), tone: "warning" }); return; }
+      try {
+        await copyWalletAddress(address);
+        notify({ title: `${networkNativeToken(target)} ADDRESS COPIED`, message: `The wallet prompt was unavailable, so the ${networkLabel(target)} deposit address was copied instead.`, tone: "info" });
+      } catch (copyError) {
+        notify({ title: "DEPOSIT ADDRESS", message: copyError instanceof Error ? copyError.message : "Copy the wallet address shown above.", tone: "warning" });
+      }
     }
   };
   const activeAddress = network === "solana" ? solanaWallet?.address : evmWallet?.address;

@@ -148,7 +148,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
   const [selectedTrade, setSelectedTrade] = useState<TradeEvent|null>(null);
   const [commandsOpen,setCommandsOpen]=useState(false);
   useEffect(()=>{if(!isActive)return;const handler=(event:KeyboardEvent)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){event.preventDefault();setCommandsOpen(open=>!open);}};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[isActive]);
-  const [railTab, setRailTab] = useState<"trader"|"order">("trader");
+  const [railTab, setRailTab] = useState<"trader"|"order">("order");
   const [replayTime, setLocalReplay] = useState<number|null>(null);
   const replayRef=useRef(replayTime);replayRef.current=replayTime;
   const setReplayTime=(value:number|null|((previous:number|null)=>number|null))=>{const next=typeof value==='function'?value(replayRef.current):value;setLocalReplay(next);onReplay(tile.id,next);};
@@ -299,7 +299,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
     const latest = candles.at(-1);
     voiceAgent.updateContext({
       route: section.toLowerCase(), chain: instrument.chain,
-      token: { address: instrument.address, symbol: feed?.instrument.symbol, name: feed?.instrument.name },
+      token: { address: instrument.address, symbol: feed?.instrument.symbol, name: feed?.instrument.name, logoUrl: tokenIconUrl ?? undefined },
       chart: {
         timeframe: activeInterval, unit: useMcap ? "mcap" : "price", scale: scaleMode,
         priceUsd: feed?.priceUsd, marketCapUsd: scale.mcap, change24Pct: feed?.change24Pct,
@@ -310,7 +310,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
       flow: { buyUsd: aggregate.data?.buyUsd, sellUsd: aggregate.data?.sellUsd, deltaUsd: aggregate.data?.delta, trades: aggregate.data?.trades, regime: regimeLabel },
       observedAt: feed?.observedAt ?? Date.now()
     });
-  }, [activeInterval, aggregate.data?.buyUsd, aggregate.data?.delta, aggregate.data?.sellUsd, aggregate.data?.trades, candles, feed?.change24Pct, feed?.instrument.name, feed?.instrument.symbol, feed?.observedAt, feed?.priceUsd, instrument.address, instrument.chain, isActive, regimeLabel, scale.mcap, scaleMode, section, technicals, useMcap, visibleRange?.from, visibleRange?.to, voiceAgent.updateContext]);
+  }, [activeInterval, aggregate.data?.buyUsd, aggregate.data?.delta, aggregate.data?.sellUsd, aggregate.data?.trades, candles, feed?.change24Pct, feed?.instrument.name, feed?.instrument.symbol, feed?.observedAt, feed?.priceUsd, instrument.address, instrument.chain, isActive, regimeLabel, scale.mcap, scaleMode, section, technicals, tokenIconUrl, useMcap, visibleRange?.from, visibleRange?.to, voiceAgent.updateContext]);
 
   const focusInstrument = (next: InstrumentRef, symbol?: string) => {
     if (!isValidInstrument(next)) return;
@@ -356,7 +356,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
   const spotLoading = !feed;
   const scannerSearch = <form className="persistent-ca-search" role="search" onSubmit={event=>{event.preventDefault();void submitQuery();}}>
     <label htmlFor="market-ca">CONTRACT / TOKEN</label>
-    <input id="market-ca" className="command-input" value={query} aria-label="Paste a Solana or Robinhood contract address" placeholder="Paste contract address · Enter to open" spellCheck={false} autoComplete="off" onChange={event=>setQuery(event.target.value)}/>
+    <input id="market-ca" className="command-input" value={query} aria-label="Search name, contract address, wallet" placeholder="Search name, contract address, wallet" spellCheck={false} autoComplete="off" onChange={event=>setQuery(event.target.value)}/>
     <button type="submit">OPEN ↵</button>
     <button type="button" onClick={()=>{const parsed=extractAddress(query);if(parsed&&!("error" in parsed))onNew(parsed);else setError("Paste a valid contract address to open a new chart");}}>NEW CHART ＋</button>
   </form>;
@@ -395,6 +395,17 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
           trenches={trenchRows}
           onTrenchSort={setTrenchSort}
         />
+        <FeatureSection id="social" className="radar-panel discovery-live-feed" meta={<span className="social-live"><i /> LIVE</span>}>
+        {legacy && solana ? <SocialPanel
+          market={{ ...legacy, provider: mergedProvider }}
+          trench={focusedTrench}
+          onPick={focusSolana}
+        /> : solana ? (
+          <section className="panel radar-panel social-panel">
+            <p className="empty-copy">Fetching KOL, narrative, and social links for this mint.</p>
+          </section>
+        ) : <FomoTapePanel onInstrument={focusInstrument} onNewChart={onNew} />}
+        </FeatureSection>
       </>,slots.discovery)}
         <section className={`panel chart-panel${chartExpanded ? " chart-expanded" : ""}`}>
           <div className="ph chart-head">
@@ -487,7 +498,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
         </section>
         {isActive && createPortal(<>
         <aside className="execution-rail terminal-rail">
-          <div className="rail-tabs"><button className={railTab==="trader"?"active":""} onClick={()=>setRailTab("trader")}>TRADER CONTEXT</button><button className={railTab==="order"?"active":""} onClick={()=>setRailTab("order")}>ORDER &amp; PROJECT</button></div>
+          <div className="rail-tabs"><button className={railTab==="order"?"active":""} onClick={()=>setRailTab("order")}>TRADE</button><button className={railTab==="trader"?"active":""} onClick={()=>setRailTab("trader")}>ADVANCED</button></div>
           {railTab==="trader"?<TraderInspector baseline={participants.snapshots.find(s=>s.chain===selectedTrade?.chain&&s.wallet===selectedTrade?.wallet)} event={selectedTrade} events={terminal.events.filter(e=>replayTime==null||e.time<=replayTime)} candles={rawSpotCandles} intervalMs={intervalMs||60000} followed={followed} onFollow={followWallet} onSelect={selectTrade} onClose={()=>setSelectedTrade(null)}/>:<ExecutionRail instrument={instrument} feed={feed} legacy={legacy} iconUrl={tokenIconUrl} config={config} />}
         </aside>
         </>,slots.rail)}
@@ -496,17 +507,6 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
           <TradeTape events={visibleTrades} selected={selectedTrade?.id??null} onSelect={selectTrade} loading={terminal.loading} hasMore={Boolean(terminal.nextCursor)} onMore={terminal.loadMore} paused={replayTime!=null} replayTime={replayTime} onReplay={setReplayTime} error={terminal.error}/>
         </div>
         <ThesisActivity instrument={instrument} />
-        <FeatureSection id="social" className="radar-panel" meta={<span className="social-live"><i /> LIVE</span>}>
-        {legacy && solana ? <SocialPanel
-          market={{ ...legacy, provider: mergedProvider }}
-          trench={focusedTrench}
-          onPick={focusSolana}
-        /> : solana ? (
-          <section className="panel radar-panel social-panel">
-            <p className="empty-copy">Fetching KOL, narrative, and social links for this mint.</p>
-          </section>
-        ) : <FomoTapePanel onInstrument={focusInstrument} onNewChart={onNew} />}
-        </FeatureSection>
       </>,slots.context)}
       <TerminalCommand open={commandsOpen} onClose={()=>setCommandsOpen(false)} events={terminal.events} onSelect={selectTrade} onAction={action=>{if(action==="live"){setReplayTime(null);chartRef.current?.goToRealtime();}if(action==="fit")chartRef.current?.fitHistory();if(action==="reset")chartRef.current?.resetView();if(action==="expand")setChartExpanded(v=>!v);if(action==="replay")setReplayTime(t=>t==null?Date.now():null);}} />
       {legacy && solana && <AgenticAnalysisPanel open={analysisOpen} market={legacy} candles={legacy.candles} flow={analysisFlow} provider={analysisProvider} config={config} onClose={() => setAnalysisOpen(false)} />}

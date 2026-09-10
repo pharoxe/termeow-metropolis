@@ -22,7 +22,7 @@ import { useNotifications } from "./NotificationSystem";
 
 type Row = Record<string, unknown>;
 /** SMART HOLDERS is this server's own observed FOMO buyers per token; SMART MONEY is FomoScan's external board — 100 ranked wallets swept from 316,007 — so the two never share a population. */
-type WatchTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW" | "LAUNCHES" | "FOMO" | "SMART MONEY" | "ALERTS";
+type WatchTab = "TRENDING" | "SMART HOLDERS" | "NEW" | "LAUNCHES" | "FOMO" | "SMART MONEY" | "ALERTS";
 type TrenchSort = "hot" | "new" | "mcap" | "volume";
 
 function record(value: unknown): Row {
@@ -131,9 +131,7 @@ export function WatchPanel({
     const key = String(item.contract || item.mint || item.mintAddress || item.symbol || index);
     return all.findIndex((candidate, candidateIndex) => String(candidate.contract || candidate.mint || candidate.mintAddress || candidate.symbol || candidateIndex) === key) === index;
   });
-  const sourceRows = tab === "TRENDING" || tab === "NEW" ? trenches
-    : tab === "BIGGEST MOVERS" ? rows(provider.top_movers, ["signals", "movers"])
-    : smartHolderRows;
+  const sourceRows = tab === "TRENDING" || tab === "NEW" ? trenches : smartHolderRows;
   const selectTab = (next: WatchTab) => {
     setTab(next);
     if (next === "TRENDING") onTrenchSort?.("hot");
@@ -147,12 +145,11 @@ export function WatchPanel({
     <section className="panel watch-panel">
       {search}
       <div className="ph">
-        <div className="tabs watch-tabs">{(["TRENDING", "BIGGEST MOVERS", "SMART HOLDERS", "NEW", "LAUNCHES", "FOMO", "SMART MONEY", "ALERTS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
+        <div className="tabs watch-tabs">{(["TRENDING", "SMART HOLDERS", "NEW", "LAUNCHES", "FOMO", "SMART MONEY", "ALERTS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
       </div>
       <div className="panel-scroll">
         {tab==='FOMO'&&activeInstrument&&<ThesisActivity instrument={activeInstrument} compact/>}
-        <p className="terminal-notice">{tab === "TRENDING" ? "ATTENTION · provider-ranked tokens; compare activity with liquidity." : tab === "BIGGEST MOVERS" ? "MOMENTUM · change over the selected window, within the discovered universe." : tab === "SMART HOLDERS" ? "PARTICIPANTS · observed verified-FOMO buyers; not proven current holders or profitability." : tab === "NEW" || tab === "LAUNCHES" ? "EARLY MARKETS · inspect age, liquidity and launch stage before opening the chart." : tab === "FOMO" ? "SOCIAL FLOW · observed participant activity on the selected network." : tab === "SMART MONEY" ? "EXTERNAL RANKING · a third-party board's top rows, not this server's own observations; the population each board was drawn from is stated below." : "CATALYSTS · sourced events and their observation time."}</p>
-        {robinhoodDiscovery && isDiscoverTab(tab) ? <DiscoverTab chain={network} tab={tab} onOpen={onInstrument} onNewChart={onNewChart} selected={selected} /> : tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab chain={network} /> : tab === "SMART MONEY" ? <SmartMoneyTab /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
+        {robinhoodDiscovery && isDiscoverTab(tab) ? <DiscoverTab chain={network} tab={tab} onOpen={onInstrument} selected={selected} /> : tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab chain={network} /> : tab === "SMART MONEY" ? <SmartMoneyTab chain={network} /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
           <table className="terminal-table"><thead><tr><th>TOKEN / SOCIAL</th><th className="r">MCAP / VOL</th></tr></thead><tbody>{sourceRows.slice(0, 48).map((item) => {
             const mint = String(item.mintAddress || "");
             return <tr className={mint && mint === selected ? "selected" : ""} key={mint || String(item.symbol)} onClick={() => pickSpot(item)}>

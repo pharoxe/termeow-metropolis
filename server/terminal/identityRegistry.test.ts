@@ -10,6 +10,21 @@ const NOW=Date.UTC(2026,8,8,15,30);
 const budget=(over:Partial<{grant:number;share:number;burst:number}>={})=>new CuBudget(':memory:',{grant:250000,share:0.1,burst:5000,...over});
 
 describe('FomoScan board normalizers',()=>{
+  it('reads the current dual-wallet board schema without calling net flow profit',()=>{
+    const snapshot=normalizeFomoscanTraders({
+      window:'24h',order:'best',updatedAt:NOW,total:375314,count:1,
+      entries:[{rank:1,handle:'alice',displayName:'Alice',avatarUrl:'https://cdn.example/alice.png',twitter:'alice_x',
+        followers:99,wallet:'So11111111111111111111111111111111111111112',evmWallet:'0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD',
+        netUsd:1234.5,returnPct:12.5,volumeUsd:9000,trades:7}]
+    },NOW);
+    expect(snapshot.walletsRanked).toBe(375314);
+    expect(snapshot.coverage).toBe(1);
+    expect(snapshot.identities.map(identity=>identity.chain)).toEqual(['solana','robinhood']);
+    expect(snapshot.identities.every(identity=>identity.twitter==='alice_x')).toBe(true);
+    expect(snapshot.identities[0].avatarUrl).toBe('https://cdn.example/alice.png');
+    expect(snapshot.rankings.every(ranking=>ranking.netUsd===1234.5)).toBe(true);
+    expect(snapshot.rankings.every(ranking=>ranking.realizedPnlUsd==null)).toBe(true);
+  });
   it('reads the on-chain sweep board as identities plus a ranking that names its population',()=>{
     const snapshot=normalizeFomoscanTraders(fixture('traders-fomoscan-24h'),NOW);
     expect(snapshot.board).toBe('fomoscan-traders');

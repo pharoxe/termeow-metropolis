@@ -14,15 +14,18 @@ import type {BoardKind} from '../../shared/identity.js';
  * sweep of the wallets this server has already seen would cost several hundred million units.
  */
 const registry=new IdentityRegistry(path.join(fomoscanDirectory,'identity.db'));
+const DAY=86400000;
+// Preserve the useful short-window board without spending the remaining monthly grant on redundant snapshots.
 const REQUESTS=[
-  {board:'fomoscan-traders' as const,window:'24h'},
-  {board:'fomoscan-traders' as const,window:'7d'},
-  {board:'pump-traders' as const,window:'weekly'}
+  {board:'fomoscan-traders' as const,window:'24h',intervalMs:2*DAY},
+  {board:'fomoscan-traders' as const,window:'all',intervalMs:7*DAY},
+  {board:'pump-traders' as const,window:'weekly',intervalMs:3*DAY}
 ];
 const collector=new BoardCollector(registry,boardBudget,REQUESTS,
   fomoscanKey?boardFetcher(fomoscanKey):async()=>{throw new Error('FomoScan key not configured');},
   config.fomoscan.boardIntervalMs);
 if(fomoscanKey){
+  void collector.tick().catch(()=>{});
   const timer=setInterval(()=>void collector.tick().catch(()=>{}),60000);
   timer.unref();
 }
@@ -48,9 +51,10 @@ identityRouter.get('/board/:board/:window',(req,res,next)=>{
   try{
     const params=z.object({board:z.enum(boardKinds),window:z.string().min(1).max(16)}).parse(req.params);
     const limit=z.coerce.number().int().min(1).max(100).default(100).parse(req.query.limit??100);
+    const chain=chainSchema.optional().parse(req.query.chain);
     res.json({
       board:params.board as BoardKind,window:params.window,
-      entries:registry.ranked(params.board,params.window,limit)
+      entries:registry.ranked(params.board,params.window,limit,chain)
     });
   }catch(e){next(e);}
 });

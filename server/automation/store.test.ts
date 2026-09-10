@@ -32,9 +32,13 @@ describe("AutomationStore", () => {
     const { directory, store } = makeStore();
     const draft = store.create("did:privy:alice", {
       kind: "monitor_deployer", chain: "robinhood", tokenAddress: "0x1111111111111111111111111111111111111111",
+      tokenSymbol: "ANSEM", tokenName: "The Black Bull", tokenLogoUrl: "https://assets.example/ansem.png",
+      trackedWallet: "0x2222222222222222222222222222222222222222", trackedWalletUsername: "trenchking",
       router: "0x", amountMode: "wallet_percent", allocationPercent: 5, durationHours: 72,
+      marketCapMinUsd: 1_000_000, marketCapMaxUsd: 5_000_000,
       condition: "Buy deployments funded by this deployer", description: "Monitor deployer for 3 days"
     });
-    expect(new AutomationStore(directory).get("did:privy:alice", draft.id)?.intent.durationHours).toBe(72);
+    const restored = new AutomationStore(directory).get("did:privy:alice", draft.id)?.intent;
+    expect(restored).toMatchObject({ durationHours: 72, tokenSymbol: "ANSEM", trackedWalletUsername: "trenchking", marketCapMinUsd: 1_000_000, marketCapMaxUsd: 5_000_000 });
   });
 });

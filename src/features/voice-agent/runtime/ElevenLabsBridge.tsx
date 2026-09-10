@@ -9,6 +9,11 @@ import { getAccessToken } from "@privy-io/react-auth";
 import { api } from "../../../api/client";
 import type { AutomationIntent } from "../../../../shared/automation";
 
+const optionalNumber = (value: unknown) => {
+  const number = Number(value);
+  return value == null || value === "" || !Number.isFinite(number) ? undefined : number;
+};
+
 interface Props {
   onRuntime(runtime: AgentRuntime | null): void;
   initialContext: TermeowAgentContext;
@@ -69,6 +74,7 @@ function ClientToolsBridge() {
       const allocationPercent = Number(parameters.allocation_percent);
       const intent: AutomationIntent = {
         kind: "swap", chain, tokenAddress, tokenSymbol: String(parameters.token_symbol || context.token?.symbol || "TOKEN"),
+        tokenName: context.token?.name, tokenLogoUrl: context.token?.logoUrl,
         side: parameters.side === "sell" ? "sell" : "buy", router: chain === "robinhood" ? "0x" : parameters.router === "0x" ? "0x" : "jupiter",
         amountMode, amount: amountMode === "fixed" ? String(parameters.amount || "") : undefined,
         allocationPercent: amountMode === "wallet_percent" ? allocationPercent : undefined,
@@ -86,13 +92,19 @@ function ClientToolsBridge() {
     propose_automation: async (parameters: Record<string, unknown>) => {
       const context = useAgentStore.getState().context;
       const chain = parameters.chain === "robinhood" ? "robinhood" : parameters.chain === "solana" ? "solana" : context.chain;
-      const tokenAddress = String(parameters.target_address || context.token?.address || "");
+      const trackedWallet = String(parameters.target_address || "");
+      const tokenAddress = String(parameters.token_address || context.token?.address || trackedWallet);
       if (!chain || !tokenAddress) return JSON.stringify({ ok: false, error: "Select a token or provide a target address." });
+      const identity = trackedWallet ? await api.identityWallet(chain, trackedWallet).then(result => result.identity).catch(() => null) : null;
       const intent: AutomationIntent = {
         kind: parameters.strategy === "conditional_swap" ? "conditional_swap" : "monitor_deployer", chain, tokenAddress,
-        tokenSymbol: String(parameters.token_symbol || context.token?.symbol || "TOKEN"), side: parameters.side === "sell" ? "sell" : "buy",
+        tokenSymbol: String(parameters.token_symbol || context.token?.symbol || "TOKEN"), tokenName: context.token?.name,
+        tokenLogoUrl: context.token?.logoUrl, trackedWallet: trackedWallet || undefined,
+        trackedWalletUsername: String(parameters.tracked_wallet_username || identity?.handle || "") || undefined,
+        side: parameters.side === "sell" ? "sell" : "buy",
         router: chain === "robinhood" ? "0x" : "jupiter", amountMode: "wallet_percent", allocationPercent: Number(parameters.allocation_percent),
-        durationHours: Number(parameters.duration_hours || 24), condition: String(parameters.condition || ""),
+        durationHours: Number(parameters.duration_hours || 24), marketCapMinUsd: optionalNumber(parameters.market_cap_min_usd),
+        marketCapMaxUsd: optionalNumber(parameters.market_cap_max_usd), condition: String(parameters.condition || ""),
         description: String(parameters.description || "Voice-created monitored trading strategy")
       };
       try {

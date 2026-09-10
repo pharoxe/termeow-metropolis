@@ -4,34 +4,28 @@ import { api } from "../api/client";
 import type { InstrumentRef } from "../lib/address";
 import { money } from "../lib/format";
 import {
-  DISCOVER_POLL_MS, WINDOW_CHIPS, ageLabel, changeCell, disputedLabel, emptyCopy, fomoHoldersCell, rowKey, sourceChips, sourcesSummary, sourcesTitle, symbolLabel, txnsLabel, viewFor, windowParam,
+  DISCOVER_POLL_MS, WINDOW_CHIPS, changeCell, emptyCopy, rowKey, sourcesSummary, sourcesTitle, symbolLabel, txnsLabel, viewFor, windowParam,
   type DiscoverTab as DiscoverTabName, type WindowChip
 } from "../lib/discover";
 import { fomoCoverageLabel } from "../lib/fomoPanel";
 
 type OpenInstrument = (ref: InstrumentRef, symbol?: string) => void;
 
-function DiscoverRowItem({ row, feed, now, selected, onOpen, onNewChart }: { row: DiscoverRow; feed: DiscoverResponse; now: number; selected?: string; onOpen?: OpenInstrument; onNewChart?: OpenInstrument }) {
+function DiscoverRowItem({ row, selected, onOpen }: { row: DiscoverRow; selected?: string; onOpen?: OpenInstrument }) {
   const change = changeCell(row.changePct);
-  const fomo = fomoHoldersCell(row, feed.coverage);
-  const disputed = disputedLabel(row);
-  const chips = sourceChips(row, now);
   return (
     <tr className={(row.chain === "solana" ? row.token === selected : row.token.toLowerCase() === selected?.toLowerCase()) ? "selected" : ""} title={row.token} onClick={() => onOpen?.({ chain: row.chain, address: row.token }, row.symbol ?? undefined)}>
       <td>
-        <button onClick={e=>{e.stopPropagation();onOpen?.({chain:row.chain,address:row.token},row.symbol??undefined);}}>{symbolLabel(row)}</button>{onNewChart&&<button aria-label={`Open ${symbolLabel(row)} in new chart`} onClick={e=>{e.stopPropagation();onNewChart({chain:row.chain,address:row.token});}}>＋</button>}
-        <small>{row.name ?? row.dex ?? "—"} · {ageLabel(row.ageMs)}{disputed ? <span className="chip warn" title="sources differ by more than 5% on these fields; each chip's tooltip carries its own figures">{disputed}</span> : null}</small>
-        <small className="discover-sources">{chips.map((chip) => <span key={chip.key} className={`chip${chip.stale ? " warn" : ""}`} title={chip.title}>{chip.label}</span>)}</small>
+        <button onClick={e=>{e.stopPropagation();onOpen?.({chain:row.chain,address:row.token},row.symbol??undefined);}}>{symbolLabel(row)}</button>
       </td>
       <td className="r"><b className="mcap-value">{money(row.marketCapUsd, true)}</b><small>LIQ {money(row.liquidityUsd,true)}</small></td>
       <td className={`r ${change.tone}`}><b className={change.tone}>{change.text}</b><small>{money(row.volumeUsd, true)} · {txnsLabel(row.txns)}</small></td>
-      <td className="r" title={fomo.title}><b>{fomo.text}</b><small>FOMO</small></td>
     </tr>
   );
 }
 
 /** Robinhood discovery view for the TRENDING / BIGGEST MOVERS / NEW / SMART HOLDERS tabs: polls /api/discover/robinhood every 30s. */
-export function DiscoverTab({ chain="robinhood", tab, onOpen, onNewChart, selected }: { chain?:Chain; tab: DiscoverTabName; onOpen?: OpenInstrument; onNewChart?: OpenInstrument; selected?: string }) {
+export function DiscoverTab({ chain="robinhood", tab, onOpen, selected }: { chain?:Chain; tab: DiscoverTabName; onOpen?: OpenInstrument; selected?: string }) {
   const [windowChip, setWindowChip] = useState<WindowChip>("24H");
   const [feed, setFeed] = useState<DiscoverResponse | null>(null);
   const [failure, setFailure] = useState("");
@@ -66,8 +60,8 @@ export function DiscoverTab({ chain="robinhood", tab, onOpen, onNewChart, select
       {view === "holders" ? <p className="pm discover-coverage" title="verified-FOMO buyers per this server's trader book; a wallet that later sold still counts">{fomoCoverageLabel(shown?.coverage)}</p> : null}
       {rows.length && shown ? (
         <table className="terminal-table launch-table discover-table">
-          <thead><tr><th>TOKEN · SOURCES</th><th className="r">MCAP / LIQ</th><th className="r">CHG · VOL</th><th className="r">FOMO</th></tr></thead>
-          <tbody>{rows.map((row) => <DiscoverRowItem key={rowKey(row)} row={row} feed={shown} now={now} selected={selected} onOpen={onOpen} onNewChart={onNewChart} />)}</tbody>
+          <thead><tr><th>TOKEN</th><th className="r">MCAP / LIQ</th><th className="r">CHG · VOL</th></tr></thead>
+          <tbody>{rows.map((row) => <DiscoverRowItem key={rowKey(row)} row={row} selected={selected} onOpen={onOpen} />)}</tbody>
         </table>
       ) : (
         <p className="empty-copy">{emptyCopy(shown, failure)}</p>

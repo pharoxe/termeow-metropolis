@@ -7,14 +7,15 @@ const num=z.number().finite().nullable().optional();
 const int=z.number().int().nullable().optional();
 const str=z.string().nullable().optional();
 const fomoscanEntry=z.object({
-  rank:z.number().int().positive(),wallet:z.string().min(1),handle:str,displayName:str,twitter:str,followers:int,
-  pnlUsd:num,returnPct:num,volumeUsd:num,trades:int,uniqueTokens:int,winRate:num,avgHoldSeconds:num,
+  rank:z.number().int().positive(),wallet:str,evmWallet:str,handle:str,displayName:str,avatarUrl:str,twitter:str,followers:int,
+  netUsd:num,pnlUsd:num,returnPct:num,volumeUsd:num,trades:int,uniqueTokens:int,winRate:num,avgHoldSeconds:num,
   tokensCreated:int,walletFirstSeenAt:int
 });
 const fomoscanBoard=z.object({
-  window:z.string().min(1),capturedAt:z.number().int().positive(),complete:z.boolean().nullable().optional(),
-  coverage:num,walletsRanked:int,count:z.number().int().nonnegative(),entries:z.array(fomoscanEntry).max(100)
-});
+  window:z.string().min(1),updatedAt:z.number().int().positive().optional(),capturedAt:z.number().int().positive().optional(),
+  complete:z.boolean().nullable().optional(),coverage:num,total:int,walletsRanked:int,
+  count:z.number().int().nonnegative(),entries:z.array(fomoscanEntry).max(100)
+}).refine(board=>board.updatedAt!=null||board.capturedAt!=null,'Missing board update time');
 const pumpEntry=z.object({
   rank:z.number().int().positive(),wallet:z.string().min(1),username:str,isVerified:z.boolean().nullable().optional(),
   pnlUsd:num,pnlPercent:num,realizedPnlUsd:num,unrealizedPnlUsd:num
@@ -32,26 +33,31 @@ export function normalizeFomoscanTraders(raw:unknown,observedAt:number):BoardSna
   const board=fomoscanBoard.parse(raw);
   const identities:TraderIdentity[]=[],rankings:TraderRanking[]=[];
   for(const entry of board.entries){
-    const chain=chainOfAddress(entry.wallet),wallet=chainKey(chain,entry.wallet);
     const handle=clean(entry.handle);
-    // A row with no handle is still a ranked wallet; it is just not an identity, so it never enters the registry.
-    if(handle)identities.push({
-      chain,wallet,handle,displayName:clean(entry.displayName),twitter:clean(entry.twitter),
-      followers:entry.followers??null,userId:null,source:'fomoscan-board',observedAt
-    });
-    rankings.push({
-      board:'fomoscan-traders',window:board.window,rank:entry.rank,chain,wallet,capturedAt:board.capturedAt,
-      // This board's `pnlUsd` is realized by definition — it is the daily on-chain sweep, and the schema carries no
-      // unrealized leg — so it is recorded as realized rather than left ambiguous alongside the pump board's sum.
-      pnlUsd:entry.pnlUsd??null,realizedPnlUsd:entry.pnlUsd??null,unrealizedPnlUsd:null,returnPct:entry.returnPct??null,
-      volumeUsd:entry.volumeUsd??null,trades:entry.trades??null,uniqueTokens:entry.uniqueTokens??null,
-      winRate:entry.winRate??null,avgHoldSeconds:entry.avgHoldSeconds??null,tokensCreated:entry.tokensCreated??null,
-      walletFirstSeenAt:entry.walletFirstSeenAt??null
-    });
+    const addresses=[entry.wallet,entry.evmWallet].map(clean).filter((address):address is string=>Boolean(address));
+    for(const address of new Set(addresses)){
+      const chain=chainOfAddress(address),wallet=chainKey(chain,address);
+      // One account can publish both addresses. Persist the same sourced identity on each chain so lookups stay local.
+      if(handle)identities.push({
+        chain,wallet,handle,displayName:clean(entry.displayName),twitter:clean(entry.twitter),
+        followers:entry.followers??null,userId:null,source:'fomoscan-board',observedAt,
+        avatarUrl:clean(entry.avatarUrl),verified:null
+      });
+      const legacyPnl=entry.netUsd==null?entry.pnlUsd??null:null;
+      rankings.push({
+        board:'fomoscan-traders',window:board.window,rank:entry.rank,chain,wallet,
+        capturedAt:board.updatedAt??board.capturedAt!,netUsd:entry.netUsd??null,
+        pnlUsd:legacyPnl,realizedPnlUsd:legacyPnl,unrealizedPnlUsd:null,returnPct:entry.returnPct??null,
+        volumeUsd:entry.volumeUsd??null,trades:entry.trades??null,uniqueTokens:entry.uniqueTokens??null,
+        winRate:entry.winRate??null,avgHoldSeconds:entry.avgHoldSeconds??null,tokensCreated:entry.tokensCreated??null,
+        walletFirstSeenAt:entry.walletFirstSeenAt??null
+      });
+    }
   }
   return {
-    board:'fomoscan-traders',window:board.window,capturedAt:board.capturedAt,count:board.count,
-    walletsRanked:board.walletsRanked??null,coverage:board.coverage??null,complete:board.complete??null,
+    board:'fomoscan-traders',window:board.window,capturedAt:board.updatedAt??board.capturedAt!,count:board.count,
+    walletsRanked:board.total??board.walletsRanked??null,coverage:board.coverage??(board.total!=null?1:null),
+    complete:board.complete??(board.total!=null?true:null),
     identities,rankings
   };
 }
@@ -63,12 +69,14 @@ export function normalizePumpTraders(raw:unknown,observedAt:number):BoardSnapsho
     const chain=chainOfAddress(entry.wallet),wallet=chainKey(chain,entry.wallet);
     const handle=clean(entry.username);
     if(handle)identities.push({
-      chain,wallet,handle,displayName:null,twitter:null,followers:null,userId:null,source:'pump-board',observedAt
+      chain,wallet,handle,displayName:null,twitter:null,followers:null,userId:null,source:'pump-board',observedAt,
+      avatarUrl:null,verified:entry.isVerified??null
     });
     rankings.push({
       board:'pump-traders',window:board.period,rank:entry.rank,chain,wallet,capturedAt:board.capturedAt??observedAt,
       // pnlUsd here is realized+unrealized. Both legs are carried so a reader is never handed the sum alone.
       pnlUsd:entry.pnlUsd??null,realizedPnlUsd:entry.realizedPnlUsd??null,unrealizedPnlUsd:entry.unrealizedPnlUsd??null,
+      netUsd:null,
       returnPct:entry.pnlPercent??null,volumeUsd:null,trades:null,uniqueTokens:null,winRate:null,
       avgHoldSeconds:null,tokensCreated:null,walletFirstSeenAt:null
     });
@@ -89,7 +97,8 @@ export function normalizePumpProfile(raw:unknown,observedAt:number):TraderIdenti
   const chain=chainOfAddress(profile.wallet);
   return {
     chain,wallet:chainKey(chain,profile.wallet),handle,displayName:null,
-    twitter:clean(profile.xUsername),followers:profile.followers??null,userId:null,source:'pump-profile',observedAt
+    twitter:clean(profile.xUsername),followers:profile.followers??null,userId:null,source:'pump-profile',observedAt,
+    avatarUrl:null,verified:profile.isPumpUser??null
   };
 }
 
@@ -106,13 +115,14 @@ export function normalizeFomoProfile(raw:unknown,observedAt:number):TraderIdenti
     const chain=chainOfAddress(wallet);
     identities.push({
       chain,wallet:chainKey(chain,wallet),handle:profile.handle,displayName:clean(profile.name),
-      twitter:clean(profile.twitter),followers:null,userId:profile.id,source:'fomo-profile',observedAt
+      twitter:clean(profile.twitter),followers:null,userId:profile.id,source:'fomo-profile',observedAt,
+      avatarUrl:null,verified:null
     });
   }
   return identities;
 }
 
-export type BoardRequest={board:BoardKind;window:string};
+export type BoardRequest={board:BoardKind;window:string;intervalMs?:number};
 const PATHS:Record<BoardKind,(window:string)=>string>={
   'fomoscan-traders':(window)=>`/v2/leaderboard/traders-fomoscan?window=${encodeURIComponent(window)}`,
   'pump-traders':(window)=>`/v2/pump/leaderboard/traders?period=${encodeURIComponent(window)}`

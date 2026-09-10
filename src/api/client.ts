@@ -1,4 +1,4 @@
-import type { BoardKind, IdentityBoardResponse, IdentityCoverageResponse } from "../../shared/identity";
+import type { BoardKind, IdentityBoardResponse, IdentityCoverageResponse, TraderIdentity } from "../../shared/identity";
 import type { WalletPortfolio } from "../../shared/portfolio";
 import type { AutomationIntent, AutomationRecord, TerminalAgentSnapshot } from "../../shared/automation";
 import type { PublicConfig } from "../types";
@@ -43,11 +43,15 @@ export const api = {
   /** Registry size, the boards read and the CU meter; `account` is the whole key's balance, repolled every 5 min. */
   identityCoverage: () => request<IdentityCoverageResponse>("/api/identity/coverage"),
   /** A stored board snapshot, never a fresh sweep. The server 400s outside 1-100, so `limit` is clamped here. */
-  identityBoard: (board: BoardKind, window: string, limit?: number) => {
+  identityBoard: (board: BoardKind, window: string, limit?: number, chain?: Chain) => {
     const rows = limit == null || !Number.isFinite(limit) ? null : Math.min(100, Math.max(1, Math.trunc(limit)));
-    const search = rows == null ? "" : `?${new URLSearchParams({ limit: String(rows) }).toString()}`;
+    const params = new URLSearchParams();
+    if (rows != null) params.set("limit", String(rows));
+    if (chain) params.set("chain", chain);
+    const search = params.size ? `?${params.toString()}` : "";
     return request<IdentityBoardResponse>(`/api/identity/board/${board}/${encodeURIComponent(window)}${search}`);
   },
+  identityWallet: (chain: Chain, address: string) => request<{ identity: TraderIdentity | null }>(`/api/identity/wallet/${chain}/${encodeURIComponent(address)}`),
   /** Alert ring (newest first); `since` = the last observedAt seen, `rule` narrows to one rule. 200 + error/stale on failure. */
   alerts: (params: { chain?: FomoChainScope; since?: number; rule?: AlertRule; limit?: number } = {}) => {
     const search = new URLSearchParams({ chain: params.chain ?? "all" });

@@ -68,7 +68,7 @@ function emptyCoverage(): IdentityCoverage {
 describe("board choices", () => {
   it("lists exactly the three boards the server collects, named by source", () => {
     expect(BOARD_CHOICES.map((choice) => [choice.board, choice.window])).toEqual([
-      ["fomoscan-traders", "24h"], ["fomoscan-traders", "7d"], ["pump-traders", "weekly"]
+      ["fomoscan-traders", "24h"], ["fomoscan-traders", "all"], ["pump-traders", "weekly"]
     ]);
     expect(BOARD_CHOICES[0].label).toContain("FOMOSCAN");
     expect(BOARD_CHOICES[2].label).toContain("PUMP");
@@ -117,6 +117,13 @@ describe("cells", () => {
 });
 
 describe("pnlSplit", () => {
+  it("labels the current FomoScan board value as cash flow rather than profit", () => {
+    const split = pnlSplit(fomoscanRow({ netUsd: -12_345, pnlUsd: null, realizedPnlUsd: null }));
+    expect(split.realized).toBe("-$12.35K");
+    expect(split.unrealized).toBeNull();
+    expect(split.title).toContain("net cash flow");
+    expect(split.title).toContain("not realized PnL");
+  });
   it("keeps the pump paper gain apart from the realized loss and marks it", () => {
     const split = pnlSplit(pumpPaperRow());
     expect(split.realized).toBe("-$1.15K");
@@ -199,20 +206,20 @@ describe("capturedLabel", () => {
 
 describe("populationLabel", () => {
   it("says the board is the top of a sweep, using the server's own denominator", () => {
-    expect(populationLabel(coverage(), "fomoscan-traders", "24h")).toBe("top 100 of 316,007 wallets swept · sweep coverage 100% · ranked on realized PnL");
+    expect(populationLabel(coverage(), "fomoscan-traders", "24h")).toBe("top 100 of 316,007 wallets swept · sweep coverage 100% · ranked on net cash flow");
     const smaller = coverage({ boards: [{ board: "fomoscan-traders", window: "24h", capturedAt: FOMOSCAN_CAPTURED, count: 40, walletsRanked: 12_345, coverage: 0.482, observedAt: FOMOSCAN_OBSERVED }] });
-    expect(populationLabel(smaller, "fomoscan-traders", "24h")).toBe("top 40 of 12,345 wallets swept · sweep coverage 48.2% · ranked on realized PnL");
+    expect(populationLabel(smaller, "fomoscan-traders", "24h")).toBe("top 40 of 12,345 wallets swept · sweep coverage 48.2% · ranked on net cash flow");
   });
   it("drops the coverage clause rather than zeroing or guessing a unit for it", () => {
     const unpublished = coverage({ boards: [{ board: "fomoscan-traders", window: "24h", capturedAt: FOMOSCAN_CAPTURED, count: 40, walletsRanked: 12_345, coverage: null, observedAt: FOMOSCAN_OBSERVED }] });
-    expect(populationLabel(unpublished, "fomoscan-traders", "24h")).toBe("top 40 of 12,345 wallets swept · ranked on realized PnL");
+    expect(populationLabel(unpublished, "fomoscan-traders", "24h")).toBe("top 40 of 12,345 wallets swept · ranked on net cash flow");
     const outOfRange = coverage({ boards: [{ board: "fomoscan-traders", window: "24h", capturedAt: FOMOSCAN_CAPTURED, count: 40, walletsRanked: 12_345, coverage: 48.2, observedAt: FOMOSCAN_OBSERVED }] });
     expect(populationLabel(outOfRange, "fomoscan-traders", "24h")).not.toContain("coverage");
   });
   it("names the number the ranking was taken on, which the rows cannot show", () => {
     // Live weekly pump ranks 1-4 read -$1.15K, +$9.58K, +$538.5K, +$1.29M realized: the order is on the sum, not this.
     expect(populationLabel(coverage(), "pump-traders", "weekly")).toContain("ranked on realized + unrealized");
-    expect(populationLabel(coverage(), "fomoscan-traders", "7d")).toContain("ranked on realized PnL");
+    expect(populationLabel(coverage(), "fomoscan-traders", "7d")).toContain("ranked on net cash flow");
   });
   it("claims no denominator for a board that does not publish one", () => {
     expect(populationLabel(coverage(), "pump-traders", "weekly")).toBe("top 100 of a population this board does not publish · ranked on realized + unrealized");

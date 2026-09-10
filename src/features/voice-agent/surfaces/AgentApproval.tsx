@@ -2,7 +2,15 @@ import { useState } from "react";
 import { getAccessToken, useLinkWithPasskey, useMfa, useMfaEnrollment, usePrivy } from "@privy-io/react-auth";
 import { api } from "../../../api/client";
 import { hasPrivy } from "../../../auth/WalletProviders";
+import { money, shortAddress } from "../../../lib/format";
 import { useAgentStore } from "../store/agentStore";
+
+function marketCapRange(min?: number, max?: number) {
+  if (min != null && max != null) return `${money(min, true)} – ${money(max, true)}`;
+  if (min != null) return `≥ ${money(min, true)}`;
+  if (max != null) return `≤ ${money(max, true)}`;
+  return "ANY MARKET CAP";
+}
 
 function ApprovalDetails() {
   const pending = useAgentStore((state) => state.pendingApproval)!;
@@ -14,8 +22,11 @@ function ApprovalDetails() {
       <div><dt>TARGET</dt><dd>{intent.tokenSymbol || intent.tokenAddress.slice(0, 10)}</dd></div>
       {intent.side && <div><dt>ACTION</dt><dd>{intent.side.toUpperCase()} · {(intent.router || "AUTO").toUpperCase()}</dd></div>}
       <div><dt>SIZE</dt><dd>{intent.amountMode === "wallet_percent" ? `${intent.allocationPercent}% OF WALLET` : intent.amount || "—"}</dd></div>
+      {intent.kind !== "swap" && <div><dt>MARKET CAP</dt><dd>{marketCapRange(intent.marketCapMinUsd, intent.marketCapMaxUsd)}</dd></div>}
+      {intent.trackedWallet && <div><dt>TRACKED</dt><dd>{intent.trackedWalletUsername ? `@${intent.trackedWalletUsername.replace(/^@/, "")} · ` : ""}{shortAddress(intent.trackedWallet)}</dd></div>}
       {intent.durationHours && <div><dt>WINDOW</dt><dd>{intent.durationHours} HOURS</dd></div>}
     </dl>
+    {intent.condition && <p><b>WHEN · </b>{intent.condition}</p>}
   </div>;
 }
 

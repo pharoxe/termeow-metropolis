@@ -194,6 +194,7 @@ describe("RobinhoodWsLogs", () => {
     await until(() => h.logs.length === 1);
     node.clients[0]!.socket.terminate();
     await until(() => node.clients[1]?.subs.size === 3, 5_000);
+    await until(() => ws.status().subscriptions === 2, 5_000); // server registration can precede delivery of both client acks
     expect(ws.status()).toMatchObject({ connected: true, subscriptions: 2, wantedLegs: 2, rejectedLegs: 0, reconnects: 1 });
   });
 

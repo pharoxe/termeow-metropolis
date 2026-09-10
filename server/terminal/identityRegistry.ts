@@ -12,7 +12,8 @@ import {FomoscanError,fetchBoard,type BoardRequest} from './fomoscanBoards.js';
  */
 const AUTHORITY:Record<IdentitySource,number>={'pump-board':0,'fomoscan-board':1,'pump-profile':2,'fomo-profile':3};
 const SOURCES=Object.keys(AUTHORITY) as IdentitySource[];
-const COLUMNS='chain,wallet,handle,displayName,twitter,followers,userId,source,observedAt';
+const COLUMNS='chain,wallet,handle,displayName,twitter,followers,userId,source,observedAt,avatarUrl,verified';
+const decodeIdentity=(row:TraderIdentity):TraderIdentity=>({...row,verified:row.verified==null?null:Boolean(row.verified)});
 
 export class IdentityRegistry{
   private db:DatabaseSync;
@@ -20,12 +21,16 @@ export class IdentityRegistry{
     this.db=new DatabaseSync(file);
     this.db.exec(`PRAGMA journal_mode=WAL;
       CREATE TABLE IF NOT EXISTS identities(chain TEXT,wallet TEXT,handle TEXT,displayName TEXT,twitter TEXT,
-        followers INTEGER,userId TEXT,source TEXT,observedAt INTEGER,firstSeenAt INTEGER,PRIMARY KEY(chain,wallet));
+        followers INTEGER,userId TEXT,source TEXT,observedAt INTEGER,firstSeenAt INTEGER,avatarUrl TEXT,verified INTEGER,
+        PRIMARY KEY(chain,wallet));
       CREATE INDEX IF NOT EXISTS identity_handle ON identities(handle);
       CREATE TABLE IF NOT EXISTS rankings(board TEXT,window TEXT,chain TEXT,wallet TEXT,rank INTEGER,capturedAt INTEGER,
         body TEXT,PRIMARY KEY(board,window,chain,wallet));
       CREATE TABLE IF NOT EXISTS boards(board TEXT,window TEXT,capturedAt INTEGER,count INTEGER,walletsRanked INTEGER,
         coverage REAL,observedAt INTEGER,PRIMARY KEY(board,window));`);
+    const columns=new Set((this.db.prepare('PRAGMA table_info(identities)').all() as {name:string}[]).map(column=>column.name));
+    if(!columns.has('avatarUrl'))this.db.exec('ALTER TABLE identities ADD COLUMN avatarUrl TEXT');
+    if(!columns.has('verified'))this.db.exec('ALTER TABLE identities ADD COLUMN verified INTEGER');
   }
   /** Keeps the better-sourced record. Returns true when this call changed what the registry holds. */
   upsert(identity:TraderIdentity):boolean{
@@ -33,12 +38,14 @@ export class IdentityRegistry{
     const existing=this.db.prepare('SELECT source,firstSeenAt FROM identities WHERE chain=? AND wallet=?')
       .get(identity.chain,wallet) as {source:IdentitySource;firstSeenAt:number}|undefined;
     if(existing&&AUTHORITY[identity.source]<AUTHORITY[existing.source])return false;
-    this.db.prepare(`INSERT INTO identities VALUES(?,?,?,?,?,?,?,?,?,?)
+    this.db.prepare(`INSERT INTO identities(chain,wallet,handle,displayName,twitter,followers,userId,source,observedAt,firstSeenAt,avatarUrl,verified)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(chain,wallet) DO UPDATE SET handle=excluded.handle,displayName=excluded.displayName,
         twitter=excluded.twitter,followers=excluded.followers,userId=excluded.userId,source=excluded.source,
-        observedAt=excluded.observedAt`)
+        observedAt=excluded.observedAt,avatarUrl=excluded.avatarUrl,verified=excluded.verified`)
       .run(identity.chain,wallet,identity.handle,identity.displayName,identity.twitter,identity.followers,
-        identity.userId,identity.source,identity.observedAt,existing?.firstSeenAt??identity.observedAt);
+        identity.userId,identity.source,identity.observedAt,existing?.firstSeenAt??identity.observedAt,
+        identity.avatarUrl??null,identity.verified==null?null:Number(identity.verified));
     return true;
   }
   record(snapshot:BoardSnapshot,observedAt:number){
@@ -61,27 +68,27 @@ export class IdentityRegistry{
   lookup(chain:Chain,wallet:string):TraderIdentity|null{
     const row=this.db.prepare(`SELECT ${COLUMNS} FROM identities WHERE chain=? AND wallet=?`)
       .get(chain,chainKey(chain,wallet)) as TraderIdentity|undefined;
-    return row??null;
+    return row?decodeIdentity(row):null;
   }
   /** Every address the registry holds for one handle — the cross-chain link, when a profile read supplied both. */
   byHandle(handle:string):TraderIdentity[]{
-    return this.db.prepare(`SELECT ${COLUMNS} FROM identities WHERE handle=? COLLATE NOCASE ORDER BY chain`)
-      .all(handle) as TraderIdentity[];
+    return (this.db.prepare(`SELECT ${COLUMNS} FROM identities WHERE handle=? COLLATE NOCASE ORDER BY chain`)
+      .all(handle) as TraderIdentity[]).map(decodeIdentity);
   }
   /**
    * A board's rows with the name the registry already holds for each wallet. The boards deposit those identities
    * themselves, so the join is a local read costing nothing — without it the tab renders an address where the same
    * database row two tables over says "Dedrater". A null identity means no board we have read named that wallet.
    */
-  ranked(board:BoardKind,window:string,limit=100):RankedTrader[]{
+  ranked(board:BoardKind,window:string,limit=100,chain?:Chain):RankedTrader[]{
     const rows=this.db.prepare(`SELECT r.body, ${COLUMNS.split(',').map((c)=>`i.${c} AS i_${c}`).join(',')}
       FROM rankings r LEFT JOIN identities i ON i.chain=r.chain AND i.wallet=r.wallet
-      WHERE r.board=? AND r.window=? ORDER BY r.rank LIMIT ?`)
-      .all(board,window,limit) as Array<{body:string}&Record<string,unknown>>;
+      WHERE r.board=? AND r.window=?${chain?' AND r.chain=?':''} ORDER BY r.rank LIMIT ?`)
+      .all(...(chain?[board,window,chain,limit]:[board,window,limit])) as Array<{body:string}&Record<string,unknown>>;
     return rows.map((row)=>{
       const ranking=JSON.parse(row.body) as TraderRanking;
-      const identity=row.i_wallet==null?null:Object.fromEntries(
-        COLUMNS.split(',').map((column)=>[column,row[`i_${column}`]])) as unknown as TraderIdentity;
+      const identity=row.i_wallet==null?null:decodeIdentity(Object.fromEntries(
+        COLUMNS.split(',').map((column)=>[column,row[`i_${column}`]])) as unknown as TraderIdentity);
       return {...ranking,identity};
     });
   }
@@ -150,7 +157,7 @@ export class BoardCollector{
     if(!this.requests.length)return false;
     const request=this.requests[this.index++%this.requests.length];
     const last=this.registry.boardObservedAt(request.board,request.window);
-    if(last!=null&&now-last<this.intervalMs)return false;
+    if(last!=null&&now-last<(request.intervalMs??this.intervalMs))return false;
     if(!this.budget.allows(now,'board')){this.refused++;return false;}
     try{
       const snapshot=await this.fetcher(request);

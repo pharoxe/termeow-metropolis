@@ -43,7 +43,7 @@ export type BoardChoice = { board: BoardKind; window: string; label: string };
  */
 export const BOARD_CHOICES: readonly BoardChoice[] = [
   { board: "fomoscan-traders", window: "24h", label: "FOMOSCAN SWEEP 24H" },
-  { board: "fomoscan-traders", window: "7d", label: "FOMOSCAN SWEEP 7D" },
+  { board: "fomoscan-traders", window: "all", label: "FOMOSCAN SWEEP ALL" },
   { board: "pump-traders", window: "weekly", label: "PUMP.FUN BOARD WEEKLY" }
 ];
 
@@ -53,7 +53,7 @@ export const BOARD_CHOICES: readonly BoardChoice[] = [
  * with 18 of its 100 rows carrying a negative taken leg. Unstated, the order reads as a ranking of the number beside it.
  */
 const RANKED_ON: Record<BoardKind, string> = {
-  "fomoscan-traders": "ranked on realized PnL",
+  "fomoscan-traders": "ranked on net cash flow",
   "pump-traders": "ranked on realized + unrealized"
 };
 
@@ -99,6 +99,12 @@ export type PnlSplit = { realized: string; unrealized: string | null; paperDomin
  * combined figure appears only in the title, and only where both legs are known to add up to it.
  */
 export function pnlSplit(row: TraderRanking): PnlSplit {
+  const netUsd = finite(row?.netUsd);
+  if (row?.board === "fomoscan-traders" && netUsd != null) return {
+    realized: signedMoney(netUsd), unrealized: null, paperDominant: false,
+    tone: netUsd === 0 ? "" : netUsd > 0 ? "up" : "dn",
+    title: `net cash flow ${signedMoney(netUsd, false)} · quote received on sells minus quote spent on buys, not realized PnL`
+  };
   const realizedUsd = finite(row?.realizedPnlUsd);
   const unrealizedUsd = finite(row?.unrealizedPnlUsd);
   const paperDominant = unrealizedUsd != null && unrealizedUsd !== 0 &&

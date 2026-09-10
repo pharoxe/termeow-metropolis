@@ -7,12 +7,18 @@ export interface AutomationIntent {
   chain: AutomationChain;
   tokenAddress: string;
   tokenSymbol?: string;
+  tokenName?: string;
+  tokenLogoUrl?: string;
+  trackedWallet?: string;
+  trackedWalletUsername?: string;
   side?: "buy" | "sell";
   router?: "0x" | "jupiter";
   amountMode?: "fixed" | "wallet_percent";
   amount?: string;
   allocationPercent?: number;
   durationHours?: number;
+  marketCapMinUsd?: number;
+  marketCapMaxUsd?: number;
   condition?: string;
   description: string;
 }
@@ -37,7 +43,7 @@ export interface AutomationRecord {
 export interface TerminalAgentSnapshot {
   route?: string;
   chain?: AutomationChain;
-  token?: { address: string; symbol?: string; name?: string };
+  token?: { address: string; symbol?: string; name?: string; logoUrl?: string };
   chart?: {
     timeframe: string;
     unit?: "price" | "mcap";
