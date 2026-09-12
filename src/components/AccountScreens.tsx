@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import { money, shortAddress } from "../lib/format";
 import { hasPrivy } from "../auth/WalletProviders";
 import { PixelLoader } from "./PixelLoader";
+import { useAutomationDelegation } from "../auth/useAutomationDelegation";
 
 import type { WalletAsset } from "../../shared/portfolio";
 import type { AutomationRecord } from "../../shared/automation";
@@ -25,7 +26,7 @@ export function AccountScreen({ section, onBack }: { section: Section; onBack: (
 
 function AccountSurface({ section, address, authenticated, onBack }: { section: Section; address?: string; authenticated: boolean; onBack: () => void }) {
   if (!authenticated) return <Disconnected section={section} onBack={onBack} />;
-  if (section === "Automation") return <AutomationControlPlane onBack={onBack} />;
+  if (section === "Automation") return <AutomationControlPlane address={address} onBack={onBack} />;
   if (!address) return <Disconnected section={section} onBack={onBack} />;
   return <Portfolio address={address} onBack={onBack} />;
 }
@@ -88,16 +89,20 @@ function AutomationToken({ row }: { row: AutomationRecord }) {
   </div>;
 }
 
-function AutomationControlPlane({ onBack }: { onBack: () => void }) {
+function AutomationControlPlane({ address, onBack }: { address?: string; onBack: () => void }) {
   const [rows, setRows] = useState<AutomationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [delegation, setDelegation] = useState<{ configured: boolean; active: boolean; allowedPrograms: string[] } | null>(null);
+  const [delegating, setDelegating] = useState(false);
+  const { ensureDelegated } = useAutomationDelegation(address);
   const load = async () => {
     setLoading(true); setError("");
     try {
       const token = await getAccessToken();
       if (!token) throw new Error("Privy session expired.");
-      setRows((await api.automations(token)).automations);
+      const [automationResult, delegationResult] = await Promise.all([api.automations(token), api.automationDelegation(token)]);
+      setRows(automationResult.automations); setDelegation(delegationResult);
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setLoading(false); }
   };
@@ -107,9 +112,15 @@ function AutomationControlPlane({ onBack }: { onBack: () => void }) {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   };
   const live = rows.filter((row) => ["armed", "executing"].includes(row.status)).length;
+  const enableDelegation = async () => {
+    setDelegating(true); setError("");
+    try { await ensureDelegated(); await load(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setDelegating(false); }
+  };
   return <section className="navigation-page account-page automation-page"><PageHead title="Automation" eyebrow="AGENT CONTROL PLANE" onBack={onBack} />
     <div className="account-summary"><article><span>LIVE STRATEGIES</span><strong>{live}</strong><small>Passkey-approved only</small></article><article><span>PENDING APPROVAL</span><strong>{rows.filter((row) => row.status === "pending_approval").length}</strong><small>Voice cannot self-approve</small></article><article><span>EXECUTION</span><strong>PRIVY</strong><small>0x · Jupiter</small></article></div>
-    <p className="automation-policy">Immediate swaps hand off to the connected Privy wallet after passkey MFA. Monitoring rules are stored and armed here; unattended future swaps require a scoped Privy server signer and spend policy.</p>
+    <div className="automation-policy"><b>UNATTENDED SOLANA · {delegation?.active ? "ENABLED" : delegation?.configured ? "NOT DELEGATED" : "SERVER SETUP REQUIRED"}</b><p>Jupiter-only signing is restricted by a Privy policy and a second server-side program inspection. Your wallet remains user-owned.</p>{delegation?.configured && !delegation.active && <button type="button" disabled={delegating || !address} onClick={() => void enableDelegation()}>{delegating ? "AUTHORIZING…" : "ENABLE WITH PRIVY"}</button>}</div>
     {loading ? <div className="account-empty"><PixelLoader label="READING AUTOMATIONS" /></div> : error ? <div className="account-empty"><h2>Control plane unavailable</h2><p>{error}</p><button onClick={() => void load()}>Retry</button></div> : rows.length ? <div className="automation-list">{rows.map((row) => <article key={row.id} data-status={row.status}>
       <div className="automation-main"><AutomationToken row={row} /><span className="automation-kind">{row.intent.kind.replaceAll("_", " ")} · {row.intent.chain}</span><strong className="automation-description">{row.intent.description}</strong>
         <p className="automation-condition"><b>WHEN</b>{row.intent.condition || "Execute immediately after approval."}</p>

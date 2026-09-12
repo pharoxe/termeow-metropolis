@@ -16,6 +16,7 @@ export interface AutomationIntent {
   amountMode?: "fixed" | "wallet_percent";
   amount?: string;
   allocationPercent?: number;
+  maxSlippageBps?: number;
   durationHours?: number;
   marketCapMinUsd?: number;
   marketCapMaxUsd?: number;

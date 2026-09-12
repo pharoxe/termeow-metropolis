@@ -82,8 +82,14 @@ const envSchema = z.object({
   ROBINHOOD_WS_URLS: urlList(DEFAULT_ROBINHOOD_WS_URLS),
   SNAPSHOT_DIR: z.preprocess(emptyAsUndefined, z.string().default(".cache/termeow")),
   SNAPSHOT_INTERVAL_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().positive().default(30_000)),
+  DATABASE_URL: optionalString,
   PRIVY_APP_ID: optionalString,
   PRIVY_APP_SECRET: optionalString,
+  /** Public key-quorum ID and policy ID are safe identifiers; the PKCS8 key is server-only. */
+  PRIVY_AUTOMATION_SIGNER_ID: optionalString,
+  PRIVY_AUTOMATION_POLICY_ID: optionalString,
+  PRIVY_AUTOMATION_AUTH_PRIVATE_KEY: optionalString,
+  AUTOMATION_TRIGGER_SECRET: optionalString,
   ELEVENLABS_API_KEY: optionalString,
   ELEVENLABS_AGENT_ID: optionalString,
   ANSEM_MINT: z.preprocess(emptyAsUndefined, z.string().default("9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump")),
@@ -153,9 +159,16 @@ export const config = {
     dir: env.SNAPSHOT_DIR,
     intervalMs: env.SNAPSHOT_INTERVAL_MS
   },
+  database: {
+    url: env.NODE_ENV === "test" ? undefined : env.DATABASE_URL
+  },
   privy: {
     appId: env.PRIVY_APP_ID,
-    appSecret: env.PRIVY_APP_SECRET
+    appSecret: env.PRIVY_APP_SECRET,
+    automationSignerId: env.PRIVY_AUTOMATION_SIGNER_ID,
+    automationPolicyId: env.PRIVY_AUTOMATION_POLICY_ID,
+    automationAuthPrivateKey: env.PRIVY_AUTOMATION_AUTH_PRIVATE_KEY,
+    automationTriggerSecret: env.AUTOMATION_TRIGGER_SECRET
   },
   zeroEx: {
     apiKey: env.ZEROEX_API_KEY,
@@ -175,7 +188,9 @@ export function integrationStatus() {
     primaryRpc: config.rpc.primary.includes("api.mainnet-beta.solana.com") ? "public" : "helius",
     fallbackRpc: Boolean(config.rpc.fallback),
     privy: Boolean(config.privy.appId && config.privy.appSecret),
+    privyAutomation: Boolean(config.privy.appId && config.privy.appSecret && config.privy.automationSignerId && config.privy.automationPolicyId && config.privy.automationAuthPrivateKey && config.privy.automationTriggerSecret),
     voiceAgent: Boolean(config.elevenlabs.apiKey && config.elevenlabs.agentId),
+    database: Boolean(config.database.url),
     zeroEx: Boolean(config.zeroEx.apiKey),
     jupiter: Boolean(config.jupiter.apiKey || config.jupiter.apiUrl.includes("lite-api.jup.ag"))
   };

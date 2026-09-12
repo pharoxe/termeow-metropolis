@@ -34,6 +34,19 @@ export class AutomationStore {
     return record?.userId === userId ? record : null;
   }
 
+  getById(id: string) { return this.records.get(id) ?? null; }
+
+  beginExecution(id: string) {
+    const current = this.getById(id);
+    if (!current || current.status !== "armed") return null;
+    if (current.intent.durationHours && current.createdAt + current.intent.durationHours * 3_600_000 <= Date.now()) {
+      const expired: AutomationRecord = { ...current, status: "failed", failure: "Automation expired before execution.", updatedAt: Date.now() };
+      this.records.set(id, expired); this.persist(); return null;
+    }
+    const next: AutomationRecord = { ...current, status: "executing", failure: undefined, updatedAt: Date.now() };
+    this.records.set(id, next); this.persist(); return next;
+  }
+
   approve(userId: string, id: string) {
     const current = this.get(userId, id);
     if (!current || current.status !== "pending_approval") return null;

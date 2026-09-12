@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "termeow-automation-ingress",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "AUTOMATION_API_BASE_URL": "https://termeow-production.up.railway.app"
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "AUTOMATION_EVENTS",
+        "queue": "termeow-automation-events"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "termeow-automation-events",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "termeow-automation-dlq"
+      }
+    ]
+  }
+}

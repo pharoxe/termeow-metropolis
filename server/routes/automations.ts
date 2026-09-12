@@ -4,7 +4,9 @@ import { Router } from "express";
 import { PrivyClient } from "@privy-io/server-auth";
 import { z } from "zod";
 import { config } from "../config.js";
-import { AutomationStore } from "../automation/store.js";
+import { automationRepository } from "../automation/runtime.js";
+import { SOLANA_AUTOMATION_PROGRAM_ALLOWLIST } from "../automation/privyPolicy.js";
+import { verifyDelegatedSolanaWallet } from "../automation/privyExecutor.js";
 
 const intentSchema = z.object({
   kind: z.enum(["swap", "monitor_deployer", "conditional_swap"]),
@@ -14,6 +16,7 @@ const intentSchema = z.object({
   side: z.enum(["buy", "sell"]).optional(), router: z.enum(["0x", "jupiter"]).optional(),
   amountMode: z.enum(["fixed", "wallet_percent"]).optional(), amount: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),
   allocationPercent: z.number().positive().max(25).optional(), durationHours: z.number().int().positive().max(24 * 30).optional(),
+  maxSlippageBps: z.number().int().min(1).max(2500).optional(),
   marketCapMinUsd: z.number().nonnegative().optional(), marketCapMaxUsd: z.number().nonnegative().optional(),
   condition: z.string().max(1000).optional(), description: z.string().min(3).max(1000)
 }).superRefine((intent, context) => {
@@ -28,7 +31,7 @@ const intentSchema = z.object({
 const createSchema = z.object({ intent: intentSchema, conversationId: z.string().max(200).optional(), context: z.unknown().optional(), source: z.enum(["elevenlabs_voice", "terminal"]).default("terminal") });
 const approveSchema = z.object({ passkeyVerified: z.literal(true) });
 const reportSchema = z.object({ status: z.enum(["executing", "completed", "failed"]), transactionHash: z.string().max(200).optional(), failure: z.string().max(1000).optional() });
-const store = new AutomationStore(config.snapshot.dir);
+const store = automationRepository;
 const privy = config.privy.appId && config.privy.appSecret ? new PrivyClient(config.privy.appId, config.privy.appSecret) : null;
 
 type AuthRequest = Request & { privyUserId?: string };
@@ -42,26 +45,60 @@ async function requirePrivy(request: AuthRequest, response: Response, next: Next
 
 export const automationsRouter = Router();
 automationsRouter.use(requirePrivy);
-automationsRouter.get("/", (request: AuthRequest, response) => response.json({ automations: store.list(request.privyUserId!) }));
-automationsRouter.post("/", (request: AuthRequest, response) => {
+automationsRouter.get("/", async (request: AuthRequest, response) => response.json({ automations: await store.list(request.privyUserId!) }));
+automationsRouter.get("/delegation/solana", async (request: AuthRequest, response) => {
+  const configured = Boolean(config.privy.automationSignerId && config.privy.automationPolicyId && config.privy.automationAuthPrivateKey);
+  const current = await store.getDelegation(request.privyUserId!);
+  response.json({
+    configured,
+    active: configured && Boolean(current),
+    signerId: config.privy.automationSignerId,
+    policyIds: config.privy.automationPolicyId ? [config.privy.automationPolicyId] : [],
+    walletAddress: current?.walletAddress,
+    allowedPrograms: SOLANA_AUTOMATION_PROGRAM_ALLOWLIST
+  });
+});
+automationsRouter.post("/delegation/solana", async (request: AuthRequest, response, next) => {
+  if (!config.privy.automationSignerId || !config.privy.automationPolicyId || !config.privy.automationAuthPrivateKey) {
+    response.status(503).json({ error: "Privy automation signer is not configured" }); return;
+  }
+  try {
+    const body = z.object({ walletAddress: z.string().min(32).max(64), walletId: z.string().min(3).max(200) }).parse(request.body);
+    await verifyDelegatedSolanaWallet(body);
+    const delegation = await store.setDelegation({
+      userId: request.privyUserId!, chain: "solana", walletAddress: body.walletAddress, walletId: body.walletId,
+      signerId: config.privy.automationSignerId, policyId: config.privy.automationPolicyId
+    });
+    response.json({ delegation });
+  } catch (error) { next(error); }
+});
+automationsRouter.delete("/delegation/solana", async (request: AuthRequest, response) => {
+  await store.removeDelegation(request.privyUserId!);
+  response.json({ removed: true });
+});
+automationsRouter.post("/", async (request: AuthRequest, response) => {
   const parsed = createSchema.parse(request.body);
   const contextDigest = parsed.context == null ? undefined : createHash("sha256").update(JSON.stringify(parsed.context)).digest("hex");
-  response.status(201).json({ automation: store.create(request.privyUserId!, parsed.intent, { source: parsed.source, conversationId: parsed.conversationId, contextDigest }) });
+  response.status(201).json({ automation: await store.create(request.privyUserId!, parsed.intent, { source: parsed.source, conversationId: parsed.conversationId, contextDigest }) });
 });
-automationsRouter.post("/:id/approve", (request: AuthRequest, response) => {
+automationsRouter.post("/:id/approve", async (request: AuthRequest, response) => {
   approveSchema.parse(request.body);
-  const automation = store.approve(request.privyUserId!, String(request.params.id));
+  const pending = await store.get(request.privyUserId!, String(request.params.id));
+  if (pending?.intent.chain === "solana" && pending.intent.kind !== "swap" && !await store.getDelegation(request.privyUserId!)) {
+    response.status(409).json({ error: "Enable the scoped Privy automation signer before arming this workflow" }); return;
+  }
+  const automation = await store.approve(request.privyUserId!, String(request.params.id));
   if (!automation) { response.status(409).json({ error: "Automation is missing or no longer awaiting approval" }); return; }
   response.json({ automation });
 });
-automationsRouter.post("/:id/cancel", (request: AuthRequest, response) => {
-  const automation = store.cancel(request.privyUserId!, String(request.params.id));
+automationsRouter.post("/:id/cancel", async (request: AuthRequest, response) => {
+  const automation = await store.cancel(request.privyUserId!, String(request.params.id));
   if (!automation) { response.status(409).json({ error: "Automation cannot be cancelled" }); return; }
   response.json({ automation });
 });
-automationsRouter.post("/:id/report", (request: AuthRequest, response) => {
+automationsRouter.post("/:id/report", async (request: AuthRequest, response) => {
   const parsed = reportSchema.parse(request.body);
-  const automation = store.report(request.privyUserId!, String(request.params.id), parsed.status, parsed);
+  const automation = await store.report(request.privyUserId!, String(request.params.id), parsed.status, parsed);
   if (!automation) { response.status(409).json({ error: "Automation is not in an executable state" }); return; }
   response.json({ automation });
 });

@@ -3,21 +3,26 @@ import { config, integrationStatus } from "../config.js";
 import { snapshotStatus } from "../persist/live.js";
 import { robinhoodRpcStats } from "../tape/robinhood/rpcPool.js";
 import { robinhoodTransportStatus } from "../tape/robinhood/wsStatus.js";
+import { automationRepository } from "../automation/runtime.js";
 
 export const systemRouter = Router();
 
-systemRouter.get("/health", (_request, response) => {
+systemRouter.get("/health", async (_request, response, next) => {
+  try {
+    const database = await automationRepository.health();
   response.json({
     status: "ok",
     service: "terminal-v-solana",
     network: "solana-mainnet",
     integrations: integrationStatus(),
+    database,
     now: new Date().toISOString(),
     ...snapshotStatus(),
     robinhoodRpc: robinhoodRpcStats(),
     /** Which transport carries Robinhood log prints per poller: "WS" while subscribed, "HTTP" while polling only. */
     robinhoodTransport: robinhoodTransportStatus()
   });
+  } catch (error) { next(error); }
 });
 
 systemRouter.get("/config", (_request, response) => {

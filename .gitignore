@@ -17,3 +17,5 @@ __pycache__/
 .DS_Store
 terminal-v-source.tar.gz
 .gstack/
+/solana-desk-team/
+/deliverables/qa*/

@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { getAccessToken, useLinkWithPasskey, useMfa, useMfaEnrollment, usePrivy } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { api } from "../../../api/client";
 import { hasPrivy } from "../../../auth/WalletProviders";
 import { money, shortAddress } from "../../../lib/format";
 import { useAgentStore } from "../store/agentStore";
+import { useAutomationDelegation } from "../../../auth/useAutomationDelegation";
 
 function marketCapRange(min?: number, max?: number) {
   if (min != null && max != null) return `${money(min, true)} – ${money(max, true)}`;
@@ -36,6 +38,8 @@ function LiveApproval() {
   const { linkWithPasskey } = useLinkWithPasskey();
   const { promptMfa, mfaMethods } = useMfa();
   const { initEnrollmentWithPasskey, submitEnrollmentWithPasskey } = useMfaEnrollment();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { ensureDelegated } = useAutomationDelegation(solanaWallets[0]?.address);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -63,6 +67,7 @@ function LiveApproval() {
         await submitEnrollmentWithPasskey({ credentialIds: passkeys.map((account) => account.credentialId) });
       }
       await promptMfa();
+      if (pending.intent.chain === "solana" && pending.intent.kind !== "swap") await ensureDelegated();
       const token = await getAccessToken();
       if (!token) throw new Error("Privy session expired. Log in again.");
       const result = await api.approveAutomation(token, pending.id);

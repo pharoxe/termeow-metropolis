@@ -85,6 +85,10 @@ export const api = {
     method: "POST", body: JSON.stringify(body)
   }),
   automations: (token: string) => request<{ automations: AutomationRecord[] }>("/api/automations", { headers: bearer(token) }),
+  automationDelegation: (token: string) => request<{ configured: boolean; active: boolean; signerId?: string; policyIds: string[]; walletAddress?: string; allowedPrograms: string[] }>("/api/automations/delegation/solana", { headers: bearer(token) }),
+  confirmAutomationDelegation: (token: string, body: { walletAddress: string; walletId: string }) =>
+    request<{ delegation: { walletAddress: string; enabledAt: number } }>("/api/automations/delegation/solana", { method: "POST", headers: bearer(token), body: JSON.stringify(body) }),
+  removeAutomationDelegation: (token: string) => request<{ removed: boolean }>("/api/automations/delegation/solana", { method: "DELETE", headers: bearer(token) }),
   createAutomation: (token: string, body: { intent: AutomationIntent; source: "elevenlabs_voice" | "terminal"; conversationId?: string; context?: TerminalAgentSnapshot }) =>
     request<{ automation: AutomationRecord }>("/api/automations", { method: "POST", headers: bearer(token), body: JSON.stringify(body) }),
   approveAutomation: (token: string, id: string) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}/approve`, {
