@@ -1,5 +1,7 @@
 # termeow
 
+The canonical repository root is this directory (`Terminal V`). Do not create or run a nested clone inside it; branches and worktrees should live outside this folder so local work cannot be hidden from Git or Railway builds.
+
 Voice-ready Solana trading terminal built around ClawPump. This branch (`solana-dex-fork`) replaces the Hyperliquid/Python runtime with a single TypeScript service:
 
 - **`/onchain`** — ANSEM/USD desk with multi-timeframe candles, EMA / Bollinger / VWAP / S-R / volume / RSI / MACD / OBV, ClawPump movers, anomalies, smart-flow signals, pool liquidity, narrative research, swap quotes, and user-wallet-signed execution.

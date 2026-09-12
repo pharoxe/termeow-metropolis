@@ -165,6 +165,20 @@ function ClientToolsBridge() {
         const result = await api.automations(token);
         return JSON.stringify({ ok: true, automations: result.automations.slice(0, 20).map((item) => ({ id: item.id, status: item.status, description: item.intent.description, chain: item.intent.chain, kind: item.intent.kind, created_at: item.createdAt })) });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
+    },
+    open_market_hud: async (parameters: Record<string, unknown>) => {
+      const context = useAgentStore.getState().context;
+      const chain = parameters.chain === "robinhood" ? "robinhood" : parameters.chain === "solana" ? "solana" : context.chain;
+      const tokenAddress = String(parameters.token_address || context.token?.address || "").trim();
+      const requested = String(parameters.timeframe || "5m").toLowerCase();
+      const timeframe = ["1m", "5m", "15m", "1h", "4h", "1d"].includes(requested) ? requested : "5m";
+      if (!chain || !tokenAddress) return JSON.stringify({ ok: false, error: "A chain and exact token address are required to open the market HUD." });
+      useAgentStore.getState().setHudWindow({ type: "market_chart", chain, tokenAddress, tokenSymbol: String(parameters.token_symbol || context.token?.symbol || "") || undefined, timeframe, requestedAt: Date.now() });
+      return JSON.stringify({ ok: true, surface: "market_chart", status: "visible", message: "The live market HUD is open beside the conversation." });
+    },
+    dismiss_agent_ui: async () => {
+      useAgentStore.getState().setHudWindow();
+      return JSON.stringify({ ok: true, status: "dismissed" });
     }
   }), []);
 
@@ -177,6 +191,8 @@ function ClientToolsBridge() {
   useConversationClientTool("propose_swap", clientTools.propose_swap);
   useConversationClientTool("propose_automation", clientTools.propose_automation);
   useConversationClientTool("list_automations", clientTools.list_automations);
+  useConversationClientTool("open_market_hud", clientTools.open_market_hud);
+  useConversationClientTool("dismiss_agent_ui", clientTools.dismiss_agent_ui);
   return null;
 }
 

@@ -23,7 +23,7 @@ export function AgentOverlayHost() {
   if (typeof document === "undefined") return null;
 
   return createPortal(<AnimatePresence>
-    {mode !== "hidden" && <motion.aside
+    {mode !== "hidden" && mode !== "surface" && <motion.aside
       className={`termeow-agent ${mode} status-${agent.status}`}
       role="dialog"
       aria-label="Termeow voice agent"
