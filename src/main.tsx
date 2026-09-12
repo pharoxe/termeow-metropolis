@@ -9,11 +9,12 @@ import { WalletProviders } from "./auth/WalletProviders";
 import { WorkspaceFeatures } from "./features/WorkspaceFeatures";
 import { NotificationProvider } from "./components/NotificationSystem";
 import { TermeowAgentProvider } from "./features/voice-agent";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <NotificationProvider><WalletProviders><WorkspaceFeatures><TermeowAgentProvider><App /></TermeowAgentProvider></WorkspaceFeatures></WalletProviders></NotificationProvider>
+      <AppErrorBoundary><NotificationProvider><WalletProviders><WorkspaceFeatures><TermeowAgentProvider><App /></TermeowAgentProvider></WorkspaceFeatures></WalletProviders></NotificationProvider></AppErrorBoundary>
     </BrowserRouter>
   </StrictMode>
 );

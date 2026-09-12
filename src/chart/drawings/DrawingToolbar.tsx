@@ -9,10 +9,13 @@ export type DrawingToolbarProps = {
   count: number;
 };
 
-const LABELS: Record<Tool, string> = { hline: "H-LINE", trendline: "TREND", measure: "MEASURE" };
+const LABELS: Record<Tool, string> = { hline: "H-LINE", trendline: "TREND", fib: "FIB", marker_up: "▲", marker_down: "▼", measure: "MEASURE" };
 const HINTS: Record<Tool, string> = {
   hline: "Horizontal price level — click to place",
   trendline: "Trendline — drag or click two points",
+  fib: "Fibonacci retracement — drag from swing low to high",
+  marker_up: "Bullish symbol — click to place",
+  marker_down: "Bearish symbol — click to place",
   measure: "Measure — drag or click two points"
 };
 

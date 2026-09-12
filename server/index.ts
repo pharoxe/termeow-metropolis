@@ -21,11 +21,15 @@ import { agentRouter } from "./routes/agent.js";
 import { automationsRouter } from "./routes/automations.js";
 import { internalAutomationsRouter } from "./routes/internalAutomations.js";
 import { automationRepository } from "./automation/runtime.js";
+import { startTwitterLaunchMonitor } from "./automation/twitterMonitor.js";
+import { startWalletAutomationMonitor } from "./automation/walletMonitor.js";
 import { clawpumpMcp } from "./clawpump/mcp.js";
 import { errorMessage, UpstreamError } from "./lib/http.js";
 import { installSnapshots } from "./persist/live.js";
 
 const snapshots = installSnapshots();
+const stopTwitterLaunchMonitor = startTwitterLaunchMonitor();
+const stopWalletAutomationMonitor = startWalletAutomationMonitor();
 
 const app = express();
 app.disable("x-powered-by");
@@ -87,6 +91,8 @@ server.on("error", (error) => {
 });
 
 async function shutdown() {
+  stopTwitterLaunchMonitor();
+  stopWalletAutomationMonitor();
   snapshots.saveAll("shutdown");
   server.close();
   await clawpumpMcp.close();

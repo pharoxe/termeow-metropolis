@@ -276,6 +276,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   const paneHeights = useRef<number[]>([]);
   const [legend, setLegend] = useState<LegendState | null>(null);
   const [fomoHover, setFomoHover] = useState<FomoHoverView | null>(null);
+  const [fomoBubbles, setFomoBubbles] = useState<Array<{ marker: FomoMarker; x: number; y: number }>>([]);
 
   const interactionRef = useRef({onSelectTime:props.onSelectTime,onVisibleRange:props.onVisibleRange});
   interactionRef.current = {onSelectTime:props.onSelectTime,onVisibleRange:props.onVisibleRange};
@@ -290,12 +291,31 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   // "no flow in this window" when the truth is "not loaded / not captured", which the coverage note states instead.
   const flowUsable = Boolean(flowSeries && !flowSeries.empty && flowSeries.buys.length >= MIN_FLOW_BARS);
   const paneMode: PaneMode = flowUsable ? "flow" : "none";
-  const merged = useMemo(() => mergeMarkers(fomoMarkers, eventMarkers), [fomoMarkers, eventMarkers]);
+  // Identity-rich FOMO activity is an HTML overlay; the series plugin keeps only launch/large-print events.
+  const merged = useMemo(() => mergeMarkers(eventMarkers), [eventMarkers]);
   const fomoByTime = useMemo(() => indexFomoMarkersByTime(fomoMarkers), [fomoMarkers]);
   const fomoByTimeRef = useRef(fomoByTime);
   fomoByTimeRef.current = fomoByTime;
   const hasCandles = displayCandles.length > 0;
   const mountKey = [theme, compactAxis, INDICATOR_KEYS.filter((key) => indicators[key]).join("+"), paneMode, hasCandles].join("|");
+
+  const refreshFomoBubbles = () => {
+    const built = builtRef.current;
+    if (!built) { setFomoBubbles([]); return; }
+    const lanes = { buy: [] as number[], sell: [] as number[] };
+    const next = fomoMarkers.map((marker) => {
+      const x = built.chart.timeScale().timeToCoordinate(marker.time as UTCTimestamp);
+      const candle = heldRef.current.candles.find((bar) => Math.floor(bar.time / 1000) === marker.time);
+      if (x == null || !candle) return null;
+      let lane = 0;
+      while (lanes[marker.side][lane] != null && Math.abs(x - lanes[marker.side][lane]) < 54) lane += 1;
+      lane = Math.min(lane, 5); lanes[marker.side][lane] = x;
+      const anchor = built.price.priceToCoordinate(marker.side === "buy" ? candle.low : candle.high);
+      if (anchor == null) return null;
+      return { marker, x, y: anchor + (marker.side === "buy" ? 20 + lane * 29 : -20 - lane * 29) };
+    }).filter((item): item is NonNullable<typeof item> => Boolean(item));
+    setFomoBubbles(next);
+  };
 
   // Latest props for the mount effect, which is keyed on structure only and must not close over stale data.
   const latest = useRef({ displayCandles, flowSeries, merged, granularity, scaleMode });
@@ -448,6 +468,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
         const last = bars[Math.min(bars.length - 1, Math.ceil(next.to))];
         if(first && last) interactionRef.current.onVisibleRange?.({from:first.time,to:last.time+intervalRef.current});
       }
+      requestAnimationFrame(refreshFomoBubbles);
     };
     // One legend update per frame; a hidden tab gets no frames, so apply synchronously there to avoid a stale hover.
     const onCrosshair = (param: MouseEventParams<Time>) => {
@@ -470,6 +491,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     chart.subscribeClick(selectTime);
     rememberRange(chart.timeScale().getVisibleLogicalRange());
     refreshLegend();
+    refreshFomoBubbles();
     return () => {
       node.removeEventListener("wheel", onWheel);
       node.removeEventListener("pointerdown", unlockDrag, true);
@@ -562,6 +584,8 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [merged]);
 
+  useEffect(() => { requestAnimationFrame(refreshFomoBubbles); }, [fomoMarkers, displayCandles]);
+
   // A new FOMO poll can change the buckets under a resting crosshair; re-derive the strip without waiting for a move.
   useEffect(() => {
     refreshLegend();
@@ -600,6 +624,17 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
         } else if (event.key === "End") { event.preventDefault(); chart.timeScale().scrollToRealTime(); }
       }}>
       <div className="chart-canvas" ref={host} />
+      <div className="chart-fomo-bubbles" aria-label="Top trader activity">
+        {fomoBubbles.map(({ marker, x, y }, index) => {
+          const wallet = marker.wallets[0];
+          const address = wallet?.address || "unknown";
+          const name = wallet?.twitter || wallet?.handle || `${address.slice(0, 5)}…${address.slice(-3)}`;
+          return <div key={`${marker.time}-${marker.side}-${index}`} className={`chart-fomo-bubble ${marker.side}`} style={{ left: x, top: y }} title={marker.text}>
+            {wallet?.avatarUrl ? <img src={wallet.avatarUrl} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <i className="pixel-trader-avatar" aria-hidden="true"><b /><b /><b /><b /></i>}
+            <span>{name}{marker.wallets.length > 1 ? ` +${marker.wallets.length - 1}` : ""}</span>
+          </div>;
+        })}
+      </div>
       <ChartLegend state={legend} compact={compactAxis} granularity={granularity} label={legendLabel} />
       <FomoHover view={fomoHover} />
     </div>

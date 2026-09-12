@@ -324,7 +324,11 @@ export type TokenFlowFomo = { fills: FomoFill[]; windows: FlowWindow[]; populati
  */
 export type TraderKind = "fomo" | "other" | "seeded";
 /** A wallet attributed to a print. `handle`/`followers` come from the robinhoodtrenches population and stay null otherwise. */
-export type TraderRef = { address: string; kind: TraderKind; handle: string | null; followers: number | null };
+export type TraderRef = {
+  address: string; kind: TraderKind; handle: string | null; followers: number | null;
+  /** Optional identity supplied by Termeow's local FomoScan registry; clients never call FomoScan. */
+  displayName?: string | null; twitter?: string | null; avatarUrl?: string | null;
+};
 
 // ---- FOMO routes (GET /api/fomo/tape, GET /api/fomo/board) ----
 

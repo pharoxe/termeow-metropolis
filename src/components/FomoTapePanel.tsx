@@ -3,6 +3,7 @@ import type { FomoTapeResponse } from "../../shared/wire";
 import { api } from "../api/client";
 import type { InstrumentRef } from "../lib/address";
 import { FOMO_TAPE_POLL_MS, fomoCoverageLabel, fomoTapeRow } from "../lib/fomoPanel";
+import { LiveAlertBubbles } from "./LiveAlertBubbles";
 
 /**
  * Radar "FOMO tape": newest FOMO-wallet fills across every token this server tracks, polled from /api/fomo/tape.
@@ -38,29 +39,28 @@ export function FomoTapePanel({ onInstrument,onNewChart }: { onInstrument?: (ref
         <span className="pm">{fomoCoverageLabel(feed?.coverage)}</span>
       </div>
       <div className="panel-scroll">
+        <div className="social-bubble-flow alert-bubble-flow fomo-live-bubbles">
+          <LiveAlertBubbles onOpen={onInstrument} />
+          {fills.map((fill) => {
+            const row = fomoTapeRow(fill, now);
+            const rawTwitter = fill.trader.twitter?.trim() || "";
+            const xHandle = (rawTwitter.match(/(?:x|twitter)\.com\/([^/?#]+)/i)?.[1] || rawTwitter.replace(/^@+/, "") || fill.trader.handle?.replace(/^@+/, ""))?.trim();
+            const href = xHandle ? `https://x.com/${encodeURIComponent(xHandle)}` : row.href;
+            return <article className={`social-bubble fomo-fill ${row.tone}`} key={row.key} title={row.title}>
+              <div className="fomo-trader-identity">
+                {fill.trader.avatarUrl ? <img src={fill.trader.avatarUrl} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <i className="pixel-trader-avatar" aria-hidden="true"><b /><b /><b /><b /></i>}
+                <span><strong>{xHandle ? `@${xHandle}` : row.label}</strong><small>{row.followers} FOLLOWERS · {row.chain} · {row.age}</small></span>
+                {href && <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`Open ${row.label} profile`}>↗</a>}
+              </div>
+              <button type="button" className="social-bubble-chart" onClick={() => onInstrument?.({ chain: fill.chain, address: fill.token }, fill.symbol ?? undefined)}>
+                <b>${row.token}</b><p>{row.side} {row.usd} · {fill.dex || "ONCHAIN"}</p><em>OPEN CHART →</em>
+              </button>
+              {onNewChart && <button type="button" className="bubble-new-chart" onClick={() => onNewChart({ chain: fill.chain, address: fill.token })}>NEW CHART ＋</button>}
+            </article>;
+          })}
+        </div>
         {failure ? <p className="empty-copy">FOMO tape degraded · {failure}</p> : null}
-        {fills.length ? (
-          <table className="terminal-table fomo-tape">
-            <thead><tr><th>WALLET</th><th className="r">SIDE / USD</th><th className="r">TOKEN</th></tr></thead>
-            <tbody>
-              {fills.map((fill) => {
-                const row = fomoTapeRow(fill, now);
-                return (
-                  <tr key={row.key} title={row.title} onClick={() => onInstrument?.({ chain: fill.chain, address: fill.token }, fill.symbol ?? undefined)}>
-                    <td>
-                      {row.href
-                        ? <a href={row.href} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>{row.label}</a>
-                        : <b>{row.label}</b>}
-                      <small>{row.followers} FOLLOWERS{row.tag ? ` · ${row.tag}` : ""}</small>
-                    </td>
-                    <td className={`r ${row.tone}`}><b>{row.usd}</b><small>{row.side}</small></td>
-                    <td className="r"><button onClick={e=>{e.stopPropagation();onInstrument?.({chain:fill.chain,address:fill.token});}}>{row.token}</button>{onNewChart&&<button title="Open in new chart" onClick={e=>{e.stopPropagation();onNewChart({chain:fill.chain,address:fill.token});}}>＋</button>}<small>{row.age}</small></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        ) : <p className="empty-copy">{failure ? "" : "No FOMO or seeded fills seen by this server yet. Rows appear once a watched wallet trades; SEEDED marks robinhoodtrenches wallets still awaiting the 7702 check."}</p>}
+        {!fills.length && <p className="empty-copy">{failure ? "" : "No tracked trader fills seen by this server yet."}</p>}
       </div>
     </section>
   );

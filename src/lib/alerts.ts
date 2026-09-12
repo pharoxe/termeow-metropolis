@@ -107,10 +107,15 @@ export type AlertRowView = {
   lag: string | null;
   age: string;
   instrument: InstrumentRef;
+  side: "buy" | "sell" | null;
+  xHandle: string | null;
+  xUrl: string | null;
 };
 
 export function alertRowView(row: AlertRow, now: number): AlertRowView {
   const tx = alertTx(row);
+  const fill = row.rule === "first_fomo_buy" ? row.evidence.fill : row.rule === "big_handle_entry" ? row.evidence : null;
+  const handle = fill?.handle?.trim().replace(/^@+/, "") || null;
   return {
     key: row.id,
     badge: ruleBadge(row.rule),
@@ -122,7 +127,10 @@ export function alertRowView(row: AlertRow, now: number): AlertRowView {
     evidence: alertEvidenceLine(row),
     lag: lagNote(row),
     age: durationLabel(Math.max(0, now - row.time)),
-    instrument: { chain: row.chain, address: row.token }
+    instrument: { chain: row.chain, address: row.token },
+    side: fill?.side === "buy" || fill?.side === "sell" ? fill.side : null,
+    xHandle: handle,
+    xUrl: handle ? `https://x.com/${encodeURIComponent(handle)}` : null
   };
 }
 

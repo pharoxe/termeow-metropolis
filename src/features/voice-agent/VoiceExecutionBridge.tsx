@@ -44,6 +44,7 @@ export function VoiceExecutionBridge() {
       if (!auth) return;
       const intent = automation.intent;
       try {
+        if (!intent.tokenAddress) throw new Error("This automation has not resolved a token contract yet.");
         await api.reportAutomation(auth, automation.id, { status: "executing" });
         const config = await api.config();
         let hash = "";
@@ -57,13 +58,13 @@ export function VoiceExecutionBridge() {
             ? percentOf(await solanaTokenBalance(wallet.address, inputMint), intent.allocationPercent).toString()
             : tokenAmount(intent.amount || "0", supply.value.decimals);
           if (BigInt(amount) <= 0n) throw new Error("The approved Solana funding balance is too small for this allocation.");
-          const order = { chain: "solana" as const, router: intent.router || "jupiter", inputMint, outputMint, amount, slippageBps: 50, walletAddress: wallet.address };
+          const order = { chain: "solana" as const, router: intent.router || "jupiter", inputMint, outputMint, amount, slippageBps: intent.slippageBps ?? 50, walletAddress: wallet.address };
           const quote = await api.quote(order);
           const payload = await api.transaction({ ...order, quoteId: quote.quoteId });
           const encoded = deepFind(payload, ["transaction", "swapTransaction", "unsignedTransaction", "serializedTransaction"]);
           if (typeof encoded !== "string") throw new Error("Router did not return a Solana transaction.");
           const result = await signAndSendTransaction({ transaction: decodeBase64(encoded), wallet, chain: "solana:mainnet" });
-          hash = Array.from(result.signature).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+          hash = typeof result.signature === "string" ? result.signature : Array.from(result.signature).map((byte) => byte.toString(16).padStart(2, "0")).join("");
         } else {
           const wallet = evmWallets.find((item) => ["privy", "privy-v2"].includes(item.walletClientType)) ?? evmWallets[0];
           if (!wallet?.address) throw new Error("No Privy Robinhood wallet is available.");
@@ -75,10 +76,17 @@ export function VoiceExecutionBridge() {
             : await evmClient.getBalance({ address: wallet.address as `0x${string}` });
           const amount = intent.amountMode === "wallet_percent" ? percentOf(balance, intent.allocationPercent).toString() : parseUnits(intent.amount || "0", decimals).toString();
           if (BigInt(amount) <= 0n) throw new Error("The approved Robinhood funding balance is too small for this allocation.");
-          const order = { chain: "robinhood" as const, router: "0x" as const, inputMint: selling ? token : NATIVE_ETH, outputMint: selling ? NATIVE_ETH : token, amount, slippageBps: 50, walletAddress: wallet.address };
+          const order = { chain: "robinhood" as const, router: "0x" as const, inputMint: selling ? token : NATIVE_ETH, outputMint: selling ? NATIVE_ETH : token, amount, slippageBps: intent.slippageBps ?? 50, walletAddress: wallet.address };
           const quote = await api.quote(order);
           const payload = await api.transaction({ ...order, quoteId: quote.quoteId });
-          const send = (tx: EvmTx) => sendTransaction({ to: tx.to, data: tx.data, value: quantity(tx.value), gasLimit: quantity(tx.gas), gasPrice: quantity(tx.gasPrice), maxFeePerGas: quantity(tx.maxFeePerGas), maxPriorityFeePerGas: quantity(tx.maxPriorityFeePerGas), chainId: ROBINHOOD_CHAIN.id }, { address: wallet.address });
+          const send = (tx: EvmTx) => {
+            const value = quantity(tx.value), gasLimit = quantity(tx.gas), gasPrice = quantity(tx.gasPrice);
+            const maxFeePerGas = quantity(tx.maxFeePerGas), maxPriorityFeePerGas = quantity(tx.maxPriorityFeePerGas);
+            return sendTransaction({ to: tx.to, data: tx.data,
+              ...(value === undefined ? {} : { value }), ...(gasLimit === undefined ? {} : { gasLimit }),
+              ...(gasPrice === undefined ? {} : { gasPrice }), ...(maxFeePerGas === undefined ? {} : { maxFeePerGas }),
+              ...(maxPriorityFeePerGas === undefined ? {} : { maxPriorityFeePerGas }), chainId: ROBINHOOD_CHAIN.id }, { address: wallet.address });
+          };
           const approval = payload.approval as { required?: boolean; token?: string; spender?: string; amount?: string } | undefined;
           if (approval?.required) {
             if (!approval.token || !approval.spender || !approval.amount) throw new Error("0x returned an incomplete allowance request.");

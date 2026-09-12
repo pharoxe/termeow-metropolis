@@ -39,6 +39,7 @@ const DRAFT_ID = "__draft__";
 const LABEL_PAD = 4;
 const LINE_HEIGHT = 12;
 const FILL_ALPHA = 0.12;
+const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] as const;
 
 type LayoutCtx = { mapper: Mapper; formatters: Formatters };
 
@@ -54,6 +55,14 @@ function layoutDrawing(d: Drawing | (Draft & { id: string }), ctx: LayoutCtx, se
   if (d.kind === "trendline") {
     const label = selectedOrDraft ? [`${formatters.price(d.a.price)} → ${formatters.price(d.b.price)}`] : [];
     return { kind: "trendline", id: d.id, a, b, drawn: { x1: ax, y1: ay, x2: bx, y2: by }, label };
+  }
+  if (d.kind === "marker") {
+    const size = 8;
+    return { kind: "marker", id: d.id, a, b, direction: d.direction, rect: { left: a.x - size, top: a.y - size, right: a.x + size, bottom: a.y + size } };
+  }
+  if (d.kind === "fib") {
+    const levels = FIB_LEVELS.map((ratio) => ({ y: ay + (by - ay) * ratio, label: `${ratio.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")} · ${formatters.price(d.a.price + (d.b.price - d.a.price) * ratio)}` }));
+    return { kind: "fib", id: d.id, a, b, rect: rectFrom(a, b), levels };
   }
   const stats = measureStats(d.a, d.b, mapper.barMs());
   const bars = stats.barCount === null ? "? bars" : `${stats.barCount} bar${stats.barCount === 1 ? "" : "s"}`;
@@ -138,6 +147,36 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
         this.handles(ctx, shape.a, shape.b);
         this.label(ctx, shape.label, shape.b.x + LABEL_PAD * 2, shape.b.y - LINE_HEIGHT / 2 - LABEL_PAD, "left");
       }
+      return;
+    }
+    if (shape.kind === "marker") {
+      const color = shape.direction === "up" ? this.theme.up : this.theme.down;
+      const sign = shape.direction === "up" ? -1 : 1;
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.moveTo(shape.a.x, shape.a.y + sign * 9);
+      ctx.lineTo(shape.a.x - 7, shape.a.y - sign * 5);
+      ctx.lineTo(shape.a.x + 7, shape.a.y - sign * 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      if (selected) this.handles(ctx, shape.a);
+      return;
+    }
+    if (shape.kind === "fib") {
+      ctx.save();
+      ctx.globalAlpha = FILL_ALPHA;
+      ctx.fillStyle = this.theme.selected;
+      ctx.fillRect(shape.rect.left, shape.rect.top, Math.max(1, shape.rect.right - shape.rect.left), Math.max(1, shape.rect.bottom - shape.rect.top));
+      ctx.restore();
+      shape.levels.forEach((level) => {
+        this.line(ctx, crisp(shape.rect.left), crisp(level.y), crisp(shape.rect.right), crisp(level.y), stroke);
+        this.label(ctx, [level.label], shape.rect.right + LABEL_PAD, level.y - LINE_HEIGHT / 2, "left");
+      });
+      if (selected) this.handles(ctx, shape.a, shape.b);
       return;
     }
     this.box(ctx, shape.rect, shape.up ? this.theme.up : this.theme.down, selected ? this.theme.selected : undefined);

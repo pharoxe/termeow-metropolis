@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { FeatureSection } from "../features/WorkspaceFeatures";
 import type { OnchainMarket } from "../types";
 import { money, pct } from "../lib/format";
-import { mcapScale, rowMarketCap, rowTokenPrice } from "../lib/mcap";
+import { mcapScale, rowMarketCap } from "../lib/mcap";
 import { coverageChipLabel } from "../lib/flowSeries";
 import type { FlowCoverage, MarketResponse, TokenFlowResponse } from "../../shared/wire";
 import type { TapeRow } from "../lib/instrument";
@@ -13,16 +13,15 @@ import { useFundingNetwork } from "../features/NetworkContext";
 import { DiscoverTab } from "./DiscoverTab";
 import type { InstrumentRef } from "../lib/address";
 import { FlowSideOutputs } from "./FlowSideOutputs";
-import { AlertsTab } from "./AlertsTab";
 import { FomoBoardTab } from "./FomoBoardTab";
 import { SmartMoneyTab } from "./SmartMoneyTab";
 import { ThesisActivity } from "./ThesisActivity";
 import { LaunchesTab } from "./LaunchesTab";
 import { useNotifications } from "./NotificationSystem";
+import { LiveAlertBubbles } from "./LiveAlertBubbles";
 
 type Row = Record<string, unknown>;
-/** SMART HOLDERS is this server's own observed FOMO buyers per token; SMART MONEY is FomoScan's external board — 100 ranked wallets swept from 316,007 — so the two never share a population. */
-type WatchTab = "TRENDING" | "SMART HOLDERS" | "NEW" | "LAUNCHES" | "FOMO" | "SMART MONEY" | "ALERTS";
+type WatchTab = "TRENDING" | "NEW" | "LAUNCHES" | "FOMO" | "SMART MONEY";
 type TrenchSort = "hot" | "new" | "mcap" | "volume";
 
 function record(value: unknown): Row {
@@ -94,14 +93,20 @@ export function MarketStrips({ market, onPick }: { market: OnchainMarket; onPick
   const provider = record(market.provider);
   const movers = rows(provider.top_movers, ["signals", "movers"]).slice(0, 8);
   const headlineCap = mcapScale(market).mcap;
-  return (
-    <div className="ticker-tape">
-      <div className="ticker-inner">
+  const strip = (duplicate = false) => (
+      <div className="ticker-segment" aria-hidden={duplicate || undefined}>
         <span><b>{market.symbol}</b> <strong className={headlineCap != null ? "mcap-value" : undefined}>{money(headlineCap ?? market.priceUsd, true)}</strong> <i className={changeClass(market.change24hPct)}>{pct(market.change24hPct)}</i></span>
         {movers.map((item) => {
           const cap = rowMarketCap(item);
-          return <span key={String(item.contract || item.symbol)} role="button" onClick={() => { const mint = String(item.contract || ""); if (mint) onPick?.(mint, clean(item.symbol)); }}><b>{clean(item.symbol)}</b> <strong className={cap != null ? "mcap-value" : undefined}>{cap != null ? compact(cap) : money(Number(item.price_usd))}</strong> <i className={changeClass(asChangePct(item.change_24h))}>{pct(asChangePct(item.change_24h))}</i></span>;
+          return <span key={`${duplicate ? "copy-" : ""}${String(item.contract || item.symbol)}`} role={duplicate ? undefined : "button"} onClick={duplicate ? undefined : () => { const mint = String(item.contract || ""); if (mint) onPick?.(mint, clean(item.symbol)); }}><b>{clean(item.symbol)}</b> <strong className={cap != null ? "mcap-value" : undefined}>{cap != null ? compact(cap) : money(Number(item.price_usd))}</strong> <i className={changeClass(asChangePct(item.change_24h))}>{pct(asChangePct(item.change_24h))}</i></span>;
         })}
+      </div>
+  );
+  return (
+    <div className="ticker-tape">
+      <div className="ticker-inner">
+        {strip()}
+        {strip(true)}
       </div>
     </div>
   );
@@ -125,13 +130,7 @@ export function WatchPanel({
   /** R6: the ROBINHOOD/SOLANA toggle routes the discovery tabs; the ClawPump paths below stay Solana-only. */
   const { network } = useFundingNetwork();
   const robinhoodDiscovery = isDiscoverTab(tab);
-  const provider = record(market?.provider);
-  const gems = rows(provider.anomalies, ["gems", "signals"]);
-  const smartHolderRows = [...rows(provider.intelligence_signals, ["signals"]), ...gems].filter((item, index, all) => {
-    const key = String(item.contract || item.mint || item.mintAddress || item.symbol || index);
-    return all.findIndex((candidate, candidateIndex) => String(candidate.contract || candidate.mint || candidate.mintAddress || candidate.symbol || candidateIndex) === key) === index;
-  });
-  const sourceRows = tab === "TRENDING" || tab === "NEW" ? trenches : smartHolderRows;
+  const sourceRows = trenches;
   const selectTab = (next: WatchTab) => {
     setTab(next);
     if (next === "TRENDING") onTrenchSort?.("hot");
@@ -145,11 +144,11 @@ export function WatchPanel({
     <section className="panel watch-panel">
       {search}
       <div className="ph">
-        <div className="tabs watch-tabs">{(["TRENDING", "SMART HOLDERS", "NEW", "LAUNCHES", "FOMO", "SMART MONEY", "ALERTS"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
+        <div className="tabs watch-tabs">{(["TRENDING", "NEW", "LAUNCHES", "FOMO", "SMART MONEY"] as WatchTab[]).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => selectTab(item)}>{item}</button>)}</div>
       </div>
       <div className="panel-scroll">
         {tab==='FOMO'&&activeInstrument&&<ThesisActivity instrument={activeInstrument} compact/>}
-        {robinhoodDiscovery && isDiscoverTab(tab) ? <DiscoverTab chain={network} tab={tab} onOpen={onInstrument} selected={selected} /> : tab === "ALERTS" ? <AlertsTab onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab chain={network} /> : tab === "SMART MONEY" ? <SmartMoneyTab chain={network} /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : tab === "TRENDING" || tab === "NEW" ? (
+        {robinhoodDiscovery && isDiscoverTab(tab) ? <DiscoverTab chain={network} tab={tab} onOpen={onInstrument} selected={selected} /> : tab === "FOMO" ? <FomoBoardTab chain={network} /> : tab === "SMART MONEY" ? <SmartMoneyTab chain={network} /> : tab === "LAUNCHES" ? <LaunchesTab onOpen={onInstrument} selected={selected} /> : (
           <table className="terminal-table"><thead><tr><th>TOKEN / SOCIAL</th><th className="r">MCAP / VOL</th></tr></thead><tbody>{sourceRows.slice(0, 48).map((item) => {
             const mint = String(item.mintAddress || "");
             return <tr className={mint && mint === selected ? "selected" : ""} key={mint || String(item.symbol)} onClick={() => pickSpot(item)}>
@@ -157,25 +156,18 @@ export function WatchPanel({
               <td className="r"><b className="mcap-value">{compact(item.marketCap)}</b><small>{compact(item.volume24h)}</small></td>
             </tr>;
           })}</tbody></table>
-        ) : (
-          <table className="terminal-table signal-table"><thead><tr><th>SYMBOL / SIGNAL</th><th className="r">MCAP</th><th className="r">24H</th></tr></thead><tbody>{sourceRows.slice(0, 24).map((item, index) => {
-            const mint = String(item.contract || item.mint || item.mintAddress || "");
-            const change = asChangePct(item.change_24h);
-            const cap = rowMarketCap(item);
-            const px = rowTokenPrice(item);
-            return <tr className={mint && mint === selected ? "selected" : ""} key={String(item.contract || item.symbol || index)} onClick={() => pickSpot(item)}><td><b>{clean(item.symbol || item.name)}</b><small>{clean(item.signal || item.name)}{item.chain && String(item.chain) !== "sol" ? ` · ${String(item.chain).toUpperCase()}` : ""}</small></td><td className="r"><b className="mcap-value">{cap != null ? compact(cap) : "—"}</b>{px != null ? <small>{money(px)}</small> : null}</td><td className={`r ${change == null ? "" : changeClass(change)}`}>{change == null ? "—" : pct(change)}</td></tr>;
-          })}</tbody></table>
         )}
-        {!robinhoodDiscovery && tab !== "LAUNCHES" && tab !== "FOMO" && tab !== "SMART MONEY" && tab !== "ALERTS" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
+        {!robinhoodDiscovery && tab !== "LAUNCHES" && tab !== "FOMO" && tab !== "SMART MONEY" && !sourceRows.length && <p className="empty-copy">No rows returned by this ClawPump feed.</p>}
       </div>
     </section>
   );
 }
 
-export function SocialPanel({ market, trench, onPick }: {
+export function SocialPanel({ market, trench, onPick, onInstrument }: {
   market: OnchainMarket;
   trench?: Row | null;
   onPick?: (mint: string, symbol?: string) => void;
+  onInstrument?: (ref: InstrumentRef, symbol?: string) => void;
 }) {
   const { notify } = useNotifications();
   const provider = record(market.provider);
@@ -223,6 +215,7 @@ export function SocialPanel({ market, trench, onPick }: {
       <div className="panel-scroll">
         {!bubbles.length && <p className="empty-copy">No ClawPump signals, narrative, or movers returned for {market.symbol}.</p>}
         <div className="social-bubble-flow">
+          <LiveAlertBubbles onOpen={(instrument, alertSymbol) => onInstrument ? onInstrument(instrument, alertSymbol) : onPick?.(instrument.address, alertSymbol)} />
           <AnimatePresence initial={false} mode="popLayout">
             {bubbles.map((bubble, index) => <motion.article
               layout
@@ -233,7 +226,7 @@ export function SocialPanel({ market, trench, onPick }: {
               exit={{ opacity: 0, scale: 0.75, y: -14 }}
               transition={{ type: "spring", stiffness: 430, damping: 24, delay: index * 0.025 }}
             >
-              <div className="social-bubble-top"><span>{bubble.tag}</span>{bubble.xUrl && bubble.xHandle ? <a href={bubble.xUrl} target="_blank" rel="noreferrer" aria-label={`Open ${bubble.xHandle} on X`} onClick={(event) => event.stopPropagation()}><svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true"><path d="M0 0h3v2h1v2h2V2h1V0h3L7 5l5 7H9L6 7.5 3 12H0l4.5-7z" /></svg>{bubble.xHandle}</a> : null}</div>
+              <div className="social-bubble-top"><span>{bubble.tag}</span>{bubble.xHandle ? <a href={bubble.xUrl || `https://x.com/${encodeURIComponent(bubble.xHandle.replace(/^@/, ""))}`} target="_blank" rel="noreferrer" aria-label={`Open ${bubble.xHandle} on X`} onClick={(event) => event.stopPropagation()}><svg viewBox="0 0 12 12" shapeRendering="crispEdges" aria-hidden="true"><path d="M0 0h3v2h1v2h2V2h1V0h3L7 5l5 7H9L6 7.5 3 12H0l4.5-7z" /></svg>{bubble.xHandle}</a> : null}</div>
               <button type="button" className="social-bubble-chart" onClick={() => {
                   onPick?.(bubble.mint, bubble.symbol);
                   notify({ title: `${bubble.tag} · ${bubble.symbol}`, message: "Chart and trading context are loading for this signal.", tone: bubble.tone === "sell" ? "warning" : "info" });

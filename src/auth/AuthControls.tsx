@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAddFunds, usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
+import { createPortal } from "react-dom";
+import { usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useWorkspaceFeatures } from "../features/WorkspaceFeatures";
-import { networkLabel, networkNativeToken, ROBINHOOD_CHAIN, type FundingNetwork, useFundingNetwork } from "../features/NetworkContext";
+import { networkLabel, networkNativeToken, type FundingNetwork, useFundingNetwork } from "../features/NetworkContext";
 import { useNotifications } from "../components/NotificationSystem";
 import { shortAddress } from "../lib/format";
 import { hasPrivy } from "./WalletProviders";
@@ -33,11 +34,11 @@ function LivePrivyControl() {
   const { authenticated, login, logout, ready, user } = usePrivy();
   const { wallets: evmWallets } = useEvmWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
-  const { addFunds } = useAddFunds();
   const { notify } = useNotifications();
   const { network, setNetwork } = useFundingNetwork();
   const [profileOpen, setProfileOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [depositTarget, setDepositTarget] = useState<FundingNetwork | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const evmWallet = useMemo(() => evmWallets.find(wallet => ["privy", "privy-v2"].includes(wallet.walletClientType)) ?? evmWallets[0], [evmWallets]);
   const solanaWallet = solanaWallets[0];
@@ -61,25 +62,15 @@ function LivePrivyControl() {
   const fund = async (target: FundingNetwork) => {
     setNetwork(target);
     const address = target === "solana" ? solanaWallet?.address : evmWallet?.address;
+    if (!address) { notify({ title: "WALLET NOT READY", message: `${networkLabel(target)} wallet is still being created.`, tone: "warning" }); return; }
+    setDepositTarget(target);
     try {
-      if (!address) throw new Error(`${networkLabel(target)} wallet is still being created.`);
-      await addFunds({
-        destination: { address, chain: target === "solana" ? "solana:mainnet" : `eip155:${ROBINHOOD_CHAIN.id}`, asset: "native-currency" },
-        crypto: {}
-      });
-      notify({ title: `FUND ${networkNativeToken(target)}`, message: `${networkLabel(target)} deposit flow opened.`, tone: "success" });
-      finishOnboarding();
-    } catch (reason) {
-      if (!address) { notify({ title: "WALLET NOT READY", message: reason instanceof Error ? reason.message : String(reason), tone: "warning" }); return; }
-      try {
-        await copyWalletAddress(address);
-        notify({ title: `${networkNativeToken(target)} ADDRESS COPIED`, message: `The wallet prompt was unavailable, so the ${networkLabel(target)} deposit address was copied instead.`, tone: "info" });
-      } catch (copyError) {
-        notify({ title: "DEPOSIT ADDRESS", message: copyError instanceof Error ? copyError.message : "Copy the wallet address shown above.", tone: "warning" });
-      }
-    }
+      await copyWalletAddress(address);
+      notify({ title: `${networkNativeToken(target)} ADDRESS COPIED`, message: `Send only ${networkNativeToken(target)} on ${networkLabel(target)} to this embedded wallet.`, tone: "success" });
+    } catch { /* The full address remains visible in the deposit sheet. */ }
   };
   const activeAddress = network === "solana" ? solanaWallet?.address : evmWallet?.address;
+  const depositAddress = depositTarget === "solana" ? solanaWallet?.address : evmWallet?.address;
 
   return <div className="profile-control" ref={profileRef}>
     <button className="auth-button primary-auth" type="button" disabled={!ready} onClick={() => authenticated ? setProfileOpen(open => !open) : login()}>
@@ -89,8 +80,8 @@ function LivePrivyControl() {
       <div className="profile-heading"><div><span>PRIVY PROFILE</span><strong>{networkLabel(network)} funding</strong></div><button type="button" onClick={() => setProfileOpen(false)}>×</button></div>
       <NetworkPicker />
       <div className="profile-wallets">
-        <article className={network === "robinhood" ? "active" : ""}><small>ROBINHOOD CHAIN · ETH</small><strong>{shortAddress(evmWallet?.address)}</strong><button type="button" onClick={() => void fund("robinhood")}>FUND ETH</button></article>
-        <article className={network === "solana" ? "active" : ""}><small>SOLANA · SOL</small><strong>{shortAddress(solanaWallet?.address)}</strong><button type="button" onClick={() => void fund("solana")}>FUND SOL</button></article>
+        <article className={network === "robinhood" ? "active" : ""}><small>ROBINHOOD CHAIN · ETH</small><strong>{shortAddress(evmWallet?.address)}</strong><button type="button" onClick={() => void fund("robinhood")}>ADD FUNDS</button></article>
+        <article className={network === "solana" ? "active" : ""}><small>SOLANA · SOL</small><strong>{shortAddress(solanaWallet?.address)}</strong><button type="button" onClick={() => void fund("solana")}>ADD FUNDS</button></article>
       </div>
       <div className="profile-foot"><span>{shortAddress(activeAddress)}</span><button type="button" onClick={() => { setProfileOpen(false); void logout(); }}>LOG OUT</button></div>
     </div>}
@@ -103,6 +94,15 @@ function LivePrivyControl() {
       <button type="button" className="onboarding-deposit" onClick={() => void fund(network)}>DEPOSIT {networkNativeToken(network)}</button>
       <button type="button" className="onboarding-skip" onClick={finishOnboarding}>I'LL FUND LATER</button>
     </dialog>}
+    {depositTarget && depositAddress && createPortal(<div className="deposit-address-backdrop" role="presentation">
+      <section className="deposit-address-sheet" role="dialog" aria-modal="true" aria-label={`Fund ${networkLabel(depositTarget)} wallet`}>
+        <div className="onboarding-kicker">PRIVY EMBEDDED WALLET</div>
+        <h2>ADD {networkNativeToken(depositTarget)}</h2>
+        <p>Send only <b>{networkNativeToken(depositTarget)}</b> on <b>{networkLabel(depositTarget)}</b>. Sending another token or using another network can lose funds.</p>
+        <code>{depositAddress}</code>
+        <div className="deposit-address-actions"><button type="button" onClick={() => void copyWalletAddress(depositAddress).then(() => notify({ title: "ADDRESS COPIED", message: `${networkLabel(depositTarget)} wallet copied.`, tone: "success" }))}>COPY ADDRESS</button><button type="button" className="confirm" onClick={() => { setDepositTarget(null); finishOnboarding(); }}>DONE</button></div>
+      </section>
+    </div>, document.body)}
   </div>;
 }
 

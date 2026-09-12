@@ -338,9 +338,9 @@ describe("FOMO block and trader on the tape", () => {
     };
   }
 
-  it("attaches a fomo block on robinhood only; a Solana token never gets one even with the service wired", async () => {
+  it("attaches a chain-specific fomo block on both Solana and Robinhood", async () => {
     const solana = await buildTokenFlowResponse(params(), deps({ traders: traders() }));
-    expect(solana.fomo).toBeUndefined();
+    expect(solana.fomo).toMatchObject({ fills: [], population: 94, handles: 0 });
     const robinhoodRow = row(EVM_POOL, "A", 1, { chain: "robinhood", dex: "uniswap", baseMint: EVM_TOKEN });
     const d = deps({ traders: traders(), registry: vi.fn(async () => ({ pairs: [robinhoodRow], observedAt: NOW - 1000, stale: false })) });
     const robinhood = await buildTokenFlowResponse(params({ chain: "robinhood", address: EVM_TOKEN }), d);

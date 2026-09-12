@@ -1,5 +1,12 @@
 /* MarketChart-owned styles: the legend overlay rides inside .chart-host (sized by styles.css). */
 .chart-host { position: relative; }
+.chart-fomo-bubbles { position:absolute; inset:0; z-index:4; overflow:hidden; pointer-events:none; }
+.chart-fomo-bubble { position:absolute; display:flex; align-items:center; gap:4px; max-width:108px; height:24px; padding:2px 6px 2px 2px; border:1px solid var(--line2); border-radius:13px; background:color-mix(in srgb,var(--surface) 91%,transparent); color:var(--text-strong); font-size:8px; box-shadow:0 0 10px color-mix(in srgb,var(--accent) 22%,transparent); transform:translate(-50%,-50%); }
+.chart-fomo-bubble.buy { border-color:var(--up); }.chart-fomo-bubble.sell { border-color:var(--down); }
+.chart-fomo-bubble img,.pixel-trader-avatar { width:18px; height:18px; flex:none; border-radius:50%; object-fit:cover; image-rendering:auto; }
+.pixel-trader-avatar { display:grid; grid-template-columns:repeat(2,1fr); gap:1px; padding:3px; border-radius:45% 55% 48% 52%; background:var(--line2); }
+.pixel-trader-avatar b { background:var(--accent); }.pixel-trader-avatar b:nth-child(2),.pixel-trader-avatar b:nth-child(3) { opacity:.38; }
+.chart-fomo-bubble span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .chart-canvas { position: absolute; inset: 0; }
 .chart-legend {
   position: absolute; top: 6px; left: 8px; z-index: 3; pointer-events: none;

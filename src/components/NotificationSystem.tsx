@@ -111,6 +111,36 @@ export function useNotifications() {
   return useContext(NotificationContext);
 }
 
+/** A short, local execution cue. It runs only after a wallet submission succeeds and respects the global SFX switch. */
+export function useTradeFeedback() {
+  const { soundEnabled } = useNotifications();
+  return useCallback((side: "buy" | "sell") => {
+    const shell = document.querySelector<HTMLElement>(".app-shell");
+    const name = `trade-impact-${side}`;
+    shell?.classList.remove("trade-impact-buy", "trade-impact-sell");
+    void shell?.offsetWidth;
+    shell?.classList.add(name);
+    setTimeout(() => shell?.classList.remove(name), 420);
+    if (!soundEnabled) return;
+    try {
+      const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) return;
+      const audio = new AudioContextCtor();
+      const gain = audio.createGain();
+      const oscillator = audio.createOscillator();
+      oscillator.type = side === "buy" ? "square" : "sawtooth";
+      oscillator.frequency.setValueAtTime(side === "buy" ? 170 : 310, audio.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(side === "buy" ? 540 : 95, audio.currentTime + .16);
+      gain.gain.setValueAtTime(.0001, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.07, audio.currentTime + .015);
+      gain.gain.exponentialRampToValueAtTime(.0001, audio.currentTime + .2);
+      oscillator.connect(gain).connect(audio.destination);
+      oscillator.start(); oscillator.stop(audio.currentTime + .21);
+      oscillator.addEventListener("ended", () => void audio.close(), { once: true });
+    } catch { /* wallet submission remains successful even when audio is unavailable */ }
+  }, [soundEnabled]);
+}
+
 export function SfxToggle() {
   const { soundEnabled, setSoundEnabled, notify } = useNotifications();
   return <button type="button" className="sfx-toggle" aria-pressed={soundEnabled} onClick={() => {

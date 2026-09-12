@@ -178,6 +178,7 @@ export function attachDrawings(opts: AttachDrawingsOptions): DrawingsApi {
       if (!anchor) return;
       e.preventDefault();
       if (tool === "hline") { commit(addDrawing(state, { kind: "hline", id: makeId(), price: anchor.price })); setTool(null); return; }
+      if (tool === "marker_up" || tool === "marker_down") { commit(addDrawing(state, { kind: "marker", id: makeId(), a: anchor, b: anchor, direction: tool === "marker_up" ? "up" : "down" })); setTool(null); return; }
       if (state.draft) { finishDraft(anchor); return; }
       setState(beginDraft(state, tool, anchor));
       drag = { id: DRAFT, part: "b", origin: anchor, start: p, moved: false };

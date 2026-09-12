@@ -92,6 +92,8 @@ const envSchema = z.object({
   AUTOMATION_TRIGGER_SECRET: optionalString,
   ELEVENLABS_API_KEY: optionalString,
   ELEVENLABS_AGENT_ID: optionalString,
+  TWITTERAPI_IO_API_KEY: optionalString,
+  TWITTERAPI_IO_POLL_MS: z.preprocess(emptyAsUndefined, z.coerce.number().int().min(15_000).default(60_000)),
   ANSEM_MINT: z.preprocess(emptyAsUndefined, z.string().default("9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump")),
   USDC_MINT: z.preprocess(emptyAsUndefined, z.string().default("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"))
 });
@@ -177,7 +179,8 @@ export const config = {
   elevenlabs: {
     apiKey: env.ELEVENLABS_API_KEY,
     agentId: env.ELEVENLABS_AGENT_ID
-  }
+  },
+  twitterApi: { apiKey: env.TWITTERAPI_IO_API_KEY, pollMs: env.TWITTERAPI_IO_POLL_MS }
 };
 
 export function integrationStatus() {
@@ -192,6 +195,7 @@ export function integrationStatus() {
     voiceAgent: Boolean(config.elevenlabs.apiKey && config.elevenlabs.agentId),
     database: Boolean(config.database.url),
     zeroEx: Boolean(config.zeroEx.apiKey),
-    jupiter: Boolean(config.jupiter.apiKey || config.jupiter.apiUrl.includes("lite-api.jup.ag"))
+    jupiter: Boolean(config.jupiter.apiKey || config.jupiter.apiUrl.includes("lite-api.jup.ag")),
+    twitterApi: Boolean(config.twitterApi.apiKey)
   };
 }

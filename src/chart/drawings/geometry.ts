@@ -48,7 +48,9 @@ export type HitTarget = { id: string; part: ShapePart; distance: number };
 export type Shape =
   | { kind: "hline"; id: string; y: number; label: string[] }
   | { kind: "trendline"; id: string; a: Point; b: Point; drawn: Segment; label: string[] }
-  | { kind: "measure"; id: string; a: Point; b: Point; rect: Rect; up: boolean; label: string[] };
+  | { kind: "measure"; id: string; a: Point; b: Point; rect: Rect; up: boolean; label: string[] }
+  | { kind: "fib"; id: string; a: Point; b: Point; rect: Rect; levels: Array<{ y: number; label: string }> }
+  | { kind: "marker"; id: string; a: Point; b: Point; direction: "up" | "down"; rect: Rect };
 
 export function hitTestShape(p: Point, shape: Shape, tol = HIT_TOLERANCE_PX): HitTarget | null {
   if (shape.kind !== "hline") {
@@ -64,6 +66,9 @@ export function hitTestShape(p: Point, shape: Shape, tol = HIT_TOLERANCE_PX): Hi
   if (shape.kind === "trendline") {
     const d = distanceToSegment(p, shape.drawn);
     return d <= tol ? { id: shape.id, part: "body", distance: d } : null;
+  }
+  if (shape.kind === "marker") {
+    return pointInRect(p, shape.rect, tol) ? { id: shape.id, part: "body", distance: distance(p, shape.a) } : null;
   }
   if (!pointInRect(p, shape.rect, tol)) return null;
   return { id: shape.id, part: "body", distance: pointInRect(p, shape.rect) ? 0 : edgeDistance(p, shape.rect) };

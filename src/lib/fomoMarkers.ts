@@ -13,6 +13,9 @@ import { money } from "./format";
 export type FomoBucketWallet = {
   address: string;
   handle: string | null;
+  displayName: string | null;
+  twitter: string | null;
+  avatarUrl: string | null;
   /** Kind of the wallet's first fill in the bucket (a wallet has one kind at a time on the wire). */
   kind: TraderKind | null;
   count: number;
@@ -117,9 +120,9 @@ function addUsd(prior: number | null, usd: number | null): number | null {
 
 function walletWith(prior: FomoBucketWallet | undefined, fill: FomoFill, usd: number | null): FomoBucketWallet {
   if (!prior) {
-    return { address: fill.trader.address, handle: fill.trader.handle, kind: fill.trader.kind ?? null, count: 1, usd, unpriced: usd == null ? 1 : 0 };
+    return { address: fill.trader.address, handle: fill.trader.handle, displayName: fill.trader.displayName ?? null, twitter: fill.trader.twitter ?? null, avatarUrl: fill.trader.avatarUrl ?? null, kind: fill.trader.kind ?? null, count: 1, usd, unpriced: usd == null ? 1 : 0 };
   }
-  return { ...prior, handle: prior.handle ?? fill.trader.handle, count: prior.count + 1, usd: addUsd(prior.usd, usd), unpriced: prior.unpriced + (usd == null ? 1 : 0) };
+  return { ...prior, handle: prior.handle ?? fill.trader.handle, displayName: prior.displayName ?? fill.trader.displayName ?? null, twitter: prior.twitter ?? fill.trader.twitter ?? null, avatarUrl: prior.avatarUrl ?? fill.trader.avatarUrl ?? null, count: prior.count + 1, usd: addUsd(prior.usd, usd), unpriced: prior.unpriced + (usd == null ? 1 : 0) };
 }
 
 function bucketWith(prior: Bucket | undefined, fill: FomoFill, candleIndex: number): Bucket {

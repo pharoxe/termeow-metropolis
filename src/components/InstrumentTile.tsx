@@ -8,7 +8,7 @@ import { useAggregateFlow } from "../hooks/useAggregateFlow";
 import { TerminalCommand } from "../components/TerminalCommand";
 import { TraderInspector, TradeTape } from "../components/TraderContext";
 import { useTerminal } from "../hooks/useTerminal";
-import { DEFAULT_TRADE_FILTER, filterTradesWithBreakdown, tradeMarkers } from "../lib/terminal";
+import { DEFAULT_TRADE_FILTER, filterTradesWithBreakdown } from "../lib/terminal";
 import type { TradeEvent } from "../../shared/terminal";
 import "../components/terminal.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -45,6 +45,8 @@ import { AgenticAnalysisPanel } from "../components/AgenticAnalysis";
 import { SfxToggle, useNotifications } from "../components/NotificationSystem";
 import { useFundingNetwork } from "../features/NetworkContext";
 import { AgentHeaderButton, useAgent } from "../features/voice-agent";
+import { recentRallyStructure } from "../lib/chartStructure";
+import { buildFomoMarkers } from "../lib/fomoMarkers";
 
 type ChartUnit = "price" | "mcap";
 type Row = Record<string, unknown>;
@@ -233,7 +235,6 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
   // `coverage` carries the first captured print of the very population these bars are summed from: bars before it are
   // muted and the last uncovered candle gets the "no tape ◀" marker, so a half-covered range never reads as a full one.
   const aggregateChart = useMemo(()=>aggregate.data?{bars:aggregate.data.bars,pairs:[],coverage:{firstPrintAt:aggregate.data.firstPrintAt},candleTimes:rawSpotCandles.map(c=>c.time)}:undefined,[aggregate.data,rawSpotCandles]);
-  const participantMarkers = useMemo(() => tradeMarkers(visibleTrades, rawSpotCandles, intervalMs || 60000, selectedTrade?.id??null, followed, visibleRange), [visibleTrades,rawSpotCandles,intervalMs,selectedTrade?.id,followed,visibleRange]);
   const pickCandle = (time:number) => {const candidates=visibleTrades.filter(e=>e.time>=time&&e.time<time+(intervalMs||60000));if(candidates.length){setSelectedTrade(candidates[0]);setRailTab("trader");}};
 
   const liveTape = hasLiveTape(flowState) || terminal.recent.length > 0;
@@ -256,7 +257,13 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
     () => buildEventMarkers(eventMarkerInput(launchRow, flowState), chartFlow?.candleTimes ?? [], { theme }),
     [launchRow, flowState, chartFlow?.candleTimes, theme]
   );
-  const chartMarkers = useMemo(()=>[...events.markers.filter(m=>m.shape==="square"),...participantMarkers.markers],[events.markers,participantMarkers.markers]);
+  // Participant activity is represented by identity-rich bubbles. Keep only event squares in the chart plugin,
+  // avoiding the anonymous red/green arrow pile-ups that obscured recent candles.
+  const chartMarkers = useMemo(()=>events.markers.filter(m=>m.shape==="square"),[events.markers]);
+  const fomoMarkers = useMemo(
+    () => buildFomoMarkers(flowState?.fomo?.fills ?? [], rawSpotCandles.map((candle) => candle.time), { theme }).markers,
+    [flowState?.fomo?.fills, rawSpotCandles, theme]
+  );
   const eventsMeta = [events.dropped ? `+${events.dropped} large prints capped` : "", events.beforeRange ? `${events.beforeRange} events off-chart` : ""].filter(Boolean).join(" · ");
   const liveMeta = liveStats && livePrints.length ? `LIVE ${liveStats.applied} ticked · ${liveStats.volumeOnly} vol-only` : "";
   const analysisFlow = useMemo(() => analysisFlowFromWindows(flowState?.windows), [flowState?.windows]);
@@ -291,6 +298,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
       low: Math.min(...candles.map((candle) => candle.low))
     };
   }, [candles]);
+  const recentRally = useMemo(() => recentRallyStructure(candles), [candles]);
 
   // Only the focused tile reports. The snapshot is deliberately compact, but it contains the actual chart series,
   // viewport, indicators and captured order flow the user can see instead of asking the model to infer from a symbol.
@@ -304,13 +312,14 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
         timeframe: activeInterval, unit: useMcap ? "mcap" : "price", scale: scaleMode,
         priceUsd: feed?.priceUsd, marketCapUsd: scale.mcap, change24Pct: feed?.change24Pct,
         visibleFrom: visibleRange?.from ?? null, visibleTo: visibleRange?.to ?? null, loadedBars: candles.length,
-        latestCandle: latest ? { time: latest.time, open: latest.open, high: latest.high, low: latest.low, close: latest.close, volume: latest.volume } : null
+        latestCandle: latest ? { time: latest.time, open: latest.open, high: latest.high, low: latest.low, close: latest.close, volume: latest.volume } : null,
+        structure: { recentRally, calculation: "visible-loaded-bars" }
       },
       indicators: { rsi14: technicals?.rsi, macd: technicals?.macd, signal: technicals?.signal, atr14: technicals?.atr, support: technicals?.low, resistance: technicals?.high },
       flow: { buyUsd: aggregate.data?.buyUsd, sellUsd: aggregate.data?.sellUsd, deltaUsd: aggregate.data?.delta, trades: aggregate.data?.trades, regime: regimeLabel },
       observedAt: feed?.observedAt ?? Date.now()
     });
-  }, [activeInterval, aggregate.data?.buyUsd, aggregate.data?.delta, aggregate.data?.sellUsd, aggregate.data?.trades, candles, feed?.change24Pct, feed?.instrument.name, feed?.instrument.symbol, feed?.observedAt, feed?.priceUsd, instrument.address, instrument.chain, isActive, regimeLabel, scale.mcap, scaleMode, section, technicals, tokenIconUrl, useMcap, visibleRange?.from, visibleRange?.to, voiceAgent.updateContext]);
+  }, [activeInterval, aggregate.data?.buyUsd, aggregate.data?.delta, aggregate.data?.sellUsd, aggregate.data?.trades, candles, feed?.change24Pct, feed?.instrument.name, feed?.instrument.symbol, feed?.observedAt, feed?.priceUsd, instrument.address, instrument.chain, isActive, recentRally, regimeLabel, scale.mcap, scaleMode, section, technicals, tokenIconUrl, useMcap, visibleRange?.from, visibleRange?.to, voiceAgent.updateContext]);
 
   const focusInstrument = (next: InstrumentRef, symbol?: string) => {
     if (!isValidInstrument(next)) return;
@@ -400,6 +409,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
           market={{ ...legacy, provider: mergedProvider }}
           trench={focusedTrench}
           onPick={focusSolana}
+          onInstrument={focusInstrument}
         /> : solana ? (
           <section className="panel radar-panel social-panel">
             <p className="empty-copy">Fetching KOL, narrative, and social links for this mint.</p>
@@ -475,6 +485,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
             onLiveStats={setLiveStats}
             scaleMode={scaleMode}
             eventMarkers={chartMarkers}
+            fomoMarkers={fomoMarkers}
             flow={aggregateChart}
             onSelectTime={pickCandle}
             onCrosshairTime={time=>onCrosshair(tile.id,time)}

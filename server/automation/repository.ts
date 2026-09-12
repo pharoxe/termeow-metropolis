@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import postgres, { type Sql } from "postgres";
-import type { AutomationIntent, AutomationRecord } from "../../shared/automation.js";
+import type { AutomationIntent, AutomationRecord, UserAutomationPreferences } from "../../shared/automation.js";
 import { AutomationDelegationStore, type AutomationDelegation } from "./delegations.js";
 import { AutomationStore } from "./store.js";
 
@@ -22,6 +22,8 @@ function recordFromRow(row: Record<string, any>): AutomationRecord {
     approvalMethod: row.approval_method ?? undefined,
     failure: row.failure ?? undefined,
     transactionHash: row.transaction_hash ?? undefined,
+    activeExitConditions: row.active_exit_conditions ?? undefined,
+    lastSignal: row.last_signal ?? undefined,
     createdAt: millis(row.created_at)!,
     updatedAt: millis(row.updated_at)!,
     approvedAt: millis(row.approved_at),
@@ -87,6 +89,7 @@ export class AutomationRepository {
       VALUES
         (${id}, ${userId}, ${this.sql.json(intent as any)}, 'pending_approval', ${source}, ${meta.conversationId ?? null}, ${meta.contextDigest ?? null}, ${expiresAt})
       RETURNING *`;
+    if (intent.trackedWallet && intent.trackedWalletUsername) await this.rememberTrader(userId, intent.trackedWalletUsername, intent.chain, intent.trackedWallet);
     return recordFromRow(row);
   }
 
@@ -106,6 +109,80 @@ export class AutomationRepository {
     if (!this.sql) return this.files.getById(id);
     const rows = await this.sql`SELECT * FROM termeow.automation_workflows WHERE id = ${id} LIMIT 1`;
     return rows[0] ? recordFromRow(rows[0]) : null;
+  }
+
+  async armed(kind?: AutomationIntent["kind"]) {
+    if (!this.sql) return this.files.armed(kind);
+    const rows = kind
+      ? await this.sql`SELECT * FROM termeow.automation_workflows WHERE status = 'armed' AND intent->>'kind' = ${kind} AND (expires_at IS NULL OR expires_at > now()) ORDER BY updated_at DESC`
+      : await this.sql`SELECT * FROM termeow.automation_workflows WHERE status = 'armed' AND (expires_at IS NULL OR expires_at > now()) ORDER BY updated_at DESC`;
+    return rows.map(recordFromRow);
+  }
+
+  async recordSignal(id: string, signal: NonNullable<AutomationRecord["lastSignal"]>) {
+    if (!this.sql) return this.files.recordSignal(id, signal);
+    const rows = await this.sql`
+      UPDATE termeow.automation_workflows
+      SET last_signal = ${this.sql.json(signal as any)}, updated_at = now()
+      WHERE id = ${id} AND status = 'armed'
+        AND COALESCE(last_signal->>'eventId', '') <> ${signal.eventId}
+      RETURNING *`;
+    return rows[0] ? recordFromRow(rows[0]) : null;
+  }
+
+  async updatePending(userId: string, id: string, intent: AutomationIntent) {
+    if (!this.sql) return this.files.updatePending(userId, id, intent);
+    const expiresAt = intent.durationHours ? new Date(Date.now() + intent.durationHours * 3_600_000) : null;
+    const rows = await this.sql`
+      UPDATE termeow.automation_workflows
+      SET intent = ${this.sql.json(intent as any)}, expires_at = ${expiresAt}, updated_at = now()
+      WHERE id = ${id} AND user_id = ${userId} AND status = 'pending_approval'
+      RETURNING *`;
+    if (rows[0] && intent.trackedWallet && intent.trackedWalletUsername) await this.rememberTrader(userId, intent.trackedWalletUsername, intent.chain, intent.trackedWallet);
+    return rows[0] ? recordFromRow(rows[0]) : null;
+  }
+
+  async userPreferences(userId: string): Promise<UserAutomationPreferences> {
+    if (!this.sql) return this.files.userPreferences(userId);
+    const rows = await this.sql`SELECT * FROM termeow.automation_preferences WHERE user_id = ${userId} LIMIT 1`;
+    if (!rows[0]) return { userId, trackedTraders: [], updatedAt: Date.now() };
+    return {
+      userId,
+      trackedTraders: rows[0].tracked_traders ?? [],
+      defaultAllocationPercent: rows[0].default_allocation_percent ?? undefined,
+      defaultSlippageBps: rows[0].default_slippage_bps ?? undefined,
+      defaultDurationHours: rows[0].default_duration_hours ?? undefined,
+      updatedAt: millis(rows[0].updated_at)!
+    };
+  }
+
+  async updatePreferences(userId: string, patch: Partial<Pick<UserAutomationPreferences, "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours">>) {
+    if (!this.sql) return this.files.updatePreferences(userId, patch);
+    const current = await this.userPreferences(userId);
+    const rows = await this.sql`
+      INSERT INTO termeow.automation_preferences
+        (user_id, tracked_traders, default_allocation_percent, default_slippage_bps, default_duration_hours)
+      VALUES (${userId}, ${this.sql.json(current.trackedTraders as any)}, ${patch.defaultAllocationPercent ?? current.defaultAllocationPercent ?? null}, ${patch.defaultSlippageBps ?? current.defaultSlippageBps ?? null}, ${patch.defaultDurationHours ?? current.defaultDurationHours ?? null})
+      ON CONFLICT (user_id) DO UPDATE SET
+        default_allocation_percent = EXCLUDED.default_allocation_percent,
+        default_slippage_bps = EXCLUDED.default_slippage_bps,
+        default_duration_hours = EXCLUDED.default_duration_hours,
+        updated_at = now()
+      RETURNING *`;
+    return this.userPreferences(rows[0].user_id);
+  }
+
+  private async rememberTrader(userId: string, rawHandle: string, chain: AutomationIntent["chain"], wallet: string) {
+    if (!this.sql) return;
+    const current = await this.userPreferences(userId);
+    const handle = rawHandle.replace(/^@/, "").toLowerCase();
+    const previous = current.trackedTraders.find((item) => item.handle === handle && item.chain === chain && item.wallet.toLowerCase() === wallet.toLowerCase());
+    const tracked = { handle, chain, wallet, uses: (previous?.uses ?? 0) + 1, lastUsedAt: Date.now() };
+    const trackedTraders = [tracked, ...current.trackedTraders.filter((item) => item !== previous)].slice(0, 100);
+    await this.sql`
+      INSERT INTO termeow.automation_preferences (user_id, tracked_traders)
+      VALUES (${userId}, ${this.sql.json(trackedTraders as any)})
+      ON CONFLICT (user_id) DO UPDATE SET tracked_traders = EXCLUDED.tracked_traders, updated_at = now()`;
   }
 
   async approve(userId: string, id: string) {
@@ -132,7 +209,9 @@ export class AutomationRepository {
     if (!this.sql) return this.files.report(userId, id, status, detail);
     const rows = await this.sql`
       UPDATE termeow.automation_workflows
-      SET status = ${status}, transaction_hash = ${detail.transactionHash ?? null}, failure = ${detail.failure ?? null}, updated_at = now()
+      SET status = ${status}, transaction_hash = ${detail.transactionHash ?? null}, failure = ${detail.failure ?? null},
+          active_exit_conditions = CASE WHEN ${status} = 'completed' AND intent->>'side' = 'buy' THEN intent->'exitConditions' ELSE NULL END,
+          updated_at = now()
       WHERE id = ${id} AND user_id = ${userId} AND status IN ('armed', 'executing')
       RETURNING *`;
     return rows[0] ? recordFromRow(rows[0]) : null;
@@ -181,7 +260,9 @@ export class AutomationRepository {
         WHERE automation_id = ${id} AND source_event_id = ${sourceEventId}`;
       const rows = await tx`
         UPDATE termeow.automation_workflows
-        SET status = ${status}, transaction_hash = ${detail.transactionHash ?? null}, failure = ${detail.failure ?? null}, updated_at = now()
+        SET status = ${status}, transaction_hash = ${detail.transactionHash ?? null}, failure = ${detail.failure ?? null},
+            active_exit_conditions = CASE WHEN ${status} = 'completed' AND intent->>'side' = 'buy' THEN intent->'exitConditions' ELSE NULL END,
+            updated_at = now()
         WHERE id = ${id} AND user_id = ${userId} AND status = 'executing'
         RETURNING *`;
       return rows[0] ? recordFromRow(rows[0]) : null;

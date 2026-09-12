@@ -1,73 +1,60 @@
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Color, MeshBasicMaterial, Object3D } from "three";
-import { useMemo, useRef } from "react";
-import type { InstancedMesh } from "three";
+import { useEffect, useRef } from "react";
 import type { AgentStatus } from "../runtime/agentTypes";
 import { audioReactiveEngine } from "../audio/AudioReactiveEngine";
 
 interface Props { status: AgentStatus; quality?: "low" | "normal" }
 
-function hash(index: number, salt: number) {
-  const x = Math.sin(index * 119.71 + salt * 43.13) * 43758.5453;
-  return x - Math.floor(x);
+function statusColor(status: AgentStatus) {
+  if (status === "error" || status === "warning") return "#ff4669";
+  if (status === "speaking") return "#35d9ff";
+  return "#39ff88";
 }
 
-function VoxelCore({ status, quality = "normal" }: Props) {
-  const mesh = useRef<InstancedMesh>(null);
-  const count = quality === "low" ? 150 : 280;
-  const points = useMemo(() => Array.from({ length: count }, (_, index) => {
-    const theta = hash(index, 1) * Math.PI * 2;
-    const phi = Math.acos(hash(index, 2) * 2 - 1);
-    const radius = .48 + hash(index, 3) * .62;
-    return { x: Math.sin(phi) * Math.cos(theta) * radius, y: Math.cos(phi) * radius, z: Math.sin(phi) * Math.sin(theta) * radius, seed: hash(index, 4) * 8 };
-  }), [count]);
-  const dummy = useMemo(() => new Object3D(), []);
-  const neon = useMemo(() => new Color("#2fff8a"), []);
-  const cyan = useMemo(() => new Color("#35d9ff"), []);
-  const danger = useMemo(() => new Color("#ff4669"), []);
-
-  useFrame(({ clock }) => {
-    if (!mesh.current) return;
-    const time = clock.elapsedTime;
-    const audio = audioReactiveEngine.current;
-    const active = status === "speaking" || status === "listening";
-    const spin = status === "thinking" ? .42 : status === "connecting" ? .22 : .08;
-    const error = status === "error" || status === "warning";
-    points.forEach((point, index) => {
-      const pulse = Math.sin(time * (active ? 5 : 1.5) + point.seed) * (.025 + audio.high * .13);
-      const voice = audio.amplitude * (.2 + hash(index, 5) * .5) * audio.direction;
-      const catEar = index < 22 && status === "speaking" ? (index % 2 ? 1 : -1) * .04 : 0;
-      const scale = Math.max(.42, .72 + pulse + audio.mid * .42);
-      dummy.position.set(
-        point.x * (1 + voice) + Math.sin(time + point.seed) * .018,
-        point.y * (1 + voice) + (index < 22 ? .2 + catEar : 0),
-        point.z * (1 + voice) + Math.cos(time * .8 + point.seed) * .018
-      );
-      if (status === "executing") dummy.position.multiplyScalar(.76);
-      if (error) dummy.position.x += Math.sin(time * 28 + index) * .04;
-      dummy.scale.setScalar(scale);
-      dummy.rotation.set(time * spin + point.seed, time * spin * .8, point.seed);
-      dummy.updateMatrix();
-      mesh.current!.setMatrixAt(index, dummy.matrix);
-    });
-    mesh.current.rotation.y = time * spin;
-    mesh.current.rotation.z = Math.sin(time * .45) * .08;
-    mesh.current.instanceMatrix.needsUpdate = true;
-    const material = mesh.current.material;
-    if (material instanceof MeshBasicMaterial) {
-      material.color.copy(error ? danger : status === "speaking" ? cyan : neon);
-      material.opacity = status === "dormant" ? .6 : .9;
-    }
-  });
-
-  return <instancedMesh ref={mesh} args={[undefined, undefined, count]}>
-    <boxGeometry args={[.09, .09, .09]} />
-    <meshBasicMaterial transparent opacity={.9} />
-  </instancedMesh>;
-}
-
-export default function AgentVisual(props: Props) {
-  return <Canvas className="agent-canvas" dpr={[1, 1.25]} camera={{ position: [0, 0, 3.3], fov: 42 }} gl={{ alpha: true, antialias: false, powerPreference: "low-power" }}>
-    <VoxelCore {...props} />
-  </Canvas>;
+/** Lightweight Canvas2D pixel wave: capped DPR and an allocation-free 60 fps draw loop. */
+export default function AgentVisual({ status, quality = "normal" }: Props) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d", { alpha: true });
+    if (!canvas || !context) return;
+    let width = 1, height = 1, frame = 0, last = 0;
+    const resize = () => {
+      const box = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, quality === "low" ? 1 : 1.5);
+      width = Math.max(1, Math.round(box.width * dpr)); height = Math.max(1, Math.round(box.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+    };
+    const observer = new ResizeObserver(resize); observer.observe(canvas); resize();
+    const draw = (now: number) => {
+      frame = requestAnimationFrame(draw);
+      if (now - last < 1000 / 60) return;
+      last = now;
+      const audio = audioReactiveEngine.current;
+      const current = statusRef.current;
+      const active = current === "speaking" || current === "listening";
+      const energy = Math.min(1, audio.amplitude * 1.35 + audio.mid * .55 + (active ? .08 : .015));
+      const color = statusColor(current);
+      context.clearRect(0, 0, width, height); context.fillStyle = color; context.shadowColor = color;
+      context.shadowBlur = active ? 10 + energy * 24 : 5;
+      const columns = quality === "low" ? 32 : 48, rows = quality === "low" ? 13 : 18;
+      const cellW = width / columns, cellH = height / rows, pixel = Math.max(2, Math.min(cellW, cellH) * .54), phase = now * (active ? .007 : .0022);
+      for (let column = 0; column < columns; column += 1) {
+        const x = (column + .5) * cellW;
+        const envelope = Math.sin(Math.PI * column / (columns - 1));
+        const wave = Math.sin(column * .42 + phase) * .55 + Math.sin(column * .17 - phase * 1.4) * .28;
+        const cells = 2 + Math.round((1.5 + energy * rows * .42) * envelope * (.72 + Math.abs(wave)));
+        for (let row = -cells; row <= cells; row += 1) {
+          context.globalAlpha = Math.max(.22, (1 - Math.abs(row) / Math.max(1, cells) * .68) * (active ? .95 : .68));
+          const y = height / 2 + row * cellH + wave * cellH * (1 + energy * 1.8);
+          context.fillRect(Math.round(x - pixel / 2), Math.round(y - pixel / 2), Math.round(pixel), Math.round(pixel));
+        }
+      }
+      context.globalAlpha = 1; context.shadowBlur = 0;
+    };
+    frame = requestAnimationFrame(draw);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+  }, [quality]);
+  return <canvas ref={canvasRef} className="agent-canvas agent-pixel-wave" aria-hidden="true" />;
 }

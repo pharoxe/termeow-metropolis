@@ -85,7 +85,7 @@ function AutomationToken({ row }: { row: AutomationRecord }) {
   return <div className="automation-token">
     <span aria-hidden="true">{symbol.slice(0, 1)}</span>
     {row.intent.tokenLogoUrl && <img src={row.intent.tokenLogoUrl} alt="" onError={(event) => { event.currentTarget.remove(); }} />}
-    <div><strong>${symbol}</strong><small>{row.intent.tokenName || shortAddress(row.intent.tokenAddress)}</small></div>
+    <div><strong>${symbol}</strong><small>{row.intent.tokenName || (row.intent.tokenAddress ? shortAddress(row.intent.tokenAddress) : "ANY TOKEN")}</small></div>
   </div>;
 }
 
@@ -124,10 +124,12 @@ function AutomationControlPlane({ address, onBack }: { address?: string; onBack:
     {loading ? <div className="account-empty"><PixelLoader label="READING AUTOMATIONS" /></div> : error ? <div className="account-empty"><h2>Control plane unavailable</h2><p>{error}</p><button onClick={() => void load()}>Retry</button></div> : rows.length ? <div className="automation-list">{rows.map((row) => <article key={row.id} data-status={row.status}>
       <div className="automation-main"><AutomationToken row={row} /><span className="automation-kind">{row.intent.kind.replaceAll("_", " ")} · {row.intent.chain}</span><strong className="automation-description">{row.intent.description}</strong>
         <p className="automation-condition"><b>WHEN</b>{row.intent.condition || "Execute immediately after approval."}</p>
-        <small className="automation-wallet">TRACKED WALLET · <b>{row.intent.trackedWalletUsername ? `@${row.intent.trackedWalletUsername.replace(/^@/, "")}` : "UNATTRIBUTED"}</b> · {shortAddress(row.intent.trackedWallet || row.intent.tokenAddress)}</small>
+        {row.intent.trackedWallet && <small className="automation-wallet">TRACKED WALLET · <b>{row.intent.trackedWalletUsername ? `@${row.intent.trackedWalletUsername.replace(/^@/, "")}` : "UNATTRIBUTED"}</b> · {shortAddress(row.intent.trackedWallet)}</small>}
+        {row.intent.trackedXAccount && <small className="automation-wallet">TRACKED X ACCOUNT · <b>@{row.intent.trackedXAccount.replace(/^@/, "")}</b></small>}
+        {row.intent.exitConditions?.map((exit) => <p className="automation-condition automation-exit" key={exit.id}><b>AFTER ENTRY · SELL {exit.sellPercent}%</b>{exit.condition}</p>)}
         <small className="automation-timing">CREATED · {new Date(row.createdAt).toLocaleString()}{row.intent.durationHours ? ` · EXPIRES ${new Date(row.createdAt + row.intent.durationHours * 3_600_000).toLocaleString()}` : ""}</small>
       </div>
-      <dl><div><dt>STATUS</dt><dd>{row.status}</dd></div><div><dt>ACTION</dt><dd>{row.intent.side || "monitor"}</dd></div><div><dt>ALLOCATION</dt><dd>{row.intent.amountMode === "wallet_percent" ? `${row.intent.allocationPercent}% OF WALLET` : row.intent.amount || "—"}</dd></div><div><dt>MARKET CAP RANGE</dt><dd>{marketCapRange(row)}</dd></div><div><dt>WINDOW</dt><dd>{row.intent.durationHours ? `${row.intent.durationHours}H` : "IMMEDIATE"}</dd></div><div><dt>ROUTER</dt><dd>{row.intent.router || "—"}</dd></div></dl>
+      <dl><div><dt>STATUS</dt><dd>{row.status}</dd></div><div><dt>ACTION</dt><dd>{row.intent.side || "monitor"}</dd></div><div><dt>ALLOCATION</dt><dd>{row.intent.amountMode === "wallet_percent" ? `${row.intent.allocationPercent}% OF WALLET` : row.intent.amount || "—"}</dd></div><div><dt>MARKET CAP RANGE</dt><dd>{marketCapRange(row)}</dd></div><div><dt>ENTRY DRIFT</dt><dd>{row.intent.entryPriceTolerancePct == null ? "—" : `≤ ${row.intent.entryPriceTolerancePct}%`}</dd></div><div><dt>SLIPPAGE</dt><dd>{row.intent.slippageBps == null ? "AUTO" : `${(row.intent.slippageBps / 100).toFixed(2)}%`}</dd></div><div><dt>WINDOW</dt><dd>{row.intent.durationHours ? `${row.intent.durationHours}H` : "IMMEDIATE"}</dd></div><div><dt>ROUTER</dt><dd>{row.intent.router || "—"}</dd></div>{row.lastSignal && <div><dt>LAST SIGNAL</dt><dd>{row.lastSignal.source} · {shortAddress(row.lastSignal.tokenAddress)}</dd></div>}<div><dt>LINKED EXITS</dt><dd>{row.activeExitConditions?.length ? `${row.activeExitConditions.length} ACTIVE` : row.intent.exitConditions?.length ? `${row.intent.exitConditions.length} DORMANT` : "NONE"}</dd></div></dl>
       {row.failure && <p className="automation-failure">{row.failure}</p>}{row.transactionHash && <small>TX · {row.transactionHash}</small>}
       {!["completed", "cancelled"].includes(row.status) && <button type="button" onClick={() => void cancel(row.id)}>CANCEL</button>}
     </article>)}</div> : <div className="account-empty"><h2>No strategies yet</h2><p>Ask Termeow to propose a monitored strategy or swap. Nothing arms until you confirm the exact action with a passkey.</p></div>}

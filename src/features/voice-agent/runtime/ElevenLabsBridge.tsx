@@ -14,6 +14,16 @@ const optionalNumber = (value: unknown) => {
   return value == null || value === "" || !Number.isFinite(number) ? undefined : number;
 };
 
+const exitConditions = (value: unknown, fallbackSlippageBps: number) => {
+  if (!Array.isArray(value)) return undefined;
+  return value.slice(0, 8).map((raw, index) => {
+    const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+    const allowed = ["take_profit_pct", "stop_loss_pct", "trailing_stop_pct", "market_cap", "custom"] as const;
+    const type = allowed.includes(item.type as typeof allowed[number]) ? item.type as typeof allowed[number] : "custom";
+    return { id: String(item.id || `exit-${index + 1}`), type, value: optionalNumber(item.value), condition: String(item.condition || ""), sellPercent: Number(item.sell_percent || 100), slippageBps: optionalNumber(item.slippage_bps) ?? fallbackSlippageBps, activateAfter: "entry_confirmed" as const };
+  }).filter((item) => item.condition.length >= 3);
+};
+
 interface Props {
   onRuntime(runtime: AgentRuntime | null): void;
   initialContext: TermeowAgentContext;
@@ -65,6 +75,27 @@ function ClientToolsBridge() {
       const terminal = useAgentStore.getState().context;
       return JSON.stringify({ ok: true, warning: "This is a point-in-time terminal snapshot, not a guarantee of execution quality.", terminal: { ...terminal, wallet: { ...terminal.wallet, connected } } });
     },
+    resolve_trader_handle: async (parameters: Record<string, unknown>) => {
+      const handle = String(parameters.handle || "").replace(/^@/, "").trim();
+      if (!handle) return JSON.stringify({ ok: false, error: "Provide a Fomo handle." });
+      try {
+        const result = await api.identityHandle(handle);
+        const chain = parameters.chain === "solana" || parameters.chain === "robinhood" ? parameters.chain : undefined;
+        const addresses = chain ? result.addresses.filter((item) => item.chain === chain) : result.addresses;
+        return JSON.stringify({ ok: addresses.length > 0, handle, indexed: true, addresses: addresses.map((item) => ({ chain: item.chain, wallet: item.wallet, display_name: item.displayName, twitter: item.twitter, followers: item.followers, source: item.source })), error: addresses.length ? undefined : "No indexed wallet matches this handle and chain. Ask for an address; do not guess." });
+      } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
+    },
+    read_automation_preferences: async () => {
+      try { const token = await getAccessToken(); if (!token) return JSON.stringify({ ok: false, error: "The user must log in." }); return JSON.stringify({ ok: true, ...(await api.automationPreferences(token)) }); }
+      catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
+    },
+    update_automation_preferences: async (parameters: Record<string, unknown>) => {
+      try {
+        const token = await getAccessToken(); if (!token) return JSON.stringify({ ok: false, error: "The user must log in." });
+        const body = { defaultAllocationPercent: optionalNumber(parameters.default_allocation_percent), defaultSlippageBps: optionalNumber(parameters.default_slippage_bps), defaultDurationHours: optionalNumber(parameters.default_duration_hours) };
+        return JSON.stringify({ ok: true, ...(await api.updateAutomationPreferences(token, body)) });
+      } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
+    },
     propose_swap: async (parameters: Record<string, unknown>) => {
       const context = useAgentStore.getState().context;
       const chain = parameters.chain === "robinhood" ? "robinhood" : parameters.chain === "solana" ? "solana" : context.chain;
@@ -92,19 +123,30 @@ function ClientToolsBridge() {
     propose_automation: async (parameters: Record<string, unknown>) => {
       const context = useAgentStore.getState().context;
       const chain = parameters.chain === "robinhood" ? "robinhood" : parameters.chain === "solana" ? "solana" : context.chain;
-      const trackedWallet = String(parameters.target_address || "");
-      const tokenAddress = String(parameters.token_address || context.token?.address || trackedWallet);
-      if (!chain || !tokenAddress) return JSON.stringify({ ok: false, error: "Select a token or provide a target address." });
-      const identity = trackedWallet ? await api.identityWallet(chain, trackedWallet).then(result => result.identity).catch(() => null) : null;
+      if (!chain) return JSON.stringify({ ok: false, error: "Choose Solana or Robinhood." });
+      const requestedHandle = String(parameters.tracked_wallet_username || "").replace(/^@/, "").trim();
+      const trackedXAccount = String(parameters.tracked_x_account || "").replace(/^@/, "").trim();
+      let trackedWallet = String(parameters.target_address || "").trim();
+      let identity = trackedWallet ? await api.identityWallet(chain, trackedWallet).then(result => result.identity).catch(() => null) : null;
+      if (!trackedWallet && requestedHandle) {
+        const matches = await api.identityHandle(requestedHandle).then(result => result.addresses.filter((item) => item.chain === chain)).catch(() => []);
+        if (matches.length !== 1) return JSON.stringify({ ok: false, error: matches.length ? `Multiple ${chain} wallets match @${requestedHandle}; ask the user which wallet.` : `No indexed ${chain} wallet matches @${requestedHandle}; ask for the address and do not guess.` , matches: matches.map((item) => item.wallet) });
+        identity = matches[0]; trackedWallet = matches[0].wallet;
+      }
+      const tokenAddress = String(parameters.token_address || context.token?.address || "").trim() || undefined;
+      if (!trackedWallet && !tokenAddress && !trackedXAccount) return JSON.stringify({ ok: false, error: "Provide a tracked handle/address, an X account, or select a token." });
+      const slippageBps = Math.round(optionalNumber(parameters.slippage_bps) ?? 50);
       const intent: AutomationIntent = {
-        kind: parameters.strategy === "conditional_swap" ? "conditional_swap" : "monitor_deployer", chain, tokenAddress,
-        tokenSymbol: String(parameters.token_symbol || context.token?.symbol || "TOKEN"), tokenName: context.token?.name,
+        kind: parameters.strategy === "conditional_swap" ? "conditional_swap" : parameters.strategy === "monitor_deployer" ? "monitor_deployer" : parameters.strategy === "monitor_x_launch" ? "monitor_x_launch" : "monitor_wallet", chain, tokenAddress,
+        tokenSymbol: String(parameters.token_symbol || context.token?.symbol || (tokenAddress ? "TOKEN" : "ANY")), tokenName: context.token?.name,
         tokenLogoUrl: context.token?.logoUrl, trackedWallet: trackedWallet || undefined,
-        trackedWalletUsername: String(parameters.tracked_wallet_username || identity?.handle || "") || undefined,
+        trackedWalletUsername: requestedHandle || identity?.handle || undefined,
+        trackedXAccount: trackedXAccount || undefined,
         side: parameters.side === "sell" ? "sell" : "buy",
         router: chain === "robinhood" ? "0x" : "jupiter", amountMode: "wallet_percent", allocationPercent: Number(parameters.allocation_percent),
         durationHours: Number(parameters.duration_hours || 24), marketCapMinUsd: optionalNumber(parameters.market_cap_min_usd),
-        marketCapMaxUsd: optionalNumber(parameters.market_cap_max_usd), condition: String(parameters.condition || ""),
+        marketCapMaxUsd: optionalNumber(parameters.market_cap_max_usd), entryPriceTolerancePct: optionalNumber(parameters.entry_price_tolerance_percent), slippageBps,
+        condition: String(parameters.condition || ""), exitConditions: exitConditions(parameters.exit_conditions, slippageBps),
         description: String(parameters.description || "Voice-created monitored trading strategy")
       };
       try {
@@ -129,6 +171,9 @@ function ClientToolsBridge() {
   // Register through the SDK's live registry instead of relying on provider option merging.
   // This makes every handler available before startSession and keeps it attached for the full call.
   useConversationClientTool("read_terminal_state", clientTools.read_terminal_state);
+  useConversationClientTool("resolve_trader_handle", clientTools.resolve_trader_handle);
+  useConversationClientTool("read_automation_preferences", clientTools.read_automation_preferences);
+  useConversationClientTool("update_automation_preferences", clientTools.update_automation_preferences);
   useConversationClientTool("propose_swap", clientTools.propose_swap);
   useConversationClientTool("propose_automation", clientTools.propose_automation);
   useConversationClientTool("list_automations", clientTools.list_automations);

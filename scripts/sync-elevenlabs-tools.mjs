@@ -20,8 +20,23 @@ const objectParameters = (properties = {}, required = []) => ({ type: "object", 
 const definitions = [
   {
     name: "read_terminal_state",
-    description: "Read the user's currently focused Termeow chart and terminal state. Call this before discussing current price, candles, indicators, order flow, market cap, support/resistance, or before proposing a trade. Treat the response as point-in-time data.",
+    description: "Read the user's focused Termeow chart and terminal state, including locally calculated recent-rally swing points and 0.382/0.5/0.618 retracement levels. Call this before live analysis or a proposal. Use chart.structure directly instead of asking the user for visible swing values. This local read adds no RPC latency.",
     parameters: objectParameters()
+  },
+  {
+    name: "resolve_trader_handle",
+    description: "Resolve an indexed Fomo handle such as frankdegods to its exact locally stored Solana and/or Robinhood wallets. Call this before proposing a wallet-tracking automation when the user gives a name rather than an address. This reads Termeow's gateway database and spends no FomoScan credits. Never guess on a miss or ambiguous result.",
+    parameters: objectParameters({ handle: scalar("string", "Fomo handle, with or without @"), chain: scalar("string", "Optional solana or robinhood filter") }, ["handle"])
+  },
+  {
+    name: "read_automation_preferences",
+    description: "Read the logged-in user's learned wallet-tracking preferences, including frequently tracked handles and default allocation, slippage, and duration. Use this to personalize a proposal without overriding explicit instructions.",
+    parameters: objectParameters()
+  },
+  {
+    name: "update_automation_preferences",
+    description: "Update explicit automation defaults after the user asks to remember them. Frequently tracked handles are learned automatically when a proposal is created. Never infer a riskier default from one trade.",
+    parameters: objectParameters({ default_allocation_percent: scalar("number", "Default wallet allocation, maximum 25"), default_slippage_bps: scalar("number", "Default maximum slippage in basis points, 1-500"), default_duration_hours: scalar("number", "Default tracker lifetime, maximum 720 hours") })
   },
   {
     name: "propose_swap",
@@ -38,15 +53,19 @@ const definitions = [
     name: "propose_automation",
     description: "Create a monitored or conditional trading rule proposal in Termeow. Read terminal state first, collect the tracked wallet, token, time window, exact condition, wallet allocation, and market-cap execution range, then open the passkey confirmation card. This tool cannot approve itself. Do not claim the strategy is armed until the client returns an approved state later.",
     parameters: objectParameters({
-      strategy: scalar("string", "monitor_deployer or conditional_swap"), chain: scalar("string", "solana or robinhood"),
-      target_address: scalar("string", "Exact deployer or funded wallet address to monitor"),
+      strategy: scalar("string", "monitor_wallet, monitor_deployer, monitor_x_launch, or conditional_swap"), chain: scalar("string", "solana or robinhood"),
+      target_address: scalar("string", "Exact wallet address to monitor. Omit when tracked_wallet_username is supplied; the client resolves it from the indexed registry."),
       tracked_wallet_username: scalar("string", "Known Fomo, social, or terminal username tied to the tracked wallet; omit when unknown"),
+      tracked_x_account: scalar("string", "X username to monitor for newly posted contract addresses when strategy is monitor_x_launch"),
       token_address: scalar("string", "Exact token contract/mint associated with the rule; use the selected chart when appropriate"),
       token_symbol: scalar("string", "Related ticker without $"),
       side: scalar("string", "buy or sell at the trigger"), allocation_percent: scalar("number", "Percent of wallet allocated per execution, maximum 25"),
       duration_hours: scalar("number", "How long the rule remains active, maximum 720 hours"), condition: scalar("string", "Explicit machine-testable trigger in plain language"),
       market_cap_min_usd: scalar("number", "Minimum token market cap in USD at which execution is allowed; omit for no lower bound"),
       market_cap_max_usd: scalar("number", "Maximum token market cap in USD at which execution is allowed; omit for no upper bound"),
+      entry_price_tolerance_percent: scalar("number", "Maximum execution drift above the tracked trader's observed entry price, e.g. 25"),
+      slippage_bps: scalar("number", "Maximum router slippage in basis points, 1-500"),
+      exit_conditions: { type: "array", description: "Sell rules that remain dormant until the entry transaction is confirmed", items: { type: "object", properties: { id: scalar("string", "Stable short id"), type: scalar("string", "take_profit_pct, stop_loss_pct, trailing_stop_pct, market_cap, or custom"), value: scalar("number", "Numeric threshold when applicable"), condition: scalar("string", "Machine-testable sell trigger"), sell_percent: scalar("number", "Percent of acquired position to sell; all exits together max 100"), slippage_bps: scalar("number", "Exit slippage in basis points") }, required: ["type", "condition", "sell_percent"] } },
       description: scalar("string", "Concise summary shown on the passkey confirmation")
     }, ["strategy", "allocation_percent", "duration_hours", "condition", "description"])
   },
@@ -79,9 +98,9 @@ const skill = existingSkill
 const agent = await request(`/agents/${agentId}`);
 const currentPrompt = agent.conversation_config?.agent?.prompt || {};
 const marker = "TERMEOW TERMINAL CONTROL PLANE";
-const guardrails = `\n\n${marker}\n- Call read_terminal_state before making any claim about the live chart or proposing a trade.\n- A spoken request is never approval. Use propose_swap or propose_automation to prepare a draft, then explicitly wait for the user to confirm the exact card with Privy passkey MFA.\n- Never claim a trade was sent or an automation was armed merely because a proposal tool succeeded.\n- Refuse to increase allocation beyond 25% per action. Restate chain, target wallet and known username, side, size, market-cap execution range, trigger and expiry before proposing.\n- Express automation execution bounds as market cap in USD, never token price. If the user gives no bound, state that the rule has no market-cap guardrail.\n- Solana swaps use Jupiter by default; Robinhood Chain swaps use 0x.\n- Monitoring automations may be armed before unattended wallet execution is enabled; state that distinction accurately when reported by the tool.\n`;
+const guardrails = `\n\n${marker}\n- Call read_terminal_state before making any claim about the live chart or proposing a trade.\n- When a user names a trader, call resolve_trader_handle before propose_automation. Use only the exact indexed wallet on the requested chain; never invent or cross chains.\n- Read automation preferences when they would reduce questions, but explicit instructions always win. Frequently used tracked handles are learned automatically.\n- A spoken request is never approval. Use propose_swap or propose_automation to prepare a draft, then explicitly wait for the user to edit and confirm the exact card with Privy passkey MFA.\n- Never claim a trade was sent or an automation was armed merely because a proposal tool succeeded.\n- Refuse to increase allocation beyond 25% per action. Restate chain, target wallet and known username, side, size, entry-price tolerance, slippage, market-cap range, trigger, linked exits, and expiry before proposing.\n- A linked sell condition must have activate_after=entry_confirmed and can use only the position acquired by that successful entry. Never arm exits after a reverted or failed buy. Total linked sell allocation cannot exceed 100%.\n- Express automation execution bounds as market cap in USD, except an explicitly requested maximum distance from a tracked trader's entry, which uses entry_price_tolerance_percent.\n- Solana swaps use Jupiter by default; Robinhood Chain swaps use 0x.\n- For Fibonacci requests, use chart.structure.recentRally from read_terminal_state. Do not ask for swing values when present. Copy its exact 0.618 level into the condition; default expiry to 24h for intraday or 72h for 4h/1d when omitted.\n- Monitoring automations may be armed before unattended wallet execution is enabled; state that distinction accurately when reported by the tool.\n`;
 const voiceStyleMarker = "TERMEOW SPOKEN STYLE";
-const voiceStyle = `\n\n${voiceStyleMarker}\n- Speak like a casual, sharp trading partner, not a formal analyst.\n- Default chart reads to 35-55 words and never exceed 70 unless the user asks for a deep dive.\n- Lead with bias and confidence, synthesize only the strongest evidence, give the key level and invalidation, then stop.\n- Preserve information by combining related facts into contrasts; do not recite screen fields one by one.\n- Use compact figures and trader-natural phrasing. Avoid filler, formal transitions, generic disclaimers, recaps, and offers to explain more.\n`;
+const voiceStyle = `\n\n${voiceStyleMarker}\n- Speak like a casual, sharp trading partner, not a formal analyst.\n- Default chart reads to 35-55 words and never exceed 70 unless the user asks for a deep dive.\n- Lead with bias and confidence, synthesize only the strongest evidence, give the key level and invalidation, then stop.\n- Preserve information by combining related facts into contrasts; do not recite screen fields one by one.\n- Use compact figures and trader-natural phrasing. Avoid filler, formal transitions, generic disclaimers, recaps, and offers to explain more.\n- In speech, round decimal values to at most four places and use compact units such as K, M, and B. Never read machine-precision numbers digit by digit.\n- Detect EVM and Solana wallet or contract addresses. Never pronounce an address aloud; say “the wallet”, “the contract”, or the token ticker instead. Keep the exact address only in tool arguments and confirmation UI.\n`;
 const promptText = String(currentPrompt.prompt || "");
 const knowledgeBase = [
   ...(currentPrompt.knowledge_base || []).filter((document) => document.id !== skill.id && document.name !== skillName),
@@ -95,5 +114,5 @@ const styledPrompt = controlPrompt.includes(voiceStyleMarker)
   : `${controlPrompt}${voiceStyle}`;
 const nextPrompt = { ...currentPrompt, prompt: styledPrompt, tool_ids: [...new Set([...(currentPrompt.tool_ids || []), ...toolIds])], knowledge_base: knowledgeBase };
 delete nextPrompt.tools;
-await request(`/agents/${agentId}`, { method: "PATCH", body: JSON.stringify({ conversation_config: { agent: { prompt: nextPrompt } }, version_description: "Enrich Termeow automation context and execution bounds" }) });
+await request(`/agents/${agentId}`, { method: "PATCH", body: JSON.stringify({ conversation_config: { agent: { prompt: nextPrompt } }, version_description: "Add indexed wallet tracking, preferences, and linked exits" }) });
 console.log(JSON.stringify({ agentId, skill: { name: skillName, id: skill.id, usageMode: "prompt" }, synced: definitions.map((item, index) => ({ name: item.name, id: toolIds[index] })) }, null, 2));

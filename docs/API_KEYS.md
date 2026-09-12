@@ -41,3 +41,5 @@ Open [ClawPump Agents](https://agents.clawpump.tech/dashboard). The UUID after `
 ## Voice agent
 
 Set `ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID` server-side to activate the lazy-loaded voice interface.
+
+Set `TWITTERAPI_IO_API_KEY` server-side to enable armed X launch monitors. The backend polls each distinct account once per cycle and serves captured launch signals from Termeow's own automation store; clients never receive the provider key or call twitterapi.io directly. `TWITTERAPI_IO_POLL_MS` defaults to 60 seconds and cannot be lower than 15 seconds.

@@ -1,9 +1,9 @@
 import {Router} from 'express';
-import path from 'node:path';
 import {z} from 'zod';
-import {BoardCollector,IdentityRegistry} from '../terminal/identityRegistry.js';
+import {BoardCollector} from '../terminal/identityRegistry.js';
 import {boardFetcher} from '../terminal/identityRegistry.js';
-import {accountStatus,boardBudget,fomoscanDirectory,fomoscanKey} from '../terminal/fomoscanAccount.js';
+import {accountStatus,boardBudget,fomoscanKey} from '../terminal/fomoscanAccount.js';
+import {identityRegistry as registry} from '../terminal/identityStore.js';
 import {tradeArchive} from '../terminal/live.js';
 import {config} from '../config.js';
 import type {BoardKind} from '../../shared/identity.js';
@@ -13,11 +13,12 @@ import type {BoardKind} from '../../shared/identity.js';
  * 50,000. So the registry is filled from boards and profile reads, and never by sweeping addresses — at plan rates a
  * sweep of the wallets this server has already seen would cost several hundred million units.
  */
-const registry=new IdentityRegistry(path.join(fomoscanDirectory,'identity.db'));
 const DAY=86400000;
 // Preserve the useful short-window board without spending the remaining monthly grant on redundant snapshots.
 const REQUESTS=[
   {board:'fomoscan-traders' as const,window:'24h',intervalMs:2*DAY},
+  {board:'fomoscan-traders' as const,window:'7d',intervalMs:4*DAY},
+  {board:'fomoscan-traders' as const,window:'30d',intervalMs:7*DAY},
   {board:'fomoscan-traders' as const,window:'all',intervalMs:7*DAY},
   {board:'pump-traders' as const,window:'weekly',intervalMs:3*DAY}
 ];

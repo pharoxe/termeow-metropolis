@@ -1,5 +1,6 @@
 import { QuoteCache, matchesOrder, matchesRoute } from "../trading/quotes.js";
 import { walletPortfolio } from "../market/walletPortfolio.js";
+import { robinhoodWalletPortfolio } from "../market/robinhoodWalletPortfolio.js";
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
@@ -355,5 +356,12 @@ onchainRouter.get("/portfolio/:wallet", async (request, response, next) => {
   try {
     const walletAddress = address.parse(request.params.wallet);
     response.json(await walletPortfolio(walletAddress));
+  } catch (error) { next(error); }
+});
+
+onchainRouter.get("/portfolio/robinhood/:wallet", async (request, response, next) => {
+  try {
+    const walletAddress = evmAddress.parse(request.params.wallet);
+    response.json(await robinhoodWalletPortfolio(walletAddress));
   } catch (error) { next(error); }
 });

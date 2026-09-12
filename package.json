@@ -12,7 +12,8 @@
     "sync:elevenlabs": "cross-env NODE_OPTIONS=--use-system-ca node scripts/sync-elevenlabs-tools.mjs",
     "setup:privy-automation": "cross-env NODE_OPTIONS=--use-system-ca node scripts/create-privy-automation-policy.mjs",
     "db:migrate": "cross-env NODE_OPTIONS=--use-system-ca node scripts/migrate-database.mjs",
-    "deploy:automation-worker": "cross-env NODE_OPTIONS=--use-system-ca wrangler deploy --config workers/automation-ingress/wrangler.jsonc"
+    "deploy:automation-worker": "cross-env NODE_OPTIONS=--use-system-ca wrangler deploy --config workers/automation-ingress/wrangler.jsonc",
+    "sync:fomoscan-identities": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/sync-fomoscan-identities.ts"
   },
   "dependencies": {
     "@clawpump/agents": "0.1.23",
@@ -22,7 +23,6 @@
     "@privy-io/node": "^0.34.0",
     "@privy-io/react-auth": "^3.38.0",
     "@privy-io/server-auth": "^1.32.5",
-    "@react-three/fiber": "^9.7.0",
     "@solana-program/memo": "^0.8.0",
     "@solana-program/system": "^0.8.0",
     "@solana-program/token": "^0.6.0",
@@ -40,7 +40,6 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.8.2",
-    "three": "^0.185.1",
     "tsx": "^4.20.5",
     "viem": "^2.55.10",
     "ws": "^8.21.0",
@@ -53,7 +52,6 @@
     "@types/node": "^22.18.0",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
-    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^5.0.2",
     "concurrently": "^9.2.1",
     "typescript": "^5.9.2",

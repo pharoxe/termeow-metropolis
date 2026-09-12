@@ -25,6 +25,8 @@ import { getTokenPairs, sumTxns } from "../sources/dexscreener.js";
 import { getTraderService } from "../traders/service.js";
 import { geckoTokenPools } from "../sources/gecko.js";
 import { pumpPoolFor } from "../sources/pumpfun.js";
+import { identityRegistry } from "../terminal/identityStore.js";
+import type { TraderIdentity } from "../../shared/identity.js";
 
 export const FLOW_SOURCE = "pumpfun+geckoterminal→ledger";
 export const DEFAULT_BAR_COUNT = 300;
@@ -89,6 +91,7 @@ export type FlowRouteDeps = {
   sessionStartMs: number;
   now: () => number;
   traders?: FlowTradersLike;
+  identityOf?: (chain: Chain, wallet: string) => TraderIdentity | null;
 };
 
 /** Zod-validates route params and query; `to` defaults to now, `from` to DEFAULT_BAR_COUNT bars earlier. */
@@ -143,14 +146,22 @@ type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnc
 /**
  * FOMO and seeded fills of this token, newest first: the token-keyed book merged with the pair-keyed FOMO ledger rings
  * (Tier A pairs + "fomo:<token>"), one row per tx+wallet, plus windows summed over the verified-FOMO subset of that
- * deduped list (seeded rows are tagged on `fills`, never folded into the cohort totals). Robinhood only (the designator
- * check is eth_getCode); populations are "seen by this server".
+ * deduped list (seeded rows are tagged on `fills`, never folded into the cohort totals). Wallet identities come from
+ * the chain-specific FomoScan registry; populations are "seen by this server".
  */
-export function fomoBlock(traders: FlowTradersLike, params: FlowParams, pairs: PairRow[], observedAt: number): TokenFlowFomo {
+export function fomoBlock(traders: FlowTradersLike, params: FlowParams, pairs: PairRow[], observedAt: number, identityOf?: FlowRouteDeps["identityOf"]): TokenFlowFomo {
   const dexByPair = new Map(pairs.map((pair) => [pair.pairAddress, pair.dex]));
   const dexOf = (pair: string) => dexByPair.get(pair) ?? traders.dexOf(params.chain, pair);
   const fromBook = traders.fillsForToken(params.chain, params.address, FOMO_MERGE_LIMIT).map((fill) => ({ ...fill, dex: dexByPair.get(fill.pair) ?? fill.dex }));
-  const merged = mergeFomoFills(fromBook, ledgerFomoFills(traders.fomoLedger, params.chain, params.address, pairs, dexOf));
+  const merged = mergeFomoFills(fromBook, ledgerFomoFills(traders.fomoLedger, params.chain, params.address, pairs, dexOf)).map((fill) => {
+    const identity = identityOf?.(params.chain, fill.trader.address);
+    if (!identity) return fill;
+    return { ...fill, trader: {
+      ...fill.trader, kind: fill.trader.kind === "other" ? "fomo" as const : fill.trader.kind,
+      handle: identity.handle ?? fill.trader.handle, followers: identity.followers ?? fill.trader.followers,
+      displayName: identity.displayName, twitter: identity.twitter, avatarUrl: identity.avatarUrl
+    } };
+  });
   return { fills: merged.slice(0, FOMO_TAPE_LIMIT), windows: fomoWindowsFromFills(merged.filter((fill) => fill.trader.kind === "fomo"), observedAt), population: traders.population.size, handles: traders.handles.stats().entries, coverage: traders.coverage() };
 }
 
@@ -177,7 +188,7 @@ function sideOutputs(params: FlowParams, pairs: PairRow[], bars: FlowBar[], deps
     tape: recentTape(ledger, params.chain, pairs),
     ...(status ? { sources: sourceChips(status.sources) } : {}),
     ...(status?.feedHealth ? { feedHealth: status.feedHealth } : {}),
-    ...(deps.traders && params.chain === "robinhood" ? { fomo: fomoBlock(deps.traders, params, pairs, observedAt) } : {})
+    ...(deps.traders ? { fomo: fomoBlock(deps.traders, params, pairs, observedAt, deps.identityOf) } : {})
   };
 }
 
@@ -254,7 +265,8 @@ export const liveDeps: FlowRouteDeps = {
   collector: flowCollector,
   sessionStartMs: SESSION_START_MS,
   now: () => Date.now(),
-  traders: getTraderService()
+  traders: getTraderService(),
+  identityOf: (chain, wallet) => identityRegistry.lookup(chain, wallet)
 };
 
 export const flowRouter = Router();

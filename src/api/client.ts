@@ -1,6 +1,6 @@
 import type { BoardKind, IdentityBoardResponse, IdentityCoverageResponse, TraderIdentity } from "../../shared/identity";
 import type { WalletPortfolio } from "../../shared/portfolio";
-import type { AutomationIntent, AutomationRecord, TerminalAgentSnapshot } from "../../shared/automation";
+import type { AutomationIntent, AutomationRecord, TerminalAgentSnapshot, UserAutomationPreferences } from "../../shared/automation";
 import type { PublicConfig } from "../types";
 import type { AlertRule, AlertsResponse, Chain, DiscoverResponse, DiscoverView, DiscoverWindow, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, SystemHealth, TokenFlowResponse } from "../../shared/wire";
 
@@ -52,6 +52,7 @@ export const api = {
     return request<IdentityBoardResponse>(`/api/identity/board/${board}/${encodeURIComponent(window)}${search}`);
   },
   identityWallet: (chain: Chain, address: string) => request<{ identity: TraderIdentity | null }>(`/api/identity/wallet/${chain}/${encodeURIComponent(address)}`),
+  identityHandle: (handle: string) => request<{ handle: string; addresses: TraderIdentity[] }>(`/api/identity/handle/${encodeURIComponent(handle.replace(/^@/, ""))}`),
   /** Alert ring (newest first); `since` = the last observedAt seen, `rule` narrows to one rule. 200 + error/stale on failure. */
   alerts: (params: { chain?: FomoChainScope; since?: number; rule?: AlertRule; limit?: number } = {}) => {
     const search = new URLSearchParams({ chain: params.chain ?? "all" });
@@ -70,6 +71,7 @@ export const api = {
   board: () => request<Record<string, unknown>>("/api/onchain/board"),
   holders: (mint: string) => request<Record<string, unknown>>(`/api/onchain/holders/${mint}`),
   portfolio: (wallet: string) => request<WalletPortfolio>(`/api/onchain/portfolio/${wallet}`),
+  robinhoodPortfolio: (wallet: string) => request<WalletPortfolio>(`/api/onchain/portfolio/robinhood/${wallet}`),
   rpc: async <T>(method: string, params: unknown[]) => {
     const body = await request<{ result?: T; error?: { message?: string } }>("/api/rpc", {
       method: "POST",
@@ -91,6 +93,9 @@ export const api = {
   removeAutomationDelegation: (token: string) => request<{ removed: boolean }>("/api/automations/delegation/solana", { method: "DELETE", headers: bearer(token) }),
   createAutomation: (token: string, body: { intent: AutomationIntent; source: "elevenlabs_voice" | "terminal"; conversationId?: string; context?: TerminalAgentSnapshot }) =>
     request<{ automation: AutomationRecord }>("/api/automations", { method: "POST", headers: bearer(token), body: JSON.stringify(body) }),
+  updateAutomation: (token: string, id: string, intent: AutomationIntent) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}`, { method: "PATCH", headers: bearer(token), body: JSON.stringify({ intent }) }),
+  automationPreferences: (token: string) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { headers: bearer(token) }),
+  updateAutomationPreferences: (token: string, body: Partial<Pick<UserAutomationPreferences, "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours">>) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { method: "PATCH", headers: bearer(token), body: JSON.stringify(body) }),
   approveAutomation: (token: string, id: string) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}/approve`, {
     method: "POST", headers: bearer(token), body: JSON.stringify({ passkeyVerified: true })
   }),

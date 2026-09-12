@@ -3,18 +3,20 @@ import { translateAnchor } from "./geometry";
 
 /** Pure, immutable drawing state + versioned (de)serialisation. No DOM, no chart, no Date.now(). */
 
-export type Tool = "hline" | "trendline" | "measure";
-export const TOOLS: readonly Tool[] = ["hline", "trendline", "measure"];
+export type Tool = "hline" | "trendline" | "fib" | "marker_up" | "marker_down" | "measure";
+export const TOOLS: readonly Tool[] = ["hline", "trendline", "fib", "marker_up", "marker_down", "measure"];
 export const SCHEMA_VERSION = 1;
 export const STORAGE_PREFIX = "drawings:";
 
 export type HLineDrawing = { kind: "hline"; id: string; price: number };
 export type TrendlineDrawing = { kind: "trendline"; id: string; a: Anchor; b: Anchor };
 export type MeasureDrawing = { kind: "measure"; id: string; a: Anchor; b: Anchor };
-export type Drawing = HLineDrawing | TrendlineDrawing | MeasureDrawing;
+export type FibDrawing = { kind: "fib"; id: string; a: Anchor; b: Anchor };
+export type MarkerDrawing = { kind: "marker"; id: string; a: Anchor; b: Anchor; direction: "up" | "down" };
+export type Drawing = HLineDrawing | TrendlineDrawing | MeasureDrawing | FibDrawing | MarkerDrawing;
 export type AnchorPart = "a" | "b" | "body";
 
-export type Draft = { kind: "trendline" | "measure"; a: Anchor; b: Anchor };
+export type Draft = { kind: "trendline" | "measure" | "fib"; a: Anchor; b: Anchor };
 
 export type DrawingsState = {
   readonly drawings: readonly Drawing[];
@@ -63,6 +65,8 @@ export function moveAnchor(state: DrawingsState, id: string, part: AnchorPart, t
   if (current.kind === "hline") {
     const price = part === "body" && origin ? current.price + (target.price - origin.price) : target.price;
     next = { ...current, price };
+  } else if (current.kind === "marker") {
+    next = { ...current, a: target, b: target };
   } else if (part === "body") {
     if (!origin) return state;
     const dTime = target.time - origin.time;
@@ -94,7 +98,9 @@ export function commitDraft(state: DrawingsState, id: string): DrawingsState {
   if (draft.a.time === draft.b.time && draft.a.price === draft.b.price) return cancelDraft(state);
   const drawing: Drawing = draft.kind === "trendline"
     ? { kind: "trendline", id, a: draft.a, b: draft.b }
-    : { kind: "measure", id, a: draft.a, b: draft.b };
+    : draft.kind === "fib"
+      ? { kind: "fib", id, a: draft.a, b: draft.b }
+      : { kind: "measure", id, a: draft.a, b: draft.b };
   return addDrawing({ ...state, draft: null }, drawing);
 }
 
@@ -114,6 +120,8 @@ export function isDrawing(v: unknown): v is Drawing {
   if (v.kind === "hline") return isFiniteNumber(v.price);
   if (v.kind === "trendline") return isAnchor(v.a) && isAnchor(v.b);
   if (v.kind === "measure") return isAnchor(v.a) && isAnchor(v.b);
+  if (v.kind === "fib") return isAnchor(v.a) && isAnchor(v.b);
+  if (v.kind === "marker") return isAnchor(v.a) && isAnchor(v.b) && (v.direction === "up" || v.direction === "down");
   return false;
 }
 

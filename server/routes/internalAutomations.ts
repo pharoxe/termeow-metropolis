@@ -32,6 +32,7 @@ async function tokenBalance(owner: string, mint: string) {
 async function inputAmount(intent: AutomationIntent, wallet: string) {
   const selling = intent.side === "sell";
   const inputMint = selling ? intent.tokenAddress : WSOL;
+  if (!inputMint) throw new Error("The automation signal did not resolve a token address.");
   const decimals = selling ? (await rpc<{ value: { decimals: number } }>("getTokenSupply", [inputMint])).value.decimals : 9;
   if (intent.amountMode === "fixed") {
     const [whole, fraction = ""] = (intent.amount || "0").split(".");
@@ -89,9 +90,12 @@ internalAutomationsRouter.post("/:id/fire", async (request, response, next) => {
     }
     const executing = claim.automation;
     try {
-      const { inputMint, amount } = await inputAmount(executing.intent, delegation.walletAddress);
+      const tokenAddress = executing.intent.tokenAddress ?? executing.lastSignal?.tokenAddress;
+      if (!tokenAddress) throw new Error("The automation signal did not resolve a token address.");
+      const executableIntent = { ...executing.intent, tokenAddress };
+      const { inputMint, amount } = await inputAmount(executableIntent, delegation.walletAddress);
       if (BigInt(amount) <= 0n) throw new Error("Delegated wallet has insufficient spendable balance.");
-      const outputMint = executing.intent.side === "sell" ? WSOL : executing.intent.tokenAddress;
+      const outputMint = executableIntent.side === "sell" ? WSOL : tokenAddress;
       const transaction = await buildJupiterSwap(delegation.walletAddress, inputMint, outputMint, amount, executing.intent.maxSlippageBps ?? 50);
       const result = await signAndSendDelegatedSolana({ walletId: delegation.walletId, walletAddress: delegation.walletAddress, transaction, executionId: `${id}:${trigger.sourceEventId}` });
       const completed = await automationRepository.finishExecution(current.userId, id, trigger.sourceEventId, "completed", { transactionHash: result.hash });

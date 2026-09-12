@@ -7,6 +7,8 @@ import type { ChainScope, RankOptions, TapeOptions, TraderRow, TraderTapeRow } f
 import { emptyCoverage } from "../traders/coverage.js";
 import { FOMO_PROFILE_BASE, type HandleEntry } from "../traders/handles.js";
 import { FOMO_POPULATION_LABEL, TAPE_KINDS, getTraderService, toFomoFill, type TraderServiceStatus } from "../traders/service.js";
+import { identityRegistry } from "../terminal/identityStore.js";
+import type { TraderIdentity } from "../../shared/identity.js";
 
 export const FOMO_TAPE_DEFAULT = 60;
 export const FOMO_TAPE_MAX = 200;
@@ -44,6 +46,7 @@ export type FomoRouteDeps = {
   /** Token symbol when something on this server knows it (launch index); null otherwise. */
   symbolOf?: (chain: Chain, token: string) => string | null;
   now: () => number;
+  identityOf?: (chain: Chain, wallet: string) => TraderIdentity | null;
 };
 
 function profileUrlFor(traders: FomoTradersLike, row: TraderRow): string | null {
@@ -75,7 +78,13 @@ export function toBoardRow(traders: FomoTradersLike, row: TraderRow): FomoBoardR
 function tapeFills(deps: FomoRouteDeps, query: FomoTapeQuery): FomoFill[] {
   return deps.traders.book.tape(query.chain, query.limit, { kind: TAPE_KINDS }).map((row) => {
     const followers = deps.traders.handles.get(row.trader)?.followers ?? null;
-    return toFomoFill(row, deps.traders.dexOf(row.chain, row.pair), followers, deps.symbolOf?.(row.chain, row.token) ?? null);
+    const fill = toFomoFill(row, deps.traders.dexOf(row.chain, row.pair), followers, deps.symbolOf?.(row.chain, row.token) ?? null);
+    const identity = deps.identityOf?.(row.chain, row.trader);
+    return identity ? { ...fill, trader: {
+      ...fill.trader, kind: fill.trader.kind === "other" ? "fomo" : fill.trader.kind,
+      handle: identity.handle ?? fill.trader.handle, followers: identity.followers ?? fill.trader.followers,
+      displayName: identity.displayName, twitter: identity.twitter, avatarUrl: identity.avatarUrl
+    } } : fill;
   });
 }
 
@@ -122,6 +131,7 @@ function liveDeps(): FomoRouteDeps {
   return {
     traders: getTraderService(),
     symbolOf: (chain, token) => getLaunchService().index.get(chain, token)?.symbol ?? (chain === "robinhood" ? (getTraderService().erc20Meta.get(token)?.symbol ?? null) : null),
+    identityOf: (chain, wallet) => identityRegistry.lookup(chain, wallet),
     now: () => Date.now()
   };
 }
