@@ -76,6 +76,7 @@ function VoiceStart() {
 export function AgentPage({ config }: { config: PublicConfig }) {
   const agent = useAgent();
   const transcript = useAgentStore((state) => state.transcript);
+  const toolActivity = useAgentStore((state) => state.toolActivity);
   const conversationId = useAgentStore((state) => state.conversationId);
   const muted = useAgentStore((state) => state.muted);
   const pending = useAgentStore((state) => state.pendingApproval);
@@ -142,16 +143,17 @@ export function AgentPage({ config }: { config: PublicConfig }) {
       </section>
 
       <aside className="agent-sideband agent-sideband-right">
-        <span>ACTIVE MEMORY</span>
-        <strong>{transcript.length ? `${transcript.length} SIGNALS` : "CLEAN SLATE"}</strong>
-        <p>Preferences, watched wallets, and approved limits stay attached to you.</p>
+        <span>DECISION TRACE</span>
+        <strong>{toolActivity.length ? `${toolActivity.length} TOOL CALLS` : "CLEAN SLATE"}</strong>
+        <div className="sideband-tools">{toolActivity.slice(-3).reverse().map((event) => <div key={event.id} className={event.status} title={event.summary}><i /> <span>{event.name.replaceAll("_", " ")}</span></div>)}</div>
+        <p>Tool evidence and outcomes are shown—not private model chain-of-thought.</p>
         <div className="sideband-meter"><i /><i /><i /><i /><i /><i /></div>
       </aside>
     </section>
 
     <section className={`agent-drawer ${view === "ask" ? "collapsed" : ""}`}>
       {view === "automations" && <><header><span>AUTOMATION CONTROL</span><small>VOICE DRAFT → PASSKEY → ARMED</small></header><AutomationSurface onCount={setAutomationCount} /></>}
-      {view === "activity" && <><header><span>SESSION TAPE</span><small>RECENT CONVERSATION</small></header><div className="activity-tape">{transcript.length ? transcript.slice().reverse().map((message) => <p key={message.id}><time>{new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><b>{message.role}</b><span>{message.text}</span></p>) : <p className="agent-empty">No activity in this session.</p>}</div></>}
+      {view === "activity" && <><header><span>SESSION TAPE</span><small>CONVERSATION + TOOL EVIDENCE</small></header><div className="tool-tape"><h3>DECISION TRACE</h3>{toolActivity.length ? toolActivity.slice().reverse().map((event) => <article key={event.id} className={event.status}><time>{new Date(event.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time><div><b>{event.name.replaceAll("_", " ")}</b>{event.input && <small>{event.input}</small>}<span>{event.summary || "Working…"}</span></div></article>) : <p className="agent-empty">No tools used in this session.</p>}</div><div className="activity-tape">{transcript.length ? transcript.slice().reverse().map((message) => <p key={message.id}><time>{new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><b>{message.role}</b><span>{message.text}</span></p>) : <p className="agent-empty">No conversation yet.</p>}</div></>}
     </section>
 
     <nav className="agent-bottom-nav" aria-label="Agent views">

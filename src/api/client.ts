@@ -2,6 +2,7 @@ import type { BoardKind, IdentityBoardResponse, IdentityCoverageResponse, Trader
 import type { WalletPortfolio } from "../../shared/portfolio";
 import type { AutomationIntent, AutomationRecord, TerminalAgentSnapshot, UserAutomationPreferences } from "../../shared/automation";
 import type { PublicConfig } from "../types";
+import type { TokenResolution } from "../../shared/tokenIndex";
 import type { AlertRule, AlertsResponse, Chain, DiscoverResponse, DiscoverView, DiscoverWindow, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, SystemHealth, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -53,6 +54,7 @@ export const api = {
   },
   identityWallet: (chain: Chain, address: string) => request<{ identity: TraderIdentity | null }>(`/api/identity/wallet/${chain}/${encodeURIComponent(address)}`),
   identityHandle: (handle: string) => request<{ handle: string; addresses: TraderIdentity[] }>(`/api/identity/handle/${encodeURIComponent(handle.replace(/^@/, ""))}`),
+  resolveToken: (query: string, chain?: Chain) => request<TokenResolution>(`/api/tokens/resolve?${new URLSearchParams({ q: query, ...(chain ? { chain } : {}) }).toString()}`),
   /** Alert ring (newest first); `since` = the last observedAt seen, `rule` narrows to one rule. 200 + error/stale on failure. */
   alerts: (params: { chain?: FomoChainScope; since?: number; rule?: AlertRule; limit?: number } = {}) => {
     const search = new URLSearchParams({ chain: params.chain ?? "all" });

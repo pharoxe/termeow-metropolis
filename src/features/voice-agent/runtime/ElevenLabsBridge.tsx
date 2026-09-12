@@ -24,6 +24,41 @@ const exitConditions = (value: unknown, fallbackSlippageBps: number) => {
   }).filter((item) => item.condition.length >= 3);
 };
 
+const compactToolInput = (parameters: Record<string, unknown>) => Object.entries(parameters)
+  .filter(([, value]) => value != null && value !== "")
+  .slice(0, 5)
+  .map(([key, value]) => `${key.replaceAll("_", " ")}: ${typeof value === "string" && value.length > 28 ? `${value.slice(0, 10)}…${value.slice(-6)}` : String(value)}`)
+  .join(" · ");
+
+function toolSummary(raw: string) {
+  try {
+    const result = JSON.parse(raw) as Record<string, any>;
+    if (result.error) return String(result.error);
+    if (result.token) return `${result.token.symbol || "TOKEN"} · ${result.token.chain} · indexed ${result.token.source || "local"}`;
+    if (result.surface) return `${result.token_symbol || "TOKEN"} ${result.surface.replaceAll("_", " ")} visible`;
+    if (result.automation_id) return `Draft ${String(result.automation_id).slice(0, 8)} · awaiting confirmation`;
+    if (Array.isArray(result.automations)) return `${result.automations.length} automation records`;
+    return result.message || (result.ok ? "Evidence returned" : "No result");
+  } catch { return raw.slice(0, 120); }
+}
+
+function trackedTool(name: string, handler: (parameters: Record<string, unknown>) => Promise<string>) {
+  return async (parameters: Record<string, unknown> = {}) => {
+    const id = useAgentStore.getState().beginTool(name, compactToolInput(parameters));
+    try {
+      const result = await handler(parameters);
+      let ok = true;
+      try { ok = JSON.parse(result)?.ok !== false; } catch { /* non-JSON tools still complete */ }
+      useAgentStore.getState().finishTool(id, ok ? "complete" : "failed", toolSummary(result));
+      return result;
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      useAgentStore.getState().finishTool(id, "failed", message);
+      return JSON.stringify({ ok: false, error: message });
+    }
+  };
+}
+
 interface Props {
   onRuntime(runtime: AgentRuntime | null): void;
   initialContext: TermeowAgentContext;
@@ -70,12 +105,12 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
 
 function ClientToolsBridge() {
   const clientTools = useMemo(() => ({
-    read_terminal_state: async () => {
+    read_terminal_state: trackedTool("read_terminal_state", async () => {
       const connected = Boolean(await getAccessToken().catch(() => null));
       const terminal = useAgentStore.getState().context;
       return JSON.stringify({ ok: true, warning: "This is a point-in-time terminal snapshot, not a guarantee of execution quality.", terminal: { ...terminal, wallet: { ...terminal.wallet, connected } } });
-    },
-    resolve_trader_handle: async (parameters: Record<string, unknown>) => {
+    }),
+    resolve_trader_handle: trackedTool("resolve_trader_handle", async (parameters: Record<string, unknown>) => {
       const handle = String(parameters.handle || "").replace(/^@/, "").trim();
       if (!handle) return JSON.stringify({ ok: false, error: "Provide a Fomo handle." });
       try {
@@ -84,19 +119,33 @@ function ClientToolsBridge() {
         const addresses = chain ? result.addresses.filter((item) => item.chain === chain) : result.addresses;
         return JSON.stringify({ ok: addresses.length > 0, handle, indexed: true, addresses: addresses.map((item) => ({ chain: item.chain, wallet: item.wallet, display_name: item.displayName, twitter: item.twitter, followers: item.followers, source: item.source })), error: addresses.length ? undefined : "No indexed wallet matches this handle and chain. Ask for an address; do not guess." });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
-    },
-    read_automation_preferences: async () => {
+    }),
+    resolve_token: trackedTool("resolve_token", async (parameters: Record<string, unknown>) => {
+      const query = String(parameters.query || parameters.token_symbol || parameters.token_address || "").trim();
+      const chain = parameters.chain === "solana" || parameters.chain === "robinhood" ? parameters.chain : undefined;
+      if (!query) return JSON.stringify({ ok: false, error: "Provide a ticker, token name, or contract address." });
+      try {
+        const result = await api.resolveToken(query, chain);
+        return JSON.stringify({
+          ok: Boolean(result.match), indexed: result.indexed, ambiguous: result.ambiguous,
+          token: result.match ? { chain: result.match.chain, address: result.match.address, symbol: result.match.symbol, name: result.match.name, source: result.match.source } : undefined,
+          matches: result.matches.map((item) => ({ chain: item.chain, address: item.address, symbol: item.symbol, name: item.name, source: item.source })),
+          error: result.match ? undefined : result.ambiguous ? "Ticker is ambiguous. Ask which chain/token the user means." : "No indexed token matches. Ask for the contract address; do not guess."
+        });
+      } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
+    }),
+    read_automation_preferences: trackedTool("read_automation_preferences", async () => {
       try { const token = await getAccessToken(); if (!token) return JSON.stringify({ ok: false, error: "The user must log in." }); return JSON.stringify({ ok: true, ...(await api.automationPreferences(token)) }); }
       catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
-    },
-    update_automation_preferences: async (parameters: Record<string, unknown>) => {
+    }),
+    update_automation_preferences: trackedTool("update_automation_preferences", async (parameters: Record<string, unknown>) => {
       try {
         const token = await getAccessToken(); if (!token) return JSON.stringify({ ok: false, error: "The user must log in." });
         const body = { defaultAllocationPercent: optionalNumber(parameters.default_allocation_percent), defaultSlippageBps: optionalNumber(parameters.default_slippage_bps), defaultDurationHours: optionalNumber(parameters.default_duration_hours) };
         return JSON.stringify({ ok: true, ...(await api.updateAutomationPreferences(token, body)) });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
-    },
-    propose_swap: async (parameters: Record<string, unknown>) => {
+    }),
+    propose_swap: trackedTool("propose_swap", async (parameters: Record<string, unknown>) => {
       const context = useAgentStore.getState().context;
       const chain = parameters.chain === "robinhood" ? "robinhood" : parameters.chain === "solana" ? "solana" : context.chain;
       const tokenAddress = String(parameters.token_address || context.token?.address || "");
@@ -119,8 +168,8 @@ function ClientToolsBridge() {
         useAgentStore.getState().setOverlayMode("expanded");
         return JSON.stringify({ ok: true, automation_id: result.automation.id, status: "pending_passkey_confirmation", message: "The proposal is visible. Ask the user to review it and press CONFIRM WITH PASSKEY. Do not claim it executed." });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
-    },
-    propose_automation: async (parameters: Record<string, unknown>) => {
+    }),
+    propose_automation: trackedTool("propose_automation", async (parameters: Record<string, unknown>) => {
       const context = useAgentStore.getState().context;
       const chain = parameters.chain === "robinhood" ? "robinhood" : parameters.chain === "solana" ? "solana" : context.chain;
       if (!chain) return JSON.stringify({ ok: false, error: "Choose Solana or Robinhood." });
@@ -157,35 +206,51 @@ function ClientToolsBridge() {
         useAgentStore.getState().setOverlayMode("expanded");
         return JSON.stringify({ ok: true, automation_id: result.automation.id, status: "pending_passkey_confirmation", message: "Ask the user to review and confirm with their passkey. The automation is not armed yet." });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
-    },
-    list_automations: async () => {
+    }),
+    list_automations: trackedTool("list_automations", async () => {
       try {
         const token = await getAccessToken();
         if (!token) return JSON.stringify({ ok: false, error: "The user must log in." });
         const result = await api.automations(token);
         return JSON.stringify({ ok: true, automations: result.automations.slice(0, 20).map((item) => ({ id: item.id, status: item.status, description: item.intent.description, chain: item.intent.chain, kind: item.intent.kind, created_at: item.createdAt })) });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
-    },
-    open_market_hud: async (parameters: Record<string, unknown>) => {
+    }),
+    open_market_hud: trackedTool("open_market_hud", async (parameters: Record<string, unknown>) => {
       const context = useAgentStore.getState().context;
-      const chain = parameters.chain === "robinhood" ? "robinhood" : parameters.chain === "solana" ? "solana" : context.chain;
-      const tokenAddress = String(parameters.token_address || context.token?.address || "").trim();
+      let chain = parameters.chain === "robinhood" ? "robinhood" as const : parameters.chain === "solana" ? "solana" as const : context.chain;
+      let tokenAddress = String(parameters.token_address || context.token?.address || "").trim();
+      let tokenSymbol = String(parameters.token_symbol || context.token?.symbol || "").replace(/^\$+/, "").trim() || undefined;
+      const query = String(parameters.query || tokenSymbol || "").trim();
       const requested = String(parameters.timeframe || "5m").toLowerCase();
       const timeframe = ["1m", "5m", "15m", "1h", "4h", "1d"].includes(requested) ? requested : "5m";
-      if (!chain || !tokenAddress) return JSON.stringify({ ok: false, error: "A chain and exact token address are required to open the market HUD." });
-      useAgentStore.getState().setHudWindow({ type: "market_chart", chain, tokenAddress, tokenSymbol: String(parameters.token_symbol || context.token?.symbol || "") || undefined, timeframe, requestedAt: Date.now() });
-      return JSON.stringify({ ok: true, surface: "market_chart", status: "visible", message: "The live market HUD is open beside the conversation." });
-    },
-    dismiss_agent_ui: async () => {
+      if (!tokenAddress && query) {
+        const resolution = await api.resolveToken(query, chain).catch(() => null);
+        if (!resolution?.match) return JSON.stringify({
+          ok: false, indexed: Boolean(resolution?.indexed), ambiguous: Boolean(resolution?.ambiguous),
+          matches: resolution?.matches.map((item) => ({ chain: item.chain, address: item.address, symbol: item.symbol, name: item.name })) ?? [],
+          error: resolution?.ambiguous ? "Ticker is ambiguous. Ask the user which chain/token they mean." : "Ticker is not indexed. Ask for the contract address; do not guess."
+        });
+        chain = resolution.match.chain;
+        tokenAddress = resolution.match.address;
+        tokenSymbol = resolution.match.symbol;
+      }
+      if (!chain && /^0x[a-fA-F0-9]{40}$/.test(tokenAddress)) chain = "robinhood";
+      if (!chain && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(tokenAddress)) chain = "solana";
+      if (!chain || !tokenAddress) return JSON.stringify({ ok: false, error: "Provide a ticker, token name, or contract address to open the market HUD." });
+      useAgentStore.getState().setHudWindow({ type: "market_chart", chain, tokenAddress, tokenSymbol, timeframe, requestedAt: Date.now() });
+      return JSON.stringify({ ok: true, surface: "market_chart", status: "visible", chain, token_address: tokenAddress, token_symbol: tokenSymbol, message: "The live market HUD is open beside the conversation." });
+    }),
+    dismiss_agent_ui: trackedTool("dismiss_agent_ui", async () => {
       useAgentStore.getState().setHudWindow();
       return JSON.stringify({ ok: true, status: "dismissed" });
-    }
+    })
   }), []);
 
   // Register through the SDK's live registry instead of relying on provider option merging.
   // This makes every handler available before startSession and keeps it attached for the full call.
   useConversationClientTool("read_terminal_state", clientTools.read_terminal_state);
   useConversationClientTool("resolve_trader_handle", clientTools.resolve_trader_handle);
+  useConversationClientTool("resolve_token", clientTools.resolve_token);
   useConversationClientTool("read_automation_preferences", clientTools.read_automation_preferences);
   useConversationClientTool("update_automation_preferences", clientTools.update_automation_preferences);
   useConversationClientTool("propose_swap", clientTools.propose_swap);

@@ -19,6 +19,7 @@ import { liveAlertsRouter } from "./routes/alerts.js";
 import { discoverRouter } from "./routes/discover.js";
 import { agentRouter } from "./routes/agent.js";
 import { automationsRouter } from "./routes/automations.js";
+import { tokensRouter } from "./routes/tokens.js";
 import { internalAutomationsRouter } from "./routes/internalAutomations.js";
 import { automationRepository } from "./automation/runtime.js";
 import { startTwitterLaunchMonitor } from "./automation/twitterMonitor.js";
@@ -52,6 +53,7 @@ app.use("/api/alerts", liveAlertsRouter());
 app.use("/api/discover", discoverRouter);
 app.use("/api/agent", agentRouter);
 app.use("/api/automations", automationsRouter);
+app.use("/api/tokens", tokensRouter);
 app.use("/api/internal/automations", internalAutomationsRouter);
 
 if (config.nodeEnv === "production") {

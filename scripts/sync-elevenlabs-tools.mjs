@@ -29,6 +29,11 @@ const definitions = [
     parameters: objectParameters({ handle: scalar("string", "Fomo handle, with or without @"), chain: scalar("string", "Optional solana or robinhood filter") }, ["handle"])
   },
   {
+    name: "resolve_token",
+    description: "Resolve a ticker, token name, or contract address against Termeow's local indexed token catalog. Use this when the user names a token but no exact contract is in context. It spends no upstream API credits. Use the returned chain and address; if ambiguous, ask the user to choose and never guess.",
+    parameters: objectParameters({ query: scalar("string", "Ticker such as ANSEM or CASHCAT, token name, or exact contract address"), chain: scalar("string", "Optional solana or robinhood filter") }, ["query"])
+  },
+  {
     name: "read_automation_preferences",
     description: "Read the logged-in user's learned wallet-tracking preferences, including frequently tracked handles and default allocation, slippage, and duration. Use this to personalize a proposal without overriding explicit instructions.",
     parameters: objectParameters()
@@ -76,13 +81,14 @@ const definitions = [
   },
   {
     name: "open_market_hud",
-    description: "Open a compact live candle chart in the standalone Termeow interface when a token becomes the focus of the conversation. Use the exact token address and chain; do not call it just to decorate the screen. The surface loads Termeow market data and becomes active context for later terminal reads.",
+    description: "Open a compact live candle chart in the standalone Termeow interface. A known ticker or name is enough because Termeow resolves its indexed contract locally; pass an exact contract for unindexed or ambiguous low-liquidity tokens. The surface becomes active context for later reads.",
     parameters: objectParameters({
-      chain: scalar("string", "solana or robinhood"),
-      token_address: scalar("string", "Exact token contract or mint address"),
+      query: scalar("string", "Ticker or token name, such as ANSEM or CASHCAT"),
+      chain: scalar("string", "Optional solana or robinhood filter"),
+      token_address: scalar("string", "Exact token contract or mint address when known"),
       token_symbol: scalar("string", "Ticker without $ when known"),
       timeframe: scalar("string", "One of 1m, 5m, 15m, 1h, 4h, or 1d; default 5m")
-    }, ["chain", "token_address"])
+    })
   },
   {
     name: "dismiss_agent_ui",
@@ -113,7 +119,7 @@ const skill = existingSkill
 const agent = await request(`/agents/${agentId}`);
 const currentPrompt = agent.conversation_config?.agent?.prompt || {};
 const marker = "TERMEOW TERMINAL CONTROL PLANE";
-const guardrails = `\n\n${marker}\n- Call read_terminal_state before making any claim about the live chart or proposing a trade.\n- When a user names a trader, call resolve_trader_handle before propose_automation. Use only the exact indexed wallet on the requested chain; never invent or cross chains.\n- Read automation preferences when they would reduce questions, but explicit instructions always win. Frequently used tracked handles are learned automatically.\n- A spoken request is never approval. Use propose_swap or propose_automation to prepare a draft, then explicitly wait for the user to edit and confirm the exact card with Privy passkey MFA.\n- Never claim a trade was sent or an automation was armed merely because a proposal tool succeeded.\n- Refuse to increase allocation beyond 25% per action. Restate chain, target wallet and known username, side, size, entry-price tolerance, slippage, market-cap range, trigger, linked exits, and expiry before proposing.\n- A linked sell condition must have activate_after=entry_confirmed and can use only the position acquired by that successful entry. Never arm exits after a reverted or failed buy. Total linked sell allocation cannot exceed 100%.\n- Express automation execution bounds as market cap in USD, except an explicitly requested maximum distance from a tracked trader's entry, which uses entry_price_tolerance_percent.\n- Solana swaps use Jupiter by default; Robinhood Chain swaps use 0x.\n- For Fibonacci requests, use chart.structure.recentRally from read_terminal_state. Do not ask for swing values when present. Copy its exact 0.618 level into the condition; default expiry to 24h for intraday or 72h for 4h/1d when omitted.\n- Monitoring automations may be armed before unattended wallet execution is enabled; state that distinction accurately when reported by the tool.\n- When conversation focuses on a specific token and its exact contract is known, call open_market_hud once so the user can see its live chart. Use dismiss_agent_ui when asked to close it. Never invent a contract address to open a surface.\n`;
+const guardrails = `\n\n${marker}\n- On the standalone agent page, when the user names a token or asks to see its chart, call resolve_token and then open_market_hud. Do not ask them to change the terminal chart first. Established indexed tickers need no pasted contract.\n- Once a chart is open, call read_terminal_state before making claims about it or proposing a trade.\n- When a user names a trader, call resolve_trader_handle before propose_automation. Use only the exact indexed wallet on the requested chain; never invent or cross chains.\n- Read automation preferences when they would reduce questions, but explicit instructions always win. Frequently used tracked handles are learned automatically.\n- A spoken request is never approval. Use propose_swap or propose_automation to prepare a draft, then explicitly wait for the user to edit and confirm the exact card with Privy passkey MFA.\n- Never claim a trade was sent or an automation was armed merely because a proposal tool succeeded.\n- Refuse to increase allocation beyond 25% per action. Restate chain, target wallet and known username, side, size, entry-price tolerance, slippage, market-cap range, trigger, linked exits, and expiry before proposing.\n- Treat a trigger as permission to re-evaluate, not permission to force a fill. Immediately before execution, refresh the quote and revalidate identity, market cap, liquidity, price tolerance, slippage, token safety, destination/program policy, and portfolio exposure; skip and record the failing gate when any bound is breached.\n- A linked sell condition must have activate_after=entry_confirmed and can use only the position acquired by that successful entry. Never arm exits after a reverted or failed buy. Total linked sell allocation cannot exceed 100%.\n- Express automation execution bounds as market cap in USD, except an explicitly requested maximum distance from a tracked trader's entry, which uses entry_price_tolerance_percent.\n- Solana swaps use Jupiter by default; Robinhood Chain swaps use 0x.\n- For Fibonacci requests, use chart.structure.recentRally from read_terminal_state. Do not ask for swing values when present. Copy its exact 0.618 level into the condition; default expiry to 24h for intraday or 72h for 4h/1d when omitted.\n- Monitoring automations may be armed before unattended wallet execution is enabled; state that distinction accurately when reported by the tool.\n- Use dismiss_agent_ui when asked to close the current surface. Never invent a contract address.\n`;
 const voiceStyleMarker = "TERMEOW SPOKEN STYLE";
 const voiceStyle = `\n\n${voiceStyleMarker}\n- Speak like a casual, sharp trading partner, not a formal analyst.\n- Default chart reads to 35-55 words and never exceed 70 unless the user asks for a deep dive.\n- Lead with bias and confidence, synthesize only the strongest evidence, give the key level and invalidation, then stop.\n- Preserve information by combining related facts into contrasts; do not recite screen fields one by one.\n- Use compact figures and trader-natural phrasing. Avoid filler, formal transitions, generic disclaimers, recaps, and offers to explain more.\n- In speech, round decimal values to at most four places and use compact units such as K, M, and B. Never read machine-precision numbers digit by digit.\n- Detect EVM and Solana wallet or contract addresses. Never pronounce an address aloud; say “the wallet”, “the contract”, or the token ticker instead. Keep the exact address only in tool arguments and confirmation UI.\n`;
 const promptText = String(currentPrompt.prompt || "");
@@ -129,5 +135,5 @@ const styledPrompt = controlPrompt.includes(voiceStyleMarker)
   : `${controlPrompt}${voiceStyle}`;
 const nextPrompt = { ...currentPrompt, prompt: styledPrompt, tool_ids: [...new Set([...(currentPrompt.tool_ids || []), ...toolIds])], knowledge_base: knowledgeBase };
 delete nextPrompt.tools;
-await request(`/agents/${agentId}`, { method: "PATCH", body: JSON.stringify({ conversation_config: { agent: { prompt: nextPrompt } }, version_description: "Unify wallet tracking, linked exits, and standalone HUD controls" }) });
+await request(`/agents/${agentId}`, { method: "PATCH", body: JSON.stringify({ conversation_config: { agent: { prompt: nextPrompt } }, version_description: "Indexed charts and risk-gated execution" }) });
 console.log(JSON.stringify({ agentId, skill: { name: skillName, id: skill.id, usageMode: "prompt" }, synced: definitions.map((item, index) => ({ name: item.name, id: toolIds[index] })) }, null, 2));

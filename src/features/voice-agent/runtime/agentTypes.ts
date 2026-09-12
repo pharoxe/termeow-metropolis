@@ -28,6 +28,16 @@ export interface AgentHudWindow {
   requestedAt: number;
 }
 
+export interface AgentToolEvent {
+  id: string;
+  name: string;
+  status: "running" | "complete" | "failed";
+  input?: string;
+  summary?: string;
+  startedAt: number;
+  finishedAt?: number;
+}
+
 export type TermeowAgentContext = TerminalAgentSnapshot;
 export type PendingAgentApproval = AutomationRecord;
 import type { AutomationRecord, TerminalAgentSnapshot } from "../../../../shared/automation";

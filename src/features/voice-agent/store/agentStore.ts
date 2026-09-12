@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentHudWindow, AgentMessage, AgentStatus, OverlayMode, PendingAgentApproval, TermeowAgentContext } from "../runtime/agentTypes";
+import type { AgentHudWindow, AgentMessage, AgentStatus, AgentToolEvent, OverlayMode, PendingAgentApproval, TermeowAgentContext } from "../runtime/agentTypes";
 
 interface AgentState {
   status: AgentStatus;
@@ -9,6 +9,7 @@ interface AgentState {
   conversationId?: string;
   context: TermeowAgentContext;
   transcript: AgentMessage[];
+  toolActivity: AgentToolEvent[];
   pendingApproval?: PendingAgentApproval;
   hudWindow?: AgentHudWindow;
   setStatus: (status: AgentStatus, error?: string) => void;
@@ -17,6 +18,8 @@ interface AgentState {
   setConversationId: (id?: string) => void;
   setContext: (context: TermeowAgentContext) => void;
   addMessage: (message: Omit<AgentMessage, "id" | "at">) => void;
+  beginTool: (name: string, input?: string) => string;
+  finishTool: (id: string, status: "complete" | "failed", summary?: string) => void;
   setPendingApproval: (pendingApproval?: PendingAgentApproval) => void;
   setHudWindow: (hudWindow?: AgentHudWindow) => void;
   resetSession: () => void;
@@ -28,6 +31,7 @@ export const useAgentStore = create<AgentState>((set) => ({
   muted: false,
   context: {},
   transcript: [],
+  toolActivity: [],
   setStatus: (status, error) => set({ status, error }),
   setOverlayMode: (overlayMode) => set({ overlayMode }),
   setMuted: (muted) => set({ muted }),
@@ -35,6 +39,15 @@ export const useAgentStore = create<AgentState>((set) => ({
   setContext: (context) => set({ context }),
   addMessage: (message) => set((state) => ({
     transcript: [...state.transcript, { ...message, id: crypto.randomUUID(), at: Date.now() }].slice(-40)
+  })),
+  beginTool: (name, input) => {
+    const id = crypto.randomUUID();
+    const event: AgentToolEvent = { id, name, input, status: "running", startedAt: Date.now() };
+    set((state) => ({ toolActivity: [...state.toolActivity, event].slice(-30) }));
+    return id;
+  },
+  finishTool: (id, status, summary) => set((state) => ({
+    toolActivity: state.toolActivity.map((event) => event.id === id ? { ...event, status, summary, finishedAt: Date.now() } : event)
   })),
   setPendingApproval: (pendingApproval) => set({ pendingApproval }),
   setHudWindow: (hudWindow) => set({ hudWindow }),

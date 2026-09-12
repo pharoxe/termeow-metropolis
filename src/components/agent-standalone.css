@@ -27,6 +27,11 @@
 .sideband-meter { display:flex; align-items:end; gap:3px; height:32px; margin-top:20px; }
 .sideband-meter i { width:5px; height:30%; background:var(--agent-lime); animation:agent-meter .9s ease-in-out infinite alternate; }
 .sideband-meter i:nth-child(2),.sideband-meter i:nth-child(5){height:75%;animation-delay:-.2s}.sideband-meter i:nth-child(3){height:100%;animation-delay:-.5s}.sideband-meter i:nth-child(4){height:55%;animation-delay:-.7s}
+.sideband-tools { display:grid; gap:7px; margin:14px 0; }
+.sideband-tools div { display:flex; align-items:center; gap:7px; overflow:hidden; color:#789080; font-size:7px; text-transform:uppercase; }
+.sideband-tools div i { flex:none; width:5px; height:5px; background:#d8bd63; box-shadow:none; animation:none; }
+.sideband-tools div.complete i { background:var(--agent-lime); box-shadow:0 0 8px var(--agent-lime); }
+.sideband-tools div.failed i { background:#ff6685; }.sideband-tools span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @keyframes agent-meter { to { transform:scaleY(.35); opacity:.45; } }
 .persona-console { overflow:hidden; border:1px solid #2b6944; background:rgba(3,10,6,.92); box-shadow:0 0 0 1px #06180d,0 0 54px rgba(34,255,117,.1),14px 18px 0 rgba(0,0,0,.38); }
 .persona-stage { position:relative; height:min(58dvh,620px); min-height:400px; overflow:hidden; background:#000; }
@@ -70,6 +75,11 @@
 .activity-tape { padding:8px 14px 16px; }
 .activity-tape>p:not(.agent-empty) { display:grid; grid-template-columns:54px 50px 1fr; gap:10px; margin:0; padding:9px 0; border-bottom:1px solid #132b1c; color:#aec2b4; font-size:9px; }
 .activity-tape time,.activity-tape b { color:#5f7c68; text-transform:uppercase; }
+.tool-tape { padding:12px 14px 2px; border-bottom:1px solid #173723; }
+.tool-tape h3 { margin:0 0 8px; color:var(--agent-lime); font:7px "Silkscreen",monospace; letter-spacing:.08em; }
+.tool-tape article { display:grid; grid-template-columns:62px 1fr; gap:10px; padding:8px 0; border-top:1px solid #132b1c; }
+.tool-tape article time { color:#587264; font-size:8px; }.tool-tape article div{display:grid;gap:3px}.tool-tape article b{color:#d8bd63;font-size:8px;text-transform:uppercase}.tool-tape article.complete b{color:var(--agent-lime)}.tool-tape article.failed b{color:#ff6685}
+.tool-tape article small { overflow:hidden; color:#647b6b; font-size:7px; text-overflow:ellipsis; white-space:nowrap; }.tool-tape article span{color:#afc4b5;font-size:8px;line-height:1.35}
 .agent-bottom-nav { position:fixed; z-index:12; left:50%; bottom:10px; display:grid; grid-template-columns:repeat(4,minmax(112px,1fr)); width:min(720px,calc(100vw - 24px)); transform:translateX(-50%); border:1px solid #2a6341; background:rgba(3,10,6,.94); box-shadow:0 8px 40px #000; backdrop-filter:blur(16px); }
 .agent-bottom-nav button,.agent-bottom-nav a { position:relative; display:flex; align-items:center; justify-content:center; gap:9px; min-height:50px; border:0; border-right:1px solid #1f432d; background:transparent; color:#82998a; text-decoration:none; font:9px "Silkscreen",monospace; }
 .agent-bottom-nav button.active { color:#041008; background:var(--agent-lime); }
