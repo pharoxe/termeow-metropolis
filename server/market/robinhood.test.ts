@@ -4,7 +4,7 @@ import type { PairRow } from "../../shared/wire.js";
 import type { Candle } from "../types.js";
 import { normalizePair, type DexScreenerPair } from "../sources/dexscreener.js";
 import { GECKO_OHLCV_PAGE_LIMIT } from "../sources/gecko.js";
-import { ROBINHOOD_MARKET_SOURCE, assembleRobinhoodMarket, primaryPairOf, type RobinhoodMarketDeps } from "./robinhood.js";
+import { CHAIN_CANDLE_FIRST_PAINT_MS, ROBINHOOD_MARKET_SOURCE, assembleRobinhoodMarket, primaryPairOf, type RobinhoodMarketDeps } from "./robinhood.js";
 import type { ChainCandlesResult } from "./robinhood/chainCandles.js";
 
 const FATCOIN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
@@ -176,6 +176,22 @@ describe("assembleRobinhoodMarket R6 chain-swap candles", () => {
     expect(market.candleSource).toBeUndefined();
     expect(market.degraded).toBe(true);
     expect(market.notes).toEqual(["chain swaps unavailable: quote 0x8005 has no USD price; candles are GeckoTerminal pool OHLCV"]);
+  });
+
+  it("falls back to Gecko within the first-paint budget while a cold chain path keeps warming", async () => {
+    vi.useFakeTimers();
+    try {
+      const chainCandles = vi.fn(() => new Promise<ChainCandlesResult>(() => {}));
+      const d = deps({ chainCandles });
+      const pending = assembleRobinhoodMarket(FATCOIN, "5m", d);
+      await vi.advanceTimersByTimeAsync(CHAIN_CANDLE_FIRST_PAINT_MS + 1);
+      const market = await pending;
+      expect(market.source).toBe("geckoterminal");
+      expect(market.candles).toHaveLength(3);
+      expect(market.notes).toEqual([`chain swaps unavailable: chain path still warming after ${CHAIN_CANDLE_FIRST_PAINT_MS}ms; candles are GeckoTerminal pool OHLCV`]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reports both failures when the chain path throws and GeckoTerminal is in backoff", async () => {

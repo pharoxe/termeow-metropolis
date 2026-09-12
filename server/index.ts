@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import express from "express";
+import compression from "compression";
 import helmet from "helmet";
 import { ZodError } from "zod";
 import { config } from "./config.js";
@@ -29,6 +30,7 @@ const snapshots = installSnapshots();
 const app = express();
 app.disable("x-powered-by");
 if (config.nodeEnv === "production") app.set("trust proxy", 1);
+app.use(compression());
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "256kb" }));
 

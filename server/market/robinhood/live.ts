@@ -16,6 +16,8 @@ import { SwapCandleCache } from "./swapCache.js";
  * so tests and the Solana desk never touch it.
  */
 const CHAIN = "robinhood" as const;
+/** Let a cold chain backfill warm in the background; do not hold first chart paint for the old 4s cache default. */
+export const CHART_INITIAL_WAIT_MS = 300;
 
 type Live = { cache: SwapCandleCache; blocks: BlockTimeCache; prices: EvmQuotePrice; rpc: BackfillRpc };
 
@@ -70,6 +72,7 @@ export function liveChainCandles(primary: PairRow, interval: string): Promise<Ch
     resolvePool: (row) => resolvePoolRef(row, { rpcUrl: config.robinhood.rpcUrl }),
     resolveError: () => poolResolveStatus().lastError,
     cache,
+    waitMs: CHART_INITIAL_WAIT_MS,
     quoteUsd,
     livePrints: (pair) => flowCollector.ledger.recentPrints(CHAIN, pair)
   });

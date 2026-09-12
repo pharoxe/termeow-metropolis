@@ -8,6 +8,8 @@ import type { ChainCandlesResult } from "./robinhood/chainCandles.js";
 import { CANDLE_SOURCE_GECKO } from "./robinhood/swapCandles.js";
 
 export const ROBINHOOD_MARKET_SOURCE = "dexscreener + geckoterminal";
+/** A cold RPC pool-resolution/backfill keeps warming after this first-paint budget expires. */
+export const CHAIN_CANDLE_FIRST_PAINT_MS = 350;
 /** Same depth as the Solana path: at most two 1000-row pages, the second only when the first was full. */
 export const CANDLE_PAGES = 2;
 const CHAIN: Chain = "robinhood";
@@ -27,6 +29,20 @@ export type RobinhoodMarketDeps = {
 type LoadedCandles = { value: Candle[]; notes: string[]; source: string; candleSource?: CandleSourceInfo; stale?: boolean };
 
 type Loaded<T> = { value: T; note: string | null };
+
+async function firstPaintBudget<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`chain path still warming after ${timeoutMs}ms`)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 function sameAddress(left: string | undefined, right: string): boolean {
   return String(left || "").toLowerCase() === right.toLowerCase();
@@ -85,7 +101,7 @@ async function loadCandles(deps: RobinhoodMarketDeps, primary: PairRow | null, i
   if (!primary) return { value: [], notes: ["No DexScreener pool with this token as base"], source: ROBINHOOD_MARKET_SOURCE };
   if (!deps.chainCandles) return loadGeckoCandles(deps, primary, interval, ROBINHOOD_MARKET_SOURCE, []);
   try {
-    const chain = await deps.chainCandles(primary, interval);
+    const chain = await firstPaintBudget(deps.chainCandles(primary, interval), CHAIN_CANDLE_FIRST_PAINT_MS);
     return { value: chain.candles, notes: chain.notes, source: chain.candleSource.kind, candleSource: chain.candleSource, stale: chain.stale };
   } catch (error) {
     return loadGeckoCandles(deps, primary, interval, CANDLE_SOURCE_GECKO, [`chain swaps unavailable: ${errorMessage(error)}; candles are GeckoTerminal pool OHLCV`]);

@@ -77,7 +77,9 @@ async function geckoOhlcv(resourcePath: string, interval = "5m"): Promise<Candle
   const [unit, aggregate] = GECKO_INTERVALS[interval] || GECKO_INTERVALS["5m"];
   const collected: Candle[] = [];
   let before: number | undefined;
-  for (let page = 0; page < 2; page += 1) {
+  // One page is already 1,000 bars (3.5 days at 5m and 2.7 years at 1d).
+  // Loading a second page serially doubled cold-chart latency and payload size.
+  for (let page = 0; page < 1; page += 1) {
     const params = new URLSearchParams({ aggregate: String(aggregate), limit: "1000" });
     if (before) params.set("before_timestamp", String(before));
     const url = `https://api.geckoterminal.com/api/v2/networks/solana/${resourcePath}/ohlcv/${unit}?${params}`;
@@ -236,16 +238,22 @@ export async function resolveGeckoCandles(
 ): Promise<{ candles: Candle[]; pair?: DexPair }> {
   const ranked = rankCandlePairs(pairs);
   const primary = ranked[0];
+  let pumpPromise: Promise<Candle[]> | undefined;
+  const startPump = () => pumpPromise ??= pumpFunHistory(mint, interval);
+  // Hedge a slow Gecko request with pump.fun without spending a second request
+  // when Gecko answers promptly with sufficient history.
+  const pumpHedge = setTimeout(() => { void startPump(); }, 200);
   let geckoCandles: Candle[] = [];
   if (primary?.pairAddress && !isGeckoBlocked()) {
     geckoCandles = await safeGeckoCandles(primary.pairAddress, interval);
   }
+  clearTimeout(pumpHedge);
 
   const geckoSpanMs = geckoCandles.length > 1
     ? geckoCandles[geckoCandles.length - 1].time - geckoCandles[0].time
     : 0;
   const skipPumpHistory = geckoCandles.length >= 1500 || geckoSpanMs >= 6 * 86400e3;
-  const pump = skipPumpHistory ? [] : await pumpFunHistory(mint, interval);
+  const pump = skipPumpHistory ? [] : await startPump();
   const merged = mergeCandles(geckoCandles, pump);
   if (usableCandles(merged)) {
     if (!usableCandles(geckoCandles)) notes.push("OHLCV from pump.fun (gecko empty)");
@@ -394,13 +402,38 @@ async function mintTools(mint: string) {
   return { search, intelligence, arbitrage };
 }
 
+type MintTools = Awaited<ReturnType<typeof mintTools>>;
+const emptyMintTools = (): MintTools => ({ search: undefined, intelligence: undefined, arbitrage: undefined });
+const mintToolsCache = new Map<string, { expiresAt: number; value: MintTools }>();
+const mintToolsInflight = new Map<string, Promise<MintTools>>();
+
+function peekMintTools(mint: string): MintTools | undefined {
+  const cached = mintToolsCache.get(mint);
+  return cached && cached.expiresAt > Date.now() ? cached.value : undefined;
+}
+
+function refreshMintTools(mint: string): Promise<MintTools> {
+  const cached = peekMintTools(mint);
+  if (cached) return Promise.resolve(cached);
+  const pending = mintToolsInflight.get(mint);
+  if (pending) return pending;
+  const work = mintTools(mint)
+    .then((value) => {
+      mintToolsCache.set(mint, { expiresAt: Date.now() + MARKET_TTL_MS, value });
+      return value;
+    })
+    .catch(() => emptyMintTools())
+    .finally(() => mintToolsInflight.delete(mint));
+  mintToolsInflight.set(mint, work);
+  return work;
+}
+
 function assembleMarket(
   mint: string,
   pair: DexPair | undefined,
   pairs: DexPair[],
   candles: Candle[],
   tools: Awaited<ReturnType<typeof mintTools>>,
-  board: Board,
   notes: string[]
 ): OnchainMarket {
   const toolCalls = [tools.search, tools.intelligence, tools.arbitrage].filter((item): item is ToolResult => Boolean(item));
@@ -408,7 +441,6 @@ function assembleMarket(
   if (failedTools.length) notes.push(...failedTools.map((result) => `${result.tool}: ${result.error}`));
 
   const provider: Record<string, unknown> = {
-    ...board,
     token_search: tools.search ? toolData(tools.search) : {},
     intelligence_market: tools.intelligence ? toolData(tools.intelligence) : {},
     arbitrage: tools.arbitrage ? toolData(tools.arbitrage) : {},
@@ -503,20 +535,21 @@ async function loadOnchainMarket(mint: string, interval: string, cacheKey: strin
   }
 
   const notes: string[] = [];
-  // Dex/Gecko start immediately and never wait on ClawPump.
+  // Dex/Gecko start immediately. ClawPump enrichment updates the short-lived
+  // cache in the background and never blocks the first chart paint.
   const dexP = dexSnapshot(mint).catch((error) => {
     notes.push(`Public market fallback unavailable: ${errorMessage(error)}`);
     return { pair: undefined as DexPair | undefined, pairs: [] as DexPair[] };
   });
-  const toolsP = mintTools(mint);
-  const boardP = getBoard();
+  const toolsP = refreshMintTools(mint);
 
   const snapshot = await dexP;
   const candlesP = resolveGeckoCandles(mint, snapshot.pairs, interval, notes).catch((error) => {
     notes.push(`OHLCV fallback unavailable: ${errorMessage(error)}`);
     return { candles: [] as Candle[], pair: undefined as DexPair | undefined };
   });
-  const [resolved, tools, board] = await Promise.all([candlesP, toolsP, boardP]);
+  const resolved = await candlesP;
+  const tools = peekMintTools(mint) ?? emptyMintTools();
 
   if (!snapshot.pair && !tools.search && mint === config.ansemMint) {
     const fallback = mockAnsemMarket(mint);
@@ -525,9 +558,15 @@ async function loadOnchainMarket(mint: string, interval: string, cacheKey: strin
   }
 
   const chartPair = resolved.pair || snapshot.pair;
-  const result = assembleMarket(mint, chartPair, snapshot.pairs, resolved.candles, tools, board, notes);
+  const result = assembleMarket(mint, chartPair, snapshot.pairs, resolved.candles, tools, [...notes]);
   const ttl = resolved.candles.length > 1 ? MARKET_TTL_MS : 8_000;
   marketCache.set(cacheKey, { expiresAt: Date.now() + ttl, value: result });
+  void toolsP.then((enrichedTools) => {
+    const cached = marketCache.get(cacheKey);
+    if (cached?.value !== result) return;
+    const enriched = assembleMarket(mint, chartPair, snapshot.pairs, resolved.candles, enrichedTools, [...notes]);
+    marketCache.set(cacheKey, { expiresAt: Date.now() + ttl, value: enriched });
+  });
   return result;
 }
 
