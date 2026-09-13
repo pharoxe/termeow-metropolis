@@ -19,14 +19,27 @@ export interface AgentMessage {
   at: number;
 }
 
-export interface AgentHudWindow {
+export type AgentHudWindow = {
   type: "market_chart";
   chain: "solana" | "robinhood";
   tokenAddress: string;
   tokenSymbol?: string;
   timeframe: string;
   requestedAt: number;
-}
+} | {
+  type: "order_flow";
+  chain: "solana" | "robinhood";
+  tokenAddress: string;
+  tokenSymbol?: string;
+  windowMinutes: number;
+  minUsd: number;
+  side?: "buy" | "sell";
+  requestedAt: number;
+};
+
+export type AgentLeftWidget =
+  | { type: "automations" }
+  | { type: "handles"; query?: string };
 
 export interface AgentToolEvent {
   id: string;

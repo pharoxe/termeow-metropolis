@@ -41,6 +41,7 @@ export const api = {
   },
   fomoBoard: (params: { chain?: FomoChainScope; window?: FomoBoardWindow } = {}) =>
     request<FomoBoardResponse>(`/api/fomo/board?${new URLSearchParams({ chain: params.chain ?? "all", window: params.window ?? "24h" }).toString()}`),
+  fomoHandles: (limit = 200) => request<{ source: string; observedAt: number; entries: Array<{ chain: "robinhood"; wallet: string; handle: string; followers: number | null; profileUrl: string | null; source: string }> }>(`/api/fomo/handles?limit=${Math.min(500, Math.max(1, Math.trunc(limit)))}`),
   /** Registry size, the boards read and the CU meter; `account` is the whole key's balance, repolled every 5 min. */
   identityCoverage: () => request<IdentityCoverageResponse>("/api/identity/coverage"),
   /** A stored board snapshot, never a fresh sweep. The server 400s outside 1-100, so `limit` is clamped here. */

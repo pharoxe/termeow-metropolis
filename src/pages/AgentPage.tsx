@@ -1,4 +1,5 @@
 import { getAccessToken, usePrivy } from "@privy-io/react-auth";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { AutomationRecord } from "../../shared/automation";
@@ -7,7 +8,9 @@ import { AuthControls } from "../auth/AuthControls";
 import { hasPrivy } from "../auth/WalletProviders";
 import { AsciiPersona } from "../features/standalone-agent/AsciiPersona";
 import { AgentSignalRail } from "../features/standalone-agent/AgentSignalRail";
+import { HandlePicker } from "../features/standalone-agent/HandlePicker";
 import { MarketHud } from "../features/standalone-agent/MarketHud";
+import { OrderFlowHud } from "../features/standalone-agent/OrderFlowHud";
 import { useAgent } from "../features/voice-agent/context/AgentProvider";
 import { useAgentStore } from "../features/voice-agent/store/agentStore";
 import { AgentApproval } from "../features/voice-agent/surfaces/AgentApproval";
@@ -80,6 +83,8 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   const conversationId = useAgentStore((state) => state.conversationId);
   const muted = useAgentStore((state) => state.muted);
   const pending = useAgentStore((state) => state.pendingApproval);
+  const leftWidget = useAgentStore((state) => state.leftWidget);
+  const setLeftWidget = useAgentStore((state) => state.setLeftWidget);
   const [view, setView] = useState<View>("ask");
   const [text, setText] = useState("");
   const [automationCount, setAutomationCount] = useState(0);
@@ -108,12 +113,17 @@ export function AgentPage({ config }: { config: PublicConfig }) {
 
     <AgentSignalRail />
     <MarketHud />
+    <OrderFlowHud />
 
     <section className="agent-command-deck">
       <aside className="agent-sideband agent-sideband-left">
         <span>LIVE INPUTS</span>
         <dl><div><dt>VOICE</dt><dd>{conversationId ? "LINKED" : "STANDBY"}</dd></div><div><dt>CHAIN</dt><dd>SOL + RH</dd></div><div><dt>RULES</dt><dd>{automationCount}</dd></div></dl>
         <p>Intent in.<br />Onchain action out.</p>
+        <AnimatePresence>{leftWidget ? <motion.section className="agent-left-widget" initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }}>
+          <header><span>{leftWidget.type === "automations" ? "AUTOMATION CONTROL" : "CHOOSE A TRACKED HANDLE"}</span><button type="button" onClick={() => { setLeftWidget(); if (view === "automations") setView("ask"); }}>×</button></header>
+          {leftWidget.type === "automations" ? <AutomationSurface onCount={setAutomationCount} /> : <HandlePicker initialQuery={leftWidget.query} onChoose={(handle) => { if (conversationId) agent.send(`Use the indexed trader @${handle}.`); setLeftWidget(); }} />}
+        </motion.section> : null}</AnimatePresence>
       </aside>
 
       <section className="persona-console">
@@ -147,17 +157,16 @@ export function AgentPage({ config }: { config: PublicConfig }) {
         <strong>{toolActivity.length ? `${toolActivity.length} TOOL CALLS` : "CLEAN SLATE"}</strong>
         <div className="sideband-tools">{toolActivity.slice(-3).reverse().map((event) => <div key={event.id} className={event.status} title={event.summary}><i /> <span>{event.name.replaceAll("_", " ")}</span></div>)}</div>
         <p>Tool evidence and outcomes are shown—not private model chain-of-thought.</p>
-        <div className="sideband-meter"><i /><i /><i /><i /><i /><i /></div>
+        {(agent.status === "thinking" || agent.status === "executing" || agent.status === "connecting" || toolActivity.some((event) => event.status === "running")) ? <div className="pixel-grid-spinner" aria-label="Working"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div> : <div className="sideband-meter"><i /><i /><i /><i /><i /><i /></div>}
       </aside>
     </section>
 
-    <section className={`agent-drawer ${view === "ask" ? "collapsed" : ""}`}>
-      {view === "automations" && <><header><span>AUTOMATION CONTROL</span><small>VOICE DRAFT → PASSKEY → ARMED</small></header><AutomationSurface onCount={setAutomationCount} /></>}
+    <section className={`agent-drawer ${view !== "activity" ? "collapsed" : ""}`}>
       {view === "activity" && <><header><span>SESSION TAPE</span><small>CONVERSATION + TOOL EVIDENCE</small></header><div className="tool-tape"><h3>DECISION TRACE</h3>{toolActivity.length ? toolActivity.slice().reverse().map((event) => <article key={event.id} className={event.status}><time>{new Date(event.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time><div><b>{event.name.replaceAll("_", " ")}</b>{event.input && <small>{event.input}</small>}<span>{event.summary || "Working…"}</span></div></article>) : <p className="agent-empty">No tools used in this session.</p>}</div><div className="activity-tape">{transcript.length ? transcript.slice().reverse().map((message) => <p key={message.id}><time>{new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><b>{message.role}</b><span>{message.text}</span></p>) : <p className="agent-empty">No conversation yet.</p>}</div></>}
     </section>
 
     <nav className="agent-bottom-nav" aria-label="Agent views">
-      {(["ask", "automations", "activity"] as View[]).map((item) => <button key={item} className={view === item ? "active" : ""} onClick={() => setView(item)}><i>{item === "ask" ? "◉" : item === "automations" ? "⌁" : "≋"}</i>{item.toUpperCase()}{item === "automations" && automationCount > 0 ? <b>{automationCount}</b> : null}</button>)}
+      {(["ask", "automations", "activity"] as View[]).map((item) => <button key={item} className={view === item ? "active" : ""} onClick={() => { setView(item); if (item === "automations") setLeftWidget({ type: "automations" }); else if (leftWidget?.type === "automations") setLeftWidget(); }}><i>{item === "ask" ? "◉" : item === "automations" ? "⌁" : "≋"}</i>{item.toUpperCase()}{item === "automations" && automationCount > 0 ? <b>{automationCount}</b> : null}</button>)}
       <Link to="/onchain"><i>⌗</i>TERMINAL</Link>
     </nav>
 

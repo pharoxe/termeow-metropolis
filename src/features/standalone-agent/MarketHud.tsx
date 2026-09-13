@@ -66,7 +66,7 @@ export function MarketHud() {
   const [market, setMarket] = useState<MarketResponse | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    if (!hud) { setMarket(null); return; }
+    if (!hud || hud.type !== "market_chart") { setMarket(null); return; }
     let live = true;
     const load = async () => {
       try {
@@ -87,8 +87,8 @@ export function MarketHud() {
     void load();
     const timer = setInterval(load, 5_000);
     return () => { live = false; clearInterval(timer); };
-  }, [agent.updateContext, hud?.chain, hud?.tokenAddress, hud?.timeframe]);
-  return <AnimatePresence>{hud ? <motion.aside className="market-hud" initial={{ opacity: 0, x: 80, scale: .72 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 55, scale: .85 }} transition={{ type: "spring", stiffness: 280, damping: 27 }}>
+  }, [agent.updateContext, hud?.chain, hud?.tokenAddress, hud?.type === "market_chart" ? hud.timeframe : undefined]);
+  return <AnimatePresence>{hud?.type === "market_chart" ? <motion.aside className="market-hud" initial={{ opacity: 0, x: 80, scale: .72 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 55, scale: .85 }} transition={{ type: "spring", stiffness: 280, damping: 27 }}>
     <header><span><i /> MARKET HUD</span><button type="button" onClick={() => setHudWindow()}>×</button></header>
     <div className="market-hud-meta">
       <div>{market?.instrument.image ? <img src={market.instrument.image} alt="" /> : <span className="hud-token-fallback" />}<span><small>{hud.chain.toUpperCase()} · {(market?.interval || hud.timeframe).toUpperCase()}</small><strong>${(market?.instrument.symbol || hud.tokenSymbol || "TOKEN").replace(/^\$+/, "")}</strong></span></div>

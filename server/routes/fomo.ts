@@ -161,3 +161,16 @@ fomoRouter.get("/status", (_request, response, next) => {
     next(error);
   }
 });
+
+fomoRouter.get("/handles", async (request, response, next) => {
+  try {
+    const limit = z.coerce.number().int().min(1).max(500).default(200).parse(request.query.limit ?? 200);
+    const handles = getTraderService().handles;
+    if (!handles.directory) throw new Error("Handle directory unavailable");
+    if (handles.stats().entries === 0 && handles.refresh) await handles.refresh();
+    else if (handles.refresh) void handles.refresh();
+    response.json({ source: "local-live-fomo-gateway", observedAt: Date.now(), entries: handles.directory(limit).map((entry) => ({ ...entry, chain: "robinhood" as const })) });
+  } catch (error) {
+    next(error);
+  }
+});

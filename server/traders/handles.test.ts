@@ -60,6 +60,8 @@ describe("HandleBook", () => {
     });
     expect(handles.get(`0x${"9".repeat(40)}`)).toBeNull();
     expect(handles.stats()).toMatchObject({ entries: TRADERS.rows.length, population: HANDLES_POPULATION, traders: { rows: TRADERS.rows.length, lastOkAt: T0, lastError: null }, tape: { rows: 0 }, learned: 0 });
+    expect(handles.directory()).toHaveLength(TRADERS.rows.length);
+    expect(handles.directory()[0]).toMatchObject({ wallet: UNIPCS, handle: "unipcs" });
     expect(fetch.calls.sort()).toEqual([TAPE_URL, TRADERS_URL].sort());
   });
 

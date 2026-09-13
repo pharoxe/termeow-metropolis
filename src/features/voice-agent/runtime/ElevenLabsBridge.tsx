@@ -8,6 +8,8 @@ import { audioReactiveEngine } from "../audio/AudioReactiveEngine";
 import { getAccessToken } from "@privy-io/react-auth";
 import { api } from "../../../api/client";
 import type { AutomationIntent } from "../../../../shared/automation";
+import { recentRallyStructure } from "../../../lib/chartStructure";
+import { filterRecentOrderFlow } from "../../../lib/agentOrderFlow";
 
 const optionalNumber = (value: unknown) => {
   const number = Number(value);
@@ -29,6 +31,39 @@ const compactToolInput = (parameters: Record<string, unknown>) => Object.entries
   .slice(0, 5)
   .map(([key, value]) => `${key.replaceAll("_", " ")}: ${typeof value === "string" && value.length > 28 ? `${value.slice(0, 10)}…${value.slice(-6)}` : String(value)}`)
   .join(" · ");
+
+async function resolveMarketTarget(parameters: Record<string, unknown>) {
+  const context = useAgentStore.getState().context;
+  let chain = parameters.chain === "robinhood" ? "robinhood" as const : parameters.chain === "solana" ? "solana" as const : context.chain;
+  let address = String(parameters.token_address || context.token?.address || "").trim();
+  let symbol = String(parameters.token_symbol || context.token?.symbol || "").replace(/^\$+/, "").trim() || undefined;
+  const query = String(parameters.query || symbol || address || "").trim();
+  if ((!address || !chain) && query) {
+    const resolution = await api.resolveToken(query, chain);
+    if (!resolution.match) return { error: resolution.ambiguous ? "Ticker is ambiguous. Ask the user to choose from the matches." : "Token is not indexed. Ask for the exact contract address.", matches: resolution.matches };
+    chain = resolution.match.chain; address = resolution.match.address; symbol = resolution.match.symbol;
+  }
+  if (!chain && /^0x[a-fA-F0-9]{40}$/.test(address)) chain = "robinhood";
+  if (!chain && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) chain = "solana";
+  return chain && address ? { chain, address, symbol } : { error: "Provide a ticker, token name, or contract address." };
+}
+
+async function directTokenEvidence(chain: "solana" | "robinhood", address: string, timeframe = "5m") {
+  const [market, flow] = await Promise.all([api.market(chain, address, timeframe), api.flowToken(chain, address, timeframe).catch(() => null)]);
+  const latest = market.candles.at(-1) || null;
+  const structure = recentRallyStructure(market.candles);
+  return { market, flow, latest, structure };
+}
+
+async function liveTraderMatches(handle: string, chain?: "solana" | "robinhood") {
+  if (chain === "solana") return [];
+  const directory = await api.fomoHandles(500).catch(() => null);
+  const key = handle.replace(/^@/, "").toLowerCase();
+  return (directory?.entries || []).filter((row) => row.handle.replace(/^@/, "").toLowerCase() === key).map((row) => ({
+    chain: row.chain, wallet: row.wallet, display_name: row.handle, twitter: null, followers: row.followers,
+    source: row.source, profile_url: row.profileUrl
+  }));
+}
 
 function toolSummary(raw: string) {
   try {
@@ -108,7 +143,12 @@ function ClientToolsBridge() {
     read_terminal_state: trackedTool("read_terminal_state", async () => {
       const connected = Boolean(await getAccessToken().catch(() => null));
       const terminal = useAgentStore.getState().context;
-      return JSON.stringify({ ok: true, warning: "This is a point-in-time terminal snapshot, not a guarantee of execution quality.", terminal: { ...terminal, wallet: { ...terminal.wallet, connected } } });
+      if (!terminal.chain || !terminal.token?.address) return JSON.stringify({ ok: true, warning: "No token is focused yet. Resolve a ticker or address first.", terminal: { ...terminal, wallet: { ...terminal.wallet, connected } } });
+      try {
+        const evidence = await directTokenEvidence(terminal.chain, terminal.token.address, terminal.chart?.timeframe || "5m");
+        const direct = { ...terminal, chart: { ...terminal.chart, timeframe: terminal.chart?.timeframe || evidence.market.interval, unit: terminal.chart?.unit || "price", scale: terminal.chart?.scale || "linear", priceUsd: evidence.market.priceUsd, marketCapUsd: evidence.market.marketCapUsd, change24Pct: evidence.market.change24Pct, latestCandle: evidence.latest, loadedBars: evidence.market.candles.length, structure: { recentRally: evidence.structure, calculation: "visible-loaded-bars" as const } }, observedAt: evidence.market.observedAt, wallet: { ...terminal.wallet, connected } };
+        return JSON.stringify({ ok: true, source: "direct_chain_and_market_apis", warning: "Point-in-time evidence; refresh the route before execution.", terminal: direct, market: { liquidity_usd: evidence.market.liquidityUsd, volume_24h_usd: evidence.market.volume24Usd, source: evidence.market.source, stale: evidence.market.stale, error: evidence.market.error }, flow: evidence.flow ? { windows: evidence.flow.windows, large_prints: evidence.flow.largePrints, tape: evidence.flow.tape?.slice(0, 20), feed_health: evidence.flow.feedHealth, stale: evidence.flow.stale, error: evidence.flow.error } : null });
+      } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason), terminal }); }
     }),
     resolve_trader_handle: trackedTool("resolve_trader_handle", async (parameters: Record<string, unknown>) => {
       const handle = String(parameters.handle || "").replace(/^@/, "").trim();
@@ -116,9 +156,43 @@ function ClientToolsBridge() {
       try {
         const result = await api.identityHandle(handle);
         const chain = parameters.chain === "solana" || parameters.chain === "robinhood" ? parameters.chain : undefined;
-        const addresses = chain ? result.addresses.filter((item) => item.chain === chain) : result.addresses;
-        return JSON.stringify({ ok: addresses.length > 0, handle, indexed: true, addresses: addresses.map((item) => ({ chain: item.chain, wallet: item.wallet, display_name: item.displayName, twitter: item.twitter, followers: item.followers, source: item.source })), error: addresses.length ? undefined : "No indexed wallet matches this handle and chain. Ask for an address; do not guess." });
+        const stored = chain ? result.addresses.filter((item) => item.chain === chain) : result.addresses;
+        const addresses = stored.length ? stored.map((item) => ({ chain: item.chain, wallet: item.wallet, display_name: item.displayName, twitter: item.twitter, followers: item.followers, source: item.source })) : await liveTraderMatches(handle, chain);
+        if (addresses.length !== 1) useAgentStore.getState().setLeftWidget({ type: "handles", query: handle });
+        return JSON.stringify({ ok: addresses.length > 0, handle, indexed: true, addresses, picker_visible: addresses.length !== 1, error: addresses.length ? undefined : "No exact indexed wallet matches. Ask the user to choose from the visible handle directory or provide an address; do not guess." });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
+    }),
+    analyze_token: trackedTool("analyze_token", async (parameters: Record<string, unknown>) => {
+      const target = await resolveMarketTarget(parameters);
+      if ("error" in target) return JSON.stringify({ ok: false, ...target });
+      const timeframe = String(parameters.timeframe || "5m");
+      const evidence = await directTokenEvidence(target.chain, target.address, timeframe);
+      useAgentStore.getState().setContext({ route: "/agent", chain: target.chain, token: { address: target.address, symbol: evidence.market.instrument.symbol || target.symbol, name: evidence.market.instrument.name, logoUrl: evidence.market.instrument.image || undefined }, chart: { timeframe, unit: "price", scale: "linear", priceUsd: evidence.market.priceUsd, marketCapUsd: evidence.market.marketCapUsd, change24Pct: evidence.market.change24Pct, latestCandle: evidence.latest, loadedBars: evidence.market.candles.length, structure: { recentRally: evidence.structure, calculation: "visible-loaded-bars" } }, observedAt: evidence.market.observedAt });
+      return JSON.stringify({ ok: true, source: "direct_chain_and_market_apis", token: { chain: target.chain, address: target.address, symbol: evidence.market.instrument.symbol || target.symbol, name: evidence.market.instrument.name }, market: { price_usd: evidence.market.priceUsd, market_cap_usd: evidence.market.marketCapUsd, liquidity_usd: evidence.market.liquidityUsd, volume_24h_usd: evidence.market.volume24Usd, change_24h_pct: evidence.market.change24Pct, candles: evidence.market.candles.length, source: evidence.market.source, stale: evidence.market.stale }, structure: evidence.structure, flow: evidence.flow ? { windows: evidence.flow.windows, large_prints: evidence.flow.largePrints, fomo_fills: evidence.flow.fomo?.fills.slice(0, 12), feed_health: evidence.flow.feedHealth, stale: evidence.flow.stale } : null });
+    }),
+    inspect_large_orders: trackedTool("inspect_large_orders", async (parameters: Record<string, unknown>) => {
+      const target = await resolveMarketTarget(parameters);
+      if ("error" in target) return JSON.stringify({ ok: false, ...target });
+      const windowMinutes = Math.min(240, Math.max(1, Math.round(optionalNumber(parameters.window_minutes) ?? 15)));
+      const minUsd = Math.max(1_000, optionalNumber(parameters.min_usd) ?? 1_000);
+      const side = parameters.side === "buy" || parameters.side === "sell" ? parameters.side : undefined;
+      const flow = await api.flowToken(target.chain, target.address, "1m");
+      const orders = filterRecentOrderFlow(flow.tape || [], { now: Date.now(), windowMinutes, minUsd, side }).slice(0, 30);
+      useAgentStore.getState().setHudWindow({ type: "order_flow", chain: target.chain, tokenAddress: target.address, tokenSymbol: target.symbol, windowMinutes, minUsd, side, requestedAt: Date.now() });
+      return JSON.stringify({ ok: true, surface: "order_flow", source: flow.source, token: { chain: target.chain, address: target.address, symbol: target.symbol }, filters: { window_minutes: windowMinutes, min_usd: minUsd, side: side || "both" }, orders, count: orders.length, feed_health: flow.feedHealth, stale: flow.stale, error: flow.error });
+    }),
+    analyze_wallet: trackedTool("analyze_wallet", async (parameters: Record<string, unknown>) => {
+      const address = String(parameters.wallet_address || "").trim();
+      const chain = parameters.chain === "robinhood" ? "robinhood" as const : parameters.chain === "solana" ? "solana" as const : /^0x[a-fA-F0-9]{40}$/.test(address) ? "robinhood" as const : "solana" as const;
+      if (!address) return JSON.stringify({ ok: false, error: "Provide the wallet address." });
+      const [identity, portfolio, tape] = await Promise.all([api.identityWallet(chain, address).then((result) => result.identity).catch(() => null), chain === "solana" ? api.portfolio(address).catch(() => null) : api.robinhoodPortfolio(address).catch(() => null), api.fomoTape({ chain, limit: 200 }).catch(() => null)]);
+      const recent = (tape?.fills || []).filter((fill) => fill.trader.address.toLowerCase() === address.toLowerCase()).slice(0, 30);
+      if (!identity) useAgentStore.getState().setLeftWidget({ type: "handles" });
+      return JSON.stringify({ ok: true, source: "direct_chain_and_local_fomo_gateway", chain, wallet: address, identity, portfolio, recent_orders: recent, attribution_warning: identity ? undefined : "No indexed identity is attached; do not infer a person from this address." });
+    }),
+    show_handle_picker: trackedTool("show_handle_picker", async (parameters: Record<string, unknown>) => {
+      useAgentStore.getState().setLeftWidget({ type: "handles", query: String(parameters.query || "").replace(/^@/, "") });
+      return JSON.stringify({ ok: true, surface: "tracked_handle_picker", status: "visible" });
     }),
     resolve_token: trackedTool("resolve_token", async (parameters: Record<string, unknown>) => {
       const query = String(parameters.query || parameters.token_symbol || parameters.token_address || "").trim();
@@ -237,6 +311,7 @@ function ClientToolsBridge() {
       if (!chain && /^0x[a-fA-F0-9]{40}$/.test(tokenAddress)) chain = "robinhood";
       if (!chain && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(tokenAddress)) chain = "solana";
       if (!chain || !tokenAddress) return JSON.stringify({ ok: false, error: "Provide a ticker, token name, or contract address to open the market HUD." });
+      useAgentStore.getState().setContext({ ...context, route: "/agent", chain, token: { address: tokenAddress, symbol: tokenSymbol || context.token?.symbol, name: context.token?.name, logoUrl: context.token?.logoUrl }, chart: { ...context.chart, timeframe, unit: context.chart?.unit || "price", scale: context.chart?.scale || "linear" }, observedAt: Date.now() });
       useAgentStore.getState().setHudWindow({ type: "market_chart", chain, tokenAddress, tokenSymbol, timeframe, requestedAt: Date.now() });
       return JSON.stringify({ ok: true, surface: "market_chart", status: "visible", chain, token_address: tokenAddress, token_symbol: tokenSymbol, message: "The live market HUD is open beside the conversation." });
     }),
@@ -251,6 +326,10 @@ function ClientToolsBridge() {
   useConversationClientTool("read_terminal_state", clientTools.read_terminal_state);
   useConversationClientTool("resolve_trader_handle", clientTools.resolve_trader_handle);
   useConversationClientTool("resolve_token", clientTools.resolve_token);
+  useConversationClientTool("analyze_token", clientTools.analyze_token);
+  useConversationClientTool("inspect_large_orders", clientTools.inspect_large_orders);
+  useConversationClientTool("analyze_wallet", clientTools.analyze_wallet);
+  useConversationClientTool("show_handle_picker", clientTools.show_handle_picker);
   useConversationClientTool("read_automation_preferences", clientTools.read_automation_preferences);
   useConversationClientTool("update_automation_preferences", clientTools.update_automation_preferences);
   useConversationClientTool("propose_swap", clientTools.propose_swap);

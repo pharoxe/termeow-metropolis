@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentHudWindow, AgentMessage, AgentStatus, AgentToolEvent, OverlayMode, PendingAgentApproval, TermeowAgentContext } from "../runtime/agentTypes";
+import type { AgentHudWindow, AgentLeftWidget, AgentMessage, AgentStatus, AgentToolEvent, OverlayMode, PendingAgentApproval, TermeowAgentContext } from "../runtime/agentTypes";
 
 interface AgentState {
   status: AgentStatus;
@@ -12,6 +12,7 @@ interface AgentState {
   toolActivity: AgentToolEvent[];
   pendingApproval?: PendingAgentApproval;
   hudWindow?: AgentHudWindow;
+  leftWidget?: AgentLeftWidget;
   setStatus: (status: AgentStatus, error?: string) => void;
   setOverlayMode: (mode: OverlayMode) => void;
   setMuted: (muted: boolean) => void;
@@ -22,6 +23,7 @@ interface AgentState {
   finishTool: (id: string, status: "complete" | "failed", summary?: string) => void;
   setPendingApproval: (pendingApproval?: PendingAgentApproval) => void;
   setHudWindow: (hudWindow?: AgentHudWindow) => void;
+  setLeftWidget: (leftWidget?: AgentLeftWidget) => void;
   resetSession: () => void;
 }
 
@@ -51,5 +53,6 @@ export const useAgentStore = create<AgentState>((set) => ({
   })),
   setPendingApproval: (pendingApproval) => set({ pendingApproval }),
   setHudWindow: (hudWindow) => set({ hudWindow }),
+  setLeftWidget: (leftWidget) => set({ leftWidget }),
   resetSession: () => set({ status: "dormant", conversationId: undefined, muted: false })
 }));

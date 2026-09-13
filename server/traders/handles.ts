@@ -23,6 +23,7 @@ export type HandleBookStats = {
   tape: HandleSourceStatus;
   learned: number;
 };
+export type HandleDirectoryEntry = HandleEntry & { wallet: string };
 
 export type HandleBookOptions = {
   fetchImpl?: typeof fetch;
@@ -153,6 +154,13 @@ export class HandleBook {
     const [traders, tape] = this.feeds.map((feed) => ({ ...feed.status }));
     const learned = [...this.entries.values()].filter((entry) => entry.source === "learned").length;
     return { entries: this.entries.size, population: HANDLES_POPULATION, traders, tape, learned };
+  }
+
+  /** Zero-credit directory for agent disambiguation; rich provider identity can be joined by wallet separately. */
+  directory(limit = 500): HandleDirectoryEntry[] {
+    return [...this.entries].map(([wallet, entry]) => ({ wallet, ...entry }))
+      .sort((a, b) => (b.followers ?? -1) - (a.followers ?? -1) || a.handle.localeCompare(b.handle))
+      .slice(0, Math.max(1, Math.min(500, Math.trunc(limit))));
   }
 
   private merge(address: string, entry: HandleEntry): void {

@@ -8,7 +8,7 @@ import { isAddress } from "../tape/robinhood/rpc.js";
 import { ZERO_ADDRESS, traderFromReceipt, type ReceiptLike } from "./attribute.js";
 import { TraderBook, type BookSize, type RecordResult, type TraderFill, type TraderTapeRow } from "./book.js";
 import { Erc20Meta, type Erc20MetaStats } from "./erc20Meta.js";
-import { HandleBook, type HandleBookStats, type HandleEntry } from "./handles.js";
+import { HandleBook, type HandleBookStats, type HandleDirectoryEntry, type HandleEntry } from "./handles.js";
 import { AccountClassifier } from "./identity.js";
 import { LruMap } from "./lru.js";
 import { ReceiptFetcher } from "./receipts.js";
@@ -85,6 +85,8 @@ export type HandlesLike = {
   /** Restart persistence (HandleBook implements both; test doubles may omit them). */
   learned?(): [string, HandleEntry][];
   restoreLearned?(entries: [string, HandleEntry][]): number;
+  refresh?(force?: boolean): Promise<void>;
+  directory?(limit?: number): HandleDirectoryEntry[];
 };
 /** The R4 transfer feed as the service sees it: attached by launchHooks, read for status. */
 export type TransferFeedHandle = { wrapPoller(poller: StreamPollerLike): StreamPollerLike; stats(): TransferFeedStats };
