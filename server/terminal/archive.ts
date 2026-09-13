@@ -15,6 +15,9 @@ export class TradeArchive {
   error: string | null = null;
   constructor(path = ":memory:") {
     this.db = new DatabaseSync(path);
+    // A full persistent volume is commonly a large WAL rather than live data.
+    // Reclaim it before schema writes so startup can recover without shell access.
+    if (path !== ":memory:") { try { this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch { /* best effort */ } }
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=1000;
       CREATE TABLE IF NOT EXISTS trades (id TEXT PRIMARY KEY, chain TEXT NOT NULL, token TEXT NOT NULL, pair TEXT NOT NULL, tx TEXT NOT NULL, time INTEGER NOT NULL, revision INTEGER NOT NULL, body TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS trades_range ON trades(chain,token,time,id);
@@ -26,6 +29,24 @@ export class TradeArchive {
     this.sequence = Number((this.db.prepare("SELECT COALESCE(MAX(revision),0) AS n FROM changes").get() as {n:number}).n);
     for (const row of this.db.prepare("SELECT chain,token,MAX(revision) revision FROM trades GROUP BY chain,token").all() as Array<{chain:string;token:string;revision:number}>) this.scopeRevisions.set(`${row.chain}:${row.token}`,row.revision);
     for (const row of this.db.prepare("SELECT * FROM pairs").all() as Array<{chain: Chain; pair: string; token: string; dex: string}>) this.pairs.set(`${row.chain}:${row.pair}`, row);
+  }
+  prune(before: { observations: number; trades: number }, batch = 1000) {
+    const remove = (table: "observations" | "changes" | "trades", column: "received" | "time", cutoff: number) => {
+      const result = this.db.prepare(`DELETE FROM ${table} WHERE rowid IN (SELECT rowid FROM ${table} WHERE ${column} < ? LIMIT ?)`)
+        .run(cutoff, batch);
+      return Number(result.changes);
+    };
+    try {
+      const observations = remove("observations", "received", before.observations);
+      const changes = remove("changes", "received", before.trades);
+      const trades = remove("trades", "time", before.trades);
+      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      if (trades) this.walletCache.clear();
+      return { observations, changes, trades };
+    } catch (reason) {
+      this.error = String(reason);
+      return { observations: 0, changes: 0, trades: 0 };
+    }
   }
   bind(chain: Chain, token: string, rows: PairRow[]) {
     for (const row of rows) {

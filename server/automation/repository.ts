@@ -145,28 +145,36 @@ export class AutomationRepository {
   async userPreferences(userId: string): Promise<UserAutomationPreferences> {
     if (!this.sql) return this.files.userPreferences(userId);
     const rows = await this.sql`SELECT * FROM termeow.automation_preferences WHERE user_id = ${userId} LIMIT 1`;
-    if (!rows[0]) return { userId, trackedTraders: [], updatedAt: Date.now() };
+    if (!rows[0]) return { userId, trackedTraders: [], favoriteTraders: [], favoriteTokens: [], updatedAt: Date.now() };
+    const recent = await this.sql`SELECT intent, transaction_hash, updated_at FROM termeow.automation_workflows WHERE user_id = ${userId} AND status = 'completed' AND intent->>'side' IN ('buy','sell') ORDER BY updated_at DESC LIMIT 1`;
     return {
       userId,
       trackedTraders: rows[0].tracked_traders ?? [],
+      favoriteTraders: rows[0].favorite_traders ?? [],
+      favoriteTokens: rows[0].favorite_tokens ?? [],
       defaultAllocationPercent: rows[0].default_allocation_percent ?? undefined,
       defaultSlippageBps: rows[0].default_slippage_bps ?? undefined,
       defaultDurationHours: rows[0].default_duration_hours ?? undefined,
+      onboardingCompletedAt: millis(rows[0].onboarding_completed_at),
+      lastTrade: recent[0] ? { side: recent[0].intent.side, symbol: recent[0].intent.tokenSymbol, chain: recent[0].intent.chain, completedAt: millis(recent[0].updated_at)!, transactionHash: recent[0].transaction_hash ?? undefined } : undefined,
       updatedAt: millis(rows[0].updated_at)!
     };
   }
 
-  async updatePreferences(userId: string, patch: Partial<Pick<UserAutomationPreferences, "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours">>) {
+  async updatePreferences(userId: string, patch: Partial<Pick<UserAutomationPreferences, "favoriteTraders" | "favoriteTokens" | "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours" | "onboardingCompletedAt">>) {
     if (!this.sql) return this.files.updatePreferences(userId, patch);
     const current = await this.userPreferences(userId);
     const rows = await this.sql`
       INSERT INTO termeow.automation_preferences
-        (user_id, tracked_traders, default_allocation_percent, default_slippage_bps, default_duration_hours)
-      VALUES (${userId}, ${this.sql.json(current.trackedTraders as any)}, ${patch.defaultAllocationPercent ?? current.defaultAllocationPercent ?? null}, ${patch.defaultSlippageBps ?? current.defaultSlippageBps ?? null}, ${patch.defaultDurationHours ?? current.defaultDurationHours ?? null})
+        (user_id, tracked_traders, favorite_traders, favorite_tokens, default_allocation_percent, default_slippage_bps, default_duration_hours, onboarding_completed_at)
+      VALUES (${userId}, ${this.sql.json(current.trackedTraders as any)}, ${this.sql.json((patch.favoriteTraders ?? current.favoriteTraders ?? []) as any)}, ${this.sql.json((patch.favoriteTokens ?? current.favoriteTokens ?? []) as any)}, ${patch.defaultAllocationPercent ?? current.defaultAllocationPercent ?? null}, ${patch.defaultSlippageBps ?? current.defaultSlippageBps ?? null}, ${patch.defaultDurationHours ?? current.defaultDurationHours ?? null}, ${patch.onboardingCompletedAt ? new Date(patch.onboardingCompletedAt) : current.onboardingCompletedAt ? new Date(current.onboardingCompletedAt) : null})
       ON CONFLICT (user_id) DO UPDATE SET
+        favorite_traders = EXCLUDED.favorite_traders,
+        favorite_tokens = EXCLUDED.favorite_tokens,
         default_allocation_percent = EXCLUDED.default_allocation_percent,
         default_slippage_bps = EXCLUDED.default_slippage_bps,
         default_duration_hours = EXCLUDED.default_duration_hours,
+        onboarding_completed_at = EXCLUDED.onboarding_completed_at,
         updated_at = now()
       RETURNING *`;
     return this.userPreferences(rows[0].user_id);

@@ -44,9 +44,13 @@ export interface AutomationIntent {
 export interface UserAutomationPreferences {
   userId: string;
   trackedTraders: Array<{ handle: string; chain: AutomationChain; wallet: string; uses: number; lastUsedAt: number }>;
+  favoriteTraders?: Array<{ handle: string; chain: AutomationChain; wallet: string; followers?: number | null }>;
+  favoriteTokens?: Array<{ symbol: string; chain?: AutomationChain; address?: string; name?: string }>;
   defaultAllocationPercent?: number;
   defaultSlippageBps?: number;
   defaultDurationHours?: number;
+  onboardingCompletedAt?: number;
+  lastTrade?: { side: "buy" | "sell"; symbol?: string; chain: AutomationChain; completedAt: number; transactionHash?: string };
   updatedAt: number;
 }
 

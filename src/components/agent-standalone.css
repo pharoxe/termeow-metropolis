@@ -56,6 +56,10 @@
 .standalone-transcript p { display:grid; grid-template-columns:30px 1fr; gap:10px; margin:0 0 7px; color:#c6d9cc; font:10px/1.45 "VCR-JP",monospace; }
 .standalone-transcript b { color:var(--agent-lime); font:7px "Silkscreen",monospace; }
 .standalone-transcript .user b { color:var(--agent-cyan); }
+.agent-prompt-chips { display:flex; gap:6px; overflow-x:auto; padding:2px 13px 5px; scrollbar-width:none; }
+.agent-prompt-chips::-webkit-scrollbar { display:none; }
+.agent-prompt-chips button { flex:none; min-height:25px; padding:0 8px; border:1px solid #28543a; background:rgba(8,21,13,.72); color:#91ad9b; font:6px "Silkscreen",monospace; white-space:nowrap; transition:border-color .18s ease,color .18s ease,transform .18s ease; }
+.agent-prompt-chips button:hover { border-color:var(--agent-lime); color:var(--agent-lime); transform:translateY(-1px); }
 .voice-console form { display:grid; grid-template-columns:1fr auto; margin:5px 13px 10px; border:1px solid #254a33; }
 .voice-console input { min-width:0; height:38px; border:0; outline:0; padding:0 12px; background:#020704; color:#e8fff0; font:9px "Silkscreen",monospace; }
 .voice-console form button { border:0; border-left:1px solid #254a33; padding:0 14px; background:#08150d; color:var(--agent-lime); font-size:8px; }

@@ -15,9 +15,12 @@ import { useAgent } from "../features/voice-agent/context/AgentProvider";
 import { useAgentStore } from "../features/voice-agent/store/agentStore";
 import { AgentApproval } from "../features/voice-agent/surfaces/AgentApproval";
 import type { PublicConfig } from "../types";
+import { AGENT_GREETINGS } from "../lib/agentMemory";
 import "../components/agent-standalone.css";
 
 type View = "ask" | "automations" | "activity";
+
+const promptSuggestions = ["Pull up the $ANSEM chart", "Set up an automated trade", "Teach me to trade better"];
 
 const statusCopy: Record<string, string> = {
   dormant: "CHANNEL CLOSED", connecting: "TUNING CHANNEL", idle: "ONLINE", listening: "I'M LISTENING",
@@ -88,6 +91,7 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   const [view, setView] = useState<View>("ask");
   const [text, setText] = useState("");
   const [automationCount, setAutomationCount] = useState(0);
+  const [idleGreeting] = useState(() => AGENT_GREETINGS[Math.floor(Math.random() * AGENT_GREETINGS.length)]);
   const latest = useMemo(() => transcript.slice(-5), [transcript]);
 
   useEffect(() => {
@@ -137,8 +141,9 @@ export function AgentPage({ config }: { config: PublicConfig }) {
         <div className="voice-console">
           <div className="voice-status"><span><i /> {statusCopy[agent.status]}</span><small>{conversationId ? "ENCRYPTED VOICE SESSION" : "MIC ACCESS ON START"}</small></div>
           <div className="standalone-transcript" aria-live="polite">
-            {latest.length ? latest.map((message) => <p key={message.id} className={message.role}><b>{message.role === "agent" ? "TM" : message.role === "user" ? "YOU" : "SYS"}</b><span>{message.text}</span></p>) : <p className="system"><b>TM</b><span>What are we hunting tonight?</span></p>}
+            {latest.length ? latest.map((message) => <p key={message.id} className={message.role}><b>{message.role === "agent" ? "TM" : message.role === "user" ? "YOU" : "SYS"}</b><span>{message.text}</span></p>) : <p className="system"><b>TM</b><span>{idleGreeting}</span></p>}
           </div>
+          <div className="agent-prompt-chips" aria-label="Suggested prompts">{promptSuggestions.map((prompt) => <button key={prompt} type="button" onClick={() => conversationId ? agent.send(prompt) : setText(prompt)}>{prompt}</button>)}</div>
           <form onSubmit={submit}>
             <input value={text} onChange={(event) => setText(event.target.value)} disabled={!conversationId} placeholder={conversationId ? "TYPE A FOLLOW-UP…" : "START VOICE TO OPEN THE CHANNEL"} />
             <button type="submit" disabled={!conversationId || !text.trim()}>SEND ↵</button>

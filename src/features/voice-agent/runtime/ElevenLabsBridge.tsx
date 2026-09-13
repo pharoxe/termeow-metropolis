@@ -10,6 +10,7 @@ import { api } from "../../../api/client";
 import type { AutomationIntent } from "../../../../shared/automation";
 import { recentRallyStructure } from "../../../lib/chartStructure";
 import { filterRecentOrderFlow } from "../../../lib/agentOrderFlow";
+import { agentMemoryText, pickAgentGreeting } from "../../../lib/agentMemory";
 
 const optionalNumber = (value: unknown) => {
   const number = Number(value);
@@ -109,7 +110,15 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
   const runtime = useMemo<AgentRuntime>(() => ({
     connect: async () => {
       const session = await resolveElevenLabsSession();
-      await Promise.resolve(controls.startSession(session));
+      const greeting = pickAgentGreeting();
+      const token = await getAccessToken().catch(() => null);
+      const preferences = token ? await api.automationPreferences(token).then((result) => result.preferences).catch(() => undefined) : undefined;
+      await Promise.resolve(controls.startSession({
+        ...session,
+        userId: preferences?.userId,
+        dynamicVariables: { termeow_greeting: greeting, termeow_user_memory: agentMemoryText(preferences) },
+        overrides: { agent: { firstMessage: greeting } }
+      }));
     },
     disconnect: () => { controls.endSession(); useAgentStore.getState().resetSession(); },
     sendMessage: (text) => controls.sendUserMessage(text),
@@ -211,6 +220,14 @@ function ClientToolsBridge() {
     read_automation_preferences: trackedTool("read_automation_preferences", async () => {
       try { const token = await getAccessToken(); if (!token) return JSON.stringify({ ok: false, error: "The user must log in." }); return JSON.stringify({ ok: true, ...(await api.automationPreferences(token)) }); }
       catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
+    }),
+    read_user_memory: trackedTool("read_user_memory", async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return JSON.stringify({ ok: false, error: "The user must log in." });
+        const result = await api.automationPreferences(token);
+        return JSON.stringify({ ok: true, memory: agentMemoryText(result.preferences) });
+      } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
     }),
     update_automation_preferences: trackedTool("update_automation_preferences", async (parameters: Record<string, unknown>) => {
       try {
@@ -331,6 +348,7 @@ function ClientToolsBridge() {
   useConversationClientTool("analyze_wallet", clientTools.analyze_wallet);
   useConversationClientTool("show_handle_picker", clientTools.show_handle_picker);
   useConversationClientTool("read_automation_preferences", clientTools.read_automation_preferences);
+  useConversationClientTool("read_user_memory", clientTools.read_user_memory);
   useConversationClientTool("update_automation_preferences", clientTools.update_automation_preferences);
   useConversationClientTool("propose_swap", clientTools.propose_swap);
   useConversationClientTool("propose_automation", clientTools.propose_automation);

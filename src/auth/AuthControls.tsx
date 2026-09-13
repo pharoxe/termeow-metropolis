@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
+import { getAccessToken, usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useWorkspaceFeatures } from "../features/WorkspaceFeatures";
 import { networkLabel, networkNativeToken, type FundingNetwork, useFundingNetwork } from "../features/NetworkContext";
 import { useNotifications } from "../components/NotificationSystem";
 import { shortAddress } from "../lib/format";
 import { hasPrivy } from "./WalletProviders";
+import { api } from "../api/client";
+import { TradingOnboarding } from "./TradingOnboarding";
 
 async function copyWalletAddress(address: string) {
   if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(address); return; }
@@ -38,6 +40,7 @@ function LivePrivyControl() {
   const { network, setNetwork } = useFundingNetwork();
   const [profileOpen, setProfileOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [tradingOnboardingOpen, setTradingOnboardingOpen] = useState(false);
   const [depositTarget, setDepositTarget] = useState<FundingNetwork | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const evmWallet = useMemo(() => evmWallets.find(wallet => ["privy", "privy-v2"].includes(wallet.walletClientType)) ?? evmWallets[0], [evmWallets]);
@@ -45,9 +48,13 @@ function LivePrivyControl() {
 
   useEffect(() => {
     if (!authenticated || !user) return;
-    const socialLogin = user.linkedAccounts.some(account => account.type !== "wallet" && account.type !== "smart_wallet");
-    const key = `termeow-funding-onboarding-${user.id}`;
-    if (socialLogin && !localStorage.getItem(key)) setOnboardingOpen(true);
+    let live = true;
+    void getAccessToken().then((token) => token ? api.automationPreferences(token) : null).then((result) => {
+      if (!live || !result) return;
+      if (!result.preferences.onboardingCompletedAt) setTradingOnboardingOpen(true);
+      else if (!localStorage.getItem(`termeow-funding-onboarding-${user.id}`)) setOnboardingOpen(true);
+    }).catch(() => { if (live && !localStorage.getItem(`termeow-funding-onboarding-${user.id}`)) setOnboardingOpen(true); });
+    return () => { live = false; };
   }, [authenticated, user]);
   useEffect(() => {
     const close = (event: PointerEvent) => { if (profileRef.current && !profileRef.current.contains(event.target as Node)) setProfileOpen(false); };
@@ -85,7 +92,8 @@ function LivePrivyControl() {
       </div>
       <div className="profile-foot"><span>{shortAddress(activeAddress)}</span><button type="button" onClick={() => { setProfileOpen(false); void logout(); }}>LOG OUT</button></div>
     </div>}
-    {onboardingOpen && <dialog className="funding-onboarding" open aria-modal="true">
+    {tradingOnboardingOpen && <TradingOnboarding onComplete={() => { setTradingOnboardingOpen(false); setOnboardingOpen(true); }} />}
+    {onboardingOpen && !tradingOnboardingOpen && <dialog className="funding-onboarding" open aria-modal="true">
       <div className="onboarding-kicker">NEW PRIVY WALLET</div>
       <h2>FUND YOUR WALLET</h2>
       <p>Your embedded wallets are ready. Choose a network and deposit its native token before trading.</p>

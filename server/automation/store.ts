@@ -75,7 +75,7 @@ export class AutomationStore {
     return this.preferences.get(userId) ?? { userId, trackedTraders: [], updatedAt: Date.now() };
   }
 
-  updatePreferences(userId: string, patch: Partial<Pick<UserAutomationPreferences, "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours">>) {
+  updatePreferences(userId: string, patch: Partial<Pick<UserAutomationPreferences, "favoriteTraders" | "favoriteTokens" | "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours" | "onboardingCompletedAt">>) {
     const next = { ...this.userPreferences(userId), ...patch, userId, updatedAt: Date.now() };
     this.preferences.set(userId, next); this.persistPreferences(); return next;
   }
@@ -109,7 +109,13 @@ export class AutomationStore {
     if (!current || !["armed", "executing"].includes(current.status)) return null;
     const activeExitConditions = status === "completed" && current.intent.side === "buy" ? current.intent.exitConditions : undefined;
     const next: AutomationRecord = { ...current, status, updatedAt: Date.now(), transactionHash: detail?.transactionHash, failure: detail?.failure, activeExitConditions };
-    this.records.set(id, next); this.persist(); return next;
+    this.records.set(id, next); this.persist();
+    if (status === "completed" && (current.intent.side === "buy" || current.intent.side === "sell")) {
+      const preferences = this.userPreferences(userId);
+      this.preferences.set(userId, { ...preferences, lastTrade: { side: current.intent.side, symbol: current.intent.tokenSymbol, chain: current.intent.chain, completedAt: next.updatedAt, transactionHash: detail?.transactionHash }, updatedAt: next.updatedAt });
+      this.persistPreferences();
+    }
+    return next;
   }
 
   private trim() {

@@ -98,7 +98,7 @@ export const api = {
     request<{ automation: AutomationRecord }>("/api/automations", { method: "POST", headers: bearer(token), body: JSON.stringify(body) }),
   updateAutomation: (token: string, id: string, intent: AutomationIntent) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}`, { method: "PATCH", headers: bearer(token), body: JSON.stringify({ intent }) }),
   automationPreferences: (token: string) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { headers: bearer(token) }),
-  updateAutomationPreferences: (token: string, body: Partial<Pick<UserAutomationPreferences, "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours">>) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { method: "PATCH", headers: bearer(token), body: JSON.stringify(body) }),
+  updateAutomationPreferences: (token: string, body: Partial<Pick<UserAutomationPreferences, "favoriteTraders" | "favoriteTokens" | "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours">> & { onboardingCompleted?: boolean }) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { method: "PATCH", headers: bearer(token), body: JSON.stringify(body) }),
   approveAutomation: (token: string, id: string) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}/approve`, {
     method: "POST", headers: bearer(token), body: JSON.stringify({ passkeyVerified: true })
   }),

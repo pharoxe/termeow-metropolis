@@ -1,5 +1,5 @@
 import { mapKnownAttribution } from "./attribution.js";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, statfsSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import type { Chain, PairRow } from "../../shared/wire.js";
 import { flowCollector } from "../flow/collector.js";
@@ -8,7 +8,25 @@ import { TradeArchive } from "./archive.js";
 
 const directory = path.resolve(process.env.TERMINAL_DATA_DIR || "data/terminal");
 mkdirSync(directory, {recursive: true});
-export const tradeArchive = new TradeArchive(path.join(directory, "trades.db"));
+const tradeArchivePath = path.join(directory, "trades.db");
+if (process.env.NODE_ENV === "production" && directory.startsWith("/data/")) {
+  try {
+    const disk = statfsSync(directory);
+    const freeBytes = Number(disk.bavail) * Number(disk.bsize);
+    if (freeBytes < 32 * 1024 * 1024) {
+      for (const suffix of ["", "-wal", "-shm"]) { try { unlinkSync(`${tradeArchivePath}${suffix}`); } catch { /* file may not exist */ } }
+      console.warn("trade archive: discarded regenerable hot cache to recover a full Railway volume");
+    }
+  } catch { /* Persistence remains best-effort; TradeArchive has an in-memory fallback path elsewhere. */ }
+}
+export const tradeArchive = new TradeArchive(tradeArchivePath);
+const archiveDays = Math.max(1, Number(process.env.TRADE_ARCHIVE_RETENTION_DAYS || 2));
+const pruneArchive = () => {
+  const now = Date.now();
+  const result = tradeArchive.prune({ observations: now - 6 * 3_600_000, trades: now - archiveDays * 86_400_000 });
+  if (result.observations || result.changes || result.trades) setTimeout(pruneArchive, 1000).unref();
+};
+setTimeout(pruneArchive, 10_000).unref();
 flowCollector.ledger.observe(prints => tradeArchive.ingest(prints.map(print=>mapKnownAttribution(print,getTraderService()))));
 getTraderService().fomoLedger.observe(prints => {
   for (const print of prints) tradeArchive.ingest([print], print.pair.startsWith("fomo:") ? print.pair.slice(5) : undefined);
