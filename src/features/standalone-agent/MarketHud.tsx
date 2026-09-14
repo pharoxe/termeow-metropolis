@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { CandlestickSeries, ColorType, createChart, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
 import type { MarketCandle, MarketResponse } from "../../../shared/wire";
@@ -6,6 +6,7 @@ import { api } from "../../api/client";
 import { money, pct } from "../../lib/format";
 import { useAgent } from "../voice-agent/context/AgentProvider";
 import { useAgentStore } from "../voice-agent/store/agentStore";
+import { TokenLogo } from "./TokenLogo";
 
 const toSeconds = (time: number) => Math.floor(time > 10_000_000_000 ? time / 1000 : time) as UTCTimestamp;
 const bar = (candle: MarketCandle) => ({ time: toSeconds(candle.time), open: candle.open, high: candle.high, low: candle.low, close: candle.close });
@@ -65,6 +66,7 @@ export function MarketHud() {
   const agent = useAgent();
   const [market, setMarket] = useState<MarketResponse | null>(null);
   const [error, setError] = useState("");
+  const dragControls = useDragControls();
   useEffect(() => {
     if (!hud || hud.type !== "market_chart") { setMarket(null); return; }
     let live = true;
@@ -88,10 +90,10 @@ export function MarketHud() {
     const timer = setInterval(load, 5_000);
     return () => { live = false; clearInterval(timer); };
   }, [agent.updateContext, hud?.chain, hud?.tokenAddress, hud?.type === "market_chart" ? hud.timeframe : undefined]);
-  return <AnimatePresence>{hud?.type === "market_chart" ? <motion.aside className="market-hud" initial={{ opacity: 0, x: 80, scale: .72 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 55, scale: .85 }} transition={{ type: "spring", stiffness: 280, damping: 27 }}>
-    <header><span><i /> MARKET HUD</span><button type="button" onClick={() => setHudWindow()}>×</button></header>
+  return <AnimatePresence>{hud?.type === "market_chart" ? <motion.aside className="market-hud" initial={{ opacity: 0, x: 80, scale: .72 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 55, scale: .85 }} transition={{ type: "spring", stiffness: 280, damping: 27 }} drag dragControls={dragControls} dragListener={false} dragMomentum={false} dragElastic={0.04} dragConstraints={{ left: -Math.max(0, globalThis.innerWidth - 470), right: 0, top: -60, bottom: Math.max(0, globalThis.innerHeight - 480) }} whileDrag={{ scale: 1.01 }}>
+    <header className="desktop-window-handle" onPointerDown={(event) => dragControls.start(event)}><span><i /> MARKET HUD</span><small>MOVE · RESIZE ↘</small><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setHudWindow()}>×</button></header>
     <div className="market-hud-meta">
-      <div>{market?.instrument.image ? <img src={market.instrument.image} alt="" /> : <span className="hud-token-fallback" />}<span><small>{hud.chain.toUpperCase()} · {(market?.interval || hud.timeframe).toUpperCase()}</small><strong>${(market?.instrument.symbol || hud.tokenSymbol || "TOKEN").replace(/^\$+/, "")}</strong></span></div>
+      <div><TokenLogo symbol={market?.instrument.symbol || hud.tokenSymbol} src={market?.instrument.image} /><span><small>{hud.chain.toUpperCase()} · {(market?.interval || hud.timeframe).toUpperCase()}</small><strong>${(market?.instrument.symbol || hud.tokenSymbol || "TOKEN").replace(/^\$+/, "")}</strong></span></div>
       <div><b>{money(market?.priceUsd)}</b><em className={(market?.change24Pct || 0) < 0 ? "down" : "up"}>{pct(market?.change24Pct)}</em></div>
     </div>
     {market?.candles.length ? <HudChart market={market} /> : <div className="market-hud-empty">{error || "ACQUIRING CANDLES…"}</div>}

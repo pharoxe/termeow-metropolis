@@ -56,6 +56,7 @@ export const api = {
   identityWallet: (chain: Chain, address: string) => request<{ identity: TraderIdentity | null }>(`/api/identity/wallet/${chain}/${encodeURIComponent(address)}`),
   identityHandle: (handle: string) => request<{ handle: string; addresses: TraderIdentity[] }>(`/api/identity/handle/${encodeURIComponent(handle.replace(/^@/, ""))}`),
   resolveToken: (query: string, chain?: Chain) => request<TokenResolution>(`/api/tokens/resolve?${new URLSearchParams({ q: query, ...(chain ? { chain } : {}) }).toString()}`),
+  tokenLogos: (items: Array<{ chain: Chain; address: string }>) => request<{ logos: Array<{ chain: Chain; address: string; symbol: string | null; imageUrl: string | null }>; observedAt: number; source: string }>("/api/tokens/logos", { method: "POST", body: JSON.stringify({ items }) }),
   /** Alert ring (newest first); `since` = the last observedAt seen, `rule` narrows to one rule. 200 + error/stale on failure. */
   alerts: (params: { chain?: FomoChainScope; since?: number; rule?: AlertRule; limit?: number } = {}) => {
     const search = new URLSearchParams({ chain: params.chain ?? "all" });
@@ -96,6 +97,8 @@ export const api = {
   removeAutomationDelegation: (token: string) => request<{ removed: boolean }>("/api/automations/delegation/solana", { method: "DELETE", headers: bearer(token) }),
   createAutomation: (token: string, body: { intent: AutomationIntent; source: "elevenlabs_voice" | "terminal"; conversationId?: string; context?: TerminalAgentSnapshot }) =>
     request<{ automation: AutomationRecord }>("/api/automations", { method: "POST", headers: bearer(token), body: JSON.stringify(body) }),
+  solanaTransferQuote: (token: string, body: { recipient: string; amount: number; denomination: "usd" | "sol" }) =>
+    request<{ quote: { recipient: string; amountSol: string; amountLamports: string; amountUsd: number; priceUsd: number; quotedAt: number } }>("/api/automations/transfers/quote", { method: "POST", headers: bearer(token), body: JSON.stringify(body) }),
   updateAutomation: (token: string, id: string, intent: AutomationIntent) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}`, { method: "PATCH", headers: bearer(token), body: JSON.stringify({ intent }) }),
   automationPreferences: (token: string) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { headers: bearer(token) }),
   updateAutomationPreferences: (token: string, body: Partial<Pick<UserAutomationPreferences, "favoriteTraders" | "favoriteTokens" | "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours">> & { onboardingCompleted?: boolean }) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { method: "PATCH", headers: bearer(token), body: JSON.stringify(body) }),

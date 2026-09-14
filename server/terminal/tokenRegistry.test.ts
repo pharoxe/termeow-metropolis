@@ -41,6 +41,30 @@ describe("TokenRegistry", () => {
     store.close();
   });
 
+  it("returns verified authority and nearby suggestions without guessing a match", () => {
+    const store = registry();
+    store.upsert({ chain: "solana", address: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", symbol: "ANSEM", name: "The Black Bull", source: "seeded", priority: 100, verified: true, verificationSource: "termeow-curated" });
+    expect(store.resolve("ANSEM").match).toMatchObject({ verified: true, verificationSource: "termeow-curated" });
+    expect(store.resolve("ANSE")).toMatchObject({ indexed: false, match: null, ambiguous: false });
+    expect(store.resolve("ANSE").matches[0]).toMatchObject({ symbol: "ANSEM", verified: true });
+    store.close();
+  });
+
+  it("bulk-ingests launch tokens without replacing a curated mapping", () => {
+    const store = registry();
+    const curated = "0x020bfc650a365f8bb26819deaabf3e21291018b4";
+    const launched = "0x120bfc650a365f8bb26819deaabf3e21291018b4";
+    store.upsert({ chain: "robinhood", address: curated, symbol: "CASHCAT", name: "Cash Cat", source: "seeded", priority: 100, verified: true });
+    store.ingestLaunches([
+      { chain: "robinhood", token: curated, symbol: "FAKE", name: "Wrong", observedAt: 10 },
+      { chain: "robinhood", token: launched, symbol: "NEW", name: "New launch", observedAt: 20 }
+    ] as never);
+    expect(store.resolve("CASHCAT").match).toMatchObject({ address: curated, verified: true });
+    expect(store.resolve("FAKE").match).toBeNull();
+    expect(store.resolve("NEW").match).toMatchObject({ address: launched, source: "launch-index" });
+    store.close();
+  });
+
   it("rebuilds in memory when the persistent catalog cannot be opened", () => {
     const directory = mkdtempSync(path.join(tmpdir(), "termeow-tokens-full-"));
     directories.push(directory);

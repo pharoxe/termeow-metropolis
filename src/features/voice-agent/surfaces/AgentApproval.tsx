@@ -29,6 +29,17 @@ function numberOrUndefined(value: string) {
 }
 
 function ApprovalDetails({ intent }: { intent: AutomationIntent }) {
+  if (intent.kind === "transfer") return <div className="agent-approval-copy transfer-approval-copy">
+    <span>ONE-TIME SOL TRANSFER · SOLANA MAINNET</span>
+    <strong>{humanPrecision(intent.description)}</strong>
+    <dl>
+      <div><dt>SEND EXACTLY</dt><dd>{intent.transferAmountSol} SOL</dd></div>
+      <div><dt>USD AT QUOTE</dt><dd>{intent.transferAmountUsd == null ? "—" : money(intent.transferAmountUsd)}</dd></div>
+      <div className="wide"><dt>RECIPIENT WALLET</dt><dd className="full-address">{intent.recipientAddress}</dd></div>
+      <div><dt>SOL / USD</dt><dd>{intent.transferPriceUsd == null ? "—" : money(intent.transferPriceUsd)}</dd></div>
+      <div><dt>NETWORK FEE</dt><dd>ADDED SEPARATELY</dd></div>
+    </dl>
+  </div>;
   return <div className="agent-approval-copy">
     <span>{intent.kind.replaceAll("_", " ")} · {intent.chain}</span>
     <strong>{humanPrecision(intent.description)}</strong>
@@ -112,7 +123,7 @@ function LiveApproval() {
         await submitEnrollmentWithPasskey({ credentialIds: passkeys.map((account) => account.credentialId) });
       }
       await promptMfa();
-      if (pending.intent.chain === "solana" && pending.intent.kind !== "swap") await ensureDelegated();
+      if (pending.intent.chain === "solana" && !["swap", "transfer"].includes(pending.intent.kind)) await ensureDelegated();
       const token = await getAccessToken();
       if (!token) throw new Error("Privy session expired. Log in again.");
       const edited = await api.updateAutomation(token, pending.id, draft);
@@ -124,11 +135,11 @@ function LiveApproval() {
     finally { setWorking(false); }
   };
 
-  return <div className="automation-approval-backdrop" role="presentation"><section className="agent-approval" role="dialog" aria-modal="true" aria-label="Passkey trade confirmation">
-    <div className="agent-approval-head"><b>PASSKEY CONFIRMATION</b><span>PENDING · NOT EXECUTED</span></div>
+  return <div className="automation-approval-backdrop" role="presentation"><section className="agent-approval" role="dialog" aria-modal="true" aria-label="Passkey transaction confirmation">
+    <div className="agent-approval-head"><b>{draft.kind === "transfer" ? "TRANSFER CONFIRMATION" : "PASSKEY CONFIRMATION"}</b><span>PENDING · NOT EXECUTED</span></div>
     <ApprovalDetails intent={draft} />
-    <ApprovalEditor intent={draft} onChange={setDraft} />
-    <p>This approval is bound to the exact action above. Voice alone cannot arm or submit it.</p>
+    {draft.kind !== "transfer" && <ApprovalEditor intent={draft} onChange={setDraft} />}
+    <p>This approval is bound to the exact action above. Voice alone cannot arm or submit it.{draft.kind === "transfer" ? " Verify the full recipient address before confirming." : ""}</p>
     {message && <small role="status">{message}</small>}
     <div className="agent-approval-actions"><button type="button" disabled={working} onClick={() => void cancel()}>CANCEL</button><button className="confirm" type="button" disabled={working} onClick={() => void approve()}>{working ? "VERIFYING…" : authenticated ? "CONFIRM WITH PASSKEY" : "LOG IN TO CONFIRM"}</button></div>
   </section></div>;

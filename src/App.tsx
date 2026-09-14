@@ -24,8 +24,8 @@ export default function App() {
   useEffect(() => {
     if (!config || !showSplash) return;
     // Keep one clean boot beat even when config is cached, so the cat can decode before its radial dissolve.
-    const begin = setTimeout(() => setExiting(true), 550);
-    const finish = setTimeout(() => setShowSplash(false), 1480);
+    const begin = setTimeout(() => setExiting(true), 950);
+    const finish = setTimeout(() => setShowSplash(false), 3100);
     return () => { clearTimeout(begin); clearTimeout(finish); };
   }, [config, showSplash]);
   if (location.pathname !== "/agent" && error) return <main className="loading-state"><h1>BACKEND UNAVAILABLE</h1><p>{error}</p></main>;

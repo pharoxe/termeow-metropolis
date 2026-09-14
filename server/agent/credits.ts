@@ -4,6 +4,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { createPublicClient, decodeEventLog, getAddress, http, parseAbi, type Hex } from "viem";
 import { config } from "../config.js";
 import { CREDITS_PER_DOLLAR, INTRO_CREDITS, MAX_VOICE_SECONDS, VOICE_CREDITS_PER_MINUTE, VOICE_RESERVE_CREDITS, quoteBaseUnits, voiceChargeCredits } from "./pricing.js";
+import { jupiterPriceUrl, parseJupiterPrices, SOL_MINT } from "../tape/solana/price.js";
 
 export const SOL_RECIPIENT = "FqdPiMhYdYTAnfXKY7opX5YxNLSL9UFtKE8HQq9T9VAb";
 export const EVM_RECIPIENT = "0xbc28425dB5d9348EA6511e14313d9D28f2532B43";
@@ -28,14 +29,48 @@ export async function balance(userId: string) {
 }
 
 const priceCache = new Map<Asset, { price: number; at: number }>();
-async function assetUsd(asset: Asset) {
+type PriceFetch = typeof fetch;
+
+async function coingeckoAssetUsd(asset: Asset, fetchImpl: PriceFetch) {
+  const id = { SOL: "solana", ETH: "ethereum", USDC: "usd-coin", USDG: "global-dollar" }[asset];
+  const response = await fetchImpl(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`, { signal: AbortSignal.timeout(4500) });
+  if (!response.ok) throw new Error(`CoinGecko returned ${response.status}`);
+  const price = Number((await response.json() as Record<string, { usd?: number }>)[id]?.usd);
+  if (!Number.isFinite(price) || price <= 0) throw new Error("CoinGecko returned no usable price");
+  return price;
+}
+
+async function jupiterSolUsd(fetchImpl: PriceFetch) {
+  const response = await fetchImpl(jupiterPriceUrl([SOL_MINT]), { signal: AbortSignal.timeout(4500) });
+  if (!response.ok) throw new Error(`Jupiter returned ${response.status}`);
+  const price = parseJupiterPrices(await response.json()).get(SOL_MINT);
+  if (!price) throw new Error("Jupiter returned no usable SOL price");
+  return price;
+}
+
+/** Fetches from independent providers for SOL so transfer quotes do not depend on CoinGecko availability. */
+export async function fetchAssetUsd(asset: Asset, fetchImpl: PriceFetch = fetch) {
+  const providers = asset === "SOL"
+    ? [coingeckoAssetUsd(asset, fetchImpl), jupiterSolUsd(fetchImpl)]
+    : [coingeckoAssetUsd(asset, fetchImpl)];
+  try {
+    return await Promise.any(providers);
+  } catch {
+    throw creditError("Payment asset pricing is temporarily unavailable.", 503);
+  }
+}
+
+export async function assetUsd(asset: Asset) {
   const cached = priceCache.get(asset);
   if (cached && Date.now() - cached.at < 60_000) return cached.price;
-  const id = { SOL: "solana", ETH: "ethereum", USDC: "usd-coin", USDG: "global-dollar" }[asset];
-  const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`, { signal: AbortSignal.timeout(6000) });
-  if (!response.ok) throw creditError("Payment asset pricing is temporarily unavailable.", 503);
-  const price = Number((await response.json() as Record<string, { usd?: number }>)[id]?.usd);
-  if (!Number.isFinite(price) || price <= 0) throw creditError("Payment asset pricing is temporarily unavailable.", 503);
+  let price: number;
+  try {
+    price = await fetchAssetUsd(asset);
+  } catch (error) {
+    // A recent quote is safer than making a two-message transfer flow fail on a brief provider outage.
+    if (cached && Date.now() - cached.at < 10 * 60_000) return cached.price;
+    throw error;
+  }
   if ((asset === "USDC" || asset === "USDG") && price < 0.98) throw creditError(`${asset} is below the accepted peg threshold. Choose another asset.`, 503);
   priceCache.set(asset, { price, at: Date.now() });
   return price;

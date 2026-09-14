@@ -76,6 +76,11 @@ function LivePrivyControl() {
       notify({ title: `${networkNativeToken(target)} ADDRESS COPIED`, message: `Send only ${networkNativeToken(target)} on ${networkLabel(target)} to this embedded wallet.`, tone: "success" });
     } catch { /* The full address remains visible in the deposit sheet. */ }
   };
+  useEffect(() => {
+    const openFunding = () => { setProfileOpen(false); void fund(network); };
+    window.addEventListener("termeow:add-funds", openFunding);
+    return () => window.removeEventListener("termeow:add-funds", openFunding);
+  }, [network, evmWallet?.address, solanaWallet?.address]);
   const activeAddress = network === "solana" ? solanaWallet?.address : evmWallet?.address;
   const depositAddress = depositTarget === "solana" ? solanaWallet?.address : evmWallet?.address;
 
@@ -92,8 +97,8 @@ function LivePrivyControl() {
       </div>
       <div className="profile-foot"><span>{shortAddress(activeAddress)}</span><button type="button" onClick={() => { setProfileOpen(false); void logout(); }}>LOG OUT</button></div>
     </div>}
-    {tradingOnboardingOpen && <TradingOnboarding onComplete={() => { setTradingOnboardingOpen(false); setOnboardingOpen(true); }} />}
-    {onboardingOpen && !tradingOnboardingOpen && <dialog className="funding-onboarding" open aria-modal="true">
+    {tradingOnboardingOpen && createPortal(<TradingOnboarding onComplete={() => { setTradingOnboardingOpen(false); setOnboardingOpen(true); }} />, document.body)}
+    {onboardingOpen && !tradingOnboardingOpen && createPortal(<div className="onboarding-viewport"><dialog className="funding-onboarding" open aria-modal="true">
       <div className="onboarding-kicker">NEW PRIVY WALLET</div>
       <h2>FUND YOUR WALLET</h2>
       <p>Your embedded wallets are ready. Choose a network and deposit its native token before trading.</p>
@@ -101,7 +106,7 @@ function LivePrivyControl() {
       <div className="onboarding-address"><span>{networkLabel(network)} wallet</span><strong>{shortAddress(activeAddress)}</strong><small>Deposit {networkNativeToken(network)}</small></div>
       <button type="button" className="onboarding-deposit" onClick={() => void fund(network)}>DEPOSIT {networkNativeToken(network)}</button>
       <button type="button" className="onboarding-skip" onClick={finishOnboarding}>I'LL FUND LATER</button>
-    </dialog>}
+    </dialog></div>, document.body)}
     {depositTarget && depositAddress && createPortal(<div className="deposit-address-backdrop" role="presentation">
       <section className="deposit-address-sheet" role="dialog" aria-modal="true" aria-label={`Fund ${networkLabel(depositTarget)} wallet`}>
         <div className="onboarding-kicker">PRIVY EMBEDDED WALLET</div>

@@ -1,5 +1,5 @@
 export type AutomationChain = "solana" | "robinhood";
-export type AutomationKind = "swap" | "monitor_deployer" | "monitor_wallet" | "monitor_x_launch" | "conditional_swap";
+export type AutomationKind = "swap" | "transfer" | "monitor_deployer" | "monitor_wallet" | "monitor_x_launch" | "conditional_swap";
 export type AutomationStatus = "pending_approval" | "armed" | "executing" | "completed" | "cancelled" | "failed";
 
 export interface LinkedExitCondition {
@@ -27,6 +27,13 @@ export interface AutomationIntent {
   router?: "0x" | "jupiter";
   amountMode?: "fixed" | "wallet_percent";
   amount?: string;
+  /** Exact native SOL amount approved for a one-time wallet transfer. */
+  transferAmountSol?: string;
+  /** User-requested USD amount, retained for display when the SOL amount was quoted from USD. */
+  transferAmountUsd?: number;
+  transferPriceUsd?: number;
+  transferQuotedAt?: number;
+  recipientAddress?: string;
   allocationPercent?: number;
   maxSlippageBps?: number;
   durationHours?: number;

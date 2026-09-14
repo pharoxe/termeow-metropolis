@@ -851,6 +851,8 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .profile-foot { margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
 .profile-foot span { color:var(--muted); font-size:10px; }
 .funding-onboarding { position:fixed; inset:50% auto auto 50%; z-index:200; width:min(520px,calc(100vw - 28px)); transform:translate(-50%,-50%); padding:24px; color:var(--text); border:1px solid var(--accent); background:var(--panel); box-shadow:0 0 0 9999px #000b,8px 8px 0 color-mix(in srgb,var(--accent) 22%,transparent); }
+.onboarding-viewport { position:fixed; z-index:1490; inset:0; display:grid; place-items:center; overflow:auto; padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); background:#000b; backdrop-filter:blur(5px); }
+.onboarding-viewport .funding-onboarding { position:relative; inset:auto; max-height:calc(100dvh - 28px); overflow:auto; margin:0; transform:none; box-shadow:8px 8px 0 color-mix(in srgb,var(--accent) 22%,transparent); }
 .funding-onboarding::backdrop { background:#000b; }
 .deposit-address-backdrop { position:fixed; z-index:1500; inset:0; display:grid; place-items:center; padding:18px; background:#010302df; backdrop-filter:blur(6px); }
 .deposit-address-sheet { width:min(560px,calc(100vw - 28px)); padding:22px; border:1px solid var(--accent); background:var(--panel); box-shadow:9px 9px 0 color-mix(in srgb,var(--accent) 20%,transparent),0 28px 90px #000; }
@@ -868,7 +870,7 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .onboarding-address strong { display:block; margin:7px 0; color:var(--text); font-size:13px; }
 .onboarding-deposit,.onboarding-skip { width:100%; min-height:44px; margin-top:10px; border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink); font-size:11px; }
 .onboarding-skip { border-color:var(--line2); background:transparent; color:var(--muted); }
-.trading-onboarding { position:fixed; inset:50% auto auto 50%; z-index:210; width:min(680px,calc(100vw - 28px)); max-height:min(820px,92vh); overflow:auto; transform:translate(-50%,-50%); padding:24px; color:var(--text); border:1px solid var(--accent); background:color-mix(in srgb,var(--panel) 95%,#000); box-shadow:0 0 0 9999px #000c,0 0 56px color-mix(in srgb,var(--accent) 18%,transparent); }
+.trading-onboarding { position:fixed; inset:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); z-index:1510; width:min(680px,calc(100vw - 28px)); max-height:calc(100dvh - 28px); overflow:auto; margin:auto; transform:none; padding:24px; color:var(--text); border:1px solid var(--accent); background:color-mix(in srgb,var(--panel) 95%,#000); box-shadow:0 0 0 9999px #000c,0 0 56px color-mix(in srgb,var(--accent) 18%,transparent); }
 .trading-onboarding::backdrop { background:#000c; backdrop-filter:blur(5px); }.trading-onboarding h2{margin:10px 0;color:var(--text-strong);font-size:24px}.trading-onboarding>p{margin:0 0 14px;color:var(--muted);font-size:11px;line-height:1.6}
 .trader-search{display:grid;grid-template-columns:34px 1fr;margin:14px 0 8px;border:1px solid var(--line2);background:var(--surface)}.trader-search span{display:grid;place-items:center;color:var(--accent)}.trader-search input{height:38px;border:0;border-left:1px solid var(--line);outline:0;padding:0 10px;background:transparent;color:var(--text);font:9px "Silkscreen",monospace}
 .onboarding-traders{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;max-height:220px;overflow:auto;padding:2px}.onboarding-traders>button{display:grid;grid-template-columns:28px 1fr 18px;align-items:center;gap:7px;min-width:0;padding:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);text-align:left}.onboarding-traders>button.active{border-color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}.onboarding-traders i{width:26px;height:26px;background:repeating-linear-gradient(45deg,#07150c 0 3px,var(--accent) 3px 4px);clip-path:polygon(50% 0,100% 25%,88% 80%,50% 100%,12% 80%,0 25%)}.onboarding-traders b,.onboarding-traders small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.onboarding-traders b{font-size:9px}.onboarding-traders small{margin-top:4px;color:var(--muted);font-size:7px}.onboarding-traders em{color:var(--accent);font-style:normal}
@@ -877,6 +879,7 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .chart-head-left .analyze-trigger { min-height:32px; margin-left:auto; padding:5px 12px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent); font-size:11px; white-space:nowrap; }
 .chart-head-left .analyze-trigger:hover { background:var(--accent); color:var(--accent-ink); }
 [data-privy-dialog],#privy-modal-content,.privy-modal-content { z-index:1000!important; color:var(--text)!important; background:var(--panel)!important; font-family:"Home Video",monospace!important; border-color:var(--accent)!important; border-radius:0!important; }
+.standalone-agent-body [data-privy-dialog],.standalone-agent-body #privy-modal-content,.standalone-agent-body .privy-modal-content { max-width:calc(100vw - 24px)!important; max-height:calc(100dvh - 24px)!important; overflow:auto!important; margin:auto!important; }
 
 @media (max-width:700px) {
   .profile-popover { position:fixed; top:72px; right:8px; }
@@ -991,6 +994,8 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .agent-approval-copy dl div { padding:6px; border:1px solid var(--line); min-width:0; }
 .agent-approval-copy dt { color:var(--muted); font-size:7px; }
 .agent-approval-copy dd { margin:3px 0 0; overflow:hidden; text-overflow:ellipsis; font-size:9px; }
+.agent-approval-copy dl .wide { grid-column:1 / -1; }
+.agent-approval-copy dd.full-address { overflow-wrap:anywhere; white-space:normal; color:var(--accent); }
 .agent-approval p,.agent-approval small { display:block; margin:8px 0 0; font:9px/1.4 "VCR JP",monospace; color:var(--muted); }
 .agent-approval small { color:var(--amber); }
 .agent-approval-actions { display:grid; grid-template-columns:1fr 2fr; gap:6px; margin-top:9px; }

@@ -21,9 +21,10 @@ export function AgentOverlayHost() {
   const conversationId = useAgentStore((state) => state.conversationId);
   const [text, setText] = useState("");
   if (typeof document === "undefined") return null;
+  const standalone = window.location.pathname === "/agent";
 
   return createPortal(<AnimatePresence>
-    {mode !== "hidden" && mode !== "surface" && <motion.aside
+    {!standalone && mode !== "hidden" && mode !== "surface" && <motion.aside
       className={`termeow-agent ${mode} status-${agent.status}`}
       role="dialog"
       aria-label="Termeow voice agent"
@@ -64,7 +65,7 @@ export function AgentOverlayHost() {
         </footer>
       </>}
     </motion.aside>}
-    <AgentApproval />
+    {!standalone && <AgentApproval />}
   </AnimatePresence>, document.body);
 }
 

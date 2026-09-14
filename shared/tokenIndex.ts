@@ -12,6 +12,9 @@ export interface IndexedToken {
   source: TokenIndexSource;
   priority: number;
   observedAt: number;
+  /** High-confidence symbol/address mapping supplied by a curated list or trusted upstream tag. */
+  verified?: boolean;
+  verificationSource?: string;
 }
 
 export interface TokenResolution {

@@ -18,6 +18,23 @@ const optionalNumber = (value: unknown) => {
   return value == null || value === "" || !Number.isFinite(number) ? undefined : number;
 };
 let activeBillableConversationId: string | null = null;
+let pendingTransferDraft: { amount: number; denomination: "sol" | "usd" } | null = null;
+type TokenResolution = Awaited<ReturnType<typeof api.resolveToken>>;
+const tokenResolutionCache = new Map<string, { at: number; result: Promise<TokenResolution> }>();
+const TOKEN_RESOLUTION_TTL_MS = 2 * 60_000;
+
+function resolveTokenFast(query: string, chain?: "solana" | "robinhood") {
+  const key = `${chain || "any"}:${query.trim().replace(/^\$+/, "").toLowerCase()}`;
+  const cached = tokenResolutionCache.get(key);
+  if (cached && Date.now() - cached.at < TOKEN_RESOLUTION_TTL_MS) return cached.result;
+  const result = api.resolveToken(query, chain).catch((error) => {
+    tokenResolutionCache.delete(key);
+    throw error;
+  });
+  tokenResolutionCache.set(key, { at: Date.now(), result });
+  if (tokenResolutionCache.size > 100) tokenResolutionCache.delete(tokenResolutionCache.keys().next().value!);
+  return result;
+}
 
 const exitConditions = (value: unknown, fallbackSlippageBps: number) => {
   if (!Array.isArray(value)) return undefined;
@@ -42,7 +59,7 @@ async function resolveMarketTarget(parameters: Record<string, unknown>) {
   let symbol = String(parameters.token_symbol || context.token?.symbol || "").replace(/^\$+/, "").trim() || undefined;
   const query = String(parameters.query || symbol || address || "").trim();
   if ((!address || !chain) && query) {
-    const resolution = await api.resolveToken(query, chain);
+    const resolution = await resolveTokenFast(query, chain);
     if (!resolution.match) return { error: resolution.ambiguous ? "Ticker is ambiguous. Ask the user to choose from the matches." : "Token is not indexed. Ask for the exact contract address.", matches: resolution.matches };
     chain = resolution.match.chain; address = resolution.match.address; symbol = resolution.match.symbol;
   }
@@ -249,12 +266,13 @@ function ClientToolsBridge() {
       const chain = parameters.chain === "solana" || parameters.chain === "robinhood" ? parameters.chain : undefined;
       if (!query) return JSON.stringify({ ok: false, error: "Provide a ticker, token name, or contract address." });
       try {
-        const result = await api.resolveToken(query, chain);
+        const result = await resolveTokenFast(query, chain);
+        if (!result.match && result.matches.length) useAgentStore.getState().setLeftWidget({ type: "tokens", query });
         return JSON.stringify({
           ok: Boolean(result.match), indexed: result.indexed, ambiguous: result.ambiguous,
-          token: result.match ? { chain: result.match.chain, address: result.match.address, symbol: result.match.symbol, name: result.match.name, source: result.match.source } : undefined,
-          matches: result.matches.map((item) => ({ chain: item.chain, address: item.address, symbol: item.symbol, name: item.name, source: item.source })),
-          error: result.match ? undefined : result.ambiguous ? "Ticker is ambiguous. Ask which chain/token the user means." : "No indexed token matches. Ask for the contract address; do not guess."
+          token: result.match ? { chain: result.match.chain, address: result.match.address, symbol: result.match.symbol, name: result.match.name, source: result.match.source, verified: result.match.verified, verification_source: result.match.verificationSource } : undefined,
+          matches: result.matches.map((item) => ({ chain: item.chain, address: item.address, symbol: item.symbol, name: item.name, source: item.source, verified: item.verified })),
+          error: result.match ? undefined : result.ambiguous ? "Ticker is ambiguous. Ask the user to choose from the token panel." : result.matches.length ? "No exact token match. Ask the user to choose a nearby indexed token from the token panel." : "No indexed token matches. Ask for the contract address; do not guess."
         });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
     }),
@@ -297,15 +315,50 @@ function ClientToolsBridge() {
         if (!token) return JSON.stringify({ ok: false, error: "The user must log in before a swap can be proposed." });
         const result = await api.createAutomation(token, { intent, source: "elevenlabs_voice", conversationId: useAgentStore.getState().conversationId, context });
         useAgentStore.getState().setPendingApproval(result.automation);
-        useAgentStore.getState().setOverlayMode("expanded");
+        if (window.location.pathname !== "/agent") useAgentStore.getState().setOverlayMode("expanded");
         return JSON.stringify({ ok: true, automation_id: result.automation.id, status: "pending_passkey_confirmation", message: "The proposal is visible. Ask the user to review it and press CONFIRM WITH PASSKEY. Do not claim it executed." });
+      } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
+    }),
+    propose_transfer: trackedTool("propose_transfer", async (parameters: Record<string, unknown>) => {
+      const recipient = String(parameters.recipient_address || parameters.wallet_address || parameters.destination_address || "").trim();
+      const requestedAmount = optionalNumber(parameters.amount);
+      const requestedDenomination = String(parameters.denomination || "usd").toLowerCase() === "sol" ? "sol" as const : "usd" as const;
+      const amount = requestedAmount ?? pendingTransferDraft?.amount;
+      const denomination = requestedAmount == null && pendingTransferDraft ? pendingTransferDraft.denomination : requestedDenomination;
+      if (requestedAmount && requestedAmount > 0) pendingTransferDraft = { amount: requestedAmount, denomination: requestedDenomination };
+      if (!recipient) return JSON.stringify({
+        ok: false,
+        status: "needs_recipient",
+        missing_fields: ["recipient_address"],
+        next_action: "Ask one brief question for the exact Solana wallet address, then call propose_transfer again using the address from the user's reply.",
+        error: "The exact recipient Solana wallet address is required."
+      });
+      if (!amount || amount <= 0) return JSON.stringify({ ok: false, error: "Provide a positive transfer amount." });
+      try {
+        const token = await getAccessToken();
+        if (!token) return JSON.stringify({ ok: false, error: "The user must log in before a transfer can be proposed." });
+        const { quote } = await api.solanaTransferQuote(token, { recipient, amount, denomination });
+        const intent: AutomationIntent = {
+          kind: "transfer", chain: "solana", recipientAddress: quote.recipient,
+          transferAmountSol: quote.amountSol, transferAmountUsd: quote.amountUsd,
+          transferPriceUsd: quote.priceUsd, transferQuotedAt: quote.quotedAt,
+          description: denomination === "usd"
+            ? `Send ${quote.amountSol} SOL (quoted at $${amount.toFixed(2)}) to the recipient wallet`
+            : `Send ${quote.amountSol} SOL (about $${quote.amountUsd.toFixed(2)}) to the recipient wallet`
+        };
+        const context = useAgentStore.getState().context;
+        const result = await api.createAutomation(token, { intent, source: "elevenlabs_voice", conversationId: useAgentStore.getState().conversationId, context });
+        pendingTransferDraft = null;
+        useAgentStore.getState().setPendingApproval(result.automation);
+        if (window.location.pathname !== "/agent") useAgentStore.getState().setOverlayMode("expanded");
+        return JSON.stringify({ ok: true, transaction_id: result.automation.id, status: "pending_passkey_confirmation", exact_sol: quote.amountSol, usd_at_quote: quote.amountUsd, message: "Draft ready—review the recipient and confirm." });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
     }),
     propose_automation: trackedTool("propose_automation", async (parameters: Record<string, unknown>) => {
       const context = useAgentStore.getState().context;
       const token = await getAccessToken();
       if (!token) return JSON.stringify({ ok: false, error: "The user must log in before an automation can be proposed." });
-      const preferences = await api.automationPreferences(token).then((result) => result.preferences).catch(() => undefined);
+      const preferencesPromise = api.automationPreferences(token).then((result) => result.preferences).catch(() => undefined);
       let chain = parameters.chain === "robinhood" ? "robinhood" as const : parameters.chain === "solana" ? "solana" as const : context.chain;
       const requestedHandle = String(parameters.tracked_wallet_username || "").replace(/^@/, "").trim();
       const trackedXAccount = String(parameters.tracked_x_account || "").replace(/^@/, "").trim();
@@ -321,11 +374,13 @@ function ClientToolsBridge() {
       let tokenAddress = String(parameters.token_address || context.token?.address || "").trim() || undefined;
       const requestedSymbol = String(parameters.token_symbol || context.token?.symbol || "").replace(/^\$+/, "").trim();
       if (!tokenAddress && requestedSymbol) {
-        const resolution = await api.resolveToken(requestedSymbol, chain).catch(() => null);
+        const resolution = await resolveTokenFast(requestedSymbol, chain).catch(() => null);
         if (resolution?.match) { chain = resolution.match.chain; tokenAddress = resolution.match.address; }
+        else if (resolution?.matches.length) { useAgentStore.getState().setLeftWidget({ type: "tokens", query: requestedSymbol }); return JSON.stringify({ ok: false, error: "Choose the intended token from the indexed token panel.", matches: resolution.matches }); }
       }
       if (!chain) return JSON.stringify({ ok: false, error: "Choose Solana or Robinhood." });
       if (!trackedWallet && !tokenAddress && !trackedXAccount) return JSON.stringify({ ok: false, error: "Provide a tracked handle/address, an X account, or select a token." });
+      const preferences = await preferencesPromise;
       const slippageBps = Math.round(optionalNumber(parameters.slippage_bps) ?? preferences?.defaultSlippageBps ?? 50);
       const allocationPercent = optionalNumber(parameters.allocation_percent) ?? preferences?.defaultAllocationPercent ?? 10;
       const durationHours = optionalNumber(parameters.duration_hours) ?? preferences?.defaultDurationHours ?? 24;
@@ -345,7 +400,7 @@ function ClientToolsBridge() {
       try {
         const result = await api.createAutomation(token, { intent, source: "elevenlabs_voice", conversationId: useAgentStore.getState().conversationId, context });
         useAgentStore.getState().setPendingApproval(result.automation);
-        useAgentStore.getState().setOverlayMode("expanded");
+        if (window.location.pathname !== "/agent") useAgentStore.getState().setOverlayMode("expanded");
         return JSON.stringify({ ok: true, automation_id: result.automation.id, status: "pending_passkey_confirmation", message: "Draft ready—review and confirm." });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
     }),
@@ -366,12 +421,12 @@ function ClientToolsBridge() {
       const requested = String(parameters.timeframe || "5m").toLowerCase();
       const timeframe = ["1m", "5m", "15m", "1h", "4h", "1d"].includes(requested) ? requested : "5m";
       if (!tokenAddress && query) {
-        const resolution = await api.resolveToken(query, chain).catch(() => null);
-        if (!resolution?.match) return JSON.stringify({
+        const resolution = await resolveTokenFast(query, chain).catch(() => null);
+        if (!resolution?.match) { useAgentStore.getState().setLeftWidget({ type: "tokens", query }); return JSON.stringify({
           ok: false, indexed: Boolean(resolution?.indexed), ambiguous: Boolean(resolution?.ambiguous),
-          matches: resolution?.matches.map((item) => ({ chain: item.chain, address: item.address, symbol: item.symbol, name: item.name })) ?? [],
-          error: resolution?.ambiguous ? "Ticker is ambiguous. Ask the user which chain/token they mean." : "Ticker is not indexed. Ask for the contract address; do not guess."
-        });
+          matches: resolution?.matches.map((item) => ({ chain: item.chain, address: item.address, symbol: item.symbol, name: item.name, verified: item.verified })) ?? [],
+          error: resolution?.matches.length ? "Show the indexed token picker and ask the user to choose." : "Ticker is not indexed. Ask for the contract address; do not guess."
+        }); }
         chain = resolution.match.chain;
         tokenAddress = resolution.match.address;
         tokenSymbol = resolution.match.symbol;
@@ -381,7 +436,7 @@ function ClientToolsBridge() {
       if (!chain || !tokenAddress) return JSON.stringify({ ok: false, error: "Provide a ticker, token name, or contract address to open the market HUD." });
       useAgentStore.getState().setContext({ ...context, route: "/agent", chain, token: { address: tokenAddress, symbol: tokenSymbol || context.token?.symbol, name: context.token?.name, logoUrl: context.token?.logoUrl }, chart: { ...context.chart, timeframe, unit: context.chart?.unit || "price", scale: context.chart?.scale || "linear" }, observedAt: Date.now() });
       useAgentStore.getState().setHudWindow({ type: "market_chart", chain, tokenAddress, tokenSymbol, timeframe, requestedAt: Date.now() });
-      return JSON.stringify({ ok: true, surface: "market_chart", status: "visible", chain, token_address: tokenAddress, token_symbol: tokenSymbol, message: "The live market HUD is open beside the conversation." });
+      return JSON.stringify({ ok: true, surface: "market_chart", status: "visible", chain, token_address: tokenAddress, token_symbol: tokenSymbol, message: "Chart open." });
     }),
     dismiss_agent_ui: trackedTool("dismiss_agent_ui", async () => {
       useAgentStore.getState().setHudWindow();
@@ -402,6 +457,7 @@ function ClientToolsBridge() {
   useConversationClientTool("read_user_memory", clientTools.read_user_memory);
   useConversationClientTool("update_automation_preferences", clientTools.update_automation_preferences);
   useConversationClientTool("propose_swap", clientTools.propose_swap);
+  useConversationClientTool("propose_transfer", clientTools.propose_transfer);
   useConversationClientTool("propose_automation", clientTools.propose_automation);
   useConversationClientTool("list_automations", clientTools.list_automations);
   useConversationClientTool("open_market_hud", clientTools.open_market_hud);

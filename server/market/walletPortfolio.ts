@@ -50,6 +50,7 @@ export async function walletPortfolio(walletAddress: string, rpc: Rpc = walletRp
           if (!asset) continue;
           asset.priceUsd = Number(pair.priceUsd);
           asset.valueUsd = asset.amount * asset.priceUsd;
+          asset.imageUrl = typeof pair.info?.imageUrl === "string" ? pair.info.imageUrl : asset.imageUrl;
           if (key !== "SOL") { asset.symbol = pair.baseToken.symbol || mint; asset.name = pair.baseToken.name || "Solana token"; }
         }
       }

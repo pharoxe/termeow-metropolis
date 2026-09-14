@@ -4,7 +4,7 @@ import { fetchJson } from "../lib/http.js";
 
 type BlockscoutBalance = {
   value?: string;
-  token?: { address_hash?: string; address?: string; decimals?: string | number; symbol?: string; name?: string; exchange_rate?: string | number | null };
+  token?: { address_hash?: string; address?: string; decimals?: string | number; symbol?: string; name?: string; icon_url?: string | null; exchange_rate?: string | number | null };
 };
 
 /** Native ETH plus positive ERC-20 holdings from Robinhood Chain's Blockscout index. */
@@ -30,7 +30,7 @@ export async function robinhoodWalletPortfolio(walletAddress: string, load: type
       if (!(amount > 0)) continue;
       const rawPrice = token.exchange_rate == null ? Number.NaN : Number(token.exchange_rate);
       const priceUsd = Number.isFinite(rawPrice) ? rawPrice : null;
-      assets.push({ mint, symbol: token.symbol || mint, name: token.name || "Robinhood token", amount, decimals, priceUsd, valueUsd: priceUsd == null ? null : amount * priceUsd });
+      assets.push({ mint, symbol: token.symbol || mint, name: token.name || "Robinhood token", imageUrl: token.icon_url || null, amount, decimals, priceUsd, valueUsd: priceUsd == null ? null : amount * priceUsd });
     }
   }
   return { walletAddress, assets: assets.sort((a, b) => (b.valueUsd ?? -1) - (a.valueUsd ?? -1)), partial: native.status === "rejected" || tokens.status === "rejected", valuationUnavailable: assets.some(asset => asset.priceUsd == null) };

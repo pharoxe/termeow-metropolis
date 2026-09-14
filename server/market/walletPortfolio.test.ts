@@ -7,9 +7,9 @@ it("queries the requested wallet and values its combined balances, never provide
     expect(params[0]).toBe("owner");
     return method==="getBalance"?{value:2e9}:{value:[account("3")]};
   });
-  const load=vi.fn(async()=>[{chainId:"solana",baseToken:{address:"MintA",symbol:"A"},priceUsd:"2",valueUsd:999999,liquidity:{usd:100}},{chainId:"solana",baseToken:{address:"So11111111111111111111111111111111111111112"},priceUsd:"100"}]) as unknown as typeof fetchJson;
+  const load=vi.fn(async()=>[{chainId:"solana",baseToken:{address:"MintA",symbol:"A"},priceUsd:"2",valueUsd:999999,liquidity:{usd:100},info:{imageUrl:"https://img.example/a.png"}},{chainId:"solana",baseToken:{address:"So11111111111111111111111111111111111111112"},priceUsd:"100"}]) as unknown as typeof fetchJson;
   const result=await walletPortfolio("owner",rpc,load);
-  expect(result.assets.find(a=>a.mint==="MintA")).toMatchObject({amount:6,valueUsd:12});
+  expect(result.assets.find(a=>a.mint==="MintA")).toMatchObject({amount:6,valueUsd:12,imageUrl:"https://img.example/a.png"});
   expect(result.assets.find(a=>a.mint==="SOL")).toMatchObject({amount:2,valueUsd:200});
   expect(result.partial).toBe(false);
 });

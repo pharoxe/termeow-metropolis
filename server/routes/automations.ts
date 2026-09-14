@@ -7,15 +7,20 @@ import { config } from "../config.js";
 import { automationRepository } from "../automation/runtime.js";
 import { SOLANA_AUTOMATION_PROGRAM_ALLOWLIST } from "../automation/privyPolicy.js";
 import { verifyDelegatedSolanaWallet } from "../automation/privyExecutor.js";
+import { assetUsd } from "../agent/credits.js";
+import { computeSolanaTransferQuote, validateSolanaRecipientAccount, validateSolanaTransferRecipient } from "../automation/solanaTransfer.js";
 
 const intentSchema = z.object({
-  kind: z.enum(["swap", "monitor_deployer", "monitor_wallet", "monitor_x_launch", "conditional_swap"]),
+  kind: z.enum(["swap", "transfer", "monitor_deployer", "monitor_wallet", "monitor_x_launch", "conditional_swap"]),
   chain: z.enum(["solana", "robinhood"]), tokenAddress: z.string().min(20).max(64).optional(),
   tokenSymbol: z.string().max(20).optional(), tokenName: z.string().max(120).optional(), tokenLogoUrl: z.string().url().max(1000).optional(),
   trackedWallet: z.string().min(20).max(64).optional(), trackedWalletUsername: z.string().max(80).optional(),
   trackedXAccount: z.string().max(80).optional(),
   side: z.enum(["buy", "sell"]).optional(), router: z.enum(["0x", "jupiter"]).optional(),
   amountMode: z.enum(["fixed", "wallet_percent"]).optional(), amount: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),
+  transferAmountSol: z.string().regex(/^\d+(?:\.\d{1,9})?$/).optional(), transferAmountUsd: z.number().positive().max(10_000).optional(),
+  transferPriceUsd: z.number().positive().optional(), transferQuotedAt: z.number().int().positive().optional(),
+  recipientAddress: z.string().min(32).max(44).optional(),
   allocationPercent: z.number().positive().max(25).optional(), durationHours: z.number().int().positive().max(24 * 30).optional(),
   maxSlippageBps: z.number().int().min(1).max(2500).optional(),
   marketCapMinUsd: z.number().nonnegative().optional(), marketCapMaxUsd: z.number().nonnegative().optional(),
@@ -29,6 +34,12 @@ const intentSchema = z.object({
 }).superRefine((intent, context) => {
   if (intent.kind === "swap" && (!intent.side || !intent.amountMode)) context.addIssue({ code: "custom", message: "A swap requires side and amountMode" });
   if (intent.kind === "swap" && !intent.tokenAddress) context.addIssue({ code: "custom", message: "A swap requires a token address" });
+  if (intent.kind === "transfer" && (intent.chain !== "solana" || !intent.recipientAddress || !intent.transferAmountSol)) context.addIssue({ code: "custom", message: "A transfer requires a Solana recipient and exact SOL amount" });
+  if (intent.kind === "transfer" && intent.recipientAddress) {
+    try { validateSolanaTransferRecipient(intent.recipientAddress); }
+    catch (error) { context.addIssue({ code: "custom", message: error instanceof Error ? error.message : "Invalid Solana recipient" }); }
+  }
+  if (intent.kind === "transfer" && intent.transferAmountSol && Number(intent.transferAmountSol) > 1_000) context.addIssue({ code: "custom", message: "A transfer cannot exceed 1000 SOL" });
   if (intent.kind === "monitor_wallet" && !intent.trackedWallet) context.addIssue({ code: "custom", message: "A wallet monitor requires a resolved tracked wallet" });
   if (intent.kind === "monitor_x_launch" && !intent.trackedXAccount) context.addIssue({ code: "custom", message: "An X launch monitor requires an X account" });
   if (intent.amountMode === "fixed" && !intent.amount) context.addIssue({ code: "custom", message: "A fixed swap requires amount" });
@@ -58,6 +69,15 @@ async function requirePrivy(request: AuthRequest, response: Response, next: Next
 export const automationsRouter = Router();
 automationsRouter.use(requirePrivy);
 automationsRouter.get("/", async (request: AuthRequest, response) => response.json({ automations: await store.list(request.privyUserId!) }));
+automationsRouter.post("/transfers/quote", async (request: AuthRequest, response) => {
+  const body = z.object({ recipient: z.string().min(32).max(64), amount: z.number().positive(), denomination: z.enum(["usd", "sol"]) }).parse(request.body);
+  const [recipient, priceUsd] = await Promise.all([
+    validateSolanaRecipientAccount(body.recipient, config.rpc.primary),
+    assetUsd("SOL")
+  ]);
+  const quote = computeSolanaTransferQuote({ ...body, recipient, priceUsd });
+  response.json({ quote });
+});
 automationsRouter.get("/delegation/solana", async (request: AuthRequest, response) => {
   const configured = Boolean(config.privy.automationSignerId && config.privy.automationPolicyId && config.privy.automationAuthPrivateKey);
   const current = await store.getDelegation(request.privyUserId!);
@@ -112,7 +132,7 @@ automationsRouter.patch("/:id", async (request: AuthRequest, response) => {
 automationsRouter.post("/:id/approve", async (request: AuthRequest, response) => {
   approveSchema.parse(request.body);
   const pending = await store.get(request.privyUserId!, String(request.params.id));
-  if (pending?.intent.chain === "solana" && pending.intent.kind !== "swap" && !await store.getDelegation(request.privyUserId!)) {
+  if (pending?.intent.chain === "solana" && !["swap", "transfer"].includes(pending.intent.kind) && !await store.getDelegation(request.privyUserId!)) {
     response.status(409).json({ error: "Enable the scoped Privy automation signer before arming this workflow" }); return;
   }
   const automation = await store.approve(request.privyUserId!, String(request.params.id));

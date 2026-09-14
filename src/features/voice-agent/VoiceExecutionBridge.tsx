@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { getAccessToken, useSendTransaction, useWallets as useEvmWallets } from "@privy-io/react-auth";
 import { useSignAndSendTransaction, useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { createPublicClient, encodeFunctionData, http, parseUnits } from "viem";
+import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import type { AutomationRecord } from "../../../shared/automation";
 import { api, deepFind } from "../../api/client";
 import { useNotifications } from "../../components/NotificationSystem";
@@ -20,6 +21,19 @@ type EvmTx = { to: string; data: string; value?: string; gas?: string; gasPrice?
 const quantity = (value: unknown) => typeof value === "string" && /^\d+$/.test(value) ? BigInt(value) : undefined;
 const percentOf = (balance: bigint, percent?: number) => balance * BigInt(Math.round((percent || 0) * 100)) / 10_000n;
 function decodeBase64(value: string) { return Uint8Array.from(atob(value), (character) => character.charCodeAt(0)); }
+function encodeBase64(value: Uint8Array) {
+  let binary = "";
+  for (let offset = 0; offset < value.length; offset += 8_192) binary += String.fromCharCode(...value.subarray(offset, offset + 8_192));
+  return btoa(binary);
+}
+const base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function base58(bytes: Uint8Array) {
+  let value = BigInt(`0x${Array.from(bytes).map((item) => item.toString(16).padStart(2, "0")).join("")}`);
+  let output = "";
+  while (value > 0n) { output = base58Alphabet[Number(value % 58n)] + output; value /= 58n; }
+  for (const item of bytes) { if (item !== 0) break; output = `1${output}`; }
+  return output;
+}
 
 async function solanaTokenBalance(owner: string, mint: string) {
   const response = await api.rpc<{ value?: Array<{ account?: { data?: { parsed?: { info?: { tokenAmount?: { amount?: string } } } } } }> }>("getTokenAccountsByOwner", [owner, { mint }, { encoding: "jsonParsed" }]);
@@ -36,7 +50,7 @@ export function VoiceExecutionBridge() {
   useEffect(() => {
     const onApproved = async (event: Event) => {
       const automation = (event as CustomEvent<AutomationRecord>).detail;
-      if (automation.intent.kind !== "swap") {
+      if (!["swap", "transfer"].includes(automation.intent.kind)) {
         notify({ title: "AUTOMATION ARMED", message: automation.intent.description, tone: "success" });
         return;
       }
@@ -44,11 +58,33 @@ export function VoiceExecutionBridge() {
       if (!auth) return;
       const intent = automation.intent;
       try {
-        if (!intent.tokenAddress) throw new Error("This automation has not resolved a token contract yet.");
         await api.reportAutomation(auth, automation.id, { status: "executing" });
         const config = await api.config();
         let hash = "";
-        if (intent.chain === "solana") {
+        if (intent.kind === "transfer") {
+          const wallet = solanaWallets[0];
+          if (!wallet?.address) throw new Error("No Privy Solana wallet is available.");
+          if (!intent.recipientAddress || !intent.transferAmountSol) throw new Error("The approved transfer is incomplete.");
+          const sender = new PublicKey(wallet.address);
+          const recipient = new PublicKey(intent.recipientAddress);
+          if (!PublicKey.isOnCurve(recipient.toBytes())) throw new Error("Recipient is not an ordinary Solana wallet.");
+          if (sender.equals(recipient)) throw new Error("Source and recipient wallets cannot be the same.");
+          const lamports = BigInt(tokenAmount(intent.transferAmountSol, 9));
+          const [balanceResult, latest] = await Promise.all([
+            api.rpc<{ value: number }>("getBalance", [wallet.address, { commitment: "confirmed" }]),
+            api.rpc<{ value: { blockhash: string; lastValidBlockHeight: number } }>("getLatestBlockhash", [{ commitment: "finalized" }])
+          ]);
+          const balance = BigInt(balanceResult.value);
+          const feeReserve = 10_000n;
+          if (lamports <= 0n || balance < lamports + feeReserve) throw new Error("Insufficient SOL balance for the transfer plus network fee.");
+          const transaction = new Transaction({ feePayer: sender, recentBlockhash: latest.value.blockhash }).add(SystemProgram.transfer({ fromPubkey: sender, toPubkey: recipient, lamports }));
+          const unsigned = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
+          const simulated = await api.rpc<{ value: { err: unknown; logs?: string[] } }>("simulateTransaction", [encodeBase64(unsigned), { encoding: "base64", commitment: "confirmed", sigVerify: false }]);
+          if (simulated.value.err) throw new Error(`Solana preflight failed: ${JSON.stringify(simulated.value.err)}`);
+          const result = await signAndSendTransaction({ transaction: unsigned, wallet, chain: "solana:mainnet" });
+          hash = typeof result.signature === "string" ? result.signature : base58(result.signature);
+        } else if (intent.chain === "solana") {
+          if (!intent.tokenAddress) throw new Error("This automation has not resolved a token contract yet.");
           const wallet = solanaWallets[0];
           if (!wallet?.address) throw new Error("No Privy Solana wallet is available.");
           const inputMint = intent.side === "sell" ? intent.tokenAddress : config.usdcMint;
@@ -64,8 +100,9 @@ export function VoiceExecutionBridge() {
           const encoded = deepFind(payload, ["transaction", "swapTransaction", "unsignedTransaction", "serializedTransaction"]);
           if (typeof encoded !== "string") throw new Error("Router did not return a Solana transaction.");
           const result = await signAndSendTransaction({ transaction: decodeBase64(encoded), wallet, chain: "solana:mainnet" });
-          hash = typeof result.signature === "string" ? result.signature : Array.from(result.signature).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+          hash = typeof result.signature === "string" ? result.signature : base58(result.signature);
         } else {
+          if (!intent.tokenAddress) throw new Error("This automation has not resolved a token contract yet.");
           const wallet = evmWallets.find((item) => ["privy", "privy-v2"].includes(item.walletClientType)) ?? evmWallets[0];
           if (!wallet?.address) throw new Error("No Privy Robinhood wallet is available.");
           const token = intent.tokenAddress as `0x${string}`;
@@ -98,8 +135,8 @@ export function VoiceExecutionBridge() {
           hash = (await send(transaction)).hash;
         }
         await api.reportAutomation(auth, automation.id, { status: "completed", transactionHash: hash });
-        useAgentStore.getState().addMessage({ role: "system", text: `Swap submitted: ${hash.slice(0, 10)}…` });
-        notify({ title: "VOICE TRADE SUBMITTED", message: automation.intent.description, tone: "success" });
+        useAgentStore.getState().addMessage({ role: "system", text: `${intent.kind === "transfer" ? "Transfer" : "Swap"} submitted: ${hash.slice(0, 10)}…` });
+        notify({ title: intent.kind === "transfer" ? "TRANSFER SUBMITTED" : "VOICE TRADE SUBMITTED", message: automation.intent.description, tone: "success" });
       } catch (reason) {
         const failure = reason instanceof Error ? reason.message : String(reason);
         await api.reportAutomation(auth, automation.id, { status: "failed", failure }).catch(() => undefined);
