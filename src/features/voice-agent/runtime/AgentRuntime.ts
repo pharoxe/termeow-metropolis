@@ -1,7 +1,7 @@
 import type { TermeowAgentContext } from "./agentTypes";
 
 export interface AgentRuntime {
-  connect(): Promise<void>;
+  connect(mode?: "voice" | "text"): Promise<void>;
   disconnect(): void;
   sendMessage(text: string): void;
   sendContext(context: TermeowAgentContext): void;

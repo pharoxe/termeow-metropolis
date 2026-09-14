@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import type { AutomationRecord } from "../../shared/automation";
+import type { AutomationIntent, AutomationRecord } from "../../shared/automation";
 import { api } from "../api/client";
 import { AuthControls } from "../auth/AuthControls";
 import { hasPrivy } from "../auth/WalletProviders";
@@ -20,7 +20,7 @@ import { TokenPicker } from "../features/standalone-agent/TokenPicker";
 import { TokenLogo } from "../features/standalone-agent/TokenLogo";
 import { useAgent } from "../features/voice-agent/context/AgentProvider";
 import { useAgentStore } from "../features/voice-agent/store/agentStore";
-import { AgentApproval } from "../features/voice-agent/surfaces/AgentApproval";
+import { AgentApproval, ApprovalEditor } from "../features/voice-agent/surfaces/AgentApproval";
 import type { PublicConfig } from "../types";
 import { AGENT_GREETINGS } from "../lib/agentMemory";
 import "../components/agent-standalone.css";
@@ -54,7 +54,8 @@ function AutomationDataBridge({ onData }: { onData: (data: AutomationData) => vo
     void load();
     const timer = setInterval(load, 20_000);
     addEventListener("termeow:automation-approved", load);
-    return () => { live = false; clearInterval(timer); removeEventListener("termeow:automation-approved", load); };
+    addEventListener("termeow:automations-changed", load);
+    return () => { live = false; clearInterval(timer); removeEventListener("termeow:automation-approved", load); removeEventListener("termeow:automations-changed", load); };
   }, [authenticated, onData]);
   return null;
 }
@@ -62,22 +63,58 @@ function AutomationDataBridge({ onData }: { onData: (data: AutomationData) => vo
 function AutomationList({ data }: { data: AutomationData }) {
   const { authenticated } = usePrivy();
   const [selected, setSelected] = useState<AutomationRecord | null>(null);
+  const [draft, setDraft] = useState<AutomationIntent | null>(null);
+  const [working, setWorking] = useState(false);
+  const [message, setMessage] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = data.records.find((record) => record.id === selected.id);
+    if (!fresh) { setSelected(null); setDraft(null); return; }
+    setSelected(fresh); setDraft(fresh.intent);
+  }, [data.records, selected?.id]);
+  const open = (record: AutomationRecord) => { setSelected(record); setDraft(record.intent); setMessage(""); setConfirmDelete(false); };
+  const save = async () => {
+    if (!selected || !draft) return;
+    setWorking(true); setMessage("");
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("Log in again to edit this automation.");
+      const result = await api.reviseAutomation(token, selected.id, draft);
+      setSelected(result.automation); setDraft(result.automation.intent); setMessage("SAVED · REAPPROVAL REQUIRED");
+      dispatchEvent(new Event("termeow:automations-changed"));
+    } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setWorking(false); }
+  };
+  const remove = async () => {
+    if (!selected) return;
+    if (!confirmDelete) { setConfirmDelete(true); setMessage("PRESS DELETE AGAIN TO CONFIRM"); return; }
+    setWorking(true); setMessage("");
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("Log in again to delete this automation.");
+      await api.deleteAutomation(token, selected.id);
+      setSelected(null); setDraft(null); dispatchEvent(new Event("termeow:automations-changed"));
+    } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setWorking(false); }
+  };
   if (!authenticated) return <p className="agent-empty">Log in to arm and review your rules.</p>;
   const { records, error, loading } = data;
   if (loading) return <p className="agent-empty">SYNCING RULES…</p>;
   if (error) return <p className="agent-empty danger">{error}</p>;
   if (!records.length) return <p className="agent-empty">No live rules yet. Ask me to watch a wallet or market setup.</p>;
-  const detail = <AnimatePresence>{selected ? <motion.div className="automation-detail-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+  const detail = <AnimatePresence>{selected && draft ? <motion.div className="automation-detail-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
     <motion.section className="automation-detail" role="dialog" aria-modal="true" aria-label="Automation details" initial={{ opacity: 0, scale: .88, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: .92, y: 14 }}>
       <header><span>AUTOMATION // {selected.status.replaceAll("_", " ")}</span><button type="button" onClick={() => setSelected(null)}>×</button></header>
-      <strong>{selected.intent.tokenSymbol ? `$${selected.intent.tokenSymbol}` : selected.intent.kind.replaceAll("_", " ")}</strong><p>{selected.intent.description}</p>
-      <dl><div><dt>CHAIN</dt><dd>{selected.intent.chain}</dd></div><div><dt>SIDE / SIZE</dt><dd>{selected.intent.side || "WATCH"} · {selected.intent.allocationPercent ?? "—"}%</dd></div><div><dt>SLIPPAGE</dt><dd>{selected.intent.slippageBps ?? "—"} BPS</dd></div><div><dt>DURATION</dt><dd>{selected.intent.durationHours ? `${selected.intent.durationHours}H` : "NO EXPIRY"}</dd></div></dl>
-      <h4>WHEN</h4><p>{selected.intent.condition || "Execute immediately after approval."}</p>
-      {selected.intent.exitConditions?.length ? <><h4>AFTER ENTRY</h4>{selected.intent.exitConditions.map((exit) => <p key={exit.id}>SELL {exit.sellPercent}% · {exit.condition}</p>)}</> : null}
+      <strong>{draft.tokenSymbol ? `$${draft.tokenSymbol}` : draft.kind.replaceAll("_", " ")}</strong><p>{draft.description}</p>
+      <dl><div><dt>CHAIN</dt><dd>{draft.chain}</dd></div><div><dt>SIDE / SIZE</dt><dd>{draft.side || "WATCH"} · {draft.allocationPercent ?? "—"}%</dd></div><div><dt>SLIPPAGE</dt><dd>{draft.slippageBps ?? "—"} BPS</dd></div><div><dt>DURATION</dt><dd>{draft.durationHours ? `${draft.durationHours}H` : "NO EXPIRY"}</dd></div></dl>
+      {draft.kind !== "transfer" ? <ApprovalEditor intent={draft} onChange={setDraft} /> : null}
+      {message ? <p className="automation-detail-message">{message}</p> : null}
+      <div className="automation-detail-actions"><button type="button" disabled={working || selected.status === "executing" || draft.kind === "transfer"} onClick={() => void save()}>{working ? "WORKING…" : "SAVE CHANGES"}</button><button className={confirmDelete ? "danger armed" : "danger"} type="button" disabled={working || selected.status === "executing"} onClick={() => void remove()}>{confirmDelete ? "CONFIRM DELETE" : "DELETE"}</button></div>
       <small>CREATED {new Date(selected.createdAt).toLocaleString()}</small>
     </motion.section>
   </motion.div> : null}</AnimatePresence>;
-  return <><div className="standalone-rule-list">{records.slice(0, 8).map((record) => <button className="standalone-rule-card" type="button" key={record.id} onClick={() => setSelected(record)}>
+  return <><div className="standalone-rule-list">{records.slice(0, 8).map((record) => <button className="standalone-rule-card" type="button" key={record.id} onClick={() => open(record)}>
     <span className={`rule-state ${record.status}`}>{record.status.replaceAll("_", " ")}</span>
     <div className="rule-token"><TokenLogo symbol={record.intent.tokenSymbol} src={record.intent.tokenLogoUrl} /><strong>{record.intent.tokenSymbol ? `$${record.intent.tokenSymbol}` : record.intent.kind.replaceAll("_", " ")}</strong></div>
     <p>{record.intent.description}</p>
@@ -141,6 +178,20 @@ function VoiceStart() {
   </button>;
 }
 
+function PrivyTextWarmup() {
+  const { authenticated, ready } = usePrivy();
+  const agent = useAgent();
+  const conversationId = useAgentStore((state) => state.conversationId);
+  const warmed = useRef(false);
+  useEffect(() => {
+    if (!authenticated) { warmed.current = false; return; }
+    if (!ready || conversationId || warmed.current) return;
+    warmed.current = true;
+    void agent.startText();
+  }, [agent, authenticated, conversationId, ready]);
+  return null;
+}
+
 export function AgentPage({ config }: { config: PublicConfig }) {
   const agent = useAgent();
   const transcript = useAgentStore((state) => state.transcript);
@@ -151,10 +202,16 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   const voiceError = useAgentStore((state) => state.error);
   const leftWidget = useAgentStore((state) => state.leftWidget);
   const setLeftWidget = useAgentStore((state) => state.setLeftWidget);
+  const sessionMode = useAgentStore((state) => state.sessionMode);
   const [view, setView] = useState<View>("ask");
   const desktopRef = useRef<HTMLElement>(null);
   const leftWidgetDrag = useDragControls();
+  const portfolioDrag = useDragControls();
+  const automationDrag = useDragControls();
   const [text, setText] = useState("");
+  const [portraitMinimized, setPortraitMinimized] = useState(false);
+  const [showPortfolio, setShowPortfolio] = useState(true);
+  const [showAutomations, setShowAutomations] = useState(false);
   const [automationCount, setAutomationCount] = useState(0);
   const [automationData, setAutomationData] = useState<AutomationData>({ records: [], error: "", loading: false });
   const receiveAutomationData = useCallback((data: AutomationData) => {
@@ -170,19 +227,18 @@ export function AgentPage({ config }: { config: PublicConfig }) {
     return () => { document.body.classList.remove("standalone-agent-body"); agent.close(); };
   }, []); // The standalone route owns this hidden runtime surface.
 
-  useEffect(() => {
-    if (!useAgentStore.getState().leftWidget) setLeftWidget({ type: "portfolio" });
-  }, [setLeftWidget]);
-
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!text.trim() || !conversationId) return;
-    agent.send(text.trim());
+    const message = text.trim();
+    if (!message) return;
+    if (!useAgentStore.getState().conversationId) await agent.startText();
+    if (!useAgentStore.getState().conversationId) return;
+    agent.send(message);
     setText("");
   };
 
   return <main className={`agent-app status-${agent.status}`} ref={desktopRef}>
-    {hasPrivy ? <AutomationDataBridge onData={receiveAutomationData} /> : null}
+    {hasPrivy ? <><AutomationDataBridge onData={receiveAutomationData} /><PrivyTextWarmup /></> : null}
     <div className="agent-crt" aria-hidden="true" />
     <header className="standalone-head">
       <Link className="standalone-brand" to="/agent"><span>TERMEOW</span><small>VOICE OS / 0.1</small></Link>
@@ -196,18 +252,27 @@ export function AgentPage({ config }: { config: PublicConfig }) {
 
     <section className="agent-command-deck">
       <div className="agent-left-widget-anchor">
-        <AnimatePresence>{leftWidget ? <motion.section className={`agent-left-widget agent-left-widget-${leftWidget.type}`} initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={leftWidgetDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
-          <header className="desktop-window-handle" onPointerDown={(event) => leftWidgetDrag.start(event)}><span>{leftWidget.type === "automations" ? "AUTOMATION CONTROL" : leftWidget.type === "portfolio" ? "CONNECTED PORTFOLIO" : leftWidget.type === "tokens" ? "CHOOSE AN INDEXED TOKEN" : "CHOOSE A TRACKED HANDLE"}</span><small>MOVE · RESIZE ↘</small><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setLeftWidget(); if (view === "automations") setView("ask"); }}>×</button></header>
-          {leftWidget.type === "automations" ? <AutomationSurface data={automationData} /> : leftWidget.type === "portfolio" ? <PortfolioSurface /> : leftWidget.type === "tokens" ? <TokenPicker query={leftWidget.query} onChoose={(token) => { if (conversationId) agent.send(`Use the verified indexed ${token.chain} token $${token.symbol} at ${token.address}.`); setLeftWidget(); }} /> : <HandlePicker initialQuery={leftWidget.query} onChoose={(handle) => { if (conversationId) agent.send(`Use the indexed trader @${handle}.`); setLeftWidget(); }} />}
+        <AnimatePresence>{showPortfolio ? <motion.section className="agent-left-widget agent-left-widget-portfolio" initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={portfolioDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
+          <header className="desktop-window-handle" onPointerDown={(event) => portfolioDrag.start(event)}><span>CONNECTED PORTFOLIO</span><small>MOVE · RESIZE ↘</small><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setShowPortfolio(false)}>×</button></header>
+          <PortfolioSurface />
+        </motion.section> : null}</AnimatePresence>
+        <AnimatePresence>{showAutomations ? <motion.section className="agent-left-widget agent-left-widget-automations" initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={automationDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
+          <header className="desktop-window-handle" onPointerDown={(event) => automationDrag.start(event)}><span>AUTOMATION CONTROL</span><small>MOVE · RESIZE ↘</small><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setShowAutomations(false); if (view === "automations") setView("ask"); }}>×</button></header>
+          <AutomationSurface data={automationData} />
+        </motion.section> : null}</AnimatePresence>
+        <AnimatePresence>{leftWidget && ["tokens", "handles"].includes(leftWidget.type) ? <motion.section className={`agent-left-widget agent-left-widget-${leftWidget.type}`} initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={leftWidgetDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
+          <header className="desktop-window-handle" onPointerDown={(event) => leftWidgetDrag.start(event)}><span>{leftWidget.type === "tokens" ? "CHOOSE AN INDEXED TOKEN" : "CHOOSE A TRACKED HANDLE"}</span><small>MOVE · RESIZE ↘</small><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setLeftWidget()}>×</button></header>
+          {leftWidget.type === "tokens" ? <TokenPicker query={leftWidget.query} onChoose={(token) => { if (conversationId) agent.send(`Use the verified indexed ${token.chain} token $${token.symbol} at ${token.address}.`); setLeftWidget(); }} /> : leftWidget.type === "handles" ? <HandlePicker initialQuery={leftWidget.query} onChoose={(handle) => { if (conversationId) agent.send(`Use the indexed trader @${handle}.`); setLeftWidget(); }} /> : null}
         </motion.section> : null}</AnimatePresence>
       </div>
 
-      <section className="persona-console">
+      <section className={`persona-console ${portraitMinimized ? "persona-minimized" : ""}`}>
         <div className="persona-stage">
-          <AsciiPersona status={agent.status} />
+          <AsciiPersona status={agent.status} src={agent.status === "connecting" ? "/assets/persona-connect-cat.svg" : undefined} />
           <div className="persona-noise" aria-hidden="true" />
           <div className="persona-crt-glass" aria-hidden="true" />
-          <span className="persona-timecode">REC {new Date().getFullYear()} / CH.09</span>
+          <button className="persona-minimize" type="button" aria-label={portraitMinimized ? "Restore Termeow portrait" : "Minimize Termeow portrait"} onClick={() => setPortraitMinimized((value) => !value)}>{portraitMinimized ? "□" : "─"}</button>
+          <span className="persona-mini-brand" aria-hidden="true">/\_/\\</span>
           <span className="persona-signal">{statusCopy[agent.status]}</span>
         </div>
         <div className="voice-console">
@@ -217,12 +282,12 @@ export function AgentPage({ config }: { config: PublicConfig }) {
             {latest.length ? latest.map((message) => <p key={message.id} className={message.role}><b>{message.role === "agent" ? "TM" : message.role === "user" ? "YOU" : "SYS"}</b><span>{message.text}</span></p>) : <p className="system"><b>TM</b><span>{idleGreeting}</span></p>}
           </div>
           <div className="agent-prompt-chips" aria-label="Suggested prompts">{promptSuggestions.map((prompt) => <button key={prompt} type="button" onClick={() => conversationId ? agent.send(prompt) : setText(prompt)}>{prompt}</button>)}</div>
-          <form onSubmit={submit}>
-            <input value={text} onChange={(event) => setText(event.target.value)} disabled={!conversationId} placeholder={conversationId ? "TYPE A FOLLOW-UP…" : "START VOICE TO OPEN THE CHANNEL"} />
-            <button type="submit" disabled={!conversationId || !text.trim()}>SEND ↵</button>
+          <form onSubmit={(event) => void submit(event)}>
+            <input value={text} onChange={(event) => setText(event.target.value)} placeholder={conversationId ? "MESSAGE TERMEOW…" : agent.status === "connecting" ? "OPENING TEXT CHANNEL…" : "TYPE TO START A PRIVATE CHAT…"} />
+            <button type="submit" disabled={!text.trim() || agent.status === "connecting"}>SEND ↵</button>
           </form>
           <div className="standalone-voice-controls">
-            {!conversationId ? <VoiceStart /> : <>
+            {sessionMode !== "voice" ? <VoiceStart /> : <>
               <button type="button" onClick={() => agent.setMuted(!muted)}>{muted ? "UNMUTE MIC" : "MUTE MIC"}</button>
               <button className="voice-stop" type="button" onClick={agent.stop}>END CHANNEL</button>
             </>}
@@ -243,7 +308,7 @@ export function AgentPage({ config }: { config: PublicConfig }) {
       {view === "activity" && <><header><span>SESSION TAPE</span><small>CONVERSATION + TOOL EVIDENCE</small><button type="button" aria-label="Close activity" onClick={() => setView("ask")}>×</button></header><div className="tool-tape"><h3>DECISION TRACE</h3>{toolActivity.length ? toolActivity.slice().reverse().map((event) => <article key={event.id} className={event.status}><time>{new Date(event.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time><div><b>{event.name.replaceAll("_", " ")}</b>{event.input && <small>{event.input}</small>}<span>{event.summary || "Working…"}</span></div></article>) : <p className="agent-empty">No tools used in this session.</p>}</div><div className="activity-tape">{transcript.length ? transcript.slice().reverse().map((message) => <p key={message.id}><time>{new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><b>{message.role}</b><span>{message.text}</span></p>) : <p className="agent-empty">No conversation yet.</p>}</div></>}
     </section>
 
-    <AgentDock view={view} automationCount={automationCount} onPortfolio={() => setLeftWidget(leftWidget?.type === "portfolio" ? undefined : { type: "portfolio" })} onSelect={(item) => { setView(item); if (item === "automations") setLeftWidget({ type: "automations" }); else if (leftWidget?.type === "automations") setLeftWidget(); }} />
+    <AgentDock view={view} automationCount={automationCount} onPortfolio={() => setShowPortfolio((value) => !value)} onSelect={(item) => { setView(item); if (item === "automations") setShowAutomations((value) => !value); }} />
     <AgentVolumeSlider />
 
     {pending && <div className="standalone-approval-backdrop" role="presentation"><div className="standalone-approval-modal"><div className="approval-modal-label">ACTION REQUIRES YOU</div><AgentApproval /></div></div>}

@@ -152,13 +152,21 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
   const desiredVolume = useRef(0.72);
 
   const runtime = useMemo<AgentRuntime>(() => ({
-    connect: async () => {
+    connect: async (sessionMode = "voice") => {
+      if (useAgentStore.getState().conversationId) {
+        controls.endSession();
+        for (let attempt = 0; attempt < 40 && useAgentStore.getState().conversationId; attempt += 1)
+          await new Promise((resolve) => setTimeout(resolve, 50));
+      }
       const session = await resolveElevenLabsSession();
       const greeting = pickAgentGreeting();
       const token = await getAccessToken().catch(() => null);
       const preferences = token ? await api.automationPreferences(token).then((result) => result.preferences).catch(() => undefined) : undefined;
+      useAgentStore.getState().setSessionMode(sessionMode);
       await Promise.resolve(controls.startSession({
         ...session,
+        textOnly: sessionMode === "text",
+        overrides: { conversation: { textOnly: sessionMode === "text" } },
         userId: preferences?.userId,
         dynamicVariables: { termeow_greeting: greeting, termeow_user_memory: agentMemoryText(preferences) }
       }));
@@ -191,10 +199,11 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
     if (connection.status === "connecting") useAgentStore.getState().setStatus("connecting");
     else if (connection.status === "error") useAgentStore.getState().setStatus("error", connection.message || "VOICE CONNECTION FAILED");
     else if (connection.status === "connected") {
-      useAgentStore.getState().setStatus(mode.isSpeaking ? "speaking" : "listening");
+      const textSession = useAgentStore.getState().sessionMode === "text";
+      useAgentStore.getState().setStatus(mode.isSpeaking ? "speaking" : textSession ? "idle" : "listening");
       try { controls.setVolume({ volume: desiredVolume.current }); }
       catch { /* The connected status may briefly precede the SDK conversation ref. */ }
-      audioReactiveEngine.start(() => useAgentStore.getState().status === "speaking");
+      if (!textSession) audioReactiveEngine.start(() => useAgentStore.getState().status === "speaking");
       if (conversationId) runtime.sendContext(initialContext);
     } else {
       audioReactiveEngine.stop();
@@ -477,7 +486,10 @@ export default function ElevenLabsBridge(props: Props) {
       }) : null).catch(() => undefined).finally(() => window.dispatchEvent(new Event("termeow:credits-changed")));
     }}
     onError={(message) => useAgentStore.getState().setStatus("error", message)}
-    onMessage={(message) => useAgentStore.getState().addMessage({ role: message.role, text: message.message })}
+    onMessage={(message) => {
+      useAgentStore.getState().addMessage({ role: message.role, text: message.message });
+      if (message.role === "agent" && useAgentStore.getState().sessionMode === "text") useAgentStore.getState().setStatus("idle");
+    }}
     onAgentTyping={() => useAgentStore.getState().setStatus("thinking")}
     onAgentToolRequest={() => useAgentStore.getState().setStatus("executing")}
     onAgentToolResponse={() => useAgentStore.getState().setStatus("success")}

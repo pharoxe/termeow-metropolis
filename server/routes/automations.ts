@@ -129,6 +129,17 @@ automationsRouter.patch("/:id", async (request: AuthRequest, response) => {
   if (!automation) { response.status(409).json({ error: "Only a pending automation can be edited" }); return; }
   response.json({ automation });
 });
+automationsRouter.patch("/:id/revise", async (request: AuthRequest, response) => {
+  const intent = intentSchema.parse(request.body?.intent);
+  const automation = await store.revise(request.privyUserId!, String(request.params.id), intent);
+  if (!automation) { response.status(409).json({ error: "An executing automation cannot be edited" }); return; }
+  response.json({ automation });
+});
+automationsRouter.delete("/:id", async (request: AuthRequest, response) => {
+  const removed = await store.remove(request.privyUserId!, String(request.params.id));
+  if (!removed) { response.status(409).json({ error: "An executing or missing automation cannot be deleted" }); return; }
+  response.json({ removed: true });
+});
 automationsRouter.post("/:id/approve", async (request: AuthRequest, response) => {
   approveSchema.parse(request.body);
   const pending = await store.get(request.privyUserId!, String(request.params.id));

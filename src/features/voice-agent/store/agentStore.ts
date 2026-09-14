@@ -7,6 +7,7 @@ interface AgentState {
   muted: boolean;
   error?: string;
   conversationId?: string;
+  sessionMode?: "voice" | "text";
   context: TermeowAgentContext;
   transcript: AgentMessage[];
   toolActivity: AgentToolEvent[];
@@ -17,6 +18,7 @@ interface AgentState {
   setOverlayMode: (mode: OverlayMode) => void;
   setMuted: (muted: boolean) => void;
   setConversationId: (id?: string) => void;
+  setSessionMode: (mode?: "voice" | "text") => void;
   setContext: (context: TermeowAgentContext) => void;
   addMessage: (message: Omit<AgentMessage, "id" | "at">) => void;
   beginTool: (name: string, input?: string) => string;
@@ -38,6 +40,7 @@ export const useAgentStore = create<AgentState>((set) => ({
   setOverlayMode: (overlayMode) => set({ overlayMode }),
   setMuted: (muted) => set({ muted }),
   setConversationId: (conversationId) => set({ conversationId }),
+  setSessionMode: (sessionMode) => set({ sessionMode }),
   setContext: (context) => set({ context }),
   addMessage: (message) => set((state) => ({
     transcript: [...state.transcript, { ...message, id: crypto.randomUUID(), at: Date.now() }].slice(-40)
@@ -54,5 +57,5 @@ export const useAgentStore = create<AgentState>((set) => ({
   setPendingApproval: (pendingApproval) => set({ pendingApproval }),
   setHudWindow: (hudWindow) => set({ hudWindow }),
   setLeftWidget: (leftWidget) => set({ leftWidget }),
-  resetSession: () => set({ status: "dormant", conversationId: undefined, muted: false })
+  resetSession: () => set({ status: "dormant", conversationId: undefined, sessionMode: undefined, muted: false })
 }));

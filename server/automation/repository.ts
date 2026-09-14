@@ -161,6 +161,26 @@ export class AutomationRepository {
     };
   }
 
+  async revise(userId: string, id: string, intent: AutomationIntent) {
+    if (!this.sql) return this.files.revise(userId, id, intent);
+    const expiresAt = intent.durationHours ? new Date(Date.now() + intent.durationHours * 3_600_000) : null;
+    const rows = await this.sql`
+      UPDATE termeow.automation_workflows
+      SET intent = ${this.sql.json(intent as any)}, status = 'pending_approval', expires_at = ${expiresAt},
+          approval_method = NULL, approved_at = NULL, cancelled_at = NULL, failure = NULL,
+          last_signal = NULL, updated_at = now()
+      WHERE id = ${id} AND user_id = ${userId} AND status <> 'executing'
+      RETURNING *`;
+    if (rows[0] && intent.trackedWallet && intent.trackedWalletUsername) await this.rememberTrader(userId, intent.trackedWalletUsername, intent.chain, intent.trackedWallet);
+    return rows[0] ? recordFromRow(rows[0]) : null;
+  }
+
+  async remove(userId: string, id: string) {
+    if (!this.sql) return this.files.remove(userId, id);
+    const rows = await this.sql`DELETE FROM termeow.automation_workflows WHERE id = ${id} AND user_id = ${userId} AND status <> 'executing' RETURNING id`;
+    return Boolean(rows[0]);
+  }
+
   async updatePreferences(userId: string, patch: Partial<Pick<UserAutomationPreferences, "favoriteTraders" | "favoriteTokens" | "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours" | "onboardingCompletedAt">>) {
     if (!this.sql) return this.files.updatePreferences(userId, patch);
     const current = await this.userPreferences(userId);

@@ -58,6 +58,21 @@ describe("AutomationStore", () => {
     expect(new AutomationStore(directory).userPreferences("did:privy:alice").trackedTraders[0].handle).toBe("frankdegods");
   });
 
+  it("returns edited rules to approval and permanently removes non-executing rules", () => {
+    const { store } = makeStore();
+    const intent = {
+      kind: "monitor_wallet" as const, chain: "solana" as const, trackedWallet: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+      side: "buy" as const, amountMode: "wallet_percent" as const, allocationPercent: 3, description: "Watch a wallet"
+    };
+    const draft = store.create("did:privy:alice", intent);
+    store.approve("did:privy:alice", draft.id);
+    expect(store.revise("did:privy:alice", draft.id, { ...intent, allocationPercent: 4 })).toMatchObject({
+      status: "pending_approval", approvalMethod: undefined, intent: { allocationPercent: 4 }
+    });
+    expect(store.remove("did:privy:alice", draft.id)).toBe(true);
+    expect(store.get("did:privy:alice", draft.id)).toBeNull();
+  });
+
   it("activates linked exits only after a successful buy entry", () => {
     const { store } = makeStore();
     const intent = {

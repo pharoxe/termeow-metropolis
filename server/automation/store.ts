@@ -71,6 +71,26 @@ export class AutomationStore {
     return next;
   }
 
+  revise(userId: string, id: string, intent: AutomationIntent) {
+    const current = this.get(userId, id);
+    if (!current || current.status === "executing") return null;
+    const next: AutomationRecord = {
+      ...current, intent, status: "pending_approval", approvalMethod: undefined, approvedAt: undefined,
+      cancelledAt: undefined, failure: undefined, lastSignal: undefined, updatedAt: Date.now()
+    };
+    this.records.set(id, next); this.persist();
+    if (intent.trackedWallet && intent.trackedWalletUsername) this.rememberTrader(userId, intent.trackedWalletUsername, intent.chain, intent.trackedWallet);
+    return next;
+  }
+
+  remove(userId: string, id: string) {
+    const current = this.get(userId, id);
+    if (!current || current.status === "executing") return false;
+    const removed = this.records.delete(id);
+    if (removed) this.persist();
+    return removed;
+  }
+
   userPreferences(userId: string): UserAutomationPreferences {
     return this.preferences.get(userId) ?? { userId, trackedTraders: [], updatedAt: Date.now() };
   }

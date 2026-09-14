@@ -10,6 +10,13 @@ import { WorkspaceFeatures } from "./features/WorkspaceFeatures";
 import { NotificationProvider } from "./components/NotificationSystem";
 import { TermeowAgentProvider } from "./features/voice-agent";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { Buffer } from "buffer/";
+
+// Solana's legacy transaction serializer and Privy's embedded-wallet bridge still
+// reference the Node global in a few browser paths.
+if (typeof Reflect.get(globalThis, "Buffer") !== "function") {
+  Reflect.set(globalThis, "Buffer", Buffer);
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

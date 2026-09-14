@@ -59,7 +59,7 @@ function ApprovalDetails({ intent }: { intent: AutomationIntent }) {
   </div>;
 }
 
-function ApprovalEditor({ intent, onChange }: { intent: AutomationIntent; onChange: (next: AutomationIntent) => void }) {
+export function ApprovalEditor({ intent, onChange }: { intent: AutomationIntent; onChange: (next: AutomationIntent) => void }) {
   const set = <K extends keyof AutomationIntent>(key: K, value: AutomationIntent[K]) => onChange({ ...intent, [key]: value });
   const exits = intent.exitConditions ?? [];
   const updateExit = (index: number, patch: Partial<LinkedExitCondition>) => set("exitConditions", exits.map((item, offset) => offset === index ? { ...item, ...patch } : item));
@@ -112,17 +112,20 @@ function LiveApproval() {
     if (!authenticated) { login(); return; }
     setWorking(true); setMessage("");
     try {
-      const passkeys = user?.linkedAccounts.filter((account) => account.type === "passkey") ?? [];
-      if (!passkeys.length) {
-        await linkWithPasskey({ name: "Termeow trade approvals" });
-        setMessage("PASSKEY LINKED · PRESS CONFIRM AGAIN TO ENROLL MFA");
-        return;
+      const immediateWalletAction = ["swap", "transfer"].includes(pending.intent.kind);
+      if (!immediateWalletAction) {
+        const passkeys = user?.linkedAccounts.filter((account) => account.type === "passkey") ?? [];
+        if (!passkeys.length) {
+          await linkWithPasskey({ name: "Termeow trade approvals" });
+          setMessage("PASSKEY LINKED · PRESS CONFIRM AGAIN TO ENROLL MFA");
+          return;
+        }
+        if (!mfaMethods.includes("passkey")) {
+          await initEnrollmentWithPasskey();
+          await submitEnrollmentWithPasskey({ credentialIds: passkeys.map((account) => account.credentialId) });
+        }
+        await promptMfa();
       }
-      if (!mfaMethods.includes("passkey")) {
-        await initEnrollmentWithPasskey();
-        await submitEnrollmentWithPasskey({ credentialIds: passkeys.map((account) => account.credentialId) });
-      }
-      await promptMfa();
       if (pending.intent.chain === "solana" && !["swap", "transfer"].includes(pending.intent.kind)) await ensureDelegated();
       const token = await getAccessToken();
       if (!token) throw new Error("Privy session expired. Log in again.");
@@ -141,7 +144,7 @@ function LiveApproval() {
     {draft.kind !== "transfer" && <ApprovalEditor intent={draft} onChange={setDraft} />}
     <p>This approval is bound to the exact action above. Voice alone cannot arm or submit it.{draft.kind === "transfer" ? " Verify the full recipient address before confirming." : ""}</p>
     {message && <small role="status">{message}</small>}
-    <div className="agent-approval-actions"><button type="button" disabled={working} onClick={() => void cancel()}>CANCEL</button><button className="confirm" type="button" disabled={working} onClick={() => void approve()}>{working ? "VERIFYING…" : authenticated ? "CONFIRM WITH PASSKEY" : "LOG IN TO CONFIRM"}</button></div>
+    <div className="agent-approval-actions"><button type="button" disabled={working} onClick={() => void cancel()}>CANCEL</button><button className="confirm" type="button" disabled={working} onClick={() => void approve()}>{working ? "PREPARING…" : authenticated ? (["swap", "transfer"].includes(draft.kind) ? "CONTINUE TO WALLET" : "CONFIRM WITH PASSKEY") : "LOG IN TO CONFIRM"}</button></div>
   </section></div>;
 }
 

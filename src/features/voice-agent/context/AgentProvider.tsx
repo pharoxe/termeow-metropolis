@@ -12,12 +12,14 @@ interface AgentApi {
   open(mode?: Exclude<OverlayMode, "hidden">): void;
   close(): void;
   start(): Promise<void>;
+  startText(): Promise<void>;
   stop(): void;
   setMuted(muted: boolean): void;
   setVolume(volume: number): void;
   send(text: string): void;
   updateContext(context: TermeowAgentContext): void;
   status: AgentStatus;
+  sessionMode?: "voice" | "text";
   overlayMode: OverlayMode;
   volume: number;
 }
@@ -37,6 +39,7 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
   const status = useAgentStore((state) => state.status);
   const overlayMode = useAgentStore((state) => state.overlayMode);
   const conversationId = useAgentStore((state) => state.conversationId);
+  const sessionMode = useAgentStore((state) => state.sessionMode);
   const context = useAgentStore((state) => state.context);
   const registerRuntime = useCallback((value: AgentRuntime | null) => {
     runtime.current = value;
@@ -51,12 +54,16 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
     throw new Error("VOICE RUNTIME TOOK TOO LONG TO LOAD");
   }, []);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (mode: "voice" | "text" = "voice") => {
     try {
+      const current = useAgentStore.getState();
+      if (current.conversationId && current.sessionMode === mode) return;
       useAgentStore.getState().setStatus("connecting");
       const activeRuntime = await waitForRuntime();
-      await activeRuntime.connect();
+      await activeRuntime.connect(mode);
       activeRuntime.setVolume(volumeRef.current);
+      for (let attempt = 0; attempt < 80 && !useAgentStore.getState().conversationId; attempt += 1)
+        await new Promise((resolve) => setTimeout(resolve, 50));
     } catch (reason) {
       useAgentStore.getState().setStatus("error", reason instanceof Error ? reason.message : String(reason));
     }
@@ -77,15 +84,17 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
     open: (value = "compact") => useAgentStore.getState().setOverlayMode(value),
     close: () => useAgentStore.getState().setOverlayMode("hidden"),
     start,
+    startText: () => start("text"),
     stop: () => runtime.current?.disconnect(),
     setMuted: (muted) => muted ? runtime.current?.mute() : runtime.current?.unmute(),
     setVolume,
     send: (text) => runtime.current?.sendMessage(text),
     updateContext,
     status,
+    sessionMode,
     overlayMode,
     volume
-  }), [overlayMode, setVolume, start, status, updateContext, volume]);
+  }), [overlayMode, sessionMode, setVolume, start, status, updateContext, volume]);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
