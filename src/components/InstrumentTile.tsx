@@ -107,7 +107,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
 
   const { network, setNetwork } = useFundingNetwork();
   const { notify } = useNotifications();
-  const [section, setSectionLocal] = useState("Trade");
+  const [section, setSectionLocal] = useState(() => new URLSearchParams(window.location.search).get("view") === "portfolio" ? "Portfolio" : "Trade");
   useEffect(()=>{if(isActive)onSection(section);},[isActive,section,onSection]);
   const voiceAgent = useAgent();
   const setSection=(value:string)=>{setSectionLocal(value);onSection(value);};

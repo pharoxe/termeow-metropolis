@@ -44,7 +44,7 @@ class ClawPumpMcpClient {
   async call(tool: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
     try {
       const client = await this.connect();
-      const result = await client.callTool({ name: tool, arguments: args });
+      const result = await client.callTool({ name: tool, arguments: args }, undefined, { timeout: 12_000 });
       const structured = "structuredContent" in result ? result.structuredContent : undefined;
       if (structured) return { ok: !result.isError, tool, data: structured };
       const content = Array.isArray(result.content) ? result.content as Array<{ type: string; text?: string }> : [];

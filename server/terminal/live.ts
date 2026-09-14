@@ -1,5 +1,5 @@
 import { mapKnownAttribution } from "./attribution.js";
-import { mkdirSync, statfsSync, unlinkSync } from "node:fs";
+import { mkdirSync, statfsSync } from "node:fs";
 import path from "node:path";
 import type { Chain, PairRow } from "../../shared/wire.js";
 import { flowCollector } from "../flow/collector.js";
@@ -8,14 +8,14 @@ import { TradeArchive } from "./archive.js";
 
 const directory = path.resolve(process.env.TERMINAL_DATA_DIR || "data/terminal");
 mkdirSync(directory, {recursive: true});
-const tradeArchivePath = path.join(directory, "trades.db");
+let tradeArchivePath = path.join(directory, "trades.db");
 if (process.env.NODE_ENV === "production" && directory.startsWith("/data/")) {
   try {
     const disk = statfsSync(directory);
     const freeBytes = Number(disk.bavail) * Number(disk.bsize);
     if (freeBytes < 32 * 1024 * 1024) {
-      for (const suffix of ["", "-wal", "-shm"]) { try { unlinkSync(`${tradeArchivePath}${suffix}`); } catch { /* file may not exist */ } }
-      console.warn("trade archive: discarded regenerable hot cache to recover a full Railway volume");
+      tradeArchivePath = ":memory:";
+      console.warn("trade archive: volume nearly full; preserving existing archive and using temporary memory storage");
     }
   } catch { /* Persistence remains best-effort; TradeArchive has an in-memory fallback path elsewhere. */ }
 }

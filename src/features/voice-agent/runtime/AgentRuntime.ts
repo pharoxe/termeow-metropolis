@@ -7,4 +7,5 @@ export interface AgentRuntime {
   sendContext(context: TermeowAgentContext): void;
   mute(): void;
   unmute(): void;
+  setVolume(volume: number): void;
 }

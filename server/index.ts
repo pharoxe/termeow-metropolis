@@ -5,6 +5,7 @@ import compression from "compression";
 import helmet from "helmet";
 import { ZodError } from "zod";
 import { config } from "./config.js";
+import { reconcilePendingVoice } from "./agent/credits.js";
 import { systemRouter } from "./routes/system.js";
 import { onchainRouter } from "./routes/onchain.js";
 import { terminalRouter } from "./routes/terminal.js";
@@ -31,6 +32,8 @@ import { installSnapshots } from "./persist/live.js";
 const snapshots = installSnapshots();
 const stopTwitterLaunchMonitor = startTwitterLaunchMonitor();
 const stopWalletAutomationMonitor = startWalletAutomationMonitor();
+const creditReconciliationTimer = setInterval(() => { void reconcilePendingVoice().catch((error) => console.warn("Credit reconciliation deferred:", error)); }, 60_000);
+creditReconciliationTimer.unref();
 
 const app = express();
 app.disable("x-powered-by");
@@ -93,6 +96,7 @@ server.on("error", (error) => {
 });
 
 async function shutdown() {
+  clearInterval(creditReconciliationTimer);
   stopTwitterLaunchMonitor();
   stopWalletAutomationMonitor();
   snapshots.saveAll("shutdown");

@@ -1,4 +1,4 @@
-import { lazy, Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, type PropsWithChildren } from "react";
+import { lazy, Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react";
 import type { AgentRuntime } from "../runtime/AgentRuntime";
 import type { AgentStatus, OverlayMode, TermeowAgentContext } from "../runtime/agentTypes";
 import { useAgentStore } from "../store/agentStore";
@@ -14,21 +14,34 @@ interface AgentApi {
   start(): Promise<void>;
   stop(): void;
   setMuted(muted: boolean): void;
+  setVolume(volume: number): void;
   send(text: string): void;
   updateContext(context: TermeowAgentContext): void;
   status: AgentStatus;
   overlayMode: OverlayMode;
+  volume: number;
 }
 
 const AgentContext = createContext<AgentApi | null>(null);
 
 export function TermeowAgentProvider({ children }: PropsWithChildren) {
   const runtime = useRef<AgentRuntime | null>(null);
+  const initialVolume = useRef<number | null>(null);
+  if (initialVolume.current == null) {
+    const saved = typeof window === "undefined" ? null : localStorage.getItem("termeow-agent-volume");
+    const stored = saved === null ? Number.NaN : Number(saved);
+    initialVolume.current = Number.isFinite(stored) ? Math.max(0, Math.min(1, stored)) : 0.72;
+  }
+  const [volume, setVolumeState] = useState(initialVolume.current);
+  const volumeRef = useRef(volume);
   const status = useAgentStore((state) => state.status);
   const overlayMode = useAgentStore((state) => state.overlayMode);
   const conversationId = useAgentStore((state) => state.conversationId);
   const context = useAgentStore((state) => state.context);
-  const registerRuntime = useCallback((value: AgentRuntime | null) => { runtime.current = value; }, []);
+  const registerRuntime = useCallback((value: AgentRuntime | null) => {
+    runtime.current = value;
+    value?.setVolume(volumeRef.current);
+  }, []);
 
   const waitForRuntime = useCallback(async () => {
     for (let attempt = 0; attempt < 80; attempt += 1) {
@@ -41,7 +54,9 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
   const start = useCallback(async () => {
     try {
       useAgentStore.getState().setStatus("connecting");
-      await (await waitForRuntime()).connect();
+      const activeRuntime = await waitForRuntime();
+      await activeRuntime.connect();
+      activeRuntime.setVolume(volumeRef.current);
     } catch (reason) {
       useAgentStore.getState().setStatus("error", reason instanceof Error ? reason.message : String(reason));
     }
@@ -51,17 +66,26 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
     useAgentStore.getState().setContext(next);
     if (changed) runtime.current?.sendContext(next);
   }, []);
+  const setVolume = useCallback((next: number) => {
+    const normalized = Math.max(0, Math.min(1, next));
+    volumeRef.current = normalized;
+    setVolumeState(normalized);
+    localStorage.setItem("termeow-agent-volume", String(normalized));
+    runtime.current?.setVolume(normalized);
+  }, []);
   const api = useMemo<AgentApi>(() => ({
     open: (value = "compact") => useAgentStore.getState().setOverlayMode(value),
     close: () => useAgentStore.getState().setOverlayMode("hidden"),
     start,
     stop: () => runtime.current?.disconnect(),
     setMuted: (muted) => muted ? runtime.current?.mute() : runtime.current?.unmute(),
+    setVolume,
     send: (text) => runtime.current?.sendMessage(text),
     updateContext,
     status,
-    overlayMode
-  }), [overlayMode, start, status, updateContext]);
+    overlayMode,
+    volume
+  }), [overlayMode, setVolume, start, status, updateContext, volume]);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {

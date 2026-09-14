@@ -1,5 +1,5 @@
 import { ConversationProvider, useConversationClientTool, useConversationControls, useConversationInput, useConversationMode, useConversationStatus } from "@elevenlabs/react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { AgentRuntime } from "./AgentRuntime";
 import type { TermeowAgentContext } from "./agentTypes";
 import { resolveElevenLabsSession } from "./ElevenLabsRuntime";
@@ -11,11 +11,13 @@ import type { AutomationIntent } from "../../../../shared/automation";
 import { recentRallyStructure } from "../../../lib/chartStructure";
 import { filterRecentOrderFlow } from "../../../lib/agentOrderFlow";
 import { agentMemoryText, pickAgentGreeting } from "../../../lib/agentMemory";
+import { clawpumpAgentTools } from "../../../../shared/clawpumpAgentTools.mjs";
 
 const optionalNumber = (value: unknown) => {
   const number = Number(value);
   return value == null || value === "" || !Number.isFinite(number) ? undefined : number;
 };
+let activeBillableConversationId: string | null = null;
 
 const exitConditions = (value: unknown, fallbackSlippageBps: number) => {
   if (!Array.isArray(value)) return undefined;
@@ -69,6 +71,7 @@ async function liveTraderMatches(handle: string, chain?: "solana" | "robinhood")
 function toolSummary(raw: string) {
   try {
     const result = JSON.parse(raw) as Record<string, any>;
+    if (result.source === "ClawPump") return result.evidence?.error || `ClawPump ${result.evidence?.tool || "research"} · ${result.observedAt}`;
     if (result.error) return String(result.error);
     if (result.token) return `${result.token.symbol || "TOKEN"} · ${result.token.chain} · indexed ${result.token.source || "local"}`;
     if (result.surface) return `${result.token_symbol || "TOKEN"} ${result.surface.replaceAll("_", " ")} visible`;
@@ -76,6 +79,29 @@ function toolSummary(raw: string) {
     if (Array.isArray(result.automations)) return `${result.automations.length} automation records`;
     return result.message || (result.ok ? "Evidence returned" : "No result");
   } catch { return raw.slice(0, 120); }
+}
+
+function compactFlowEvidence(flow: Awaited<ReturnType<typeof api.flowToken>> | null) {
+  if (!flow) return { availability: "warming", windows: null, large_prints: [], tape: [], fomo_fills: [], stale: true };
+  const tape = flow.tape?.slice(0, 20) || [];
+  const hasEvidence = tape.length > 0 || Boolean(flow.windows && Object.values(flow.windows).some(Boolean)) || Boolean(flow.largePrints?.length);
+  return {
+    availability: hasEvidence ? "available" : "warming", windows: flow.windows, large_prints: flow.largePrints || [], tape,
+    fomo_fills: flow.fomo?.fills.slice(0, 12) || [], feed_health: flow.feedHealth, stale: flow.stale,
+    provider_note: !hasEvidence && flow.error ? "One upstream source is backing off; local/RPC capture is still warming." : undefined
+  };
+}
+
+function ClawpumpTool({ name }: { name: string }) {
+  const handler = useMemo(() => trackedTool(name, async (args) => {
+    const token = await getAccessToken();
+    if (!token) return JSON.stringify({ ok: false, error: "Log in to use research tools." });
+    const response = await fetch("/api/agent/tools/clawpump", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ tool: name, args }), signal: AbortSignal.timeout(20_000) });
+    const body = await response.json();
+    return JSON.stringify({ ...body, ok: response.ok && body.evidence?.ok !== false });
+  }), [name]);
+  useConversationClientTool(name, handler);
+  return null;
 }
 
 function trackedTool(name: string, handler: (parameters: Record<string, unknown>) => Promise<string>) {
@@ -106,6 +132,7 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
   const connection = useConversationStatus();
   const mode = useConversationMode();
   const conversationId = useAgentStore((state) => state.conversationId);
+  const desiredVolume = useRef(0.72);
 
   const runtime = useMemo<AgentRuntime>(() => ({
     connect: async () => {
@@ -116,17 +143,29 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
       await Promise.resolve(controls.startSession({
         ...session,
         userId: preferences?.userId,
-        dynamicVariables: { termeow_greeting: greeting, termeow_user_memory: agentMemoryText(preferences) },
-        overrides: { agent: { firstMessage: greeting } }
+        dynamicVariables: { termeow_greeting: greeting, termeow_user_memory: agentMemoryText(preferences) }
       }));
     },
     disconnect: () => { controls.endSession(); useAgentStore.getState().resetSession(); },
-    sendMessage: (text) => controls.sendUserMessage(text),
-    sendContext: (next) => {
-      if (useAgentStore.getState().conversationId) controls.sendContextualUpdate(`Termeow view context: ${JSON.stringify(next)}`);
+    sendMessage: (text) => {
+      try { controls.sendUserMessage(text); }
+      catch (reason) { useAgentStore.getState().setStatus("error", reason instanceof Error ? reason.message : String(reason)); }
     },
-    mute: () => { input.setMuted(true); useAgentStore.getState().setMuted(true); },
-    unmute: () => { input.setMuted(false); useAgentStore.getState().setMuted(false); }
+    sendContext: (next) => {
+      if (useAgentStore.getState().conversationId) {
+        try { controls.sendContextualUpdate(`Termeow view context: ${JSON.stringify(next)}`); }
+        catch { /* A disconnect can clear the SDK conversation before store callbacks settle. */ }
+      }
+    },
+    mute: () => { try { input.setMuted(true); useAgentStore.getState().setMuted(true); } catch { /* Session has ended. */ } },
+    unmute: () => { try { input.setMuted(false); useAgentStore.getState().setMuted(false); } catch { /* Session has ended. */ } },
+    setVolume: (volume) => {
+      desiredVolume.current = volume;
+      if (useAgentStore.getState().conversationId) {
+        try { controls.setVolume({ volume }); }
+        catch { /* Retain the desired level for the next live session. */ }
+      }
+    }
   }), [controls, input]);
 
   useEffect(() => { onRuntime(runtime); return () => onRuntime(null); }, [onRuntime, runtime]);
@@ -136,6 +175,8 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
     else if (connection.status === "error") useAgentStore.getState().setStatus("error", connection.message || "VOICE CONNECTION FAILED");
     else if (connection.status === "connected") {
       useAgentStore.getState().setStatus(mode.isSpeaking ? "speaking" : "listening");
+      try { controls.setVolume({ volume: desiredVolume.current }); }
+      catch { /* The connected status may briefly precede the SDK conversation ref. */ }
       audioReactiveEngine.start(() => useAgentStore.getState().status === "speaking");
       if (conversationId) runtime.sendContext(initialContext);
     } else {
@@ -156,7 +197,7 @@ function ClientToolsBridge() {
       try {
         const evidence = await directTokenEvidence(terminal.chain, terminal.token.address, terminal.chart?.timeframe || "5m");
         const direct = { ...terminal, chart: { ...terminal.chart, timeframe: terminal.chart?.timeframe || evidence.market.interval, unit: terminal.chart?.unit || "price", scale: terminal.chart?.scale || "linear", priceUsd: evidence.market.priceUsd, marketCapUsd: evidence.market.marketCapUsd, change24Pct: evidence.market.change24Pct, latestCandle: evidence.latest, loadedBars: evidence.market.candles.length, structure: { recentRally: evidence.structure, calculation: "visible-loaded-bars" as const } }, observedAt: evidence.market.observedAt, wallet: { ...terminal.wallet, connected } };
-        return JSON.stringify({ ok: true, source: "direct_chain_and_market_apis", warning: "Point-in-time evidence; refresh the route before execution.", terminal: direct, market: { liquidity_usd: evidence.market.liquidityUsd, volume_24h_usd: evidence.market.volume24Usd, source: evidence.market.source, stale: evidence.market.stale, error: evidence.market.error }, flow: evidence.flow ? { windows: evidence.flow.windows, large_prints: evidence.flow.largePrints, tape: evidence.flow.tape?.slice(0, 20), feed_health: evidence.flow.feedHealth, stale: evidence.flow.stale, error: evidence.flow.error } : null });
+        return JSON.stringify({ ok: true, source: "direct_chain_and_market_apis", warning: "Point-in-time evidence; refresh the route before execution.", terminal: direct, market: { liquidity_usd: evidence.market.liquidityUsd, volume_24h_usd: evidence.market.volume24Usd, source: evidence.market.source, stale: evidence.market.stale }, flow: compactFlowEvidence(evidence.flow) });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason), terminal }); }
     }),
     resolve_trader_handle: trackedTool("resolve_trader_handle", async (parameters: Record<string, unknown>) => {
@@ -177,7 +218,7 @@ function ClientToolsBridge() {
       const timeframe = String(parameters.timeframe || "5m");
       const evidence = await directTokenEvidence(target.chain, target.address, timeframe);
       useAgentStore.getState().setContext({ route: "/agent", chain: target.chain, token: { address: target.address, symbol: evidence.market.instrument.symbol || target.symbol, name: evidence.market.instrument.name, logoUrl: evidence.market.instrument.image || undefined }, chart: { timeframe, unit: "price", scale: "linear", priceUsd: evidence.market.priceUsd, marketCapUsd: evidence.market.marketCapUsd, change24Pct: evidence.market.change24Pct, latestCandle: evidence.latest, loadedBars: evidence.market.candles.length, structure: { recentRally: evidence.structure, calculation: "visible-loaded-bars" } }, observedAt: evidence.market.observedAt });
-      return JSON.stringify({ ok: true, source: "direct_chain_and_market_apis", token: { chain: target.chain, address: target.address, symbol: evidence.market.instrument.symbol || target.symbol, name: evidence.market.instrument.name }, market: { price_usd: evidence.market.priceUsd, market_cap_usd: evidence.market.marketCapUsd, liquidity_usd: evidence.market.liquidityUsd, volume_24h_usd: evidence.market.volume24Usd, change_24h_pct: evidence.market.change24Pct, candles: evidence.market.candles.length, source: evidence.market.source, stale: evidence.market.stale }, structure: evidence.structure, flow: evidence.flow ? { windows: evidence.flow.windows, large_prints: evidence.flow.largePrints, fomo_fills: evidence.flow.fomo?.fills.slice(0, 12), feed_health: evidence.flow.feedHealth, stale: evidence.flow.stale } : null });
+      return JSON.stringify({ ok: true, source: "direct_chain_and_market_apis", token: { chain: target.chain, address: target.address, symbol: evidence.market.instrument.symbol || target.symbol, name: evidence.market.instrument.name }, market: { price_usd: evidence.market.priceUsd, market_cap_usd: evidence.market.marketCapUsd, liquidity_usd: evidence.market.liquidityUsd, volume_24h_usd: evidence.market.volume24Usd, change_24h_pct: evidence.market.change24Pct, candles: evidence.market.candles.length, source: evidence.market.source, stale: evidence.market.stale }, structure: evidence.structure, flow: compactFlowEvidence(evidence.flow) });
     }),
     inspect_large_orders: trackedTool("inspect_large_orders", async (parameters: Record<string, unknown>) => {
       const target = await resolveMarketTarget(parameters);
@@ -262,20 +303,32 @@ function ClientToolsBridge() {
     }),
     propose_automation: trackedTool("propose_automation", async (parameters: Record<string, unknown>) => {
       const context = useAgentStore.getState().context;
-      const chain = parameters.chain === "robinhood" ? "robinhood" : parameters.chain === "solana" ? "solana" : context.chain;
-      if (!chain) return JSON.stringify({ ok: false, error: "Choose Solana or Robinhood." });
+      const token = await getAccessToken();
+      if (!token) return JSON.stringify({ ok: false, error: "The user must log in before an automation can be proposed." });
+      const preferences = await api.automationPreferences(token).then((result) => result.preferences).catch(() => undefined);
+      let chain = parameters.chain === "robinhood" ? "robinhood" as const : parameters.chain === "solana" ? "solana" as const : context.chain;
       const requestedHandle = String(parameters.tracked_wallet_username || "").replace(/^@/, "").trim();
       const trackedXAccount = String(parameters.tracked_x_account || "").replace(/^@/, "").trim();
       let trackedWallet = String(parameters.target_address || "").trim();
-      let identity = trackedWallet ? await api.identityWallet(chain, trackedWallet).then(result => result.identity).catch(() => null) : null;
+      let identity = trackedWallet && chain ? await api.identityWallet(chain, trackedWallet).then(result => result.identity).catch(() => null) : null;
       if (!trackedWallet && requestedHandle) {
-        const matches = await api.identityHandle(requestedHandle).then(result => result.addresses.filter((item) => item.chain === chain)).catch(() => []);
-        if (matches.length !== 1) return JSON.stringify({ ok: false, error: matches.length ? `Multiple ${chain} wallets match @${requestedHandle}; ask the user which wallet.` : `No indexed ${chain} wallet matches @${requestedHandle}; ask for the address and do not guess.` , matches: matches.map((item) => item.wallet) });
-        identity = matches[0]; trackedWallet = matches[0].wallet;
+        const indexed = await api.identityHandle(requestedHandle).then(result => result.addresses).catch(() => []);
+        const filtered = chain ? indexed.filter((item) => item.chain === chain) : indexed;
+        const matches = filtered.length ? filtered : await liveTraderMatches(requestedHandle, chain);
+        if (matches.length !== 1) { useAgentStore.getState().setLeftWidget({ type: "handles", query: requestedHandle }); return JSON.stringify({ ok: false, error: matches.length ? `Multiple wallets match @${requestedHandle}; choose one in the handle panel.` : `No indexed wallet matches @${requestedHandle}; choose a handle or provide the address.`, matches: matches.map((item) => item.wallet) }); }
+        chain = matches[0].chain; identity = matches[0] as typeof identity; trackedWallet = matches[0].wallet;
       }
-      const tokenAddress = String(parameters.token_address || context.token?.address || "").trim() || undefined;
+      let tokenAddress = String(parameters.token_address || context.token?.address || "").trim() || undefined;
+      const requestedSymbol = String(parameters.token_symbol || context.token?.symbol || "").replace(/^\$+/, "").trim();
+      if (!tokenAddress && requestedSymbol) {
+        const resolution = await api.resolveToken(requestedSymbol, chain).catch(() => null);
+        if (resolution?.match) { chain = resolution.match.chain; tokenAddress = resolution.match.address; }
+      }
+      if (!chain) return JSON.stringify({ ok: false, error: "Choose Solana or Robinhood." });
       if (!trackedWallet && !tokenAddress && !trackedXAccount) return JSON.stringify({ ok: false, error: "Provide a tracked handle/address, an X account, or select a token." });
-      const slippageBps = Math.round(optionalNumber(parameters.slippage_bps) ?? 50);
+      const slippageBps = Math.round(optionalNumber(parameters.slippage_bps) ?? preferences?.defaultSlippageBps ?? 50);
+      const allocationPercent = optionalNumber(parameters.allocation_percent) ?? preferences?.defaultAllocationPercent ?? 10;
+      const durationHours = optionalNumber(parameters.duration_hours) ?? preferences?.defaultDurationHours ?? 24;
       const intent: AutomationIntent = {
         kind: parameters.strategy === "conditional_swap" ? "conditional_swap" : parameters.strategy === "monitor_deployer" ? "monitor_deployer" : parameters.strategy === "monitor_x_launch" ? "monitor_x_launch" : "monitor_wallet", chain, tokenAddress,
         tokenSymbol: String(parameters.token_symbol || context.token?.symbol || (tokenAddress ? "TOKEN" : "ANY")), tokenName: context.token?.name,
@@ -283,19 +336,17 @@ function ClientToolsBridge() {
         trackedWalletUsername: requestedHandle || identity?.handle || undefined,
         trackedXAccount: trackedXAccount || undefined,
         side: parameters.side === "sell" ? "sell" : "buy",
-        router: chain === "robinhood" ? "0x" : "jupiter", amountMode: "wallet_percent", allocationPercent: Number(parameters.allocation_percent),
-        durationHours: Number(parameters.duration_hours || 24), marketCapMinUsd: optionalNumber(parameters.market_cap_min_usd),
+        router: chain === "robinhood" ? "0x" : "jupiter", amountMode: "wallet_percent", allocationPercent,
+        durationHours, marketCapMinUsd: optionalNumber(parameters.market_cap_min_usd),
         marketCapMaxUsd: optionalNumber(parameters.market_cap_max_usd), entryPriceTolerancePct: optionalNumber(parameters.entry_price_tolerance_percent), slippageBps,
         condition: String(parameters.condition || ""), exitConditions: exitConditions(parameters.exit_conditions, slippageBps),
         description: String(parameters.description || "Voice-created monitored trading strategy")
       };
       try {
-        const token = await getAccessToken();
-        if (!token) return JSON.stringify({ ok: false, error: "The user must log in before an automation can be proposed." });
         const result = await api.createAutomation(token, { intent, source: "elevenlabs_voice", conversationId: useAgentStore.getState().conversationId, context });
         useAgentStore.getState().setPendingApproval(result.automation);
         useAgentStore.getState().setOverlayMode("expanded");
-        return JSON.stringify({ ok: true, automation_id: result.automation.id, status: "pending_passkey_confirmation", message: "Ask the user to review and confirm with their passkey. The automation is not armed yet." });
+        return JSON.stringify({ ok: true, automation_id: result.automation.id, status: "pending_passkey_confirmation", message: "Draft ready—review and confirm." });
       } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
     }),
     list_automations: trackedTool("list_automations", async () => {
@@ -360,13 +411,20 @@ function ClientToolsBridge() {
 
 export default function ElevenLabsBridge(props: Props) {
   return <ConversationProvider
-    onConnect={({ conversationId }) => useAgentStore.getState().setConversationId(conversationId)}
-    onDisconnect={() => useAgentStore.getState().resetSession()}
+    onConnect={({ conversationId }) => { activeBillableConversationId = conversationId; useAgentStore.getState().setConversationId(conversationId); }}
+    onDisconnect={() => {
+      const conversationId = activeBillableConversationId;
+      activeBillableConversationId = null;
+      useAgentStore.getState().resetSession();
+      if (conversationId) void getAccessToken().then((token) => token ? fetch("/api/agent/session/reconcile", {
+        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ conversationId })
+      }) : null).catch(() => undefined).finally(() => window.dispatchEvent(new Event("termeow:credits-changed")));
+    }}
     onError={(message) => useAgentStore.getState().setStatus("error", message)}
     onMessage={(message) => useAgentStore.getState().addMessage({ role: message.role, text: message.message })}
     onAgentTyping={() => useAgentStore.getState().setStatus("thinking")}
     onAgentToolRequest={() => useAgentStore.getState().setStatus("executing")}
     onAgentToolResponse={() => useAgentStore.getState().setStatus("success")}
     onInterruption={() => useAgentStore.getState().setStatus("listening")}
-  ><ClientToolsBridge /><ControlsBridge {...props} /></ConversationProvider>;
+  ><ClientToolsBridge />{clawpumpAgentTools.map((tool) => <ClawpumpTool key={tool.name} name={tool.name} />)}<ControlsBridge {...props} /></ConversationProvider>;
 }

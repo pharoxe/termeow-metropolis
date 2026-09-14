@@ -43,7 +43,7 @@ export function HandlePicker({ initialQuery = "", onChoose }: { initialQuery?: s
       const handle = entry.handle.replace(/^@/, "");
       return <article key={`${entry.chain}:${entry.wallet}`}>
         <button type="button" onClick={() => onChoose(handle)}>{entry.avatarUrl ? <img src={entry.avatarUrl} alt="" /> : <i aria-hidden="true" />}<span><b>@{handle}</b><small>#{entry.rank} · {entry.chain.toUpperCase()}{entry.followers ? ` · ${entry.followers.toLocaleString()} followers` : ""}</small></span></button>
-        <a href={entry.profileUrl || `https://fomo.family/profile/${encodeURIComponent(handle)}`} target="_blank" rel="noreferrer" aria-label={`Open ${handle} on Fomo`}>F↗</a>
+        <span className="picker-socials"><a href={entry.profileUrl || `https://fomo.family/profile/${encodeURIComponent(handle)}`} target="_blank" rel="noreferrer" aria-label={`Open ${handle} on Fomo`}><img src="/assets/fomo-logo.png" alt="" /></a>{entry.twitter ? <a href={/^https?:/i.test(entry.twitter) ? entry.twitter : `https://x.com/${entry.twitter.replace(/^@/, "")}`} target="_blank" rel="noreferrer" aria-label={`Open ${handle} on X`}><img src="/assets/x-logo.png" alt="" /></a> : null}</span>
       </article>;
     }) : <p>{error || "NO INDEXED MATCH"}</p>}</div>
   </div>;

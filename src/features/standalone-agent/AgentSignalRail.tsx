@@ -63,7 +63,7 @@ export function AgentSignalRail() {
             {notable && (identity?.avatarUrl || fill.trader.avatarUrl) ? <img src={(identity?.avatarUrl || fill.trader.avatarUrl)!} alt="" /> : <span className={`signal-side-icon ${fill.side}`} aria-hidden="true"><i>{fill.side === "buy" ? "▲" : "▼"}</i><small>{fill.side === "buy" ? "IN" : "OUT"}</small></span>}
             <span><b>{row.side} ${symbol}</b><small>{row.usd} · {row.chain} · {row.age}</small></span>
           </button>
-          {handle ? <div className="signal-identities"><span>@{handle.replace(/^@/, "")}</span>{fomoProfile && <a href={fomoProfile} target="_blank" rel="noreferrer" aria-label="Open Fomo profile">F</a>}{profile && <a href={profile} target="_blank" rel="noreferrer" aria-label="Open X profile">𝕏</a>}</div> : null}
+          {handle ? <div className="signal-identities"><span>@{handle.replace(/^@/, "")}</span>{fomoProfile && <a href={fomoProfile} target="_blank" rel="noreferrer" aria-label="Open Fomo profile"><img src="/assets/fomo-logo.png" alt="" /></a>}{profile && <a href={profile} target="_blank" rel="noreferrer" aria-label="Open X profile"><img src="/assets/x-logo.png" alt="" /></a>}</div> : null}
         </motion.article>;
       })}
     </AnimatePresence>

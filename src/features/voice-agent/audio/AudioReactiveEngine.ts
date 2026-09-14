@@ -25,7 +25,8 @@ class AudioReactiveEngine {
     this.stop();
     const loop = () => {
       this.speaking = isSpeaking();
-      this.sample();
+      try { this.sample(); }
+      catch { this.current.amplitude *= .6; /* SDK audio can disappear during teardown. */ }
       this.frame = requestAnimationFrame(loop);
     };
     this.frame = requestAnimationFrame(loop);

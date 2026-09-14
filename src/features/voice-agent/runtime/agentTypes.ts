@@ -39,6 +39,7 @@ export type AgentHudWindow = {
 
 export type AgentLeftWidget =
   | { type: "automations" }
+  | { type: "portfolio" }
   | { type: "handles"; query?: string };
 
 export interface AgentToolEvent {
