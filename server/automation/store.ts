@@ -92,10 +92,10 @@ export class AutomationStore {
   }
 
   userPreferences(userId: string): UserAutomationPreferences {
-    return this.preferences.get(userId) ?? { userId, trackedTraders: [], updatedAt: Date.now() };
+    return this.preferences.get(userId) ?? { userId, trackedTraders: [], favoriteTraders: [], favoriteTokens: [], linkedWallets: [], updatedAt: Date.now() };
   }
 
-  updatePreferences(userId: string, patch: Partial<Pick<UserAutomationPreferences, "favoriteTraders" | "favoriteTokens" | "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours" | "onboardingCompletedAt">>) {
+  updatePreferences(userId: string, patch: Partial<Pick<UserAutomationPreferences, "favoriteTraders" | "favoriteTokens" | "linkedWallets" | "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours" | "onboardingCompletedAt">>) {
     const next = { ...this.userPreferences(userId), ...patch, userId, updatedAt: Date.now() };
     this.preferences.set(userId, next); this.persistPreferences(); return next;
   }
@@ -126,7 +126,7 @@ export class AutomationStore {
 
   report(userId: string, id: string, status: "executing" | "completed" | "failed", detail?: { transactionHash?: string; failure?: string }) {
     const current = this.get(userId, id);
-    if (!current || !["armed", "executing"].includes(current.status)) return null;
+    if (!current || (status === "executing" ? current.status !== "armed" : current.status !== "executing")) return null;
     const activeExitConditions = status === "completed" && current.intent.side === "buy" ? current.intent.exitConditions : undefined;
     const next: AutomationRecord = { ...current, status, updatedAt: Date.now(), transactionHash: detail?.transactionHash, failure: detail?.failure, activeExitConditions };
     this.records.set(id, next); this.persist();

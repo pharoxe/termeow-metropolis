@@ -53,6 +53,7 @@ export interface UserAutomationPreferences {
   trackedTraders: Array<{ handle: string; chain: AutomationChain; wallet: string; uses: number; lastUsedAt: number }>;
   favoriteTraders?: Array<{ handle: string; chain: AutomationChain; wallet: string; followers?: number | null }>;
   favoriteTokens?: Array<{ symbol: string; chain?: AutomationChain; address?: string; name?: string }>;
+  linkedWallets?: Array<{ address: string; chain: AutomationChain; label?: string; addedAt: number }>;
   defaultAllocationPercent?: number;
   defaultSlippageBps?: number;
   defaultDurationHours?: number;

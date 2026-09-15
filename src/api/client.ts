@@ -3,6 +3,7 @@ import type { WalletPortfolio } from "../../shared/portfolio";
 import type { AutomationIntent, AutomationRecord, TerminalAgentSnapshot, UserAutomationPreferences } from "../../shared/automation";
 import type { PublicConfig } from "../types";
 import type { TokenResolution } from "../../shared/tokenIndex";
+import type { WalletActivityResponse } from "../../shared/walletActivity";
 import type { AlertRule, AlertsResponse, Chain, DiscoverResponse, DiscoverView, DiscoverWindow, FlowCandleInterval, FlowCandlesResponse, FomoBoardResponse, FomoBoardWindow, FomoChainScope, FomoTapeResponse, LaunchesResponse, MarketResponse, SystemHealth, TokenFlowResponse } from "../../shared/wire";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -76,6 +77,7 @@ export const api = {
   holders: (mint: string) => request<Record<string, unknown>>(`/api/onchain/holders/${mint}`),
   portfolio: (wallet: string) => request<WalletPortfolio>(`/api/onchain/portfolio/${wallet}`),
   robinhoodPortfolio: (wallet: string) => request<WalletPortfolio>(`/api/onchain/portfolio/robinhood/${wallet}`),
+  walletActivity: (chain: "solana", wallet: string, limit = 20) => request<WalletActivityResponse>(`/api/onchain/wallet/${chain}/${encodeURIComponent(wallet)}/activity?limit=${Math.min(40, Math.max(1, Math.trunc(limit)))}`),
   rpc: async <T>(method: string, params: unknown[]) => {
     const body = await request<{ result?: T; error?: { message?: string } }>("/api/rpc", {
       method: "POST",
@@ -103,7 +105,7 @@ export const api = {
   reviseAutomation: (token: string, id: string, intent: AutomationIntent) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}/revise`, { method: "PATCH", headers: bearer(token), body: JSON.stringify({ intent }) }),
   deleteAutomation: (token: string, id: string) => request<{ removed: boolean }>(`/api/automations/${encodeURIComponent(id)}`, { method: "DELETE", headers: bearer(token) }),
   automationPreferences: (token: string) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { headers: bearer(token) }),
-  updateAutomationPreferences: (token: string, body: Partial<Pick<UserAutomationPreferences, "favoriteTraders" | "favoriteTokens" | "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours">> & { onboardingCompleted?: boolean }) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { method: "PATCH", headers: bearer(token), body: JSON.stringify(body) }),
+  updateAutomationPreferences: (token: string, body: Partial<Pick<UserAutomationPreferences, "favoriteTraders" | "favoriteTokens" | "linkedWallets" | "defaultAllocationPercent" | "defaultSlippageBps" | "defaultDurationHours">> & { onboardingCompleted?: boolean }) => request<{ preferences: UserAutomationPreferences }>("/api/automations/preferences/me", { method: "PATCH", headers: bearer(token), body: JSON.stringify(body) }),
   approveAutomation: (token: string, id: string) => request<{ automation: AutomationRecord }>(`/api/automations/${encodeURIComponent(id)}/approve`, {
     method: "POST", headers: bearer(token), body: JSON.stringify({ passkeyVerified: true })
   }),

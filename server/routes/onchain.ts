@@ -1,6 +1,7 @@
 import { QuoteCache, matchesOrder, matchesRoute } from "../trading/quotes.js";
 import { walletPortfolio } from "../market/walletPortfolio.js";
 import { robinhoodWalletPortfolio } from "../market/robinhoodWalletPortfolio.js";
+import { solanaWalletActivity } from "../market/walletActivity.js";
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
@@ -363,5 +364,13 @@ onchainRouter.get("/portfolio/robinhood/:wallet", async (request, response, next
   try {
     const walletAddress = evmAddress.parse(request.params.wallet);
     response.json(await robinhoodWalletPortfolio(walletAddress));
+  } catch (error) { next(error); }
+});
+
+onchainRouter.get("/wallet/solana/:wallet/activity", async (request, response, next) => {
+  try {
+    const walletAddress = address.parse(request.params.wallet);
+    const limit = z.coerce.number().int().min(1).max(40).default(20).parse(request.query.limit);
+    response.json(await solanaWalletActivity(walletAddress, limit));
   } catch (error) { next(error); }
 });

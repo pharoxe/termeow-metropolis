@@ -25,6 +25,8 @@ describe("AutomationStore", () => {
     expect(store.approve("did:privy:bob", draft.id)).toBeNull();
     const approved = store.approve("did:privy:alice", draft.id);
     expect(approved?.approvalMethod).toBe("privy_passkey_mfa");
+    expect(store.report("did:privy:alice", draft.id, "executing")?.status).toBe("executing");
+    expect(store.report("did:privy:alice", draft.id, "executing")).toBeNull();
     expect(store.report("did:privy:alice", draft.id, "completed", { transactionHash: "tx-1" })?.transactionHash).toBe("tx-1");
   });
 
@@ -83,9 +85,11 @@ describe("AutomationStore", () => {
     };
     const failed = store.create("did:privy:alice", intent);
     store.approve("did:privy:alice", failed.id);
+    store.report("did:privy:alice", failed.id, "executing");
     expect(store.report("did:privy:alice", failed.id, "failed", { failure: "reverted" })?.activeExitConditions).toBeUndefined();
     const completed = store.create("did:privy:alice", intent);
     store.approve("did:privy:alice", completed.id);
+    store.report("did:privy:alice", completed.id, "executing");
     expect(store.report("did:privy:alice", completed.id, "completed", { transactionHash: "tx" })?.activeExitConditions).toEqual(intent.exitConditions);
   });
 });

@@ -11,12 +11,13 @@ const ElevenLabsBridge = lazy(() => import("../runtime/ElevenLabsBridge"));
 interface AgentApi {
   open(mode?: Exclude<OverlayMode, "hidden">): void;
   close(): void;
-  start(): Promise<void>;
-  startText(): Promise<void>;
+  start(): Promise<boolean>;
+  startText(): Promise<boolean>;
   stop(): void;
   setMuted(muted: boolean): void;
   setVolume(volume: number): void;
   send(text: string): void;
+  sendText(text: string): Promise<boolean>;
   updateContext(context: TermeowAgentContext): void;
   status: AgentStatus;
   sessionMode?: "voice" | "text";
@@ -28,6 +29,7 @@ const AgentContext = createContext<AgentApi | null>(null);
 
 export function TermeowAgentProvider({ children }: PropsWithChildren) {
   const runtime = useRef<AgentRuntime | null>(null);
+  const connecting = useRef<Promise<boolean> | null>(null);
   const initialVolume = useRef<number | null>(null);
   if (initialVolume.current == null) {
     const saved = typeof window === "undefined" ? null : localStorage.getItem("termeow-agent-volume");
@@ -54,20 +56,45 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
     throw new Error("VOICE RUNTIME TOOK TOO LONG TO LOAD");
   }, []);
 
-  const start = useCallback(async (mode: "voice" | "text" = "voice") => {
-    try {
+  const start = useCallback((mode: "voice" | "text" = "voice") => {
+    const current = useAgentStore.getState();
+    if (current.conversationId && current.sessionMode === mode) return Promise.resolve(true);
+    if (connecting.current) return connecting.current;
+    const attempt = (async () => {
+      try {
       const current = useAgentStore.getState();
-      if (current.conversationId && current.sessionMode === mode) return;
+      if (current.conversationId && current.sessionMode === mode) return true;
       useAgentStore.getState().setStatus("connecting");
       const activeRuntime = await waitForRuntime();
       await activeRuntime.connect(mode);
       activeRuntime.setVolume(volumeRef.current);
-      for (let attempt = 0; attempt < 80 && !useAgentStore.getState().conversationId; attempt += 1)
+      for (let attempt = 0; attempt < 240 && !useAgentStore.getState().conversationId; attempt += 1)
         await new Promise((resolve) => setTimeout(resolve, 50));
-    } catch (reason) {
-      useAgentStore.getState().setStatus("error", reason instanceof Error ? reason.message : String(reason));
-    }
+      if (!useAgentStore.getState().conversationId) throw new Error("CHAT LINK TOOK TOO LONG TO OPEN");
+      return true;
+      } catch (reason) {
+        useAgentStore.getState().setStatus("error", reason instanceof Error ? reason.message : String(reason));
+        return false;
+      }
+    })().finally(() => { connecting.current = null; });
+    connecting.current = attempt;
+    return attempt;
   }, [waitForRuntime]);
+  const sendText = useCallback(async (text: string) => {
+    const message = text.trim();
+    if (!message) return false;
+    const current = useAgentStore.getState();
+    if (!current.conversationId || current.sessionMode !== "text") {
+      if (!await start("text")) return false;
+    }
+    const activeRuntime = runtime.current;
+    if (!activeRuntime || !useAgentStore.getState().conversationId) {
+      useAgentStore.getState().setStatus("error", "CHAT LINK IS NOT READY");
+      return false;
+    }
+    activeRuntime.sendMessage(message);
+    return true;
+  }, [start]);
   const updateContext = useCallback((next: TermeowAgentContext) => {
     const changed = JSON.stringify(next) !== JSON.stringify(useAgentStore.getState().context);
     useAgentStore.getState().setContext(next);
@@ -89,12 +116,13 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
     setMuted: (muted) => muted ? runtime.current?.mute() : runtime.current?.unmute(),
     setVolume,
     send: (text) => runtime.current?.sendMessage(text),
+    sendText,
     updateContext,
     status,
     sessionMode,
     overlayMode,
     volume
-  }), [overlayMode, sessionMode, setVolume, start, status, updateContext, volume]);
+  }), [overlayMode, sendText, sessionMode, setVolume, start, status, updateContext, volume]);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {

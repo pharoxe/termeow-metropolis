@@ -118,6 +118,7 @@ automationsRouter.patch("/preferences/me", async (request: AuthRequest, response
   const parsed = z.object({
     favoriteTraders: z.array(z.object({ handle: z.string().min(1).max(64), chain: z.enum(["solana", "robinhood"]), wallet: z.string().min(32).max(120), followers: z.number().int().nonnegative().nullable().optional() })).max(25).optional(),
     favoriteTokens: z.array(z.object({ symbol: z.string().min(1).max(32), chain: z.enum(["solana", "robinhood"]).optional(), address: z.string().min(32).max(120).optional(), name: z.string().max(120).optional() })).max(25).optional(),
+    linkedWallets: z.array(z.object({ address: z.string().min(32).max(120), chain: z.enum(["solana", "robinhood"]), label: z.string().min(1).max(40).optional(), addedAt: z.number().int().positive() })).max(20).optional(),
     defaultAllocationPercent: z.number().positive().max(25).optional(), defaultSlippageBps: z.number().int().min(1).max(500).optional(), defaultDurationHours: z.number().int().positive().max(720).optional(), onboardingCompleted: z.boolean().optional()
   }).parse(request.body);
   const { onboardingCompleted, ...patch } = parsed;

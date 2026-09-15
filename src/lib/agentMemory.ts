@@ -18,10 +18,12 @@ export function agentMemoryText(preferences?: UserAutomationPreferences) {
   const favorites = (preferences.favoriteTraders || []).slice(0, 10).map((item) => compactHandle(item.handle));
   const learned = (preferences.trackedTraders || []).slice(0, 8).map((item) => compactHandle(item.handle));
   const tokens = (preferences.favoriteTokens || []).slice(0, 12).map((item) => `$${item.symbol.replace(/^\$+/, "").toUpperCase()}`);
+  const linkedWallets = (preferences.linkedWallets || []).slice(0, 10).map((item) => `${item.label || "linked wallet"} (${item.chain})`);
   const lines = [
     favorites.length ? `Favorite traders: ${favorites.join(", ")}.` : "No favorite traders saved.",
     learned.length ? `Frequently tracked traders: ${learned.join(", ")}.` : "No learned wallet-tracking history yet.",
     tokens.length ? `Regular tokens: ${tokens.join(", ")}.` : "No regular tokens saved.",
+    linkedWallets.length ? `Additional read-only wallets: ${linkedWallets.join(", ")}.` : "No additional wallets linked.",
     preferences.defaultAllocationPercent != null ? `Default trade size: ${preferences.defaultAllocationPercent}% of the relevant wallet.` : "No default trade size saved.",
     preferences.defaultSlippageBps != null ? `Default maximum slippage: ${preferences.defaultSlippageBps} bps.` : "No default slippage saved.",
     preferences.defaultDurationHours != null ? `Default automation duration: ${preferences.defaultDurationHours} hours.` : "No default automation duration saved.",

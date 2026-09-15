@@ -17,6 +17,7 @@ const erc20Abi = [
   { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] }
 ] as const;
 const evmClient = createPublicClient({ chain: ROBINHOOD_CHAIN, transport: http(ROBINHOOD_CHAIN.rpcUrls.default.http[0]) });
+const immediateExecutions = new Set<string>();
 type EvmTx = { to: string; data: string; value?: string; gas?: string; gasPrice?: string; maxFeePerGas?: string; maxPriorityFeePerGas?: string };
 const quantity = (value: unknown) => typeof value === "string" && /^\d+$/.test(value) ? BigInt(value) : undefined;
 const percentOf = (balance: bigint, percent?: number) => balance * BigInt(Math.round((percent || 0) * 100)) / 10_000n;
@@ -33,6 +34,28 @@ function base58(bytes: Uint8Array) {
   while (value > 0n) { output = base58Alphabet[Number(value % 58n)] + output; value /= 58n; }
   for (const item of bytes) { if (item !== 0) break; output = `1${output}`; }
   return output;
+}
+
+const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+async function recoverSolTransfer(sender: string, recipient: string, amount: number, after: number) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const activity = await api.walletActivity("solana", sender, 24).catch(() => null);
+    const match = activity?.items.find((item) => item.status === "confirmed" && item.observedAt >= after - 30_000
+      && item.nativeTransfers.some((transfer) => transfer.from === sender && transfer.to === recipient && Math.abs(transfer.amount - amount) < 0.00000001));
+    if (match) return match.signature;
+    await wait(1_250);
+  }
+  return null;
+}
+async function confirmSolanaSignature(signature: string) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const result = await api.rpc<{ value?: Array<{ confirmationStatus?: string; err?: unknown } | null> }>("getSignatureStatuses", [[signature], { searchTransactionHistory: true }]);
+    const status = result.value?.[0];
+    if (status?.err) throw new Error(`Solana transaction failed: ${JSON.stringify(status.err)}`);
+    if (status && ["confirmed", "finalized"].includes(status.confirmationStatus || "")) return true;
+    await wait(1_000);
+  }
+  return false;
 }
 
 async function solanaTokenBalance(owner: string, mint: string) {
@@ -54,13 +77,17 @@ export function VoiceExecutionBridge() {
         notify({ title: "AUTOMATION ARMED", message: automation.intent.description, tone: "success" });
         return;
       }
+      if (immediateExecutions.has(automation.id)) return;
+      immediateExecutions.add(automation.id);
       const auth = await getAccessToken();
-      if (!auth) return;
+      if (!auth) { immediateExecutions.delete(automation.id); return; }
       const intent = automation.intent;
       try {
-        await api.reportAutomation(auth, automation.id, { status: "executing" });
+        const claimed = await api.reportAutomation(auth, automation.id, { status: "executing" }).catch(() => null);
+        if (!claimed) return;
         const config = await api.config();
         let hash = "";
+        let solTransferConfirmed = true;
         if (intent.kind === "transfer") {
           const wallet = solanaWallets[0];
           if (!wallet?.address) throw new Error("No Privy Solana wallet is available.");
@@ -81,8 +108,18 @@ export function VoiceExecutionBridge() {
           const unsigned = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
           const simulated = await api.rpc<{ value: { err: unknown; logs?: string[] } }>("simulateTransaction", [encodeBase64(unsigned), { encoding: "base64", commitment: "confirmed", sigVerify: false }]);
           if (simulated.value.err) throw new Error(`Solana preflight failed: ${JSON.stringify(simulated.value.err)}`);
-          const result = await signAndSendTransaction({ transaction: unsigned, wallet, chain: "solana:mainnet" });
-          hash = typeof result.signature === "string" ? result.signature : base58(result.signature);
+          const submittedAt = Date.now();
+          try {
+            const result = await signAndSendTransaction({ transaction: unsigned, wallet, chain: "solana:mainnet" });
+            hash = typeof result.signature === "string" ? result.signature : base58(result.signature);
+          } catch (reason) {
+            // Privy's modal/SDK can disconnect after the network accepts a transaction.
+            // Recover the signature before reporting failure so a retry cannot double-send.
+            const recovered = await recoverSolTransfer(wallet.address, intent.recipientAddress, Number(intent.transferAmountSol), submittedAt);
+            if (!recovered) throw reason;
+            hash = recovered;
+          }
+          solTransferConfirmed = await confirmSolanaSignature(hash);
         } else if (intent.chain === "solana") {
           if (!intent.tokenAddress) throw new Error("This automation has not resolved a token contract yet.");
           const wallet = solanaWallets[0];
@@ -135,13 +172,16 @@ export function VoiceExecutionBridge() {
           hash = (await send(transaction)).hash;
         }
         await api.reportAutomation(auth, automation.id, { status: "completed", transactionHash: hash });
-        useAgentStore.getState().addMessage({ role: "system", text: `${intent.kind === "transfer" ? "Transfer" : "Swap"} submitted: ${hash.slice(0, 10)}…` });
-        notify({ title: intent.kind === "transfer" ? "TRANSFER SUBMITTED" : "VOICE TRADE SUBMITTED", message: automation.intent.description, tone: "success" });
+        const transferLabel = solTransferConfirmed ? "Transfer confirmed" : "Transfer submitted; confirmation pending—do not retry";
+        useAgentStore.getState().addMessage({ role: "system", text: `${intent.kind === "transfer" ? transferLabel : "Swap submitted"}: ${hash.slice(0, 10)}…` });
+        notify({ title: intent.kind === "transfer" ? (solTransferConfirmed ? "TRANSFER CONFIRMED" : "TRANSFER SUBMITTED") : "VOICE TRADE SUBMITTED", message: automation.intent.description, tone: "success" });
       } catch (reason) {
         const failure = reason instanceof Error ? reason.message : String(reason);
         await api.reportAutomation(auth, automation.id, { status: "failed", failure }).catch(() => undefined);
         useAgentStore.getState().addMessage({ role: "system", text: `Approved action failed: ${failure}` });
         notify({ title: "VOICE TRADE NOT SENT", message: failure, tone: "warning" });
+      } finally {
+        immediateExecutions.delete(automation.id);
       }
     };
     window.addEventListener("termeow:automation-approved", onApproved);

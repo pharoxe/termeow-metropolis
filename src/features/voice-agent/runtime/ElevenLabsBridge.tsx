@@ -5,7 +5,8 @@ import type { TermeowAgentContext } from "./agentTypes";
 import { resolveElevenLabsSession } from "./ElevenLabsRuntime";
 import { useAgentStore } from "../store/agentStore";
 import { audioReactiveEngine } from "../audio/AudioReactiveEngine";
-import { getAccessToken } from "@privy-io/react-auth";
+import { getAccessToken, useWallets as useEvmWallets } from "@privy-io/react-auth";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { api } from "../../../api/client";
 import type { AutomationIntent } from "../../../../shared/automation";
 import { recentRallyStructure } from "../../../lib/chartStructure";
@@ -215,6 +216,10 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
 }
 
 function ClientToolsBridge() {
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { wallets: evmWallets } = useEvmWallets();
+  const solanaAddress = solanaWallets[0]?.address;
+  const evmAddress = evmWallets[0]?.address;
   const clientTools = useMemo(() => ({
     read_terminal_state: trackedTool("read_terminal_state", async () => {
       const connected = Boolean(await getAccessToken().catch(() => null));
@@ -261,10 +266,30 @@ function ClientToolsBridge() {
       const address = String(parameters.wallet_address || "").trim();
       const chain = parameters.chain === "robinhood" ? "robinhood" as const : parameters.chain === "solana" ? "solana" as const : /^0x[a-fA-F0-9]{40}$/.test(address) ? "robinhood" as const : "solana" as const;
       if (!address) return JSON.stringify({ ok: false, error: "Provide the wallet address." });
-      const [identity, portfolio, tape] = await Promise.all([api.identityWallet(chain, address).then((result) => result.identity).catch(() => null), chain === "solana" ? api.portfolio(address).catch(() => null) : api.robinhoodPortfolio(address).catch(() => null), api.fomoTape({ chain, limit: 200 }).catch(() => null)]);
+      const [identity, portfolio, tape, activity] = await Promise.all([api.identityWallet(chain, address).then((result) => result.identity).catch(() => null), chain === "solana" ? api.portfolio(address).catch(() => null) : api.robinhoodPortfolio(address).catch(() => null), api.fomoTape({ chain, limit: 200 }).catch(() => null), chain === "solana" ? api.walletActivity("solana", address, optionalNumber(parameters.limit) ?? 20).catch(() => null) : Promise.resolve(null)]);
       const recent = (tape?.fills || []).filter((fill) => fill.trader.address.toLowerCase() === address.toLowerCase()).slice(0, 30);
       if (!identity) useAgentStore.getState().setLeftWidget({ type: "handles" });
-      return JSON.stringify({ ok: true, source: "direct_chain_and_local_fomo_gateway", chain, wallet: address, identity, portfolio, recent_orders: recent, attribution_warning: identity ? undefined : "No indexed identity is attached; do not infer a person from this address." });
+      return JSON.stringify({ ok: true, source: "direct_chain_rpc_portfolio_and_local_fomo_gateway", chain, wallet: address, identity, portfolio, recent_orders: recent, recent_activity: activity?.items || [], activity_partial: activity?.partial, attribution_warning: identity ? undefined : "No indexed identity is attached; do not infer a person from this address." });
+    }),
+    analyze_my_wallet: trackedTool("analyze_my_wallet", async (parameters: Record<string, unknown>) => {
+      const token = await getAccessToken();
+      if (!token) return JSON.stringify({ ok: false, error: "The user must log in." });
+      const preferences = (await api.automationPreferences(token)).preferences;
+      const requested = String(parameters.chain || "all").toLowerCase();
+      const targets = [
+        ...(solanaAddress && requested !== "robinhood" ? [{ chain: "solana" as const, address: solanaAddress, role: "connected" }] : []),
+        ...(evmAddress && requested !== "solana" ? [{ chain: "robinhood" as const, address: evmAddress, role: "connected" }] : []),
+        ...(preferences.linkedWallets || []).filter((wallet) => requested === "all" || wallet.chain === requested).map((wallet) => ({ chain: wallet.chain, address: wallet.address, role: "linked" }))
+      ].slice(0, 12);
+      if (!targets.length) return JSON.stringify({ ok: false, error: "No connected or linked wallet is available for that chain." });
+      const wallets = await Promise.all(targets.map(async (target) => {
+        const [portfolio, activity] = await Promise.all([
+          target.chain === "solana" ? api.portfolio(target.address).catch(() => null) : api.robinhoodPortfolio(target.address).catch(() => null),
+          target.chain === "solana" ? api.walletActivity("solana", target.address, optionalNumber(parameters.limit) ?? 20).catch(() => null) : Promise.resolve(null)
+        ]);
+        return { ...target, portfolio, recent_activity: activity?.items || [], activity_partial: activity?.partial };
+      }));
+      return JSON.stringify({ ok: true, source: "connected_and_linked_wallet_chain_analysis", wallets });
     }),
     show_handle_picker: trackedTool("show_handle_picker", async (parameters: Record<string, unknown>) => {
       useAgentStore.getState().setLeftWidget({ type: "handles", query: String(parameters.query || "").replace(/^@/, "") });
@@ -451,7 +476,7 @@ function ClientToolsBridge() {
       useAgentStore.getState().setHudWindow();
       return JSON.stringify({ ok: true, status: "dismissed" });
     })
-  }), []);
+  }), [evmAddress, solanaAddress]);
 
   // Register through the SDK's live registry instead of relying on provider option merging.
   // This makes every handler available before startSession and keeps it attached for the full call.
@@ -461,6 +486,7 @@ function ClientToolsBridge() {
   useConversationClientTool("analyze_token", clientTools.analyze_token);
   useConversationClientTool("inspect_large_orders", clientTools.inspect_large_orders);
   useConversationClientTool("analyze_wallet", clientTools.analyze_wallet);
+  useConversationClientTool("analyze_my_wallet", clientTools.analyze_my_wallet);
   useConversationClientTool("show_handle_picker", clientTools.show_handle_picker);
   useConversationClientTool("read_automation_preferences", clientTools.read_automation_preferences);
   useConversationClientTool("read_user_memory", clientTools.read_user_memory);

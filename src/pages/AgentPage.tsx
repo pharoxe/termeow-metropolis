@@ -4,11 +4,12 @@ import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import type { AutomationIntent, AutomationRecord } from "../../shared/automation";
+import type { AutomationChain, AutomationIntent, AutomationRecord, UserAutomationPreferences } from "../../shared/automation";
 import { api } from "../api/client";
 import { AuthControls } from "../auth/AuthControls";
 import { hasPrivy } from "../auth/WalletProviders";
 import { AsciiPersona } from "../features/standalone-agent/AsciiPersona";
+import { AgentConnectionCat } from "../features/standalone-agent/AgentConnectionCat";
 import { AgentDock, type AgentDockView } from "../features/standalone-agent/AgentDock";
 import { AgentVolumeSlider } from "../features/standalone-agent/AgentVolumeSlider";
 import { AgentCredits } from "../features/standalone-agent/AgentCredits";
@@ -130,7 +131,15 @@ function PrivyPortfolio() {
   const { authenticated } = usePrivy();
   const { wallets: evmWallets } = useEvmWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
-  const [rows, setRows] = useState<Array<{ chain: string; symbol: string; imageUrl?: string | null; amount: number; value: number | null }>>([]);
+  type Row = { chain: string; symbol: string; imageUrl?: string | null; amount: number; value: number | null };
+  type Linked = NonNullable<UserAutomationPreferences["linkedWallets"]>[number];
+  const [rows, setRows] = useState<Row[]>([]);
+  const [linkedWallets, setLinkedWallets] = useState<Linked[]>([]);
+  const [linkedRows, setLinkedRows] = useState<Array<{ wallet: Linked; rows: Row[]; total: number }>>([]);
+  const [showLink, setShowLink] = useState(false);
+  const [linkAddress, setLinkAddress] = useState("");
+  const [linkMessage, setLinkMessage] = useState("");
+  const [linking, setLinking] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     if (!authenticated) { setRows([]); return; }
@@ -145,8 +154,42 @@ function PrivyPortfolio() {
       setRows(fulfilled.flatMap(({ value }) => value.portfolio.assets.map((asset) => ({ chain: value.chain, symbol: asset.symbol, imageUrl: asset.imageUrl, amount: asset.amount, value: asset.valueUsd }))));
       setError(!fulfilled.length && requests.length ? "Portfolio data is temporarily unavailable." : "");
     });
+    void getAccessToken().then(async (token) => {
+      if (!token) return;
+      const preferences = (await api.automationPreferences(token)).preferences;
+      if (!live) return;
+      const linked = preferences.linkedWallets || [];
+      setLinkedWallets(linked);
+      const results = await Promise.allSettled(linked.map(async (wallet) => {
+        const portfolio = wallet.chain === "solana" ? await api.portfolio(wallet.address) : await api.robinhoodPortfolio(wallet.address);
+        const walletRows = portfolio.assets.map((asset) => ({ chain: wallet.chain === "solana" ? "SOL" : "RH", symbol: asset.symbol, imageUrl: asset.imageUrl, amount: asset.amount, value: asset.valueUsd }));
+        return { wallet, rows: walletRows, total: walletRows.reduce((sum, row) => sum + (row.value || 0), 0) };
+      }));
+      if (live) setLinkedRows(results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
+    }).catch(() => undefined);
     return () => { live = false; };
   }, [authenticated, evmWallets[0]?.address, solanaWallets[0]?.address]);
+  const addLinkedWallet = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const address = linkAddress.trim();
+    const chain: AutomationChain | null = /^0x[a-fA-F0-9]{40}$/.test(address) ? "robinhood" : /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) ? "solana" : null;
+    if (!chain) { setLinkMessage("ENTER A VALID SOLANA OR EVM ADDRESS"); return; }
+    if (linkedWallets.some((wallet) => wallet.address.toLowerCase() === address.toLowerCase())) { setLinkMessage("WALLET ALREADY LINKED"); return; }
+    setLinking(true); setLinkMessage("VERIFYING WALLET…");
+    try {
+      const portfolio = chain === "solana" ? await api.portfolio(address) : await api.robinhoodPortfolio(address);
+      const token = await getAccessToken();
+      if (!token) throw new Error("Log in again to link a wallet.");
+      const wallet: Linked = { address, chain, addedAt: Date.now() };
+      const next = [...linkedWallets, wallet];
+      await api.updateAutomationPreferences(token, { linkedWallets: next });
+      const walletRows = portfolio.assets.map((asset) => ({ chain: chain === "solana" ? "SOL" : "RH", symbol: asset.symbol, imageUrl: asset.imageUrl, amount: asset.amount, value: asset.valueUsd }));
+      setLinkedWallets(next);
+      setLinkedRows((current) => [...current, { wallet, rows: walletRows, total: walletRows.reduce((sum, row) => sum + (row.value || 0), 0) }]);
+      setLinkAddress(""); setShowLink(false); setLinkMessage("");
+    } catch (reason) { setLinkMessage(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setLinking(false); }
+  };
   if (!authenticated) return <div className="agent-portfolio"><strong>$0.00</strong><small>CONNECTED WALLET VALUE</small><p className="agent-empty">Log in to inspect your connected wallets.</p></div>;
   if (error) return <p className="agent-empty danger">{error}</p>;
   const total = rows.reduce((sum, row) => sum + (row.value || 0), 0);
@@ -155,6 +198,11 @@ function PrivyPortfolio() {
     <div className="agent-portfolio-actions"><Link to="/onchain?view=portfolio">MANAGE</Link><button type="button" onClick={() => window.dispatchEvent(new CustomEvent("termeow:add-funds"))}>ADD FUNDS</button></div>
     {funded.slice(0, 5).map((row, index) => <article key={`${row.chain}:${row.symbol}:${index}`}><TokenLogo symbol={row.symbol} src={row.imageUrl} /><b>{row.symbol}</b><span>{row.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span><em>{row.value == null ? "—" : `$${row.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</em></article>)}
     {!funded.length ? <p className="agent-empty">Wallet connected · no funded assets yet.</p> : null}{funded.length > 5 ? <Link className="agent-portfolio-expand" to="/onchain?view=portfolio">VIEW ALL {funded.length} ASSETS →</Link> : null}
+    <div className="linked-wallets"><div className="linked-wallet-heading"><span>ADDITIONAL WALLETS</span><button type="button" aria-label="Link another wallet" onClick={() => { setShowLink((value) => !value); setLinkMessage(""); }}>+</button></div>
+      <AnimatePresence>{showLink ? <motion.form className="wallet-link-popover" onSubmit={(event) => void addLinkedWallet(event)} initial={{ opacity: 0, y: -8, scale: .96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: .97 }}><input value={linkAddress} onChange={(event) => setLinkAddress(event.target.value)} placeholder="SOLANA OR EVM ADDRESS" autoFocus /><button type="submit" disabled={linking || !linkAddress.trim()}>{linking ? "LINKING…" : "LINK WALLET"}</button>{linkMessage ? <small>{linkMessage}</small> : null}</motion.form> : null}</AnimatePresence>
+      {linkedRows.map(({ wallet, rows: assets, total: linkedTotal }) => <section className="linked-wallet-card" key={`${wallet.chain}:${wallet.address}`}><header><b>{wallet.label || `${wallet.address.slice(0, 5)}…${wallet.address.slice(-4)}`}</b><em>${linkedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</em></header>{assets.filter((asset) => asset.amount > 0 || (asset.value || 0) > 0).slice(0, 3).map((asset, index) => <article key={`${asset.symbol}:${index}`}><TokenLogo symbol={asset.symbol} src={asset.imageUrl} /><b>{asset.symbol}</b><span>{asset.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span><em>{asset.value == null ? "—" : `$${asset.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</em></article>)}</section>)}
+      {!linkedRows.length ? <small className="linked-wallet-empty">Link a read-only wallet to track its holdings separately.</small> : null}
+    </div>
   </div>;
 }
 
@@ -231,10 +279,7 @@ export function AgentPage({ config }: { config: PublicConfig }) {
     event.preventDefault();
     const message = text.trim();
     if (!message) return;
-    if (!useAgentStore.getState().conversationId) await agent.startText();
-    if (!useAgentStore.getState().conversationId) return;
-    agent.send(message);
-    setText("");
+    if (await agent.sendText(message)) setText("");
   };
 
   return <main className={`agent-app status-${agent.status}`} ref={desktopRef}>
@@ -268,7 +313,7 @@ export function AgentPage({ config }: { config: PublicConfig }) {
 
       <section className={`persona-console ${portraitMinimized ? "persona-minimized" : ""}`}>
         <div className="persona-stage">
-          <AsciiPersona status={agent.status} src={agent.status === "connecting" ? "/assets/persona-connect-cat.svg" : undefined} />
+          {agent.status === "connecting" ? <AgentConnectionCat /> : <AsciiPersona status={agent.status} />}
           <div className="persona-noise" aria-hidden="true" />
           <div className="persona-crt-glass" aria-hidden="true" />
           <button className="persona-minimize" type="button" aria-label={portraitMinimized ? "Restore Termeow portrait" : "Minimize Termeow portrait"} onClick={() => setPortraitMinimized((value) => !value)}>{portraitMinimized ? "□" : "─"}</button>
