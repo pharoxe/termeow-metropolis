@@ -13,6 +13,7 @@ import { AgentConnectionCat } from "../features/standalone-agent/AgentConnection
 import { AgentDock, type AgentDockView } from "../features/standalone-agent/AgentDock";
 import { AgentVolumeSlider } from "../features/standalone-agent/AgentVolumeSlider";
 import { AgentCredits } from "../features/standalone-agent/AgentCredits";
+import { AgentChatActivity, TypewriterText } from "../features/standalone-agent/AgentChatActivity";
 import { AgentSignalRail } from "../features/standalone-agent/AgentSignalRail";
 import { HandlePicker } from "../features/standalone-agent/HandlePicker";
 import { MarketHud } from "../features/standalone-agent/MarketHud";
@@ -108,7 +109,7 @@ function AutomationList({ data }: { data: AutomationData }) {
     <motion.section className="automation-detail" role="dialog" aria-modal="true" aria-label="Automation details" initial={{ opacity: 0, scale: .88, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: .92, y: 14 }}>
       <header><span>AUTOMATION // {selected.status.replaceAll("_", " ")}</span><button type="button" onClick={() => setSelected(null)}>×</button></header>
       <strong>{draft.tokenSymbol ? `$${draft.tokenSymbol}` : draft.kind.replaceAll("_", " ")}</strong><p>{draft.description}</p>
-      <dl><div><dt>CHAIN</dt><dd>{draft.chain}</dd></div><div><dt>SIDE / SIZE</dt><dd>{draft.side || "WATCH"} · {draft.allocationPercent ?? "—"}%</dd></div><div><dt>SLIPPAGE</dt><dd>{draft.slippageBps ?? "—"} BPS</dd></div><div><dt>DURATION</dt><dd>{draft.durationHours ? `${draft.durationHours}H` : "NO EXPIRY"}</dd></div></dl>
+      <div className="automation-detail-meta"><span>{draft.chain}</span><span>{draft.side || "watch"}</span><span>{draft.durationHours ? `${draft.durationHours}h window` : "no expiry"}</span></div>
       {draft.kind !== "transfer" ? <ApprovalEditor intent={draft} onChange={setDraft} /> : null}
       {message ? <p className="automation-detail-message">{message}</p> : null}
       <div className="automation-detail-actions"><button type="button" disabled={working || selected.status === "executing" || draft.kind === "transfer"} onClick={() => void save()}>{working ? "WORKING…" : "SAVE CHANGES"}</button><button className={confirmDelete ? "danger armed" : "danger"} type="button" disabled={working || selected.status === "executing"} onClick={() => void remove()}>{confirmDelete ? "CONFIRM DELETE" : "DELETE"}</button></div>
@@ -324,7 +325,8 @@ export function AgentPage({ config }: { config: PublicConfig }) {
           <div className="voice-status"><span><i /> {statusCopy[agent.status]}</span><small>{conversationId ? "ENCRYPTED VOICE SESSION" : "MIC ACCESS ON START"}</small></div>
           {agent.status === "error" && voiceError && <p className="agent-voice-error" role="alert">VOICE LINK FAILED · {voiceError}</p>}
           <div className="standalone-transcript" aria-live="polite">
-            {latest.length ? latest.map((message) => <p key={message.id} className={message.role}><b>{message.role === "agent" ? "TM" : message.role === "user" ? "YOU" : "SYS"}</b><span>{message.text}</span></p>) : <p className="system"><b>TM</b><span>{idleGreeting}</span></p>}
+            <AgentChatActivity status={agent.status} events={toolActivity} />
+            {latest.length ? latest.map((message, index) => <p key={message.id} className={message.role}><b>{message.role === "agent" ? "TM // OUT" : message.role === "user" ? "YOU" : "SYSTEM"}</b><TypewriterText text={message.text} animate={message.role === "agent" && index === latest.length - 1} /></p>) : <p className="system"><b>TM // OUT</b><span>{idleGreeting}</span></p>}
           </div>
           <div className="agent-prompt-chips" aria-label="Suggested prompts">{promptSuggestions.map((prompt) => <button key={prompt} type="button" onClick={() => conversationId ? agent.send(prompt) : setText(prompt)}>{prompt}</button>)}</div>
           <form onSubmit={(event) => void submit(event)}>
@@ -340,17 +342,10 @@ export function AgentPage({ config }: { config: PublicConfig }) {
         </div>
       </section>
 
-      <aside className="agent-sideband agent-sideband-right">
-        <span>DECISION TRACE</span>
-        <strong>{toolActivity.length ? `${toolActivity.length} TOOL CALLS` : "CLEAN SLATE"}</strong>
-        <div className="sideband-tools">{toolActivity.slice(-3).reverse().map((event) => <div key={event.id} className={event.status} title={event.summary}><i /> <span>{event.name.replaceAll("_", " ")}</span></div>)}</div>
-        <p>Tool evidence and outcomes are shown—not private model chain-of-thought.</p>
-        {(agent.status === "thinking" || agent.status === "executing" || agent.status === "connecting" || toolActivity.some((event) => event.status === "running")) ? <div className="pixel-grid-spinner" aria-label="Working"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div> : <div className="sideband-meter"><i /><i /><i /><i /><i /><i /></div>}
-      </aside>
     </section>
 
     <section className={`agent-drawer ${view !== "activity" ? "collapsed" : ""}`}>
-      {view === "activity" && <><header><span>SESSION TAPE</span><small>CONVERSATION + TOOL EVIDENCE</small><button type="button" aria-label="Close activity" onClick={() => setView("ask")}>×</button></header><div className="tool-tape"><h3>DECISION TRACE</h3>{toolActivity.length ? toolActivity.slice().reverse().map((event) => <article key={event.id} className={event.status}><time>{new Date(event.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time><div><b>{event.name.replaceAll("_", " ")}</b>{event.input && <small>{event.input}</small>}<span>{event.summary || "Working…"}</span></div></article>) : <p className="agent-empty">No tools used in this session.</p>}</div><div className="activity-tape">{transcript.length ? transcript.slice().reverse().map((message) => <p key={message.id}><time>{new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><b>{message.role}</b><span>{message.text}</span></p>) : <p className="agent-empty">No conversation yet.</p>}</div></>}
+      {view === "activity" && <><header><span>SESSION TAPE</span><small>CONVERSATION + TOOL EVIDENCE</small><button type="button" aria-label="Close activity" onClick={() => setView("ask")}>×</button></header><div className="tool-tape"><h3>TOOL EVIDENCE</h3>{toolActivity.length ? toolActivity.slice().reverse().map((event) => <article key={event.id} className={event.status}><time>{new Date(event.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time><div><b>{event.name.replaceAll("_", " ")}</b>{event.input && <small>{event.input}</small>}<span>{event.summary || "Working…"}</span></div></article>) : <p className="agent-empty">No tools used in this session.</p>}</div><div className="activity-tape">{transcript.length ? transcript.slice().reverse().map((message) => <p key={message.id}><time>{new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><b>{message.role}</b><span>{message.text}</span></p>) : <p className="agent-empty">No conversation yet.</p>}</div></>}
     </section>
 
     <AgentDock view={view} automationCount={automationCount} onPortfolio={() => setShowPortfolio((value) => !value)} onSelect={(item) => { setView(item); if (item === "automations") setShowAutomations((value) => !value); }} />
