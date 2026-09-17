@@ -1,0 +1,32 @@
+name: Deploy to Fly
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: fly-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      IMAGE: registry.fly.io/termeow-agent:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Build production image
+        run: |
+          flyctl auth docker
+          docker build \
+            --build-arg VITE_PRIVY_APP_ID=cmtt8120900n10cjl5np0w4t4 \
+            --tag "$IMAGE" \
+            .
+          docker push "$IMAGE"
+      - name: Deploy production image
+        run: flyctl deploy --config fly.toml --image "$IMAGE" --ha=false --wait-timeout 10m
