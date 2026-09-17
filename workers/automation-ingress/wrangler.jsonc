@@ -9,7 +9,7 @@
     "head_sampling_rate": 1
   },
   "vars": {
-    "AUTOMATION_API_BASE_URL": "https://termeow-production.up.railway.app"
+    "AUTOMATION_API_BASE_URL": "https://termeow-agent.fly.dev"
   },
   "queues": {
     "producers": [
