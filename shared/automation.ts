@@ -79,7 +79,7 @@ export interface AutomationRecord {
   transactionHash?: string;
   /** Linked exits become eligible only after the entry transaction has completed successfully. */
   activeExitConditions?: LinkedExitCondition[];
-  lastSignal?: { source: "wallet" | "x"; eventId: string; tokenAddress: string; observedAt: number; sourceUrl?: string; entryReferencePriceUsd?: number };
+  lastSignal?: { source: "wallet" | "x"; eventId: string; tokenAddress: string; observedAt: number; sourceUrl?: string; entryReferencePriceUsd?: number; observedMarketCapUsd?: number };
 }
 
 export interface TerminalAgentSnapshot {

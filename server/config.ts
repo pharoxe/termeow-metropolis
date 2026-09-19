@@ -90,6 +90,8 @@ const envSchema = z.object({
   PRIVY_AUTOMATION_POLICY_ID: optionalString,
   PRIVY_AUTOMATION_AUTH_PRIVATE_KEY: optionalString,
   AUTOMATION_TRIGGER_SECRET: optionalString,
+  AUTOMATION_INGRESS_URL: urlWithDefault("https://termeow-automation-ingress.anabilmahanta.workers.dev"),
+  AUTOMATION_INGRESS_SECRET: optionalString,
   ELEVENLABS_API_KEY: optionalString,
   ELEVENLABS_AGENT_ID: optionalString,
   TWITTERAPI_IO_API_KEY: optionalString,
@@ -172,6 +174,10 @@ export const config = {
     automationAuthPrivateKey: env.PRIVY_AUTOMATION_AUTH_PRIVATE_KEY,
     automationTriggerSecret: env.AUTOMATION_TRIGGER_SECRET
   },
+  automationIngress: {
+    url: env.AUTOMATION_INGRESS_URL.replace(/\/$/, ""),
+    secret: env.AUTOMATION_INGRESS_SECRET
+  },
   zeroEx: {
     apiKey: env.ZEROEX_API_KEY,
     apiUrl: env.ZEROEX_API_URL.replace(/\/$/, "")
@@ -196,6 +202,7 @@ export function integrationStatus() {
     database: Boolean(config.database.url),
     zeroEx: Boolean(config.zeroEx.apiKey),
     jupiter: Boolean(config.jupiter.apiKey || config.jupiter.apiUrl.includes("lite-api.jup.ag")),
-    twitterApi: Boolean(config.twitterApi.apiKey)
+    twitterApi: Boolean(config.twitterApi.apiKey),
+    automationIngress: Boolean(config.automationIngress.secret)
   };
 }

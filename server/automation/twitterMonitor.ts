@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import type { AutomationRecord } from "../../shared/automation.js";
 import { automationRepository } from "./runtime.js";
+import { currentMarketCap, dispatchAutomationSignal } from "./dispatch.js";
 
 type Tweet = { id?: string; text?: string; url?: string; createdAt?: string };
 const EVM_ADDRESS = /\b0x[a-fA-F0-9]{40}\b/g;
@@ -30,7 +31,11 @@ async function inspectRule(rule: AutomationRecord, tweets: Tweet[]) {
     if (!eventId || rule.lastSignal?.eventId === eventId || (Number.isFinite(createdAt) && createdAt < rule.createdAt)) continue;
     const address = contractAddresses(String(tweet.text || ""), rule.intent.chain)[0];
     if (!address) continue;
-    await automationRepository.recordSignal(rule.id, { source: "x", eventId, tokenAddress: address, sourceUrl: tweet.url, observedAt: Date.now() });
+    const observedMarketCapUsd = await currentMarketCap(rule.intent.chain, address);
+    const saved = await automationRepository.recordSignal(rule.id, { source: "x", eventId, tokenAddress: address, sourceUrl: tweet.url, observedAt: Date.now(), observedMarketCapUsd });
+    if (saved) await dispatchAutomationSignal(rule.id, saved.lastSignal!).catch((error) => {
+      console.error(`[automation] X signal dispatch failed for ${rule.id}:`, error instanceof Error ? error.message : error);
+    });
     return;
   }
 }

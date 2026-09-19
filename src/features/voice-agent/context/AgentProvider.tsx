@@ -84,7 +84,7 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
     const message = text.trim();
     if (!message) return false;
     const current = useAgentStore.getState();
-    if (!current.conversationId || current.sessionMode !== "text") {
+    if (!current.conversationId) {
       if (!await start("text")) return false;
     }
     const activeRuntime = runtime.current;
@@ -92,6 +92,7 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
       useAgentStore.getState().setStatus("error", "CHAT LINK IS NOT READY");
       return false;
     }
+    useAgentStore.getState().addMessage({ role: "user", text: message });
     activeRuntime.sendMessage(message);
     return true;
   }, [start]);

@@ -42,9 +42,12 @@ export const useAgentStore = create<AgentState>((set) => ({
   setConversationId: (conversationId) => set({ conversationId }),
   setSessionMode: (sessionMode) => set({ sessionMode }),
   setContext: (context) => set({ context }),
-  addMessage: (message) => set((state) => ({
-    transcript: [...state.transcript, { ...message, id: crypto.randomUUID(), at: Date.now() }].slice(-40)
-  })),
+  addMessage: (message) => set((state) => {
+    const now = Date.now();
+    const last = state.transcript.at(-1);
+    if (last?.role === message.role && last.text === message.text && now - last.at < 2_500) return state;
+    return { transcript: [...state.transcript, { ...message, id: crypto.randomUUID(), at: now }].slice(-40) };
+  }),
   beginTool: (name, input) => {
     const id = crypto.randomUUID();
     const event: AgentToolEvent = { id, name, input, status: "running", startedAt: Date.now() };

@@ -28,5 +28,9 @@ jobs:
             --tag "$IMAGE" \
             .
           docker push "$IMAGE"
+      - name: Stage automation ingress secret
+        env:
+          AUTOMATION_INGRESS_SECRET: ${{ secrets.AUTOMATION_INGRESS_SECRET }}
+        run: flyctl secrets set AUTOMATION_INGRESS_SECRET="$AUTOMATION_INGRESS_SECRET" --stage -a termeow-agent
       - name: Deploy production image
         run: flyctl deploy --config fly.toml --image "$IMAGE" --ha=false --wait-timeout 10m
