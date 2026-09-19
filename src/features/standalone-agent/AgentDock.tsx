@@ -33,9 +33,9 @@ export function AgentDock({ view, automationCount, onSelect, onPortfolio }: { vi
   ];
   return <nav className="agent-bottom-nav" aria-label="Agent views" onMouseMove={(event) => mouseX.set(event.clientX)} onMouseLeave={() => mouseX.set(Number.POSITIVE_INFINITY)}>
     {items.map((item) => <DockSlot key={item.id} mouseX={mouseX} active={view === item.id} badge={item.id === "automations" ? automationCount : undefined} label={item.label}>
-      <button type="button" aria-current={view === item.id ? "page" : undefined} onClick={() => onSelect(item.id)}><DockIcon name={item.id} /><span>{item.label}</span></button>
+      <button type="button" data-tour={item.id === "automations" ? "automations" : undefined} aria-current={view === item.id ? "page" : undefined} onClick={() => onSelect(item.id)}><DockIcon name={item.id} /><span>{item.label}</span></button>
     </DockSlot>)}
-    <DockSlot mouseX={mouseX} label="Portfolio"><button type="button" onClick={onPortfolio}><DockIcon name="portfolio" /><span>Portfolio</span></button></DockSlot>
+    <DockSlot mouseX={mouseX} label="Portfolio"><button type="button" data-tour="portfolio" onClick={onPortfolio}><DockIcon name="portfolio" /><span>Portfolio</span></button></DockSlot>
     <DockSlot mouseX={mouseX} label="Terminal"><button type="button" onClick={() => setConfirmTerminal((value) => !value)}><DockIcon name="terminal" /><span>Terminal</span></button>
       <AnimatePresence>{confirmTerminal ? <motion.div className="terminal-confirm" initial={{ opacity: 0, y: 8, scale: .9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: .94 }}><span>OPEN FULL TERMINAL?</span><div><button type="button" onClick={() => setConfirmTerminal(false)}>STAY</button><Link to="/onchain">OPEN ↗</Link></div></motion.div> : null}</AnimatePresence>
     </DockSlot>

@@ -35,10 +35,9 @@ export function AgentChatActivity({ status, events }: { status: AgentStatus; eve
   }, [events]);
 
   return <AnimatePresence initial={false}>
-    {(active || visible.length > 0) && <motion.section className="agent-chat-activity" initial={{ opacity: 0, height: 0, y: -5 }} animate={{ opacity: 1, height: "auto", y: 0 }} exit={{ opacity: 0, height: 0, y: -4 }} transition={{ duration: .24, ease: [.22, .72, .2, 1] }}>
+    {(active || visible.length > 0) && <motion.section className="agent-chat-activity" initial={{ opacity: 0, height: 0, y: 12 }} animate={{ opacity: 1, height: "auto", y: 0 }} exit={{ opacity: 0, height: 0, y: 12 }} transition={{ duration: .38, ease: [.22, .72, .2, 1] }}>
       <div className="agent-activity-state">
-        {active ? <MatrixActivityIcon /> : <span className="activity-ready-dot" />}
-        <span><b>AGENT ACTIVITY</b><small>{activityCopy[status] || (visible.some((event) => event.status === "failed") ? "A tool needs attention" : "Evidence received")}</small></span>
+        <span><b>REASONING TRACE</b><small>{activityCopy[status] || (visible.some((event) => event.status === "failed") ? "A tool needs attention" : "Evidence received")}</small></span>
       </div>
       <div className="agent-tool-capsules" aria-label="Recent tool activity">
         <AnimatePresence mode="popLayout" initial={false}>
@@ -47,7 +46,7 @@ export function AgentChatActivity({ status, events }: { status: AgentStatus; eve
           </motion.span>)}
         </AnimatePresence>
       </div>
-      <small className="activity-privacy">TOOL STATUS + EVIDENCE · PRIVATE REASONING STAYS PRIVATE</small>
+      <small className="activity-privacy">HIGH-LEVEL REASONING + TOOL EVIDENCE</small>
     </motion.section>}
   </AnimatePresence>;
 }

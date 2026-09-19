@@ -13,7 +13,7 @@ import { AgentConnectionCat } from "../features/standalone-agent/AgentConnection
 import { AgentDock, type AgentDockView } from "../features/standalone-agent/AgentDock";
 import { AgentVolumeSlider } from "../features/standalone-agent/AgentVolumeSlider";
 import { AgentCredits } from "../features/standalone-agent/AgentCredits";
-import { AgentChatActivity, TypewriterText } from "../features/standalone-agent/AgentChatActivity";
+import { AgentChatActivity, MatrixActivityIcon, TypewriterText } from "../features/standalone-agent/AgentChatActivity";
 import { AgentSignalRail } from "../features/standalone-agent/AgentSignalRail";
 import { HandlePicker } from "../features/standalone-agent/HandlePicker";
 import { MarketHud } from "../features/standalone-agent/MarketHud";
@@ -215,16 +215,82 @@ function PrivyVoiceStart() {
   const { authenticated, login, ready } = usePrivy();
   const agent = useAgent();
   const connecting = agent.status === "connecting";
-  return <button className="voice-main" type="button" disabled={!ready || connecting} onClick={() => authenticated ? void agent.start() : login()}>
+  return <button className="voice-main" data-tour="voice-start" type="button" disabled={!ready || connecting} onClick={() => authenticated ? void agent.start() : login()}>
     <span>◉</span>{connecting ? "TUNING…" : authenticated ? "TALK TO TERMEOW" : "LOG IN TO TALK"}
   </button>;
 }
 
 function VoiceStart() {
   const agent = useAgent();
-  return hasPrivy ? <PrivyVoiceStart /> : <button className="voice-main" type="button" disabled={agent.status === "connecting"} onClick={() => void agent.start()}>
+  return hasPrivy ? <PrivyVoiceStart /> : <button className="voice-main" data-tour="voice-start" type="button" disabled={agent.status === "connecting"} onClick={() => void agent.start()}>
     <span>◉</span>{agent.status === "connecting" ? "TUNING…" : "TALK TO TERMEOW"}
   </button>;
+}
+
+type TutorialTarget = { selector: string; label: string; copy: string };
+const AGENT_TUTORIAL: TutorialTarget[] = [
+  { selector: '[data-tour="mode-toggle"]', label: "PERSONA / WORKSPACE", copy: "Switch the main display between Termeow and your live workspace." },
+  { selector: '[data-tour="portfolio"]', label: "PORTFOLIO", copy: "Toggle your connected wallet and linked holdings window." },
+  { selector: '[data-tour="automations"]', label: "AUTOMATIONS", copy: "Open the rules desk to inspect and manage automated trades." },
+  { selector: '[data-tour="voice-start"]', label: "VOICE CHANNEL", copy: "Start a private voice session when you’re ready." }
+];
+
+function PrivyWelcomeTutorial() {
+  const { authenticated, login, ready, user } = usePrivy();
+  const [step, setStep] = useState<number | null>(null);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number }>();
+  const tutorialKey = `termeow:agent-tutorial:${user?.id || "pending"}`;
+
+  useEffect(() => {
+    if (!ready || authenticated) return;
+    const key = "termeow:privy-welcome-seen";
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, "true");
+    const timer = window.setTimeout(() => void login(), 850);
+    return () => window.clearTimeout(timer);
+  }, [authenticated, login, ready]);
+
+  useEffect(() => {
+    if (!authenticated || !user?.id || localStorage.getItem(tutorialKey)) return;
+    setStep(0);
+  }, [authenticated, tutorialKey, user?.id]);
+
+  useEffect(() => {
+    if (step == null) return;
+    const target = AGENT_TUTORIAL[step];
+    const update = () => {
+      const element = document.querySelector<HTMLElement>(target.selector);
+      if (!element) { setRect(undefined); return; }
+      const bounds = element.getBoundingClientRect();
+      setRect({ top: bounds.top, left: bounds.left, width: bounds.width, height: bounds.height });
+    };
+    const advance = (event: PointerEvent) => {
+      if (!(event.target as Element | null)?.closest(target.selector)) return;
+      window.setTimeout(() => {
+        if (step >= AGENT_TUTORIAL.length - 1) {
+          localStorage.setItem(tutorialKey, "true");
+          setStep(null);
+        } else setStep(step + 1);
+      }, 260);
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("pointerdown", advance, true);
+    const timer = window.setInterval(update, 500);
+    return () => { window.removeEventListener("resize", update); window.removeEventListener("pointerdown", advance, true); window.clearInterval(timer); };
+  }, [step, tutorialKey]);
+
+  if (step == null || !rect) return null;
+  const item = AGENT_TUTORIAL[step];
+  const tooltipTop = rect.top > 150 ? rect.top - 112 : rect.top + rect.height + 14;
+  const finish = () => { localStorage.setItem(tutorialKey, "true"); setStep(null); };
+  return createPortal(<div className="agent-tutorial" role="dialog" aria-label="Termeow tutorial">
+    <motion.div className="agent-tutorial-focus" initial={{ opacity: 0, scale: .9 }} animate={{ opacity: 1, scale: 1, top: rect.top - 7, left: rect.left - 7, width: rect.width + 14, height: rect.height + 14 }} transition={{ type: "spring", stiffness: 320, damping: 28 }} />
+    <motion.aside className="agent-tutorial-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0, top: tooltipTop, left: Math.min(window.innerWidth - 292, Math.max(12, rect.left + rect.width / 2 - 140)) }}>
+      <header><span>QUICK TOUR · {step + 1}/{AGENT_TUTORIAL.length}</span><button type="button" onClick={finish}>SKIP</button></header>
+      <strong>{item.label}</strong><p>{item.copy}</p><small>USE THE HIGHLIGHTED CONTROL TO CONTINUE</small>
+    </motion.aside>
+  </div>, document.body);
 }
 
 function PrivyTextWarmup() {
@@ -264,6 +330,7 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   const [personaSize, setPersonaSize] = useState<{ width: number; height: number } | undefined>(undefined);
   const personaResize = useRef<{ x: number; y: number; width: number; height: number } | undefined>(undefined);
   const [text, setText] = useState("");
+  const transcriptRef = useRef<HTMLDivElement>(null);
   const [portraitMinimized, setPortraitMinimized] = useState(false);
   const [showPortfolio, setShowPortfolio] = useState(true);
   const [showAutomations, setShowAutomations] = useState(false);
@@ -275,6 +342,12 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   }, []);
   const [idleGreeting] = useState(() => AGENT_GREETINGS[Math.floor(Math.random() * AGENT_GREETINGS.length)]);
   const latest = useMemo(() => transcript.slice(-5), [transcript]);
+
+  useEffect(() => {
+    const element = transcriptRef.current;
+    if (!element) return;
+    requestAnimationFrame(() => { element.scrollTop = element.scrollHeight; });
+  }, [agent.status, latest, toolActivity]);
 
   useEffect(() => {
     const stage = personaStageRef.current;
@@ -330,7 +403,7 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   };
 
   return <main className={`agent-app status-${agent.status}`} ref={desktopRef}>
-    {hasPrivy ? <><AutomationDataBridge onData={receiveAutomationData} /><PrivyTextWarmup /></> : null}
+    {hasPrivy ? <><AutomationDataBridge onData={receiveAutomationData} /><PrivyTextWarmup /><PrivyWelcomeTutorial /></> : null}
     <div className="agent-crt" aria-hidden="true" />
     <header className="standalone-head">
       <Link className="standalone-brand" to="/agent"><span>TERMEOW</span><small>VOICE OS / 0.1</small></Link>
@@ -375,10 +448,9 @@ export function AgentPage({ config }: { config: PublicConfig }) {
           <button className="persona-drag-handle" type="button" aria-label="Move agent canvas" onPointerDown={(event) => personaDrag.start(event)}>⠿</button>
           <div className="persona-mode-toggle" role="group" aria-label="Agent canvas mode">
             <button type="button" className={canvasMode === "persona" ? "active" : ""} aria-label="Show persona" aria-pressed={canvasMode === "persona"} onClick={() => setCanvasMode("persona")}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 9 4 3l5 3a10 10 0 0 1 6 0l5-3-1 6v6c0 4-3 6-7 6s-7-2-7-6Z"/><path d="m8 13 2 1m6-1-2 1m-4 3h4"/></svg></button>
-            <button type="button" className={canvasMode === "workspace" ? "active" : ""} aria-label="Show workspace" aria-pressed={canvasMode === "workspace"} onClick={() => setCanvasMode("workspace")}><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg></button>
+            <button type="button" data-tour="mode-toggle" className={canvasMode === "workspace" ? "active" : ""} aria-label="Show workspace" aria-pressed={canvasMode === "workspace"} onClick={() => setCanvasMode("workspace")}><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg></button>
           </div>
           <span className="persona-mini-brand" aria-hidden="true">/\_/\\</span>
-          <span className="persona-signal">{statusCopy[agent.status]}</span>
           {!portraitMinimized ? <button className="persona-resize-grip" type="button" aria-label="Resize agent canvas" onPointerDown={(event) => {
             event.preventDefault(); event.stopPropagation();
             const stage = personaStageRef.current?.getBoundingClientRect();
@@ -388,11 +460,13 @@ export function AgentPage({ config }: { config: PublicConfig }) {
           }}>⌟</button> : null}
         </div>
         <div className="voice-console">
-          <div className="voice-status"><span><i /> {statusCopy[agent.status]}</span><small>{conversationId ? "ENCRYPTED VOICE SESSION" : "MIC ACCESS ON START"}</small></div>
+          <div className="voice-status"><span>{["connecting", "thinking", "executing", "speaking"].includes(agent.status) ? <MatrixActivityIcon /> : <i />}<b>{statusCopy[agent.status]}</b></span><small>{conversationId ? "ENCRYPTED VOICE SESSION" : "MIC ACCESS ON START"}</small></div>
           {agent.status === "error" && voiceError && <p className="agent-voice-error" role="alert">VOICE LINK FAILED · {voiceError}</p>}
-          <div className="standalone-transcript" aria-live="polite">
+          <div className="agent-chat-preview">
+            <div className="standalone-transcript" ref={transcriptRef} aria-live="polite">
+              {latest.length ? latest.map((message, index) => <p key={message.id} className={message.role}><b>{message.role === "agent" ? "TM // OUT" : message.role === "user" ? "YOU" : "SYSTEM"}</b><TypewriterText text={message.text} animate={message.role === "agent" && index === latest.length - 1} /></p>) : <p className="system"><b>TM // OUT</b><span>{idleGreeting}</span></p>}
+            </div>
             <AgentChatActivity status={agent.status} events={toolActivity} />
-            {latest.length ? latest.map((message, index) => <p key={message.id} className={message.role}><b>{message.role === "agent" ? "TM // OUT" : message.role === "user" ? "YOU" : "SYSTEM"}</b><TypewriterText text={message.text} animate={message.role === "agent" && index === latest.length - 1} /></p>) : <p className="system"><b>TM // OUT</b><span>{idleGreeting}</span></p>}
           </div>
           <div className="agent-prompt-chips" aria-label="Suggested prompts">{promptSuggestions.map((prompt) => <button key={prompt} type="button" onClick={() => conversationId ? agent.send(prompt) : setText(prompt)}>{prompt}</button>)}</div>
           <form onSubmit={(event) => void submit(event)}>
