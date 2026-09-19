@@ -309,8 +309,8 @@ export function AgentPage({ config }: { config: PublicConfig }) {
     const selectPanel = (event: PointerEvent) => {
       const panel = (event.target as Element | null)?.closest<HTMLElement>("[data-agent-panel]");
       if (!panel) return;
-      document.querySelectorAll("[data-agent-panel].agent-panel-selected").forEach((item) => item.classList.remove("agent-panel-selected"));
-      panel.classList.add("agent-panel-selected");
+      document.querySelectorAll("[data-agent-panel][data-panel-active]").forEach((item) => item.removeAttribute("data-panel-active"));
+      panel.setAttribute("data-panel-active", "true");
     };
     document.addEventListener("pointerdown", selectPanel, true);
     return () => document.removeEventListener("pointerdown", selectPanel, true);
