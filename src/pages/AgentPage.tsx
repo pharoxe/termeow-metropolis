@@ -257,6 +257,12 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   const leftWidgetDrag = useDragControls();
   const portfolioDrag = useDragControls();
   const automationDrag = useDragControls();
+  const personaDrag = useDragControls();
+  const personaStageRef = useRef<HTMLDivElement>(null);
+  const [canvasMode, setCanvasMode] = useState<"persona" | "workspace">("persona");
+  const [compactPersona, setCompactPersona] = useState(false);
+  const [personaSize, setPersonaSize] = useState<{ width: number; height: number } | undefined>(undefined);
+  const personaResize = useRef<{ x: number; y: number; width: number; height: number } | undefined>(undefined);
   const [text, setText] = useState("");
   const [portraitMinimized, setPortraitMinimized] = useState(false);
   const [showPortfolio, setShowPortfolio] = useState(true);
@@ -269,6 +275,46 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   }, []);
   const [idleGreeting] = useState(() => AGENT_GREETINGS[Math.floor(Math.random() * AGENT_GREETINGS.length)]);
   const latest = useMemo(() => transcript.slice(-5), [transcript]);
+
+  useEffect(() => {
+    const stage = personaStageRef.current;
+    if (!stage) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setCompactPersona(width < 540 || height < 270 || width * height < 175_000);
+    });
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const start = personaResize.current;
+      if (!start) return;
+      const maxWidth = Math.max(440, window.innerWidth - 24);
+      const maxHeight = Math.max(270, window.innerHeight - 250);
+      setPersonaSize({
+        width: Math.min(maxWidth, Math.max(440, start.width + event.clientX - start.x)),
+        height: Math.min(maxHeight, Math.max(180, start.height + event.clientY - start.y))
+      });
+    };
+    const stop = () => { personaResize.current = undefined; document.body.classList.remove("resizing-agent-canvas"); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", stop); window.removeEventListener("pointercancel", stop); };
+  }, []);
+
+  useEffect(() => {
+    const selectPanel = (event: PointerEvent) => {
+      const panel = (event.target as Element | null)?.closest<HTMLElement>("[data-agent-panel]");
+      if (!panel) return;
+      document.querySelectorAll("[data-agent-panel].agent-panel-selected").forEach((item) => item.classList.remove("agent-panel-selected"));
+      panel.classList.add("agent-panel-selected");
+    };
+    document.addEventListener("pointerdown", selectPanel, true);
+    return () => document.removeEventListener("pointerdown", selectPanel, true);
+  }, []);
 
   useEffect(() => {
     document.body.classList.add("standalone-agent-body");
@@ -298,28 +344,48 @@ export function AgentPage({ config }: { config: PublicConfig }) {
 
     <section className="agent-command-deck">
       <div className="agent-left-widget-anchor">
-        <AnimatePresence>{showPortfolio ? <motion.section className="agent-left-widget agent-left-widget-portfolio" initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={portfolioDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
+        <AnimatePresence>{showPortfolio ? <motion.section data-agent-panel="portfolio" className="agent-left-widget agent-left-widget-portfolio" initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={portfolioDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
           <header className="desktop-window-handle" onPointerDown={(event) => portfolioDrag.start(event)}><span>CONNECTED PORTFOLIO</span><small>MOVE · RESIZE ↘</small><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setShowPortfolio(false)}>×</button></header>
           <PortfolioSurface />
         </motion.section> : null}</AnimatePresence>
-        <AnimatePresence>{showAutomations ? <motion.section className="agent-left-widget agent-left-widget-automations" initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={automationDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
+        <AnimatePresence>{showAutomations ? <motion.section data-agent-panel="automations" className="agent-left-widget agent-left-widget-automations" initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={automationDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
           <header className="desktop-window-handle" onPointerDown={(event) => automationDrag.start(event)}><span>AUTOMATION CONTROL</span><small>MOVE · RESIZE ↘</small><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setShowAutomations(false); if (view === "automations") setView("ask"); }}>×</button></header>
           <AutomationSurface data={automationData} />
         </motion.section> : null}</AnimatePresence>
-        <AnimatePresence>{leftWidget && ["tokens", "handles"].includes(leftWidget.type) ? <motion.section className={`agent-left-widget agent-left-widget-${leftWidget.type}`} initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={leftWidgetDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
+        <AnimatePresence>{leftWidget && ["tokens", "handles"].includes(leftWidget.type) ? <motion.section data-agent-panel={leftWidget.type} className={`agent-left-widget agent-left-widget-${leftWidget.type}`} initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={leftWidgetDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
           <header className="desktop-window-handle" onPointerDown={(event) => leftWidgetDrag.start(event)}><span>{leftWidget.type === "tokens" ? "CHOOSE AN INDEXED TOKEN" : "CHOOSE A TRACKED HANDLE"}</span><small>MOVE · RESIZE ↘</small><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setLeftWidget()}>×</button></header>
           {leftWidget.type === "tokens" ? <TokenPicker query={leftWidget.query} onChoose={(token) => { if (conversationId) agent.send(`Use the verified indexed ${token.chain} token $${token.symbol} at ${token.address}.`); setLeftWidget(); }} /> : leftWidget.type === "handles" ? <HandlePicker initialQuery={leftWidget.query} onChoose={(handle) => { if (conversationId) agent.send(`Use the indexed trader @${handle}.`); setLeftWidget(); }} /> : null}
         </motion.section> : null}</AnimatePresence>
       </div>
 
-      <section className={`persona-console ${portraitMinimized ? "persona-minimized" : ""}`}>
-        <div className="persona-stage">
-          {agent.status === "connecting" ? <AgentConnectionCat /> : <AsciiPersona status={agent.status} />}
+      <motion.section data-agent-panel="persona" className={`persona-console ${portraitMinimized ? "persona-minimized" : ""}`} style={{ width: personaSize?.width }} drag dragControls={personaDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={.025}>
+        <div className="persona-stage" ref={personaStageRef} style={portraitMinimized ? undefined : { height: personaSize?.height }}>
+          {canvasMode === "workspace" ? <div className="persona-workspace">
+            <header><span>SESSION WORKSPACE</span><small>{conversationId ? "LINK ACTIVE" : "LOCAL STANDBY"}</small></header>
+            <div className="persona-workspace-grid">
+              <button type="button" onClick={() => setShowPortfolio(true)}><small>PORTFOLIO</small><strong>CONNECTED ASSETS</strong><span>OPEN WINDOW ↗</span></button>
+              <button type="button" onClick={() => setShowAutomations(true)}><small>AUTOMATIONS</small><strong>{automationData.loading ? "SYNCING" : `${automationCount} RULE${automationCount === 1 ? "" : "S"}`}</strong><span>OPEN CONTROL ↗</span></button>
+              <button type="button" onClick={() => setView("activity")}><small>TOOL STREAM</small><strong>{toolActivity.at(-1)?.name.replaceAll("_", " ") || "QUIET"}</strong><span>{toolActivity.at(-1)?.summary || "No active calls"}</span></button>
+              <button type="button" onClick={() => setCanvasMode("persona")}><small>TERMEOW</small><strong>{statusCopy[agent.status]}</strong><span>RETURN TO PERSONA ↗</span></button>
+            </div>
+          </div> : agent.status === "connecting" || compactPersona ? <AgentConnectionCat /> : <AsciiPersona status={agent.status} />}
           <div className="persona-noise" aria-hidden="true" />
           <div className="persona-crt-glass" aria-hidden="true" />
           <button className="persona-minimize" type="button" aria-label={portraitMinimized ? "Restore Termeow portrait" : "Minimize Termeow portrait"} onClick={() => setPortraitMinimized((value) => !value)}>{portraitMinimized ? "□" : "─"}</button>
+          <button className="persona-drag-handle" type="button" aria-label="Move agent canvas" onPointerDown={(event) => personaDrag.start(event)}>⠿</button>
+          <div className="persona-mode-toggle" role="group" aria-label="Agent canvas mode">
+            <button type="button" className={canvasMode === "persona" ? "active" : ""} aria-label="Show persona" aria-pressed={canvasMode === "persona"} onClick={() => setCanvasMode("persona")}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 9 4 3l5 3a10 10 0 0 1 6 0l5-3-1 6v6c0 4-3 6-7 6s-7-2-7-6Z"/><path d="m8 13 2 1m6-1-2 1m-4 3h4"/></svg></button>
+            <button type="button" className={canvasMode === "workspace" ? "active" : ""} aria-label="Show workspace" aria-pressed={canvasMode === "workspace"} onClick={() => setCanvasMode("workspace")}><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg></button>
+          </div>
           <span className="persona-mini-brand" aria-hidden="true">/\_/\\</span>
           <span className="persona-signal">{statusCopy[agent.status]}</span>
+          {!portraitMinimized ? <button className="persona-resize-grip" type="button" aria-label="Resize agent canvas" onPointerDown={(event) => {
+            event.preventDefault(); event.stopPropagation();
+            const stage = personaStageRef.current?.getBoundingClientRect();
+            if (!stage) return;
+            personaResize.current = { x: event.clientX, y: event.clientY, width: stage.width + 14, height: stage.height };
+            document.body.classList.add("resizing-agent-canvas");
+          }}>⌟</button> : null}
         </div>
         <div className="voice-console">
           <div className="voice-status"><span><i /> {statusCopy[agent.status]}</span><small>{conversationId ? "ENCRYPTED VOICE SESSION" : "MIC ACCESS ON START"}</small></div>
@@ -340,11 +406,11 @@ export function AgentPage({ config }: { config: PublicConfig }) {
             </>}
           </div>
         </div>
-      </section>
+      </motion.section>
 
     </section>
 
-    <section className={`agent-drawer ${view !== "activity" ? "collapsed" : ""}`}>
+    <section data-agent-panel="activity" className={`agent-drawer ${view !== "activity" ? "collapsed" : ""}`}>
       {view === "activity" && <><header><span>SESSION TAPE</span><small>CONVERSATION + TOOL EVIDENCE</small><button type="button" aria-label="Close activity" onClick={() => setView("ask")}>×</button></header><div className="tool-tape"><h3>TOOL EVIDENCE</h3>{toolActivity.length ? toolActivity.slice().reverse().map((event) => <article key={event.id} className={event.status}><time>{new Date(event.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time><div><b>{event.name.replaceAll("_", " ")}</b>{event.input && <small>{event.input}</small>}<span>{event.summary || "Working…"}</span></div></article>) : <p className="agent-empty">No tools used in this session.</p>}</div><div className="activity-tape">{transcript.length ? transcript.slice().reverse().map((message) => <p key={message.id}><time>{new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><b>{message.role}</b><span>{message.text}</span></p>) : <p className="agent-empty">No conversation yet.</p>}</div></>}
     </section>
 

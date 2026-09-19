@@ -998,6 +998,8 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .agent-approval-copy dd.full-address { overflow-wrap:anywhere; white-space:normal; color:var(--accent); }
 .agent-approval p,.agent-approval small { display:block; margin:8px 0 0; font:13px/1.4 "VCR JP",monospace; color:var(--muted); }
 .agent-approval small { color:var(--amber); }
+.agent-passkey-recovery { width:100%; min-height:34px; margin-top:10px; border:1px dashed color-mix(in srgb,var(--accent) 52%,var(--line)); background:color-mix(in srgb,var(--accent) 5%,transparent); color:color-mix(in srgb,var(--accent) 72%,var(--text)); font:8px "Silkscreen",monospace; cursor:pointer; }
+.agent-passkey-recovery:hover { border-style:solid; color:var(--accent); box-shadow:0 0 14px color-mix(in srgb,var(--accent) 16%,transparent); }
 .agent-approval-actions { display:grid; grid-template-columns:1fr 2fr; gap:6px; margin-top:9px; }
 .agent-approval-actions button { min-height:40px; border:1px solid var(--line); background:transparent; color:var(--text); font:10px "Silkscreen",monospace; }
 .agent-approval-actions .confirm { border-color:var(--accent); background:var(--accent); color:#031108; }

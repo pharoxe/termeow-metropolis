@@ -103,7 +103,20 @@ function LiveApproval() {
   const [draft, setDraft] = useState(pending.intent);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
+  const [passkeyRecovery, setPasskeyRecovery] = useState(false);
   useEffect(() => setDraft(pending.intent), [pending.id]);
+
+  const addThisDevicePasskey = async () => {
+    if (!authenticated) { login(); return; }
+    setWorking(true); setMessage("");
+    try {
+      await linkWithPasskey({ name: `Termeow · ${window.location.hostname}` });
+      setPasskeyRecovery(false);
+      setMessage("THIS DEVICE IS LINKED · PRESS CONFIRM WITH PASSKEY");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : String(reason));
+    } finally { setWorking(false); }
+  };
 
   const cancel = async () => {
     setWorking(true);
@@ -130,7 +143,12 @@ function LiveApproval() {
           await initEnrollmentWithPasskey();
           await submitEnrollmentWithPasskey({ credentialIds: passkeys.map((account) => account.credentialId) });
         }
-        await promptMfa();
+        try {
+          await promptMfa();
+        } catch (reason) {
+          setPasskeyRecovery(true);
+          throw reason;
+        }
       }
       if (pending.intent.chain === "solana" && !["swap", "transfer"].includes(pending.intent.kind)) await ensureDelegated();
       const token = await getAccessToken();
@@ -150,6 +168,7 @@ function LiveApproval() {
     {draft.kind !== "transfer" && <ApprovalEditor intent={draft} onChange={setDraft} />}
     <p>This approval is bound to the exact action above. Voice alone cannot arm or submit it.{draft.kind === "transfer" ? " Verify the full recipient address before confirming." : ""}</p>
     {message && <small role="status">{message}</small>}
+    {draft.kind !== "transfer" && (passkeyRecovery || (user?.linkedAccounts.some((account) => account.type === "passkey") ?? false)) ? <button className="agent-passkey-recovery" type="button" disabled={working} onClick={() => void addThisDevicePasskey()}>PASSKEY NOT AVAILABLE? ADD THIS DEVICE</button> : null}
     <div className="agent-approval-actions"><button type="button" disabled={working} onClick={() => void cancel()}>CANCEL</button><button className="confirm" type="button" disabled={working} onClick={() => void approve()}>{working ? "PREPARING…" : authenticated ? (["swap", "transfer"].includes(draft.kind) ? "CONTINUE TO WALLET" : "CONFIRM WITH PASSKEY") : "LOG IN TO CONFIRM"}</button></div>
   </section></div>;
 }
