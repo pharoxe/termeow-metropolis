@@ -12,3 +12,5 @@ coverage
 .cache
 .wrangler
 solana-desk-team
+*.bundle
+workers/*/node_modules

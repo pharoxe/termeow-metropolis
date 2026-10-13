@@ -1,0 +1,30 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "termeow-web",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "termeow.trade", "custom_domain": true }],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": {
+    "APP_ORIGIN": "https://termeow.trade",
+    "AUTOMATION_INGRESS_URL": "https://termeow-monad-automation-ingress.anabilmahanta.workers.dev"
+  },
+  // The Express app (server/index.ts) runs as one long-lived container; the Worker in front holds the password gate.
+  "containers": [
+    {
+      "class_name": "TermeowApp",
+      "image": "./Dockerfile",
+      "image_build_context": "../..",
+      "instance_type": "basic",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": { "bindings": [{ "name": "APP", "class_name": "TermeowApp" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TermeowApp"] }],
+  // Unlock attempts per client IP.
+  "ratelimits": [{ "name": "GATE_LIMITER", "namespace_id": "4401", "simple": { "limit": 8, "period": 60 } }],
+  // Keeps the container awake so tape pollers, alerts and automations keep running between visits.
+  "triggers": { "crons": ["*/5 * * * *"] }
+}
