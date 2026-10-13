@@ -1,7 +1,7 @@
 import type { FlowPrint } from "../../shared/wire.js";
-import { FLAP_TOPICS, PONS_TOPICS, TRENCH_TOPICS } from "../launch/robinhood/pads.js";
-import { launchPairId, type StreamLedgerLike, type StreamPollerLike } from "../launch/robinhood/stream.js";
-import type { ExtraLeg, LogsHandler, RawLog } from "../tape/robinhood/poller.js";
+import { NADFUN_TOPICS } from "../launch/monad/pads.js";
+import { launchPairId, type StreamLedgerLike, type StreamPollerLike } from "../launch/monad/stream.js";
+import type { ExtraLeg, LogsHandler, RawLog } from "../tape/monad/poller.js";
 import { USER_OPERATION_EVENT_TOPIC } from "./attribute.js";
 import { LruMap } from "./lru.js";
 import { ENTRY_POINT, TraderService, dexFromPair, type AnnotateContext, type MetaOf, type RecordOptions } from "./service.js";
@@ -27,7 +27,7 @@ export type TraderHooksOptions = {
   poller: StreamPollerLike;
   ledger: StreamLedgerLike;
   traders: TraderHooksLike;
-  /** Token behind a launchpad pseudo-pair the log itself did not name (Pons curves); null when unknown. */
+  /** Token behind a launchpad pseudo-pair the log itself did not name; null when unknown. */
   tokenOf: (pair: string) => string | null;
   /** R4 chain-wide Transfer feed wrapping the poller; undefined = the TraderService's own feed (created on first use, none for a fake), null = off. */
   transfers?: TransferFeedLike | null;
@@ -63,27 +63,15 @@ export function curveTradeKey(print: Pick<FlowPrint, "tx" | "pair">): string {
 }
 
 /**
- * The wallet a launchpad trade log names, keyed like the print the stream emits for it. Layouts follow
- * server/launch/robinhood/decode.ts: Pons CurveBuy topic2 / CurveSell topic1 (emitter = curve), Flap
- * TokenBought/TokenSold data words 1 (token) and 2 (wallet), Trench TokenPurchase/TokenSale topic1 token, topic2 wallet.
- * Bags logs only carry the router and decode to null (never guessed).
+ * The wallet a launchpad trade log names, keyed like the print the stream emits for it. Layout follows
+ * server/launch/monad/decode.ts: nad.fun CurveBuy / CurveSell carry the wallet in topic1 and the token in topic2.
  */
 export function curveTrader(log: RawLog): CurveTrader | null {
   const topic0 = log.topics[0]?.toLowerCase();
-  const emitter = log.address.toLowerCase();
-  if (topic0 === PONS_TOPICS.CurveBuy || topic0 === PONS_TOPICS.CurveSell) {
-    const pair = launchPairId("pons", "", emitter);
-    return pair ? { key: `${log.transactionHash.toLowerCase()}:${pair}`, trader: topicAddress(log, topic0 === PONS_TOPICS.CurveBuy ? 2 : 1), token: null } : null;
-  }
-  if (topic0 === FLAP_TOPICS.TokenBought || topic0 === FLAP_TOPICS.TokenSold) {
-    const token = wordAddress(dataWord(log, 1));
-    const pair = token ? launchPairId("flap", token, null) : null;
-    return token && pair ? { key: `${log.transactionHash.toLowerCase()}:${pair}`, trader: wordAddress(dataWord(log, 2)), token } : null;
-  }
-  if (topic0 === TRENCH_TOPICS.TokenPurchase || topic0 === TRENCH_TOPICS.TokenSale) {
-    const token = topicAddress(log, 1);
-    const pair = token ? launchPairId("trench", token, null) : null;
-    return token && pair ? { key: `${log.transactionHash.toLowerCase()}:${pair}`, trader: topicAddress(log, 2), token } : null;
+  if (topic0 === NADFUN_TOPICS.CurveBuy || topic0 === NADFUN_TOPICS.CurveSell) {
+    const token = topicAddress(log, 2);
+    const pair = token ? launchPairId("nadfun", token, null) : null;
+    return token && pair ? { key: `${log.transactionHash.toLowerCase()}:${pair}`, trader: topicAddress(log, 1), token } : null;
   }
   return null;
 }

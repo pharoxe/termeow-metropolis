@@ -8,7 +8,7 @@ import {
   SEED_DRAIN_BATCH,
   SEED_DRAIN_MS,
   SEED_MAX_ATTEMPTS,
-  SEED_PROVENANCE_TRENCHES,
+  SEED_PROVENANCE_NANSEN,
   TAPE_KINDS,
   TraderService,
   type ClassifierLike,
@@ -23,7 +23,7 @@ const W1 = "0x1111111111111111111111111111111111111111";
 const W2 = "0x2222222222222222222222222222222222222222";
 const W3 = "0x4444444444444444444444444444444444444444";
 const W4 = "0x5555555555555555555555555555555555555555";
-/** Real robinhoodtrenches traders (server/traders/__fixtures__/r4/trenches-traders.json). */
+/** Real EVM wallets from the r4 traders capture (server/traders/__fixtures__/r4/trenches-traders.json). */
 const UNIPCS = "0x0a6ebed0155edb4b21d92ad02897a626cd90119e";
 const POORGOAT = "0x9ce0cb4a193acbce0dca3283972341aed6f3f614";
 const CRAYON = "0x8f62a08537cede87d511aca6436274ab4ca080a3";
@@ -62,7 +62,7 @@ class FakeHandles implements HandlesLike {
   }
   stats(): HandleBookStats {
     const status = { rows: 0, lastOkAt: null, lastError: null };
-    return { entries: Object.keys(this.entries).length, population: HANDLES_POPULATION, traders: status, tape: status, learned: 0 };
+    return { entries: Object.keys(this.entries).length, population: HANDLES_POPULATION, nansen: { ...status, configured: false }, watchlist: 0, learned: 0 };
   }
 }
 
@@ -87,7 +87,7 @@ function service(answers: Record<string, TraderKind | null>, handles: HandlesLik
 }
 
 function fill(trader: string, kind: TraderKind | null, extra: Partial<TraderFill> = {}): TraderFill {
-  return { chain: "robinhood", pair: `fomo:${TOKEN}`, tx: "0xt1", time: NOW - 1000, side: "buy", usd: 12.5, price: 0.5, source: "own", trader, token: TOKEN, handle: null, followers: null, kind, ...extra };
+  return { chain: "monad", pair: `smart:${TOKEN}`, tx: "0xt1", time: NOW - 1000, side: "buy", usd: 12.5, price: 0.5, source: "own", trader, token: TOKEN, handle: null, followers: null, kind, ...extra };
 }
 
 afterEach(() => {
@@ -97,9 +97,9 @@ afterEach(() => {
 describe("TraderService seeding", () => {
   it("adds seeded wallets to the transfer population at once and classifies them on the low lane a few per drain", async () => {
     vi.useFakeTimers();
-    const h = service({ [W1]: "fomo", [W2]: "other", [W3]: null });
+    const h = service({ [W1]: "smart", [W2]: "other", [W3]: null });
     const before = h.svc.populationVersion();
-    expect(h.svc.seed([W1, W2.toUpperCase(), W3, "nope", W1], SEED_PROVENANCE_TRENCHES)).toBe(3);
+    expect(h.svc.seed([W1, W2.toUpperCase(), W3, "nope", W1], SEED_PROVENANCE_NANSEN)).toBe(3);
     expect(h.svc.populationVersion()).toBe(before + 1);
     expect(h.svc.transferWallets()).toEqual([W1, W2, W3]);
     expect(h.svc.status().population).toMatchObject({ classified: 0, seeded: 3, seedQueue: 3 });
@@ -108,18 +108,18 @@ describe("TraderService seeding", () => {
     expect(h.classifier.calls.slice(0, 3)).toEqual([[W1, "low"], [W2, "low"], [W3, "low"]]);
     expect(h.svc.population.has(W1)).toBe(true);
     expect(h.svc.transferWallets()).toEqual([W1, W3]);
-    expect(h.svc.status().counters).toMatchObject({ seedChecked: 3, seedFomo: 1, seedFailed: 0 });
+    expect(h.svc.status().counters).toMatchObject({ seedChecked: 3, seedSmart: 1, seedFailed: 0 });
     // W3 keeps failing: retried until SEED_MAX_ATTEMPTS, then given up and counted.
     await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS * SEED_MAX_ATTEMPTS);
     expect(h.classifier.calls.filter(([address]) => address === W3)).toHaveLength(SEED_MAX_ATTEMPTS);
     expect(h.svc.status()).toMatchObject({ population: { classified: 1, seeded: 3, seedQueue: 0 }, counters: { seedFailed: 1 } });
-    expect(h.svc.seeded.get(W1)).toMatchObject({ provenance: SEED_PROVENANCE_TRENCHES, attempts: 0 });
+    expect(h.svc.seeded.get(W1)).toMatchObject({ provenance: SEED_PROVENANCE_NANSEN, attempts: 0 });
   });
 
   it("drains at most SEED_DRAIN_BATCH wallets per tick and lists classified wallets first when building the population", async () => {
     vi.useFakeTimers();
     const wallets = Array.from({ length: SEED_DRAIN_BATCH + 2 }, (_, i) => `0x${(i + 1).toString(16).padStart(40, "0")}`);
-    const h = service(Object.fromEntries(wallets.map((wallet) => [wallet, "fomo" as const])));
+    const h = service(Object.fromEntries(wallets.map((wallet) => [wallet, "smart" as const])));
     h.svc.seed(wallets, "test");
     await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
     expect(h.classifier.calls).toHaveLength(SEED_DRAIN_BATCH);
@@ -131,175 +131,176 @@ describe("TraderService seeding", () => {
 
   it("relabels a seeded wallet's earlier book rows once its 7702 check passes", async () => {
     vi.useFakeTimers();
-    const h = service({ [W4]: "fomo" });
+    const h = service({ [W4]: "smart" });
     h.svc.seed([W4], "test");
     expect(h.svc.recordTransferFills([fill(W4, null)])).toEqual({ accepted: 1, duplicates: 0, rejected: 0 });
-    expect(h.svc.book.tape("robinhood", 10, { kind: "fomo" })).toEqual([]);
+    expect(h.svc.book.tape("monad", 10, { kind: "smart" })).toEqual([]);
     await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
-    expect(h.svc.book.tape("robinhood", 10, { kind: "fomo" })).toHaveLength(1);
+    expect(h.svc.book.tape("monad", 10, { kind: "smart" })).toHaveLength(1);
   });
 
-  it("peekKind answers seeded for a listed wallet awaiting its check, the classifier's answer once known, fomo for a population member, null otherwise", async () => {
+  it("peekKind answers seeded for a listed wallet awaiting its check, the classifier's answer once known, smart for a population member, null otherwise", async () => {
     vi.useFakeTimers();
-    const h = service({ [UNIPCS]: "fomo", [POORGOAT]: "other" });
-    h.svc.seed([UNIPCS, POORGOAT], SEED_PROVENANCE_TRENCHES);
+    const h = service({ [UNIPCS]: "smart", [POORGOAT]: "other" });
+    h.svc.seed([UNIPCS, POORGOAT], SEED_PROVENANCE_NANSEN);
     expect(h.svc.peekKind(UNIPCS)).toBe("seeded");
     expect(h.svc.peekKind(UNIPCS.toUpperCase())).toBe("seeded");
     expect(h.svc.peekKind(POORGOAT)).toBe("seeded");
     expect(h.svc.peekKind("0x7777777777777777777777777777777777777777")).toBeNull();
     await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
-    expect(h.svc.peekKind(UNIPCS)).toBe("fomo");
+    expect(h.svc.peekKind(UNIPCS)).toBe("smart");
     expect(h.svc.peekKind(POORGOAT)).toBe("other");
-    // A population member whose classifier entry was forgotten still answers fomo (never downgraded to seeded).
+    // A population member whose classifier entry was forgotten still answers smart (never downgraded to seeded).
     h.classifier.known.delete(UNIPCS);
-    expect(h.svc.peekKind(UNIPCS)).toBe("fomo");
+    expect(h.svc.peekKind(UNIPCS)).toBe("smart");
   });
 
-  it("books a seeded wallet's transfer fill as kind seeded: shown by fillsForToken tagged seeded, counted transferUnproven, kept out of the FOMO ledger", () => {
-    const handles = new FakeHandles({ [UNIPCS]: { handle: "unipcs", followers: 514_576, profileUrl: null, source: "traders" } });
-    const h = service({ [UNIPCS]: "fomo" }, handles);
-    h.svc.seed([UNIPCS], SEED_PROVENANCE_TRENCHES);
+  it("books a seeded wallet's transfer fill as kind seeded: shown by fillsForToken tagged seeded, counted transferUnproven, kept out of the SMART ledger", () => {
+    const handles = new FakeHandles({ [UNIPCS]: { handle: "unipcs", followers: 514_576, profileUrl: null, source: "nansen" } });
+    const h = service({ [UNIPCS]: "smart" }, handles);
+    h.svc.seed([UNIPCS], SEED_PROVENANCE_NANSEN);
     expect(h.svc.recordTransferFills([fill(UNIPCS, h.svc.peekKind(UNIPCS))])).toEqual({ accepted: 1, duplicates: 0, rejected: 0 });
-    const fills = h.svc.fillsForToken("robinhood", TOKEN, 10);
+    const fills = h.svc.fillsForToken("monad", TOKEN, 10);
     expect(fills).toHaveLength(1);
     expect(fills[0].trader).toEqual({ address: UNIPCS, kind: "seeded", handle: "unipcs", followers: 514_576 });
-    expect(h.svc.book.tape("robinhood", 10, { kind: "fomo" })).toEqual([]);
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toEqual([]);
+    expect(h.svc.book.tape("monad", 10, { kind: "smart" })).toEqual([]);
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)).toEqual([]);
     expect(h.svc.status().counters).toMatchObject({ transferFills: 1, transferUnproven: 1 });
     expect(h.svc.status().population).toMatchObject({ classified: 0, seeded: 1, seedQueue: 1 });
   });
 
-  it("re-ingests a seeded wallet's earlier fills into the FOMO ledger exactly once when its check passes", async () => {
+  it("re-ingests a seeded wallet's earlier fills into the SMART ledger exactly once when its check passes", async () => {
     vi.useFakeTimers();
-    const h = service({ [POORGOAT]: "fomo" });
-    h.svc.seed([POORGOAT], SEED_PROVENANCE_TRENCHES);
+    const h = service({ [POORGOAT]: "smart" });
+    h.svc.seed([POORGOAT], SEED_PROVENANCE_NANSEN);
     const first = fill(POORGOAT, h.svc.peekKind(POORGOAT));
     expect(first.kind).toBe("seeded");
     expect(h.svc.recordTransferFills([first])).toEqual({ accepted: 1, duplicates: 0, rejected: 0 });
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toEqual([]);
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)).toEqual([]);
     await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
-    const prints = h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`);
+    const prints = h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`);
     expect(prints).toHaveLength(1);
-    expect(prints[0]).toMatchObject({ tx: "0xt1", usd: 12.5, trader: { address: POORGOAT, kind: "fomo" } });
-    expect(h.svc.status().counters).toMatchObject({ seedFomo: 1, seedReingested: 1 });
-    expect(h.svc.fillsForToken("robinhood", TOKEN, 10)[0].trader.kind).toBe("fomo");
+    expect(prints[0]).toMatchObject({ tx: "0xt1", usd: 12.5, trader: { address: POORGOAT, kind: "smart" } });
+    expect(h.svc.status().counters).toMatchObject({ seedSmart: 1, seedReingested: 1 });
+    expect(h.svc.fillsForToken("monad", TOKEN, 10)[0].trader.kind).toBe("smart");
     // The feed sending the same fill again is a book duplicate; the ledger stays at one.
     expect(h.svc.recordTransferFills([first])).toEqual({ accepted: 0, duplicates: 1, rejected: 0 });
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toHaveLength(1);
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)).toHaveLength(1);
     // A new post-verification fill goes straight to the ledger; the re-ingest counter does not move.
     expect(h.svc.recordTransferFills([fill(POORGOAT, h.svc.peekKind(POORGOAT), { tx: "0xt2", time: NOW - 500 })])).toEqual({ accepted: 1, duplicates: 0, rejected: 0 });
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toHaveLength(2);
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)).toHaveLength(2);
     expect(h.svc.status().counters).toMatchObject({ seedReingested: 1, transferUnproven: 1 });
   });
 
-  it("relabels a seeded wallet other when its check says so: rows leave the fomo/seeded tape, dropped from transferWallets", async () => {
+  it("relabels a seeded wallet other when its check says so: rows leave the smart/seeded tape, dropped from transferWallets", async () => {
     vi.useFakeTimers();
     const h = service({ [CRAYON]: "other" });
-    h.svc.seed([CRAYON], SEED_PROVENANCE_TRENCHES);
+    h.svc.seed([CRAYON], SEED_PROVENANCE_NANSEN);
     h.svc.recordTransferFills([fill(CRAYON, h.svc.peekKind(CRAYON))]);
-    expect(h.svc.book.tape("robinhood", 10, { kind: TAPE_KINDS })).toHaveLength(1);
+    expect(h.svc.book.tape("monad", 10, { kind: TAPE_KINDS })).toHaveLength(1);
     expect(h.svc.transferWallets()).toEqual([CRAYON]);
     await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
-    expect(h.svc.book.tape("robinhood", 10, { kind: TAPE_KINDS })).toEqual([]);
-    expect(h.svc.book.tape("robinhood", 10, { kind: "other" })).toHaveLength(1);
-    expect(h.svc.status().counters).toMatchObject({ seedChecked: 1, seedFomo: 0, seedReingested: 0 });
+    expect(h.svc.book.tape("monad", 10, { kind: TAPE_KINDS })).toEqual([]);
+    expect(h.svc.book.tape("monad", 10, { kind: "other" })).toHaveLength(1);
+    expect(h.svc.status().counters).toMatchObject({ seedChecked: 1, seedSmart: 0, seedReingested: 0 });
     expect(h.svc.transferWallets()).toEqual([]);
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toEqual([]);
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)).toEqual([]);
   });
 
   it("records a fill with the wallet's kind as of record time, not the feed's stale snapshot taken before the drain verified it", async () => {
     vi.useFakeTimers();
-    const h = service({ [POORGOAT]: "fomo" });
-    h.svc.seed([POORGOAT], SEED_PROVENANCE_TRENCHES);
+    const h = service({ [POORGOAT]: "smart" });
+    h.svc.seed([POORGOAT], SEED_PROVENANCE_NANSEN);
     h.svc.recordTransferFills([fill(POORGOAT, h.svc.peekKind(POORGOAT))]);
     // The feed snapshots peekKind early in a batch; the seed drain verifies the wallet before recordTransferFills runs.
     const stale = fill(POORGOAT, h.svc.peekKind(POORGOAT), { tx: "0xt2", time: NOW - 500 });
     expect(stale.kind).toBe("seeded");
     await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
     expect(h.svc.recordTransferFills([stale])).toEqual({ accepted: 1, duplicates: 0, rejected: 0 });
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`).map((print) => print.tx).sort()).toEqual(["0xt1", "0xt2"]);
-    expect(h.svc.book.tape("robinhood", 10, { kind: "fomo" })).toHaveLength(2);
-    expect(h.svc.book.rank("robinhood", 60_000)[0]).toMatchObject({ wallet: POORGOAT, kind: "fomo" });
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`).map((print) => print.tx).sort()).toEqual(["0xt1", "0xt2"]);
+    expect(h.svc.book.tape("monad", 10, { kind: "smart" })).toHaveLength(2);
+    expect(h.svc.book.rank("monad", 60_000)[0]).toMatchObject({ wallet: POORGOAT, kind: "smart" });
     expect(h.svc.status().counters).toMatchObject({ transferFills: 2, transferUnproven: 1, seedReingested: 1 });
   });
 
   it("relabels and re-ingests a seeded wallet verified by the discover lane before the seed drain reaches it, and the drain does not re-ingest again", async () => {
     vi.useFakeTimers();
-    const h = service({ [UNIPCS]: "fomo" });
-    h.svc.seed([UNIPCS], SEED_PROVENANCE_TRENCHES);
+    const h = service({ [UNIPCS]: "smart" });
+    h.svc.seed([UNIPCS], SEED_PROVENANCE_NANSEN);
     h.svc.recordTransferFills([fill(UNIPCS, h.svc.peekKind(UNIPCS))]);
-    expect(h.svc.book.rank("robinhood", 60_000)[0]).toMatchObject({ wallet: UNIPCS, kind: "seeded" });
-    expect(await h.svc.discover([UNIPCS])).toEqual({ checked: 1, dropped: 0, fomo: 1 });
-    expect(h.svc.peekKind(UNIPCS)).toBe("fomo");
-    expect(h.svc.book.rank("robinhood", 60_000)[0]).toMatchObject({ wallet: UNIPCS, kind: "fomo" });
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toHaveLength(1);
+    expect(h.svc.book.rank("monad", 60_000)[0]).toMatchObject({ wallet: UNIPCS, kind: "seeded" });
+    expect(await h.svc.discover([UNIPCS])).toEqual({ checked: 1, dropped: 0, smart: 1 });
+    expect(h.svc.peekKind(UNIPCS)).toBe("smart");
+    expect(h.svc.book.rank("monad", 60_000)[0]).toMatchObject({ wallet: UNIPCS, kind: "smart" });
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)).toHaveLength(1);
     expect(h.svc.status().counters).toMatchObject({ seedReingested: 1, seedChecked: 0 });
     await vi.advanceTimersByTimeAsync(SEED_DRAIN_MS);
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toHaveLength(1);
-    expect(h.svc.status().counters).toMatchObject({ seedReingested: 1, seedChecked: 1, seedFomo: 1 });
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)).toHaveLength(1);
+    expect(h.svc.status().counters).toMatchObject({ seedReingested: 1, seedChecked: 1, seedSmart: 1 });
   });
 });
 
 describe("TraderService.recordTransferFills / fillsForToken", () => {
-  it("books every accepted fill, sends only proven-FOMO fills to the FOMO ledger under fomo:<token> with dex \"\", and counts unproven ones", () => {
+  it("books every accepted fill, sends only proven-SMART fills to the SMART ledger under smart:<token> with dex \"\", and counts unproven ones", () => {
     const h = service({});
-    const result = h.svc.recordTransferFills([fill(W1, "fomo"), fill(W2, null, { tx: "0xt2" }), fill(W1, "fomo"), { ...fill(W1, "fomo"), trader: "" }]);
+    const result = h.svc.recordTransferFills([fill(W1, "smart"), fill(W2, null, { tx: "0xt2" }), fill(W1, "smart"), { ...fill(W1, "smart"), trader: "" }]);
     expect(result).toEqual({ accepted: 2, duplicates: 1, rejected: 1 });
     expect(h.svc.book.size()).toEqual({ wallets: 2, fills: 2 });
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)).toHaveLength(1);
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)[0]).toMatchObject({ tx: "0xt1", usd: 12.5, price: 0.5, trader: { address: W1, kind: "fomo" } });
-    expect(h.svc.dexOf("robinhood", `fomo:${TOKEN}`)).toBe("");
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)).toHaveLength(1);
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)[0]).toMatchObject({ tx: "0xt1", usd: 12.5, price: 0.5, trader: { address: W1, kind: "smart" } });
+    expect(h.svc.dexOf("monad", `smart:${TOKEN}`)).toBe("");
     expect(h.svc.status().counters).toMatchObject({ transferFills: 2, transferUnproven: 1 });
   });
 
   it("rejects a transfer fill R3 already recorded for the same tx+wallet+token+side under a pool pair", () => {
     const h = service({});
-    expect(h.svc.book.record(fill(W1, "fomo", { pair: "0xpool", usd: 99 }))).toBe("accepted");
-    expect(h.svc.recordTransferFills([fill(W1, "fomo")])).toEqual({ accepted: 0, duplicates: 1, rejected: 0 });
-    expect(h.svc.book.stats("robinhood", W1)?.buyUsd).toBe(99);
+    expect(h.svc.book.record(fill(W1, "smart", { pair: "0xpool", usd: 99 }))).toBe("accepted");
+    expect(h.svc.recordTransferFills([fill(W1, "smart")])).toEqual({ accepted: 0, duplicates: 1, rejected: 0 });
+    expect(h.svc.book.stats("monad", W1)?.buyUsd).toBe(99);
   });
 
-  it("fillsForToken answers FOMO fills of the token across pairs with erc20Meta symbol, price, usd provenance and known handles", async () => {
-    const handles = new FakeHandles({ [W1]: { handle: "alpha", followers: 7, profileUrl: null, source: "traders" } });
+  it("fillsForToken answers SMART fills of the token across pairs with erc20Meta symbol, price, usd provenance and known handles", async () => {
+    const handles = new FakeHandles({ [W1]: { handle: "alpha", followers: 7, profileUrl: null, source: "nansen" } });
     const h = service({}, handles);
     await h.svc.erc20Meta.resolve(TOKEN);
-    h.svc.recordTransferFills([fill(W1, "fomo", { usdVia: "hub_leg" }), fill(W2, null, { tx: "0xt2" })]);
-    h.svc.book.record(fill(W1, "fomo", { pair: "0xpool", tx: "0xt3", usd: 3, price: null }));
-    const fills = h.svc.fillsForToken("robinhood", TOKEN.toUpperCase(), 10);
+    h.svc.recordTransferFills([fill(W1, "smart", { usdVia: "hub_leg" }), fill(W2, null, { tx: "0xt2" })]);
+    h.svc.book.record(fill(W1, "smart", { pair: "0xpool", tx: "0xt3", usd: 3, price: null }));
+    const fills = h.svc.fillsForToken("monad", TOKEN.toUpperCase(), 10);
     expect(fills).toHaveLength(2);
-    expect(fills.map((row) => row.pair)).toEqual(["0xpool", `fomo:${TOKEN}`]);
-    expect(fills[1]).toMatchObject({ chain: "robinhood", token: TOKEN, dex: "", tx: "0xt1", usd: 12.5, price: 0.5, usdVia: "hub_leg", symbol: "TKN", trader: { address: W1, kind: "fomo", handle: "alpha", followers: 7 } });
+    expect(fills.map((row) => row.pair)).toEqual(["0xpool", `smart:${TOKEN}`]);
+    expect(fills[1]).toMatchObject({ chain: "monad", token: TOKEN, dex: "", tx: "0xt1", usd: 12.5, price: 0.5, usdVia: "hub_leg", symbol: "TKN", trader: { address: W1, kind: "smart", handle: "alpha", followers: 7 } });
     expect(fills[0].price).toBeUndefined();
     expect("usdVia" in fills[0]).toBe(false);
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)[0]).not.toHaveProperty("usdVia");
-    expect(h.svc.fillsForToken("robinhood", "0x9999999999999999999999999999999999999999", 10)).toEqual([]);
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)[0]).not.toHaveProperty("usdVia");
+    expect(h.svc.fillsForToken("monad", "0x9999999999999999999999999999999999999999", 10)).toEqual([]);
   });
 
-  it("keeps a decoded quantity on both archive paths: the FOMO ledger print and the tape row bindArchive backfills from", () => {
+  it("keeps a decoded quantity on both archive paths: the SMART ledger print and the tape row bindArchive backfills from", () => {
     const h = service({});
-    h.svc.recordTransferFills([fill(W1, "fomo", { quantity: 25 })]);
-    // Live path: fomoLedger.observe -> tradeArchive.ingest (server/terminal/live.ts).
-    expect(h.svc.fomoLedger.recentPrints("robinhood", `fomo:${TOKEN}`)[0]).toMatchObject({ quantity: 25 });
+    h.svc.recordTransferFills([fill(W1, "smart", { quantity: 25 })]);
+    // Live path: smartLedger.observe -> tradeArchive.ingest (server/terminal/live.ts).
+    expect(h.svc.smartLedger.recentPrints("monad", `smart:${TOKEN}`)[0]).toMatchObject({ quantity: 25 });
     // Backfill path: fillsForToken -> tradeArchive.ingest on bindArchive, which is all a restarted archive sees.
-    expect(h.svc.fillsForToken("robinhood", TOKEN, 10)[0]).toMatchObject({ quantity: 25 });
+    expect(h.svc.fillsForToken("monad", TOKEN, 10)[0]).toMatchObject({ quantity: 25 });
     // A fill the decoder could not size stays sizeless rather than arriving as 0.
-    h.svc.recordTransferFills([fill(W2, "fomo", { tx: "0xt9", time: NOW - 500 })]);
-    expect("quantity" in h.svc.fillsForToken("robinhood", TOKEN, 10)[0]).toBe(false);
+    h.svc.recordTransferFills([fill(W2, "smart", { tx: "0xt9", time: NOW - 500 })]);
+    expect("quantity" in h.svc.fillsForToken("monad", TOKEN, 10)[0]).toBe(false);
   });
 });
 
 describe("HandleBook -> seed wiring", () => {
-  it("hands the lowercase wallets of a loaded traders list to onTraders (147 in the 2026-09-06 capture)", async () => {
-    const traders = JSON.parse(readFileSync(new URL("./__fixtures__/r4/trenches-traders.json", import.meta.url), "utf8")) as unknown[];
+  it("hands the lowercase wallets of a loaded Nansen smart-money population to onTraders (147 wallets)", async () => {
+    const traders = JSON.parse(readFileSync(new URL("./__fixtures__/r4/trenches-traders.json", import.meta.url), "utf8")) as Array<{ address: string }>;
     const seeded: string[][] = [];
-    const fetchImpl = vi.fn(async (url: string | URL | Request) => new Response(JSON.stringify(String(url).includes("/traders") ? traders : []), { status: 200 }));
-    const book = new HandleBook({ fetchImpl: fetchImpl as unknown as typeof fetch, now: () => NOW, onTraders: (wallets) => seeded.push(wallets) });
+    const data = traders.map((row, i) => ({ time: NOW, tx: `0x${i}`, trader: row.address.toLowerCase(), label: "Smart Trader", boughtToken: TOKEN, boughtSymbol: null, soldToken: TOKEN, soldSymbol: null, valueUsd: null }));
+    const source = { configured: true, dexTrades: vi.fn(async () => ({ data, error: null })) };
+    const book = new HandleBook({ source, now: () => NOW, onTraders: (wallets) => seeded.push(wallets) });
     await book.refresh(true);
     expect(seeded).toHaveLength(1);
     expect(seeded[0]).toHaveLength(147);
     expect(seeded[0].every((wallet) => /^0x[0-9a-f]{40}$/.test(wallet))).toBe(true);
     const h = service({});
-    expect(h.svc.seed(seeded[0], SEED_PROVENANCE_TRENCHES)).toBe(147);
+    expect(h.svc.seed(seeded[0], SEED_PROVENANCE_NANSEN)).toBe(147);
     expect(h.svc.transferWallets()).toHaveLength(147);
   });
 });
@@ -311,23 +312,23 @@ describe("TraderService watch order and coverage (R5)", () => {
   }
 
   it("orders transferWallets seeded/named first, then by last fill, then by verification recency", async () => {
-    const h = service({ [W1]: "fomo", [W2]: "fomo", [W3]: "fomo", [UNIPCS]: "fomo" }, new FakeHandles({ [W3]: { handle: "named", followers: 1, profileUrl: null, source: "traders" } }));
+    const h = service({ [W1]: "smart", [W2]: "smart", [W3]: "smart", [UNIPCS]: "smart" }, new FakeHandles({ [W3]: { handle: "named", followers: 1, profileUrl: null, source: "nansen" } }));
     // Verified in this order: W1, W2, W3 (W3 most recent). W3 is also named; UNIPCS is seeded but unverified.
     for (const wallet of [W1, W2, W3]) await h.svc.discover([wallet]);
-    h.svc.seed([UNIPCS], SEED_PROVENANCE_TRENCHES);
-    expect(h.svc.recordTransferFills([fill(W1, "fomo", { tx: "0xa", time: NOW - 500 })])).toMatchObject({ accepted: 1 });
+    h.svc.seed([UNIPCS], SEED_PROVENANCE_NANSEN);
+    expect(h.svc.recordTransferFills([fill(W1, "smart", { tx: "0xa", time: NOW - 500 })])).toMatchObject({ accepted: 1 });
     // W3 (named) and UNIPCS (seeded) lead; among them neither filled, W3 is verified so it ranks first. Then W1 (filled), then W2.
     expect(h.svc.transferWallets()).toEqual([W3, UNIPCS, W1, W2]);
   });
 
-  it("coverage() reads watched from the attached feed against transferWallets(), names the handles, and never calls a seeded-pending wallet FOMO", async () => {
-    const h = service({ [W1]: "fomo", [W2]: "fomo" }, new FakeHandles({ [W1]: { handle: "one", followers: 1, profileUrl: null, source: "traders" } }));
-    expect(h.svc.coverage()).toEqual({ watched: 0, population: 0, label: "watching 0 of 0 FOMO wallets · 1 named" });
+  it("coverage() reads watched from the attached feed against transferWallets(), names the handles, and never calls a seeded-pending wallet SMART", async () => {
+    const h = service({ [W1]: "smart", [W2]: "smart" }, new FakeHandles({ [W1]: { handle: "one", followers: 1, profileUrl: null, source: "nansen" } }));
+    expect(h.svc.coverage()).toEqual({ watched: 0, population: 0, label: "watching 0 of 0 SMART wallets · 1 named" });
     await h.svc.discover([W1, W2]);
     attach(h.svc, 2, 0);
-    expect(h.svc.coverage()).toEqual({ watched: 2, population: 2, label: "watching 2 of 2 FOMO wallets · 1 named" });
-    h.svc.seed([POORGOAT], SEED_PROVENANCE_TRENCHES);
+    expect(h.svc.coverage()).toEqual({ watched: 2, population: 2, label: "watching 2 of 2 SMART wallets · 1 named" });
+    h.svc.seed([POORGOAT], SEED_PROVENANCE_NANSEN);
     attach(h.svc, 2, 1);
-    expect(h.svc.coverage()).toEqual({ watched: 2, population: 3, label: "watching 2 of 3 wallets · 2 FOMO · 1 seeded pending · 1 named" });
+    expect(h.svc.coverage()).toEqual({ watched: 2, population: 3, label: "watching 2 of 3 wallets · 2 SMART · 1 seeded pending · 1 named" });
   });
 });

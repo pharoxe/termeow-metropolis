@@ -1,44 +1,41 @@
 import type { Side } from "../../shared/wire.js";
-import { QUOTES } from "../launch/robinhood/pads.js";
-import type { ExtraLeg } from "../tape/robinhood/poller.js";
+import { QUOTES } from "../launch/monad/pads.js";
+import type { ExtraLeg } from "../tape/monad/poller.js";
 import { TRANSFER_TOPIC, USER_OPERATION_EVENT_TOPIC, ZERO_ADDRESS } from "./attribute.js";
 import { ENTRY_POINT } from "./service.js";
 
 const ENTRY_POINT_LOWER = ENTRY_POINT.toLowerCase();
 
 /**
- * Wallets per eth_getLogs topic OR-list. Measured 2026-09-07 (r5/rpc-topiclist-probes.json): single legs of 150, 300,
- * 600 and 1,000 padded addresses all answered 200 in 0.6-1.5 s (~69 B of body per address, 69 kB at 1,000); no
- * topic-list or body-size error was ever returned, so the ceiling is ABOVE 1,000. 500 keeps a 2x margin under the
- * largest list proven to work.
+ * Wallets per eth_getLogs topic OR-list. Topic-list ceilings on Monad's public RPCs are not documented; the earlier EVM
+ * deployment proved 1,000-address lists, so 200 keeps a wide margin while the legs stay inside the 100-block range cap.
  */
-export const TRANSFER_CHUNK = 500;
+export const TRANSFER_CHUNK = 200;
 /**
  * Chunks per direction the poller batch carries; wallets past chunk * maxChunks are counted as overflow, never silently
  * dropped, and the order in which they fill the slots is the caller's (TraderService.transferWallets: seeded/named,
- * then most recent fill, then most recently verified). 3 x 500 x 2 directions = 6 legs of ~35 kB = ~207 kB of
- * transfer legs; with the launch stream's own legs (~20 kB in the r5 probe = 296,744 B minus 4 x 69,198 B; unmeasured at 400 emitters) the batch stays under the 297 kB / 7-leg
- * body measured OK at 2.9 s (r5/rpc-batch-probe.json). Larger bodies are unmeasured and the batch fails all-or-nothing.
+ * then most recent fill, then most recently verified). 3 x 200 x 2 directions = 6 legs of ~14 kB each.
  */
 export const TRANSFER_MAX_CHUNKS = 3;
-/** Wallets the legs can carry at these sizes (1,500); the population past it is overflow. */
+/** Wallets the legs can carry at these sizes (600); the population past it is overflow. */
 export const TRANSFER_WATCH_CAP = TRANSFER_CHUNK * TRANSFER_MAX_CHUNKS;
-/** Pair id for a FOMO fill whose pool is unknown (chain-wide Transfer decode): "fomo:<token>". */
-export const FOMO_PAIR_PREFIX = "fomo:";
+/** Pair id for a SMART fill whose pool is unknown (chain-wide Transfer decode): "smart:<token>". */
+export const SMART_PAIR_PREFIX = "smart:";
 /**
- * Custody hops measured on 25 receipts (40 tape rows) 2026-09-06: every relayed fill's token leg pairs the wallet with
- * HUB (buy: hub -> wallet, sell: wallet -> hub); USDG cost arrives FUNDING -> HUB and proceeds leave HUB -> SINK. The
- * wallet itself is on a USDG/WETH Transfer in 0/40 rows, so the hub legs are the only cash a log can tie to a fill.
+ * Custody hub legs: some social-trading apps settle through a custody hub instead of the user's wallet, so the hub's
+ * stable legs are the only cash a log can tie to a fill. No such app is configured on Monad, so the hub is unset and
+ * every fill is priced from the wallet's own quote Transfer (or left unpriced). Set these to enable a hub pattern.
  */
-export const FOMO_HUB = "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f";
-export const FOMO_FUNDING = "0xf70da97812cb96acdf810712aa562db8dfa3dbef";
-export const FOMO_SINK = "0x4cd00e387622c35bddb9b4c962c136462338bc31";
+export const CUSTODY_HUB: string | null = null;
+export const CUSTODY_FUNDING: string | null = null;
+export const CUSTODY_SINK: string | null = null;
 
 export type QuoteToken = { symbol: string; decimals: number };
-/** Cash legs visible as ERC-20 Transfers: USDG (6) and WETH (18); decimals read by eth_call decimals() 2026-09-06. Native ETH leaves no Transfer. */
+/** Cash legs visible as ERC-20 Transfers on Monad: WMON (18), USDC (6), AUSD (6). Native MON leaves no Transfer. */
 export const QUOTE_TOKENS: ReadonlyMap<string, QuoteToken> = new Map([
-  [QUOTES.usdg, { symbol: "USDG", decimals: 6 }],
-  [QUOTES.weth, { symbol: "WETH", decimals: 18 }]
+  [QUOTES.wmon, { symbol: "WMON", decimals: 18 }],
+  [QUOTES.usdc, { symbol: "USDC", decimals: 6 }],
+  ...(QUOTES.ausd ? [[QUOTES.ausd, { symbol: "AUSD", decimals: 6 }] as [string, QuoteToken]] : [])
 ]);
 
 export type TransferLegs = { legs: ExtraLeg[]; wallets: number; overflow: number };
@@ -95,8 +92,8 @@ export function emptySkips(): SkipCounts {
   return { transfers: 0, foreignSegment: 0, unpaired: 0 };
 }
 
-export function fomoPair(token: string): string {
-  return `${FOMO_PAIR_PREFIX}${token.toLowerCase()}`;
+export function smartPair(token: string): string {
+  return `${SMART_PAIR_PREFIX}${token.toLowerCase()}`;
 }
 
 export function padTopic(address: string): string {
@@ -187,10 +184,10 @@ function walletCashLegs(transfers: Transfer[], wallet: string, side: Side, quote
   return transfers.filter((transfer) => quotes.has(transfer.token) && (side === "buy" ? transfer.from === wallet : transfer.to === wallet));
 }
 
-/** Custody hub legs (USDG only): FUNDING -> HUB is a buy's cost, HUB -> SINK a sell's proceeds. */
+/** Custody hub legs (stable quotes only): FUNDING -> HUB is a buy's cost, HUB -> SINK a sell's proceeds. */
 function hubCashLegs(transfers: Transfer[], side: Side): Transfer[] {
   return transfers.filter(
-    (transfer) => transfer.token === QUOTES.usdg && (side === "buy" ? transfer.from === FOMO_FUNDING && transfer.to === FOMO_HUB : transfer.from === FOMO_HUB && transfer.to === FOMO_SINK)
+    (transfer) => CUSTODY_HUB !== null && QUOTE_TOKENS.has(transfer.token) && (side === "buy" ? transfer.from === CUSTODY_FUNDING && transfer.to === CUSTODY_HUB : transfer.from === CUSTODY_HUB && transfer.to === CUSTODY_SINK)
   );
 }
 
@@ -202,16 +199,15 @@ function units(raw: bigint, decimals: number | null): number | null {
 
 type CashPick = { leg: Transfer; via: UsdVia } | { leg: null; via: null; ambiguous: boolean };
 
-/** The measured custody pattern: the token leg pairs the wallet with HUB and nothing else (buy: hub -> wallet, sell: wallet -> hub). */
+/** The custody pattern: the token leg pairs the wallet with HUB and nothing else (buy: hub -> wallet, sell: wallet -> hub). */
 function hubCustodied(group: Group): boolean {
-  return group.counterparties.size === 1 && group.counterparties.has(FOMO_HUB);
+  return CUSTODY_HUB !== null && group.counterparties.size === 1 && group.counterparties.has(CUSTODY_HUB);
 }
 
 /**
  * Exactly one token leg on this side and exactly one cash leg pairs them; anything else stays unpriced. The wallet's own
- * quote Transfer comes first. The hub USDG legs stand in only for a hub-custodied token leg when the segment holds one
- * tracked wallet: a wallet trading straight against a pool (ETH/WETH-funded, measured 2026-09-06 at 7.5-10x off the tape
- * when borrowed) or a segment shared by several wallets cannot claim the hub's cash.
+ * quote Transfer comes first. The hub stable legs stand in only for a hub-custodied token leg when the segment holds one
+ * tracked wallet: a wallet trading straight against a pool or a segment shared by several wallets cannot claim the hub's cash.
  */
 function pickCash(segmentTransfers: Transfer[], wallet: string, group: Group, sideGroups: number, segmentWallets: number, quotes: ReadonlyMap<string, QuoteToken>): CashPick {
   const own = walletCashLegs(segmentTransfers, wallet, group.side, quotes);
@@ -235,7 +231,7 @@ function toFill(tx: string, block: number | null, wallet: string, group: Group, 
 /**
  * Fills of tracked wallets in one tx's logs (poller batch or full receipt). Per user-op segment and wallet: token leg =
  * Transfer of a non-quote token to (buy) or from (sell) the wallet, legs of one token and side merged; cash leg = the
- * wallet's own quote Transfer the other way, else the hub USDG leg of a hub-custodied leg (measured rule); usd = quote units x quote usd;
+ * wallet's own quote Transfer the other way, else the hub stable leg of a hub-custodied leg (when a hub is configured); usd = quote units x quote usd;
  * units/price need decimals. A token leg with no cash leg whose counterparties are all tracked wallets or the zero
  * address is a transfer, not a fill, and is counted. Pure; never throws on malformed logs (they are skipped).
  */

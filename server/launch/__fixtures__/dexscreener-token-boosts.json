@@ -1,7 +1,7 @@
 [
   {
     "url": "https://dexscreener.com/robinhood/0x92788a4870ee8c00059188b1114baad3b89568e0",
-    "chainId": "robinhood",
+    "chainId": "monad",
     "tokenAddress": "0x92788a4870ee8c00059188B1114Baad3B89568e0",
     "description": "What is $HOOD?\nA community‑led token carrying the Robin‑hood spirit, standing firmly for everyday participants.\n• Rocket momentum, driven by the masses\n• Unique leaf emblem, owned by the community\n• Unite strength, share wealth gains\nWealth for all. Let’s blast off 🚀",
     "icon": "XRUwjpNTfGYdC88o",
@@ -65,7 +65,7 @@
   },
   {
     "url": "https://dexscreener.com/robinhood/0x56e82e94b1354c771f5901e4af7ee4f1b08d4011",
-    "chainId": "robinhood",
+    "chainId": "monad",
     "tokenAddress": "0x56E82e94B1354C771f5901E4Af7eE4F1b08d4011",
     "description": "MarsCoin is a community built around the idea of exploring Mars and the future of space.\n\nIt brings together people who believe in rockets, new technology, and the mission of taking humanity beyond Earth.\n\nThe goal is to build a strong community around the Mars narrative and grow with the future of space exploration.\n\nAt the center of the project, $MARSCOIN is paired with $SPCX and by holding $MARSCOIN, eligible holders can receive $SPCX rewards.\n\nMinimum Hold: 100K+ $MARSCOIN",
     "icon": "l7rSOMhOywr7ba6Y",

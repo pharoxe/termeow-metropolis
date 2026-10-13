@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { EvmRpcError } from "../tape/robinhood/rpc.js";
+import { EvmRpcError } from "../tape/monad/rpc.js";
 import { UpstreamError } from "../lib/http.js";
 import { DECIMALS_SELECTOR, Erc20Meta, SYMBOL_SELECTOR, decodeAbiString, decodeAbiUint8, type Erc20MetaRpc } from "./erc20Meta.js";
 
@@ -45,7 +45,7 @@ describe("ABI decoders", () => {
   });
 
   it("decodes dynamic strings, bytes32 symbols and rejects garbage", () => {
-    expect(decodeAbiString(abiString("SPDR Gold Trust • Robinhood Token"))).toBe("SPDR Gold Trust • Robinhood Token");
+    expect(decodeAbiString(abiString("SPDR Gold Trust • Monad Token"))).toBe("SPDR Gold Trust • Monad Token");
     expect(decodeAbiString(`0x${Buffer.from("MKR").toString("hex").padEnd(64, "0")}`)).toBe("MKR");
     expect(decodeAbiString("0x")).toBeNull();
     expect(decodeAbiString(`0x${"ff".repeat(32)}`)).toBeNull();

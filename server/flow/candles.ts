@@ -26,7 +26,7 @@ export type TokenCandles = {
   firstPrintAt: number | null;
   /** Newest minus oldest priced print; 0 with fewer than two priced prints. */
   spanMs: number;
-  /** Priced prints per producer, only sources that contributed: the rings mix this server's decoder with Gecko and pump.fun rows. */
+  /** Priced prints per producer, only sources that contributed: the rings mix this server's decoder with Gecko rows. */
   pricedBySource: Partial<Record<FlowPrint["source"], number>>;
   source: typeof OWN_TAPE_SOURCE;
 };

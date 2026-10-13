@@ -17,12 +17,12 @@ const FIGURE_FIELDS: readonly (keyof DiscoverFigures)[] = [
   "ageMs",
   "pool",
   "dex",
-  "fomoHolders",
+  "smartHolders",
   "trackedBuyers"
 ];
 
 export function emptyFigures(): DiscoverFigures {
-  return { priceUsd: null, marketCapUsd: null, liquidityUsd: null, volumeUsd: null, changePct: null, txns: null, ageMs: null, pool: null, dex: null, fomoHolders: null, trackedBuyers: null };
+  return { priceUsd: null, marketCapUsd: null, liquidityUsd: null, volumeUsd: null, changePct: null, txns: null, ageMs: null, pool: null, dex: null, smartHolders: null, trackedBuyers: null };
 }
 
 function firstNonNull<T>(values: readonly (T | null)[]): T | null {
@@ -84,7 +84,7 @@ function mergeOne(chain: Chain, token: string, partials: readonly DiscoverPartia
 export function mergeDiscover(chain: Chain, partials: readonly DiscoverPartial[], precedence: readonly string[]): DiscoverRow[] {
   const byToken = new Map<string, DiscoverPartial[]>();
   for (const partial of partials) {
-    const key = chain === "solana" ? partial.token : partial.token.toLowerCase();
+    const key = partial.token.toLowerCase();
     if (!key) continue;
     byToken.set(key, [...(byToken.get(key) ?? []), { ...partial, token: key }]);
   }
@@ -111,7 +111,7 @@ function txnCount(row: DiscoverRow): number | null {
 /**
  * View ordering. trending: the ranked source's order first, then everything else by window volume; movers: absolute
  * change, largest first (rows with no change figure are dropped, not ranked as 0); new: youngest first, unknown age last;
- * holders: most distinct verified-FOMO buyers first (rows with none are dropped: no buyers seen is not a rank).
+ * holders: most distinct verified-SMART buyers first (rows with none are dropped: no buyers seen is not a rank).
  */
 export function rankRows(view: DiscoverView, rows: readonly DiscoverRow[], rankedSource: string | null): DiscoverRow[] {
   const byToken = (a: DiscoverRow, b: DiscoverRow) => a.token.localeCompare(b.token);
@@ -125,8 +125,8 @@ export function rankRows(view: DiscoverView, rows: readonly DiscoverRow[], ranke
   }
   if (view === "holders") {
     return rows
-      .filter((row) => row.fomoHolders !== null && row.fomoHolders > 0)
-      .sort((a, b) => (b.fomoHolders as number) - (a.fomoHolders as number) || nullsLast(a.volumeUsd, b.volumeUsd, true) || byToken(a, b));
+      .filter((row) => row.smartHolders !== null && row.smartHolders > 0)
+      .sort((a, b) => (b.smartHolders as number) - (a.smartHolders as number) || nullsLast(a.volumeUsd, b.volumeUsd, true) || byToken(a, b));
   }
   return [...rows].sort((a, b) => {
     const ranked = nullsLast(rankedSource ? sourceRank(a, rankedSource) : null, rankedSource ? sourceRank(b, rankedSource) : null, false);

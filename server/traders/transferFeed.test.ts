@@ -1,31 +1,32 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TraderKind } from "../../shared/wire.js";
-import type { ExtraLeg, LogsHandler, PollerStats, RawLog } from "../tape/robinhood/poller.js";
+import type { ExtraLeg, LogsHandler, PollerStats, RawLog } from "../tape/monad/poller.js";
 import { TRANSFER_TOPIC } from "./attribute.js";
 import type { TraderFill } from "./book.js";
 import type { Erc20MetaEntry } from "./erc20Meta.js";
 import type { HandleEntry } from "./handles.js";
 import { TradeArchive } from "../terminal/archive.js";
-import { toFomoPrint } from "./service.js";
+import { toSmartPrint } from "./service.js";
 import { LEGS_CHECK_MS, MAX_QUEUED_BATCHES, TransferFeed, type TransferFeedTraders } from "./transferFeed.js";
 import { padTopic, type TransferLogLike } from "./transfers.js";
+import { QUOTES } from "../launch/monad/pads.js";
 
 type FixtureTx = { blockNumber: string; logs: TransferLogLike[] };
 const FIXTURE = JSON.parse(readFileSync(new URL("./__fixtures__/r4/transfer-logs.json", import.meta.url), "utf8")) as { txs: Record<string, FixtureTx> };
 
 const NOW = 1_800_000_000_000;
 const BLOCK_TIME = 1_788_716_978_000;
-/** Relay-B USDG buy from the capture: remusofmars bought 5,151,565.59 QC for 1,987.05953 USDG (tape row 58111). */
+/** Relay-B buy from the r4 capture: remusofmars bought 5,151,565.59 QC (the tape priced it at 1,987.05953 USD). */
 const TX = "0xb11a60d2032b0c5e6af9969ef0e4796a4771c4731d0a2499ce7a29f65f796027";
 const WALLET = "0x8ab8c0843d9738885d6273dfe3de86c56eea364c";
 const QC = "0xf2e122a481b440c40eee7a7ca6d5eef65a591b76";
-const USDG = "0x5fc5360d0400a0fd4f2af552add042d716f1d168";
 const OTHER_WALLET = "0x0a6ebed0155edb4b21d92ad02897a626cd90119e";
-/** QUOTES.weth: the constructor warms the two cash quotes before any batch is decoded. */
-const WETH = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
 /** The QC leg of that same capture, in whole tokens: the decoder reads it off the Transfer's own data word. */
 const QC_UNITS = 5151565.591056616;
+const QC_USD = 1987.05953;
+/** QC's market price (the DexScreener quote cache): no custody hub is configured on Monad, so this fill is priced from it. */
+const QC_PX = QC_USD / QC_UNITS;
 
 function walletLogs(tx: string, wallet: string): RawLog[] {
   const entry = FIXTURE.txs[tx];
@@ -55,7 +56,7 @@ class FakePoller {
 class FakeTraders implements TransferFeedTraders {
   wallets: string[] = [WALLET];
   version = 1;
-  kinds: Record<string, TraderKind> = { [WALLET]: "fomo" };
+  kinds: Record<string, TraderKind> = { [WALLET]: "smart" };
   receiptFor: (tx: string) => Promise<{ logs: TransferLogLike[] } | null> = async (tx) => FIXTURE.txs[tx] ?? null;
   meta: Record<string, Erc20MetaEntry> = { [QC]: { decimals: 18, symbol: "QC", resolvedAt: NOW } };
   resolved: string[] = [];
@@ -64,7 +65,7 @@ class FakeTraders implements TransferFeedTraders {
   private keys = new Set<string>();
   receipts = { get: (tx: string) => this.receiptFor(tx) };
   handles = {
-    get: (address: string): HandleEntry | null => (address === WALLET ? { handle: "remusofmars", followers: 143043, profileUrl: null, source: "traders" } : null),
+    get: (address: string): HandleEntry | null => (address === WALLET ? { handle: "remusofmars", followers: 143043, profileUrl: null, source: "nansen" } : null),
     refresh: async () => {
       this.refreshed += 1;
     }
@@ -100,11 +101,11 @@ class FakeTraders implements TransferFeedTraders {
   }
 }
 
-function harness(overrides: { blockTime?: number | null } = {}) {
+function harness(overrides: { blockTime?: number | null; tokenUsd?: number | null } = {}) {
   const traders = new FakeTraders();
   const poller = new FakePoller();
   const blocks = { asked: [] as number[], timeMs: async (block: number) => (blocks.asked.push(block), overrides.blockTime === undefined ? BLOCK_TIME : overrides.blockTime), stats: () => ({ cached: 0, inFlight: 0, hits: 0, misses: 0, failures: 0, lastError: null }) };
-  const prices = { primed: [] as string[][], prime: async (quotes: string[]) => void prices.primed.push(quotes), get: (quote: string) => (quote === USDG ? 1 : null), status: () => ({ cached: 0, lastOkAt: null, lastError: null }) };
+  const prices = { primed: [] as string[][], prime: async (quotes: string[]) => void prices.primed.push(quotes), get: (quote: string) => (quote === QC ? (overrides.tokenUsd === undefined ? QC_PX : overrides.tokenUsd) : null), status: () => ({ cached: 0, lastOkAt: null, lastError: null }) };
   const log = vi.fn();
   const feed = new TransferFeed({ traders, blocks, prices, now: () => NOW, log });
   const wrapped = feed.wrapPoller(poller);
@@ -154,30 +155,32 @@ describe("TransferFeed poller wrapping", () => {
 });
 
 describe("TransferFeed batch processing", () => {
-  it("decodes a wallet's fill from the full receipt: pair fomo:<token>, usd from the hub leg, price, handle, kind, block time", async () => {
+  it("decodes a wallet's fill from the full receipt: pair smart:<token>, market-priced usd (no custody hub on Monad), handle, kind, block time", async () => {
     const h = harness();
     await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
     expect(h.traders.recorded).toHaveLength(1);
     expect(h.traders.recorded[0]).toMatchObject({
-      chain: "robinhood",
-      pair: `fomo:${QC}`,
+      chain: "monad",
+      pair: `smart:${QC}`,
       tx: TX,
       time: BLOCK_TIME,
       side: "buy",
-      usd: 1987.05953,
       source: "own",
       trader: WALLET,
       token: QC,
+      quantity: QC_UNITS,
       handle: "remusofmars",
       followers: 143043,
-      kind: "fomo",
-      usdVia: "hub_leg"
+      kind: "smart"
     });
-    expect(h.traders.recorded[0].price).toBeCloseTo(1987.05953 / 5151565.591056616, 12);
+    expect(h.traders.recorded[0].usd).toBeCloseTo(QC_USD, 6);
+    expect(h.traders.recorded[0].price).toBeCloseTo(QC_PX, 12);
+    expect("usdVia" in h.traders.recorded[0]).toBe(false);
     expect(h.blocks.asked).toEqual([56_168_785]);
     expect(h.traders.resolved).toEqual([QC]);
-    // The constructor warms WETH/USDG; the receipt decode then primes only the quote its own fills name.
-    expect(h.prices.primed).toEqual([[WETH, USDG], [USDG]]);
+    // The constructor warms WMON/USDC; the unpriced fill then asks the market quote cache for the token itself.
+    expect(h.prices.primed[0]).toEqual([QUOTES.wmon, QUOTES.usdc]);
+    expect(h.prices.primed.some((quotes) => quotes.includes(QC))).toBe(true);
     expect(h.feed.stats()).toMatchObject({ batches: 1, logsSeen: 1, fills: 1, duplicates: 0, unpriced: 0, untimed: 0, receiptsMissing: 0, lastOkAt: NOW, lastError: null });
     await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
     expect(h.traders.recorded).toHaveLength(1);
@@ -186,7 +189,7 @@ describe("TransferFeed batch processing", () => {
   });
 
   it("falls back to the batch view (usd null) when the receipt is unavailable and counts it", async () => {
-    const h = harness();
+    const h = harness({ tokenUsd: null });
     h.traders.receiptFor = async () => null;
     await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
     expect(h.traders.recorded).toHaveLength(1);
@@ -203,7 +206,7 @@ describe("TransferFeed batch processing", () => {
     expect(h.feed.stats()).toMatchObject({ fills: 0, untimed: 1 });
   });
 
-  it("records a seeded wallet's fill with the kind the service answers (seeded, never FOMO before its check) and ignores logs of untracked wallets", async () => {
+  it("records a seeded wallet's fill with the kind the service answers (seeded, never SMART before its check) and ignores logs of untracked wallets", async () => {
     const h = harness();
     h.traders.kinds = { [WALLET]: "seeded" };
     await h.feed.handleLogs(walletLogs(TX, WALLET), 56_168_800);
@@ -221,10 +224,10 @@ describe("TransferFeed batch processing", () => {
     expect(fill.quantity).toBe(QC_UNITS);
     const archive = new TradeArchive();
     try {
-      archive.ingest([toFomoPrint(fill)], QC);
+      archive.ingest([toSmartPrint(fill)], QC);
       // Same pair id and token, one coarse provider row alongside the decoded one.
-      archive.ingest([{ chain: "robinhood", pair: `fomo:${QC}`, tx: "0xprovider", time: BLOCK_TIME, side: "buy", usd: 500, price: 0.0002, source: "geckoterminal" }], QC);
-      const events = new Map(archive.history("robinhood", QC, BLOCK_TIME - 1, BLOCK_TIME + 1).events.map((event) => [event.tx, event] as const));
+      archive.ingest([{ chain: "monad", pair: `smart:${QC}`, tx: "0xprovider", time: BLOCK_TIME, side: "buy", usd: 500, price: 0.0002, source: "geckoterminal" }], QC);
+      const events = new Map(archive.history("monad", QC, BLOCK_TIME - 1, BLOCK_TIME + 1).events.map((event) => [event.tx, event] as const));
       const decoded = events.get(TX);
       expect(decoded).toMatchObject({ quantity: QC_UNITS, quantitySource: "decoded" });
       // The division the archive used to call "estimated" lands on the same number, which is why the old label misread ~12.4k rows.

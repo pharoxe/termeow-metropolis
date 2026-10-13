@@ -1,21 +1,29 @@
 import path from "node:path";
+import { mkdirSync } from "node:fs";
 import { config } from "../config.js";
-import { fomoscanDirectory } from "./fomoscanAccount.js";
 import { TokenRegistry } from "./tokenRegistry.js";
+
+const directory = path.resolve(process.env.TERMINAL_DATA_DIR || "data/terminal");
+mkdirSync(directory, { recursive: true });
 
 const seed = (registry: TokenRegistry) => {
   // High-confidence canonical entries win over similarly named newly launched pairs.
+  const { tokens } = config.network;
   registry.upsert({
-    chain: "solana", address: config.ansemMint, symbol: "ANSEM", name: "The Black Bull",
-    aliases: ["ansem coin"], source: "seeded", priority: 100, verified: true, verificationSource: "termeow-curated"
+    chain: "monad", address: tokens.wmon, symbol: "MON", name: "Monad (wrapped)",
+    aliases: ["mon", "monad", "wmon", "wrapped mon"], source: "seeded", priority: 100, verified: true, verificationSource: "monad-docs"
   });
   registry.upsert({
-    chain: "robinhood", address: "0x020bfc650a365f8bb26819deaabf3e21291018b4", symbol: "CASHCAT", name: "Cash Cat",
-    aliases: ["cash cat"], source: "seeded", priority: 100, verified: true, verificationSource: "termeow-curated"
+    chain: "monad", address: tokens.usdc, symbol: "USDC", name: "USD Coin",
+    aliases: ["usdc", "usd coin"], source: "seeded", priority: 100, verified: true, verificationSource: "monad-docs"
+  });
+  if (tokens.ausd) registry.upsert({
+    chain: "monad", address: tokens.ausd, symbol: "AUSD", name: "Agora Dollar",
+    aliases: ["ausd", "agora dollar"], source: "seeded", priority: 100, verified: true, verificationSource: "agora"
   });
 };
 
-let activeRegistry = new TokenRegistry(path.join(fomoscanDirectory, "token-index.db"));
+let activeRegistry = new TokenRegistry(path.join(directory, "token-index.db"));
 try {
   seed(activeRegistry);
 } catch (error) {

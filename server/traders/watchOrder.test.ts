@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { orderWatchList, type WatchRank } from "./watchOrder.js";
 
-/** 801 real Robinhood Chain addresses harvested 2026-09-07 (r5 capture) and the 147 named robinhoodtrenches traders. */
+/** 801 real EVM addresses harvested 2026-09-07 (r5 capture) and 147 named traders from the r4 capture. */
 const REAL = JSON.parse(readFileSync(new URL("./__fixtures__/r5/wallets-real.json", import.meta.url), "utf8")) as string[];
 const NAMED = (JSON.parse(readFileSync(new URL("./__fixtures__/r4/trenches-traders.json", import.meta.url), "utf8")) as Array<{ address: string }>).map((row) => row.address.toLowerCase());
 

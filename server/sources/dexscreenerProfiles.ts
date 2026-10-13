@@ -13,7 +13,7 @@ export type ProfileLink = { type?: string; label?: string; url: string };
 export type TokenProfile = {
   /** null for chains this desk does not model (base, bsc, ...); callers drop those rows. */
   chain: Chain | null;
-  /** Lowercased for robinhood, exact for solana. */
+  /** Lowercased. */
   address: string;
   /** Absolute URL, or null. Boost rows carry a bare CDN id here (e.g. "XRUwjpNTfGYdC88o"); that is not a URL and becomes null. */
   icon: string | null;
@@ -39,11 +39,11 @@ type RawProfile = {
 const feeds = createLastGoodCache<TokenProfile[]>(CACHE_TTL_MS);
 
 function chainOf(chainId: unknown): Chain | null {
-  return chainId === "solana" || chainId === "robinhood" ? chainId : null;
+  return chainId === "monad" ? chainId : null;
 }
 
 function normalizeAddress(chain: Chain | null, address: string): string {
-  return chain === "robinhood" ? address.toLowerCase() : address;
+  return chain === "monad" ? address.toLowerCase() : address;
 }
 
 function absoluteUrlOrNull(value: unknown): string | null {
@@ -102,7 +102,7 @@ async function loadFeed(url: string): Promise<TokenProfile[]> {
 }
 
 /**
- * Latest DexScreener token profiles (keyless; 16 to 21 of the newest 30 were robinhood when measured). 60s TTL, last-good on
+ * Latest DexScreener token profiles (keyless; 16 to 21 of the newest 30 were monad when measured). 60s TTL, last-good on
  * failure; throws only before the first success. Rows with `chain: null` are other chains and are the caller's to drop.
  */
 export async function fetchLatestProfiles(): Promise<TokenProfile[]> {

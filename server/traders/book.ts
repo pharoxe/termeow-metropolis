@@ -33,7 +33,7 @@ export type TraderBookOptions = {
 export type RecordOutcome = "accepted" | "duplicate" | "rejected";
 export type RecordResult = { accepted: number; duplicates: number; rejected: number };
 
-/** A single kind or a list of kinds to keep (e.g. ["fomo", "seeded"]); undefined keeps every row. */
+/** A single kind or a list of kinds to keep (e.g. ["smart", "seeded"]); undefined keeps every row. */
 export type KindFilter = TraderKind | readonly TraderKind[];
 export type RankOptions = { kind?: KindFilter };
 export type TapeOptions = { kind?: KindFilter; token?: string };
@@ -71,7 +71,7 @@ function fillKey(fill: TraderFill): string {
   return `${fill.chain}:${fill.tx}:${fill.pair}:${fill.trader}:${fill.side}`;
 }
 
-/** The same fill seen under two pair ids (R3 pool attribution vs R4 "fomo:<token>" transfer decode) must count once. */
+/** The same fill seen under two pair ids (R3 pool attribution vs R4 "smart:<token>" transfer decode) must count once. */
 function tradeKey(fill: Pick<TraderFill, "chain" | "tx" | "trader" | "token" | "side">): string {
   return `${fill.chain}:${fill.tx}:${fill.trader}:${fill.token}:${fill.side}`;
 }
@@ -146,7 +146,7 @@ export class TraderBook {
     return "accepted";
   }
 
-  /** Sets the kind of a wallet already in the book (a seeded wallet whose 7702 check finished after its first fill); false when unknown here. */
+  /** Sets the kind of a wallet already in the book (a seeded wallet whose smart-money check finished after its first fill); false when unknown here. */
   classify(chain: Chain, wallet: string, kind: TraderKind): boolean {
     const state = this.wallets.get(walletKey(chain, wallet));
     if (!state) return false;

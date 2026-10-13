@@ -30,26 +30,24 @@ function polledHealth(source: SourceHealth, nextRetryAt: number | null, now: num
   };
 }
 
-/** Last successful transport round trip of the own tape, whichever chain shape it reports; null when never. */
+/** Last successful transport round trip of the own tape; null when never. */
 function ownLastOkAt(tape: OwnHealthStats | null): number | null {
   if (!tape) return null;
-  if ("subscriber" in tape) return tape.subscriber.lastFrameAt ?? tape.lastPrintAt;
   return tape.poller.lastOkAt ?? tape.lastPrintAt;
 }
 
-/** Robinhood: the log poller's backoff deadline; Solana's subscriber reconnects on its own and reports none. */
+/** The log poller's backoff deadline, when it is backing off. */
 function ownNextRetryAt(tape: OwnHealthStats | null, now: number): number | null {
-  if (!tape || "subscriber" in tape) return null;
+  if (!tape) return null;
   return retryAt(tape.poller.blockedUntil, now);
 }
 
 /**
- * Own-tape health: a Robinhood poller is healthy when it polled successfully within OWN_FRESH_MS and is not backing
- * off; a Solana subscriber when it is connected. A tape fault (own.lastErrorAt set) or an untracked token is unhealthy.
+ * Own-tape health: the Monad log poller is healthy when it polled successfully within OWN_FRESH_MS and is not backing
+ * off. A tape fault (own.lastErrorAt set) or an untracked token is unhealthy.
  */
 function ownFresh(tape: OwnHealthStats | null, lastOkAt: number | null, now: number): boolean {
   if (!tape) return false;
-  if ("subscriber" in tape) return tape.subscriber.connected;
   return lastOkAt !== null && now - lastOkAt <= OWN_FRESH_MS;
 }
 
@@ -67,12 +65,11 @@ export function ownTapeHealthy(own: OwnSourceHealth, now: number): boolean {
 export function feedHealthOf(input: FeedHealthInput): FeedHealth {
   return {
     own: ownFeedHealth(input.own, input.now),
-    gecko: polledHealth(input.sources.geckoterminal, retryAt(input.geckoBlockedUntil, input.now), input.now),
-    pumpfun: polledHealth(input.sources.pumpfun, null, input.now)
+    gecko: polledHealth(input.sources.geckoterminal, retryAt(input.geckoBlockedUntil, input.now), input.now)
   };
 }
 
 /** True when no print source is ok: the ledger ring is then last-good data, not a live feed. */
 export function allSourcesDown(health: FeedHealth): boolean {
-  return !health.own.ok && !health.gecko.ok && !health.pumpfun.ok;
+  return !health.own.ok && !health.gecko.ok;
 }

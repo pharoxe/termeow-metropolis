@@ -28,7 +28,7 @@ describe("disagrees", () => {
 describe("mergeDiscover", () => {
   it("groups by token case-insensitively and keeps every source's figures side by side", () => {
     const rows = mergeDiscover(
-      "robinhood",
+      "monad",
       [
         partial({ token: A.toUpperCase(), source: "dex", priceUsd: 1, volumeUsd: 100, symbol: "AAA" }),
         partial({ token: A, source: "gecko", priceUsd: 2, volumeUsd: 100, rank: 0 }),
@@ -51,7 +51,7 @@ describe("mergeDiscover", () => {
 
   it("takes the first non-null figure in precedence order and never averages", () => {
     const [row] = mergeDiscover(
-      "robinhood",
+      "monad",
       [partial({ token: A, source: "trenches", priceUsd: 3, liquidityUsd: 50 }), partial({ token: A, source: "dex", priceUsd: null, marketCapUsd: 9 })],
       ["dex", "trenches"]
     );
@@ -64,24 +64,24 @@ describe("mergeDiscover", () => {
   });
 
   it("flags nothing when one side is null and keeps unknown sources after the precedence list", () => {
-    const [row] = mergeDiscover("robinhood", [partial({ token: A, source: "mystery", volumeUsd: 7 }), partial({ token: A, source: "dex", volumeUsd: null })], ["dex"]);
+    const [row] = mergeDiscover("monad", [partial({ token: A, source: "mystery", volumeUsd: 7 }), partial({ token: A, source: "dex", volumeUsd: null })], ["dex"]);
     expect(row.disputed).toEqual([]);
     expect(row.sources.map((source) => source.source)).toEqual(["dex", "mystery"]);
     expect(row.volumeUsd).toBe(7);
   });
 
   it("drops partials with an empty token", () => {
-    expect(mergeDiscover("robinhood", [partial({ token: "", source: "dex" })], ["dex"])).toEqual([]);
+    expect(mergeDiscover("monad", [partial({ token: "", source: "dex" })], ["dex"])).toEqual([]);
   });
 });
 
 describe("rankRows", () => {
   const rows = mergeDiscover(
-    "robinhood",
+    "monad",
     [
-      partial({ token: A, source: "gecko", rank: 1, volumeUsd: 10, changePct: -40, ageMs: 5_000, fomoHolders: 2 }),
-      partial({ token: B, source: "gecko", rank: 0, volumeUsd: 1, changePct: 15, ageMs: null, fomoHolders: 0 }),
-      partial({ token: "0xcccc000000000000000000000000000000000003", source: "dex", volumeUsd: 99, changePct: null, ageMs: 1_000, fomoHolders: null })
+      partial({ token: A, source: "gecko", rank: 1, volumeUsd: 10, changePct: -40, ageMs: 5_000, smartHolders: 2 }),
+      partial({ token: B, source: "gecko", rank: 0, volumeUsd: 1, changePct: 15, ageMs: null, smartHolders: 0 }),
+      partial({ token: "0xcccc000000000000000000000000000000000003", source: "dex", volumeUsd: 99, changePct: null, ageMs: 1_000, smartHolders: null })
     ],
     ["dex", "gecko"]
   );
@@ -99,7 +99,7 @@ describe("rankRows", () => {
     expect(tokens("new")).toEqual(["0xcccc", "0xaaaa", "0xbbbb"]);
   });
 
-  it("holders keeps only rows with verified-FOMO buyers, most first", () => {
+  it("holders keeps only rows with verified-SMART buyers, most first", () => {
     expect(tokens("holders")).toEqual(["0xaaaa"]);
   });
 

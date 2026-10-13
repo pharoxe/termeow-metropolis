@@ -32,8 +32,8 @@ describe("pickEnrichBatch", () => {
 
 describe("pruneAttempts", () => {
   it("drops stamps for tokens of that chain outside the window and leaves the other chain alone", () => {
-    const attempts = new Map([["robinhood:0xa", NOW], ["robinhood:0xb", NOW], ["solana:mint", NOW]]);
-    pruneAttempts(attempts, "robinhood", ["0xA"]);
-    expect([...attempts.keys()]).toEqual(["robinhood:0xa", "solana:mint"]);
+    const attempts = new Map([["monad:0xa", NOW], ["monad:0xb", NOW], ["solana:mint", NOW]]);
+    pruneAttempts(attempts, "monad", ["0xA"]);
+    expect([...attempts.keys()]).toEqual(["monad:0xa", "solana:mint"]);
   });
 });

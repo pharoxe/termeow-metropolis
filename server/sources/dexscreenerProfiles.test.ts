@@ -33,9 +33,9 @@ afterEach(() => {
 });
 
 describe("normalizeProfile", () => {
-  it("maps a robinhood profile row, lowercases the address and keeps typed and labelled links", () => {
+  it("maps a monad profile row, lowercases the address and keeps typed and labelled links", () => {
     expect(normalizeProfile(profiles[0])).toEqual({
-      chain: "robinhood",
+      chain: "monad",
       address: "0xd9f59e399941e377f8ec33405bde522f7fc75901",
       icon: "https://cdn.dexscreener.com/cms/images/H7qQurH9Xmc5e-nE?width=64&height=64&fit=crop&quality=95&format=auto",
       description: "The 8-meter ginger cat that took over Hong Kong International Airport. The internet named him Catzilla.",
@@ -43,13 +43,13 @@ describe("normalizeProfile", () => {
         { label: "Website", url: "https://hk.trip.com/moments/detail/hong-kong-38-148116110?locale=en-HK" },
         { type: "twitter", url: "https://x.com/catzillafutu" }
       ],
-      url: "https://dexscreener.com/robinhood/0xd9f59e399941e377f8ec33405bde522f7fc75901",
+      url: "https://dexscreener.com/monad/0xd9f59e399941e377f8ec33405bde522f7fc75901",
       boostTotal: null
     });
   });
 
-  it("keeps solana addresses exact and maps unknown chains to null", () => {
-    expect(normalizeProfile(profiles[1])).toMatchObject({ chain: "solana", address: "53NXKcDfVyy6m9xn5YhDFTEgss8CzXHQjLvJhEDk64Lu" });
+  it("maps non-Monad chains (solana included) to null and leaves their addresses untouched", () => {
+    expect(normalizeProfile(profiles[1])).toMatchObject({ chain: null, address: "53NXKcDfVyy6m9xn5YhDFTEgss8CzXHQjLvJhEDk64Lu" });
     expect(normalizeProfile({ ...profiles[0], chainId: "base" })?.chain).toBeNull();
     expect(normalizeProfile({ ...profiles[0], chainId: "bsc" })?.chain).toBeNull();
   });
@@ -64,7 +64,7 @@ describe("normalizeProfile", () => {
   });
 
   it("fills boostTotal from boost rows", () => {
-    expect(normalizeProfile(boosts[0])).toMatchObject({ chain: "robinhood", address: "0x92788a4870ee8c00059188b1114baad3b89568e0", boostTotal: 100, icon: null });
+    expect(normalizeProfile(boosts[0])).toMatchObject({ chain: "monad", address: "0x92788a4870ee8c00059188b1114baad3b89568e0", boostTotal: 100, icon: null });
   });
 });
 
@@ -75,8 +75,8 @@ describe("fetchLatestProfiles / fetchLatestBoosts", () => {
     const boosted = await fetchLatestBoosts();
     expect(spy.mock.calls.map((call) => String(call[0]))).toEqual([PROFILES_URL, BOOSTS_URL]);
     expect(rows).toHaveLength(10);
-    expect(rows.filter((row) => row.chain === "robinhood")).toHaveLength(8);
-    expect(rows.filter((row) => row.chain === "solana")).toHaveLength(2);
+    expect(rows.filter((row) => row.chain === "monad")).toHaveLength(8);
+    expect(rows.filter((row) => row.chain === null)).toHaveLength(2);
     expect(boosted).toHaveLength(10);
     expect(boosted.every((row) => row.boostTotal !== null)).toBe(true);
   });

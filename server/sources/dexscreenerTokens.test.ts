@@ -6,7 +6,7 @@ const MEAO = "0x8f5Ef8C3D77C1B89fda82Fc910eDE9f809DE524B";
 const ROB = "0xa29042272cC55fb939e0165509Ee124447767777";
 const TRENCH = "0x9b86fd81000000000000000000000000000000cc";
 const T0 = 1_760_000_000_000;
-const BASE = "https://api.dexscreener.com/tokens/v1/robinhood/";
+const BASE = "https://api.dexscreener.com/tokens/v1/monad/";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -31,7 +31,7 @@ afterEach(() => {
 
 describe("pickBestPairs", () => {
   it("maps the captured batch: one row per listed token, keyed lowercase, the unlisted trench token absent", () => {
-    const rows = pickBestPairs("robinhood", [MEAO, ROB, TRENCH], fixture);
+    const rows = pickBestPairs("monad", [MEAO, ROB, TRENCH], fixture);
     expect([...rows.keys()]).toEqual([MEAO.toLowerCase(), ROB.toLowerCase()]);
     expect(rows.get(MEAO.toLowerCase())).toEqual({
       symbol: "MEAO",
@@ -59,11 +59,11 @@ describe("pickBestPairs", () => {
       { ...meao, pairAddress: "0xother", chainId: "base", liquidity: { usd: 1e9 } },
       { ...meao, pairAddress: "0xquote", baseToken: { address: "0xdead" }, quoteToken: meao.baseToken, liquidity: { usd: 1e9 } }
     ];
-    const rows = pickBestPairs("robinhood", [MEAO], body);
+    const rows = pickBestPairs("monad", [MEAO], body);
     expect(rows.size).toBe(1);
     expect(rows.get(MEAO.toLowerCase())).toMatchObject({ pairAddress: "0xhigh", liquidityUsd: 99_999, image: "https://img/meao.png" });
-    expect(pickBestPairs("robinhood", [MEAO], [{ ...meao, liquidity: null }]).get(MEAO.toLowerCase())?.liquidityUsd).toBeNull();
-    expect(pickBestPairs("robinhood", [MEAO], { pairs: [] }).size).toBe(0);
+    expect(pickBestPairs("monad", [MEAO], [{ ...meao, liquidity: null }]).get(MEAO.toLowerCase())?.liquidityUsd).toBeNull();
+    expect(pickBestPairs("monad", [MEAO], { pairs: [] }).size).toBe(0);
   });
 });
 
@@ -81,27 +81,27 @@ describe("chunkAddresses", () => {
 describe("fetchTokenBatch", () => {
   it("asks for every address in one comma-joined call and caches hits and misses for 60s", async () => {
     const spy = stubFetch(() => jsonResponse(fixture));
-    const first = await fetchTokenBatch("robinhood", [MEAO, ROB, TRENCH]);
+    const first = await fetchTokenBatch("monad", [MEAO, ROB, TRENCH]);
     expect(String(spy.mock.calls[0][0])).toBe(`${BASE}${MEAO},${ROB},${TRENCH}`);
     expect(first.size).toBe(2);
     expect(first.has(TRENCH.toLowerCase())).toBe(false);
 
     vi.setSystemTime(T0 + 59_000);
-    const second = await fetchTokenBatch("robinhood", [TRENCH, ROB.toUpperCase().replace("0X", "0x"), MEAO]);
+    const second = await fetchTokenBatch("monad", [TRENCH, ROB.toUpperCase().replace("0X", "0x"), MEAO]);
     expect(spy).toHaveBeenCalledTimes(1);
     expect(second.size).toBe(2);
     expect(second.get(ROB.toLowerCase())?.symbol).toBe("ROB");
 
     vi.setSystemTime(T0 + 61_000);
-    await fetchTokenBatch("robinhood", [MEAO]);
+    await fetchTokenBatch("monad", [MEAO]);
     expect(spy).toHaveBeenCalledTimes(2);
     expect(String(spy.mock.calls[1][0])).toBe(`${BASE}${MEAO}`);
   });
 
   it("only fetches the addresses that are not fresh in the cache", async () => {
     const spy = stubFetch(() => jsonResponse(fixture));
-    await fetchTokenBatch("robinhood", [MEAO]);
-    const rows = await fetchTokenBatch("robinhood", [MEAO, ROB]);
+    await fetchTokenBatch("monad", [MEAO]);
+    const rows = await fetchTokenBatch("monad", [MEAO, ROB]);
     expect(spy).toHaveBeenCalledTimes(2);
     expect(String(spy.mock.calls[1][0])).toBe(`${BASE}${ROB}`);
     expect(rows.size).toBe(2);
@@ -110,19 +110,19 @@ describe("fetchTokenBatch", () => {
   it("serves last-good rows when the upstream fails and throws only with nothing cached", async () => {
     let calls = 0;
     stubFetch(() => (calls++ === 0 ? jsonResponse(fixture) : jsonResponse({ error: "rate" }, 429)));
-    const good = await fetchTokenBatch("robinhood", [MEAO, ROB]);
+    const good = await fetchTokenBatch("monad", [MEAO, ROB]);
     vi.setSystemTime(T0 + 61_000);
-    const stale = await fetchTokenBatch("robinhood", [MEAO, ROB]);
+    const stale = await fetchTokenBatch("monad", [MEAO, ROB]);
     expect(stale.get(MEAO.toLowerCase())).toBe(good.get(MEAO.toLowerCase()));
     expect(stale.size).toBe(2);
-    await expect(fetchTokenBatch("robinhood", [TRENCH.replace("cc", "dd")])).rejects.toThrow("429");
+    await expect(fetchTokenBatch("monad", [TRENCH.replace("cc", "dd")])).rejects.toThrow("429");
   });
 
   it("rejects more than 30 addresses and returns empty for an empty list without fetching", async () => {
     const spy = stubFetch(() => jsonResponse(fixture));
     const many = Array.from({ length: TOKEN_BATCH_MAX + 1 }, (_, index) => `0x${index.toString(16).padStart(40, "0")}`);
-    await expect(fetchTokenBatch("robinhood", many)).rejects.toThrow("at most 30");
-    expect((await fetchTokenBatch("robinhood", [])).size).toBe(0);
+    await expect(fetchTokenBatch("monad", many)).rejects.toThrow("at most 30");
+    expect((await fetchTokenBatch("monad", [])).size).toBe(0);
     expect(spy).not.toHaveBeenCalled();
   });
 });
@@ -131,7 +131,7 @@ describe("fetchTokenBatches", () => {
   it("splits an arbitrary list into calls of 30 and keeps the good chunks when one fails", async () => {
     const many = Array.from({ length: 62 }, (_, index) => `0x${index.toString(16).padStart(40, "0")}`);
     const spy = stubFetch((url) => (url.endsWith(`${MEAO},${ROB}`) ? jsonResponse(fixture) : url.includes(many[30]!) ? jsonResponse("busy", 503) : jsonResponse([])));
-    const rows = await fetchTokenBatches("robinhood", [...many, MEAO, ROB]);
+    const rows = await fetchTokenBatches("monad", [...many, MEAO, ROB]);
     expect(spy).toHaveBeenCalledTimes(3);
     expect(spy.mock.calls.map((call) => String(call[0]).slice(BASE.length).split(",").length)).toEqual([30, 30, 4]);
     expect(rows.size).toBe(2);

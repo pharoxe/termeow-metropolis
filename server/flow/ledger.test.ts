@@ -8,7 +8,7 @@ const M0 = Math.floor(T0 / MINUTE_MS) * MINUTE_MS;
 
 function print(over: Partial<FlowPrint> = {}): FlowPrint {
   return {
-    chain: "solana",
+    chain: "monad",
     pair: "pool-A",
     tx: `tx-${over.time ?? T0}-${over.side ?? "buy"}`,
     time: T0,
@@ -20,7 +20,7 @@ function print(over: Partial<FlowPrint> = {}): FlowPrint {
 }
 
 function totals(ledger: FlowLedger, bucketMs: number, from: number, to: number, pair = "pool-A") {
-  return ledger.series("solana", pair, bucketMs, from, to);
+  return ledger.series("monad", pair, bucketMs, from, to);
 }
 
 describe("FlowLedger ingest", () => {
@@ -47,7 +47,7 @@ describe("FlowLedger ingest", () => {
     expect(second).toEqual({ accepted: 1, duplicates: 1 });
     const other = ledger.ingest([
       print({ tx: "x", pair: "pool-B" }),
-      print({ tx: "x", chain: "robinhood" })
+      print({ tx: "x", pair: "pool-C" })
     ]);
     expect(other).toEqual({ accepted: 2, duplicates: 0 });
     expect(totals(ledger, MINUTE_MS, 0, Number.MAX_SAFE_INTEGER)[0].buys).toBe(3);
@@ -153,8 +153,8 @@ describe("FlowLedger housekeeping", () => {
     ledger.ingest([print({ tx: "b", pair: "p2" })]);
     ledger.ingest([print({ tx: "c", pair: "p1" })]);
     ledger.ingest([print({ tx: "d", pair: "p3" })]);
-    expect(ledger.pairs()).toEqual(["solana:p1", "solana:p3"]);
-    expect(ledger.firstPrintAt("solana", "p2")).toBeNull();
+    expect(ledger.pairs()).toEqual(["monad:p1", "monad:p3"]);
+    expect(ledger.firstPrintAt("monad", "p2")).toBeNull();
   });
 
   it("prunes minute and hour buckets past retention using the injected clock", () => {
@@ -173,7 +173,7 @@ describe("FlowLedger housekeeping", () => {
     expect(totals(ledger, HOUR_MS, 0, Number.MAX_SAFE_INTEGER).map((b) => b.t)).toEqual([
       Math.floor(clock.now / HOUR_MS) * HOUR_MS
     ]);
-    expect(ledger.firstPrintAt("solana", "pool-A")).toBe(T0);
+    expect(ledger.firstPrintAt("monad", "pool-A")).toBe(T0);
   });
 
   it("keeps whole hours in the minute tier so the hourly merge stays exact", () => {
@@ -190,17 +190,17 @@ describe("FlowLedger housekeeping", () => {
 describe("FlowLedger coverage", () => {
   it("returns 0 with a null firstPrintAt when the pair is unknown", () => {
     const ledger = new FlowLedger({ now: () => T0 });
-    expect(ledger.coverage("solana", "none", T0, T0 + HOUR_MS)).toEqual({ fraction: 0, firstPrintAt: null });
+    expect(ledger.coverage("monad", "none", T0, T0 + HOUR_MS)).toEqual({ fraction: 0, firstPrintAt: null });
   });
 
   it("reports the share of the window at or after the first print", () => {
     const ledger = new FlowLedger({ now: () => T0 });
     ledger.ingest([print({ tx: "b", time: T0 + 30 * MINUTE_MS }), print({ tx: "a", time: T0 + 15 * MINUTE_MS })]);
     const first = T0 + 15 * MINUTE_MS;
-    expect(ledger.coverage("solana", "pool-A", T0, T0 + HOUR_MS)).toEqual({ fraction: 0.75, firstPrintAt: first });
-    expect(ledger.coverage("solana", "pool-A", first, T0 + HOUR_MS).fraction).toBe(1);
-    expect(ledger.coverage("solana", "pool-A", T0 - HOUR_MS, T0).fraction).toBe(0);
-    expect(ledger.coverage("solana", "pool-A", T0 + HOUR_MS, T0).fraction).toBe(0);
+    expect(ledger.coverage("monad", "pool-A", T0, T0 + HOUR_MS)).toEqual({ fraction: 0.75, firstPrintAt: first });
+    expect(ledger.coverage("monad", "pool-A", first, T0 + HOUR_MS).fraction).toBe(1);
+    expect(ledger.coverage("monad", "pool-A", T0 - HOUR_MS, T0).fraction).toBe(0);
+    expect(ledger.coverage("monad", "pool-A", T0 + HOUR_MS, T0).fraction).toBe(0);
   });
 });
 
@@ -208,25 +208,25 @@ describe("FlowLedger recentPrints", () => {
   it("returns accepted prints newest first and an empty list for unknown pairs", () => {
     const ledger = new FlowLedger({ now: () => T0 });
     ledger.ingest([print({ tx: "a", time: T0 }), print({ tx: "b", time: T0 + 5000, side: "sell" }), print({ tx: "c", time: T0 + 2000, usd: null })]);
-    expect(ledger.recentPrints("solana", "pool-A").map((p) => p.tx)).toEqual(["b", "c", "a"]);
-    expect(ledger.recentPrints("solana", "pool-A", 2).map((p) => p.tx)).toEqual(["b", "c"]);
-    expect(ledger.recentPrints("solana", "pool-A", 0)).toEqual([]);
-    expect(ledger.recentPrints("solana", "nope")).toEqual([]);
+    expect(ledger.recentPrints("monad", "pool-A").map((p) => p.tx)).toEqual(["b", "c", "a"]);
+    expect(ledger.recentPrints("monad", "pool-A", 2).map((p) => p.tx)).toEqual(["b", "c"]);
+    expect(ledger.recentPrints("monad", "pool-A", 0)).toEqual([]);
+    expect(ledger.recentPrints("monad", "nope")).toEqual([]);
   });
 
   it("keeps only the newest `recentRing` prints by time, whatever the ingest order", () => {
     const ledger = new FlowLedger({ now: () => T0, recentRing: 3 });
     ledger.ingest([print({ tx: "d", time: T0 + 4000 }), print({ tx: "b", time: T0 + 2000 }), print({ tx: "a", time: T0 + 1000 })]);
     ledger.ingest([print({ tx: "c", time: T0 + 3000 }), print({ tx: "z", time: T0 - 9000 })]);
-    expect(ledger.recentPrints("solana", "pool-A").map((p) => p.tx)).toEqual(["d", "c", "b"]);
-    expect(ledger.recentPrints("solana", "pool-A", 99)).toHaveLength(3);
+    expect(ledger.recentPrints("monad", "pool-A").map((p) => p.tx)).toEqual(["d", "c", "b"]);
+    expect(ledger.recentPrints("monad", "pool-A", 99)).toHaveLength(3);
   });
 
   it("never admits a duplicate tx into the ring and does not change bucket sums", () => {
     const ledger = new FlowLedger({ now: () => T0 });
     ledger.ingest([print({ tx: "dup", time: T0, usd: 10 })]);
     expect(ledger.ingest([print({ tx: "dup", time: T0 + 1000, usd: 999 })])).toEqual({ accepted: 0, duplicates: 1 });
-    expect(ledger.recentPrints("solana", "pool-A").map((p) => [p.tx, p.usd])).toEqual([["dup", 10]]);
+    expect(ledger.recentPrints("monad", "pool-A").map((p) => [p.tx, p.usd])).toEqual([["dup", 10]]);
     expect(totals(ledger, MINUTE_MS, M0, M0)[0]).toMatchObject({ buyUsd: 10, buys: 1 });
   });
 });

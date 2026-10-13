@@ -6,7 +6,7 @@ import type { Candle } from "../types.js";
 export const GECKO_BASE_URL = "https://api.geckoterminal.com/api/v2";
 export const GECKO_HEADERS = {
   Accept: "application/json",
-  "User-Agent": "terminal-v-solana/0.2"
+  "User-Agent": "termeow-monad/0.3"
 };
 export const GECKO_BUCKET_LIMIT = 25;
 export const GECKO_BUCKET_WINDOW_MS = 60_000;
@@ -188,7 +188,7 @@ function toUsd(value: unknown): number | null {
 
 function sameToken(chain: Chain, a: unknown, b: string): boolean {
   if (typeof a !== "string" || !a) return false;
-  return chain === "robinhood" ? a.toLowerCase() === b.toLowerCase() : a === b;
+  return chain === "monad" ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 /**

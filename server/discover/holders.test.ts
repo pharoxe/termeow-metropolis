@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fomoBuyersByToken, type HolderFill } from "./holders.js";
+import { smartBuyersByToken, type HolderFill } from "./holders.js";
 
 const T1 = "0xaaaa000000000000000000000000000000000001";
 const T2 = "0xbbbb000000000000000000000000000000000002";
@@ -8,9 +8,9 @@ function fill(overrides: Partial<HolderFill>): HolderFill {
   return { token: T1, trader: "0xw1", side: "buy", time: 1_000, ...overrides };
 }
 
-describe("fomoBuyersByToken", () => {
+describe("smartBuyersByToken", () => {
   it("counts distinct buyers per token, ignoring sells and fills before the window", () => {
-    const counts = fomoBuyersByToken(
+    const counts = smartBuyersByToken(
       [
         fill({ trader: "0xw1" }),
         fill({ trader: "0xW1" }),
@@ -27,10 +27,10 @@ describe("fomoBuyersByToken", () => {
   });
 
   it("returns an empty map for an empty tape, never a placeholder", () => {
-    expect(fomoBuyersByToken([], 0).size).toBe(0);
+    expect(smartBuyersByToken([], 0).size).toBe(0);
   });
 
   it("treats a non-finite time as outside the window", () => {
-    expect(fomoBuyersByToken([fill({ time: Number.NaN })], 0).size).toBe(0);
+    expect(smartBuyersByToken([fill({ time: Number.NaN })], 0).size).toBe(0);
   });
 });

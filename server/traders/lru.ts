@@ -1,6 +1,6 @@
 /**
  * Insertion-ordered Map used as an LRU: a hit re-inserts the key, eviction drops the oldest. The same shape
- * tape/robinhood/blocks.ts keeps inline; factored out so the trader caches (code, receipt) bound memory the same way.
+ * tape/monad/blocks.ts keeps inline; factored out so the trader caches (code, receipt) bound memory the same way.
  */
 export class LruMap<K, V> {
   private readonly entries = new Map<K, V>();

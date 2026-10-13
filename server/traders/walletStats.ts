@@ -2,12 +2,12 @@ import type { Chain, FlowPrint, TraderKind } from "../../shared/wire.js";
 import { wilsonLower } from "./wilson.js";
 
 /**
- * "fomo" only after the EIP-7702 designator check proved the wallet; "other" means checked and not FOMO;
- * null means never checked. Solana wallets stay null until a Solana fingerprint is verified.
+ * "smart" only after the smart-money label check proved the wallet; "other" means checked and not SMART;
+ * null means never checked.
  */
 export type { TraderKind } from "../../shared/wire.js";
 
-/** A flow print attributed to a wallet. `trader` is normalised by the caller (lowercase 0x on Robinhood). */
+/** A flow print attributed to a wallet. `trader` is normalised by the caller (lowercase 0x on Monad). */
 export type TraderFill = Omit<FlowPrint, "trader"> & {
   trader: string;
   token: string;

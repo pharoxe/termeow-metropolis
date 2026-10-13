@@ -3,7 +3,7 @@ import type { Chain, LaunchRow } from "../../shared/wire.js";
 import type { IndexedToken, TokenIndexSource, TokenResolution } from "../../shared/tokenIndex.js";
 
 const normalize = (value: string) => value.trim().replace(/^\$+/, "").toLowerCase();
-const addressKey = (chain: Chain, address: string) => chain === "robinhood" ? address.toLowerCase() : address;
+const addressKey = (chain: Chain, address: string) => chain === "monad" ? address.toLowerCase() : address;
 
 type TokenInput = Omit<IndexedToken, "aliases" | "observedAt"> & { aliases?: string[]; observedAt?: number };
 type TokenRow = { chain: Chain; address: string; symbol: string; name: string | null; imageUrl: string | null; aliases: string; source: TokenIndexSource; priority: number; observedAt: number; verified: number; verificationSource: string | null };
@@ -22,7 +22,7 @@ const decode = (row: TokenRow): IndexedToken => ({
   verificationSource: row.verificationSource ?? undefined
 });
 
-/** Local ticker-to-contract gateway. Like the Fomo identity registry, clients never spend upstream credits. */
+/** Local ticker-to-contract gateway. Like the Smart identity registry, clients never spend upstream credits. */
 export class TokenRegistry {
   private db: DatabaseSync;
   readonly persistent: boolean;

@@ -11,49 +11,41 @@ import {
   type TokenProfile
 } from "../sources/dexscreenerProfiles.js";
 import { fetchTokenBatches, type TokenBatch } from "../sources/dexscreenerTokens.js";
-import { TRENCHES_SOURCE, fetchTrenchTokens, type TrenchTokensResult, type TrenchWindow } from "../sources/trenches.js";
-import { BlockTimeCache } from "../tape/robinhood/blocks.js";
-import { RobinhoodLogPoller } from "../tape/robinhood/poller.js";
-import { EvmQuotePrice } from "../tape/robinhood/price.js";
+import { BlockTimeCache } from "../tape/monad/blocks.js";
+import { MonadLogPoller } from "../tape/monad/poller.js";
+import { EvmQuotePrice } from "../tape/monad/price.js";
 import { AlertingLaunchIndex } from "../alerts/launchIndex.js";
 import { alertSink } from "../alerts/sink.js";
 import { withTraderHooks } from "../traders/launchHooks.js";
 import { getTraderService } from "../traders/service.js";
-import { DEXSCREENER_TOKENS_SOURCE, ERC20_META_SOURCE, PUMPPORTAL_SOURCE, erc20MetaUpsert, profileUpsert, solanaLaunchUpsert, tokenBatchUpsert, trenchUpsert } from "./enrich.js";
+import { DEXSCREENER_TOKENS_SOURCE, ERC20_META_SOURCE, erc20MetaUpsert, profileUpsert, tokenBatchUpsert } from "./enrich.js";
 import { pickEnrichBatch, pruneAttempts } from "./enrichBatch.js";
 import { LaunchIndex, launchKey, type LaunchIndexStats, type LaunchListQuery } from "./index.js";
-import { ROBINHOOD_LAUNCH_SOURCE, RobinhoodLaunchStream, launchRegistryPool, type RobinhoodLaunchStreamStats } from "./robinhood/stream.js";
-import { PumpPortalNewTokens, type PumpPortalStatus, type SolanaLaunch } from "./solana/pumpportal.js";
+import { MONAD_LAUNCH_SOURCE, MonadLaunchStream, launchRegistryPool, type MonadLaunchStreamStats } from "./monad/stream.js";
 
 export const REFRESH_INTERVAL_MS = 60_000;
 /** Tokens per chain sent to DexScreener tokens/v1 each refresh (two calls of 30), picked by enrichment staleness. */
 export const ENRICH_BATCH = 60;
 export const ENRICH_WINDOW_MS = 24 * 3_600_000;
-export const TRENCH_WINDOW: TrenchWindow = "24h";
-export const TRENCH_LIMIT = 200;
-/** R6: unnamed Robinhood rows sent to erc20Meta per refresh, newest first; two paced eth_calls each on the 2 rps low lane (~20 s). */
+/** Unnamed Monad rows sent to erc20Meta per refresh, newest first; two paced eth_calls each on the low lane. */
 export const NAME_BATCH = 20;
 const LOG_THROTTLE_MS = 60_000;
-const CHAINS: Chain[] = ["solana", "robinhood"];
+const CHAINS: Chain[] = ["monad"];
 
 export type LaunchSourceHealth = { name: string; lastOkAt: number | null; lastError: string | null };
-export type RobinhoodStreamLike = { start(): void; stop(): void; stats(): RobinhoodLaunchStreamStats };
-export type PumpPortalLike = { start(): void; stop(): void; status(): PumpPortalStatus };
+export type MonadStreamLike = { start(): void; stop(): void; stats(): MonadLaunchStreamStats };
 type Health = { lastOkAt: number | null; lastError: string | null; lastLoggedAt: number };
 
 export type LaunchServiceDeps = {
   index?: LaunchIndex;
   now?: () => number;
   log?: (msg: string) => void;
-  /** Factory for the Robinhood stream; return null to run without it. */
-  robinhood?: (index: LaunchIndex, log: (msg: string) => void) => RobinhoodStreamLike | null;
-  /** Factory for the PumpPortal client; `onLaunch` must be wired to the returned client. Return null to run without it. */
-  pumpportal?: (onLaunch: (launch: SolanaLaunch) => void, log: (msg: string) => void) => PumpPortalLike | null;
+  /** Factory for the Monad stream; return null to run without it. */
+  monad?: (index: LaunchIndex, log: (msg: string) => void) => MonadStreamLike | null;
   fetchProfiles?: () => Promise<TokenProfile[]>;
   fetchBoosts?: () => Promise<TokenProfile[]>;
   fetchTokenBatches?: (chain: Chain, addresses: string[]) => Promise<TokenBatch>;
-  fetchTrenchTokens?: (window: TrenchWindow, limit: number) => Promise<TrenchTokensResult>;
-  /** R6: symbol lookups for unnamed Robinhood rows; defaults to the trader service's erc20Meta (cached, paced, low lane). */
+  /** Symbol lookups for unnamed Monad rows; defaults to the trader service's erc20Meta (cached, paced, low lane). */
   erc20Meta?: Erc20MetaLike;
   refreshMs?: number;
 };
@@ -64,44 +56,43 @@ export type LaunchServiceStatus = {
   started: boolean;
   sources: LaunchSourceHealth[];
   index: LaunchIndexStats;
-  robinhood: RobinhoodLaunchStreamStats | null;
-  pumpportal: PumpPortalStatus | null;
+  monad: MonadLaunchStreamStats | null;
 };
 
-/** Token behind a curve pseudo-pair: Flap/Trench name it in the pair, Pons/Bags pairs carry the emitter, looked up on the index. */
+/** Token behind a curve pseudo-pair: nad.fun names it in the pair ("nadfun:<token>"); per-token-curve pads are looked up on the index. */
 function tokenForCurvePair(index: LaunchIndex, pair: string): string | null {
   const colon = pair.indexOf(":");
   if (colon <= 0) return null;
   const pad = pair.slice(0, colon);
   const id = pair.slice(colon + 1).toLowerCase();
-  if (pad === "flap" || pad === "trench") return id;
-  const row = index.list({ chain: "robinhood", windowMs: ENRICH_WINDOW_MS }).find((candidate) => candidate.curve?.toLowerCase() === id);
+  if (pad === "nadfun") return id;
+  const row = index.list({ chain: "monad", windowMs: ENRICH_WINDOW_MS }).find((candidate) => candidate.curve?.toLowerCase() === id);
   return row?.token ?? null;
 }
 
 /** R3: the launch poller also carries the EntryPoint user-op leg and curve trades are trader-annotated before ingest. */
-function liveRobinhoodStream(index: LaunchIndex, log: (msg: string) => void): RobinhoodLaunchStream {
-  const rpcUrl = config.robinhood.rpcUrl;
+function liveMonadStream(index: LaunchIndex, log: (msg: string) => void): MonadLaunchStream {
+  const rpcUrl = config.monad.rpcUrl;
   const hooked = withTraderHooks({
-    poller: new RobinhoodLogPoller({ rpcUrl, log, name: "launch" }),
+    poller: new MonadLogPoller({ rpcUrl, log, name: "launch" }),
     ledger: flowCollector.ledger,
     traders: getTraderService(),
     tokenOf: (pair) => tokenForCurvePair(index, pair),
     log
   });
-  return new RobinhoodLaunchStream({
+  return new MonadLaunchStream({
     index,
     ledger: hooked.ledger,
     poller: hooked.poller,
     blocks: new BlockTimeCache({ rpcUrl }),
-    prices: new EvmQuotePrice({ chain: "robinhood" }),
+    prices: new EvmQuotePrice({ chain: "monad" }),
     log
   });
 }
 
 /**
- * One process-wide launch feed: Robinhood launchpad logs, PumpPortal creates, DexScreener profile/boost discovery
- * and 60s enrichment (DexScreener prices, robinhoodtrenches tracked traders) all writing one LaunchIndex.
+ * One process-wide launch feed: nad.fun curve logs on Monad, DexScreener profile/boost discovery and 60s enrichment
+ * (DexScreener prices, ERC-20 symbols) all writing one LaunchIndex.
  * Started lazily by the first request and kept running; every source failure lands in status() and a throttled log.
  */
 export class LaunchService {
@@ -113,8 +104,7 @@ export class LaunchService {
   /** launchKey -> when the token was last sent to DexScreener tokens/v1, priced or not; drives batch rotation. */
   private readonly nameAttemptAt = new Map<string, number>();
   private readonly enrichAttemptAt = new Map<string, number>();
-  private robinhood: RobinhoodStreamLike | null = null;
-  private pumpportal: PumpPortalLike | null = null;
+  private monad: MonadStreamLike | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private refreshing = false;
   private started = false;
@@ -130,11 +120,8 @@ export class LaunchService {
   start(): void {
     if (this.started) return;
     this.started = true;
-    this.robinhood = this.guarded("rpc:robinhood", () => (this.deps.robinhood ?? liveRobinhoodStream)(this.index, this.log)) ?? null;
-    this.robinhood?.start();
-    const makePump = this.deps.pumpportal ?? ((onLaunch, log) => new PumpPortalNewTokens({ onLaunch, log }));
-    this.pumpportal = this.guarded(PUMPPORTAL_SOURCE, () => makePump((launch) => this.onSolanaLaunch(launch), this.log)) ?? null;
-    this.pumpportal?.start();
+    this.monad = this.guarded("rpc:monad", () => (this.deps.monad ?? liveMonadStream)(this.index, this.log)) ?? null;
+    this.monad?.start();
     void this.refresh();
     this.timer = setInterval(() => void this.refresh(), this.deps.refreshMs ?? REFRESH_INTERVAL_MS);
     this.timer.unref?.();
@@ -143,8 +130,7 @@ export class LaunchService {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.robinhood?.stop();
-    this.pumpportal?.stop();
+    this.monad?.stop();
     this.started = false;
   }
 
@@ -153,11 +139,11 @@ export class LaunchService {
   }
 
   /**
-   * Curve-phase pseudo-pair for the flow registry (Robinhood only); [] when the token has no curve tape or has already
+   * Curve-phase pseudo-pair for the flow registry (Monad only); [] when the token has no curve tape or has already
    * graduated (the curve stops trading once the real pool exists, so the pseudo-pair must not hold a Tier A slot).
    */
   curvePairsFor(chain: Chain, address: string): RegistryPool[] {
-    if (chain !== "robinhood") return [];
+    if (chain !== "monad") return [];
     const row = this.index.get(chain, address);
     if (!row || row.graduatedAt !== null) return [];
     const pool = launchRegistryPool(row.launchpad, row.token, row.curve);
@@ -169,8 +155,7 @@ export class LaunchService {
       started: this.started,
       sources: this.sources(),
       index: this.index.stats(),
-      robinhood: this.robinhood?.stats() ?? null,
-      pumpportal: this.pumpportal?.status() ?? null
+      monad: this.monad?.stats() ?? null
     };
   }
 
@@ -179,20 +164,11 @@ export class LaunchService {
     if (this.refreshing) return;
     this.refreshing = true;
     try {
-      await Promise.all([this.discover(DEXSCREENER_PROFILES_SOURCE), this.discover(DEXSCREENER_BOOSTS_SOURCE), this.enrichTrenches()]);
+      await Promise.all([this.discover(DEXSCREENER_PROFILES_SOURCE), this.discover(DEXSCREENER_BOOSTS_SOURCE)]);
       await this.enrichPrices();
       await this.enrichNames();
     } finally {
       this.refreshing = false;
-    }
-  }
-
-  private onSolanaLaunch(launch: SolanaLaunch): void {
-    try {
-      this.index.upsert(solanaLaunchUpsert(launch));
-      this.ok(PUMPPORTAL_SOURCE);
-    } catch (error) {
-      this.fail(PUMPPORTAL_SOURCE, error);
     }
   }
 
@@ -241,17 +217,17 @@ export class LaunchService {
   }
 
   /**
-   * R6: Robinhood rows still without a symbol after every feed (Pons events, DexScreener profile rows, curve-phase tokens
+   * Monad rows still without a symbol after every feed (DexScreener profile rows, curve-phase tokens
    * DexScreener does not list) ask the contract itself. erc20Meta caches hits forever and failures for 10 min, so
    * rotate unresolved tokens across rounds; at most NAME_BATCH lookups per round bound the RPC cost.
    */
   private async enrichNames(): Promise<void> {
     const meta = this.deps.erc20Meta ?? getTraderService().erc20Meta;
-    const candidates = this.index.list({ chain: "robinhood", windowMs: ENRICH_WINDOW_MS }).filter((row) => row.symbol === null).map((row) => row.token);
-    pruneAttempts(this.nameAttemptAt, "robinhood", candidates);
-    const tokens = pickEnrichBatch(candidates, (token) => this.nameAttemptAt.get(launchKey("robinhood", token)) ?? null, NAME_BATCH);
+    const candidates = this.index.list({ chain: "monad", windowMs: ENRICH_WINDOW_MS }).filter((row) => row.symbol === null).map((row) => row.token);
+    pruneAttempts(this.nameAttemptAt, "monad", candidates);
+    const tokens = pickEnrichBatch(candidates, (token) => this.nameAttemptAt.get(launchKey("monad", token)) ?? null, NAME_BATCH);
     if (!tokens.length) return;
-    for (const token of tokens) this.nameAttemptAt.set(launchKey("robinhood", token), this.now());
+    for (const token of tokens) this.nameAttemptAt.set(launchKey("monad", token), this.now());
     const entries = await Promise.allSettled(tokens.map((token) => meta.resolve(token)));
     entries.forEach((entry, index) => {
       if (entry.status !== "fulfilled") return;
@@ -263,29 +239,14 @@ export class LaunchService {
     if (failed?.status === "rejected") this.fail(ERC20_META_SOURCE, failed.reason);
   }
 
-  private async enrichTrenches(): Promise<void> {
-    const load = this.deps.fetchTrenchTokens ?? fetchTrenchTokens;
-    try {
-      const result = await load(TRENCH_WINDOW, TRENCH_LIMIT);
-      const observedAt = this.now();
-      for (const row of result.rows) this.index.upsert(trenchUpsert(row, this.index.get("robinhood", row.address), observedAt));
-      if (result.error) this.fail(TRENCHES_SOURCE, new Error(result.error), result.stale ? null : this.now());
-      else this.ok(TRENCHES_SOURCE);
-    } catch (error) {
-      this.fail(TRENCHES_SOURCE, error);
-    }
-  }
-
   private sources(): LaunchSourceHealth[] {
-    const polled = [DEXSCREENER_PROFILES_SOURCE, DEXSCREENER_BOOSTS_SOURCE, DEXSCREENER_TOKENS_SOURCE, TRENCHES_SOURCE, ERC20_META_SOURCE].map((name) => {
+    const polled = [DEXSCREENER_PROFILES_SOURCE, DEXSCREENER_BOOSTS_SOURCE, DEXSCREENER_TOKENS_SOURCE, ERC20_META_SOURCE].map((name) => {
       const health = this.health.get(name);
       return { name, lastOkAt: health?.lastOkAt ?? null, lastError: health?.lastError ?? null };
     });
-    const poller = this.robinhood?.stats().poller;
-    const pump = this.pumpportal?.status();
+    const poller = this.monad?.stats().poller;
     return [
-      { name: ROBINHOOD_LAUNCH_SOURCE, lastOkAt: poller?.lastOkAt ?? null, lastError: this.health.get(ROBINHOOD_LAUNCH_SOURCE)?.lastError ?? poller?.lastError ?? null },
-      { name: PUMPPORTAL_SOURCE, lastOkAt: pump?.lastFrameAt ?? null, lastError: this.health.get(PUMPPORTAL_SOURCE)?.lastError ?? pump?.lastError ?? null },
+      { name: MONAD_LAUNCH_SOURCE, lastOkAt: poller?.lastOkAt ?? null, lastError: this.health.get(MONAD_LAUNCH_SOURCE)?.lastError ?? poller?.lastError ?? null },
       ...polled
     ];
   }

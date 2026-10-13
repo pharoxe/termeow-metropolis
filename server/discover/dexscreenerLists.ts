@@ -11,7 +11,7 @@ import type { DiscoverPartial } from "./merge.js";
  * launch index's enrichment, so the same tokens are never asked for twice a minute. Nothing here fetches.
  */
 export const DEXSCREENER_DISCOVERY_SOURCE = "dexscreener profiles+boosts · tokens/v1";
-/** DexScreener's per-call address ceiling; profiles ∪ boosts measured 27 robinhood tokens, so one call covers the lists. */
+/** DexScreener's per-call address ceiling; profiles ∪ boosts measured 27 monad tokens, so one call covers the lists. */
 export const DEXSCREENER_LIST_MAX = 30;
 
 type WindowKey = "h1" | "h24";
@@ -34,13 +34,13 @@ function txns(raw: { buys?: unknown; sells?: unknown } | null | undefined): Pair
   return buys === null || sells === null ? null : { buys, sells };
 }
 
-/** Distinct lowercased robinhood addresses across both feeds, profiles first (newest first), capped to one call. */
+/** Distinct lowercased monad addresses across both feeds, profiles first (newest first), capped to one call. */
 export function discoveryAddresses(chain: Chain, profiles: readonly TokenProfile[], boosts: readonly TokenProfile[]): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const profile of [...profiles, ...boosts]) {
     if (profile.chain !== chain) continue;
-    const address = chain === "solana" ? profile.address : profile.address.toLowerCase();
+    const address = profile.address.toLowerCase();
     if (seen.has(address)) continue;
     seen.add(address);
     out.push(address);
@@ -50,14 +50,14 @@ export function discoveryAddresses(chain: Chain, profiles: readonly TokenProfile
 }
 
 /** One best pair as the token's partial for `window`. marketCap is not backfilled from fdv: they differ on tokens with locked supply. */
-export function normalizeDexScreenerPair(token: string, pair: DexScreenerPair, window: DiscoverWindow, now: number, lastOkAt: number | null, stale: boolean, chain: Chain = "robinhood"): DiscoverPartial {
+export function normalizeDexScreenerPair(token: string, pair: DexScreenerPair, window: DiscoverWindow, now: number, lastOkAt: number | null, stale: boolean, chain: Chain = "monad"): DiscoverPartial {
   const key = WINDOW_KEY[window];
   const createdAt = finiteOrNull(pair.pairCreatedAt);
   const symbol = String(pair.baseToken?.symbol ?? "").trim();
   const name = String(pair.baseToken?.name ?? "").trim();
   const pool = String(pair.pairAddress ?? "").trim();
   return {
-    token: chain === "solana" ? token : token.toLowerCase(),
+    token: token.toLowerCase(),
     source: DEXSCREENER_DISCOVERY_SOURCE,
     lastOkAt,
     stale,
@@ -71,9 +71,9 @@ export function normalizeDexScreenerPair(token: string, pair: DexScreenerPair, w
     changePct: finiteOrNull(pair.priceChange?.[key]),
     txns: txns(pair.txns?.[key]),
     ageMs: createdAt === null ? null : Math.max(0, now - createdAt),
-    pool: pool ? (chain === "solana" ? pool : pool.toLowerCase()) : null,
+    pool: pool ? pool.toLowerCase() : null,
     dex: pair.dexId ? String(pair.dexId) : null,
-    fomoHolders: null,
+    smartHolders: null,
     trackedBuyers: null
   };
 }

@@ -3,19 +3,18 @@ import type { FlowPrint, PairRow } from "../../shared/wire.js";
 import { FlowLedger, HOUR_MS, MINUTE_MS } from "./ledger.js";
 import { coverageShare, intervalToMs, isFlowInterval, sumSeries, tokenFlow, weightedCoverage } from "./aggregate.js";
 import type { TokenFlowInput } from "./aggregate.js";
-import { buildRegistry } from "./registry.js";
 
 const T0 = 1_700_000_400_000; // minute-aligned
 const NOW = T0 + HOUR_MS;
 
 function print(pair: string, time: number, side: "buy" | "sell", usd: number | null): FlowPrint {
-  return { chain: "solana", pair, tx: `${pair}-${time}-${side}-${usd}`, time, side, usd, source: "geckoterminal" };
+  return { chain: "monad", pair, tx: `${pair}-${time}-${side}-${usd}`, time, side, usd, source: "geckoterminal" };
 }
 
 function pairRow(pairAddress: string, tier: "A" | "B", share24: number | null): PairRow {
   return {
-    chain: "solana",
-    dex: "raydium",
+    chain: "monad",
+    dex: "kuru",
     pairAddress,
     baseMint: "MINT",
     quoteMint: null,
@@ -47,7 +46,7 @@ function seedLedger(): FlowLedger {
 function baseInput(ledger: FlowLedger, over: Partial<TokenFlowInput> = {}): TokenFlowInput {
   return {
     ledger,
-    chain: "solana",
+    chain: "monad",
     address: "MINT",
     pairs: [pairRow("A1", "A", 0.6), pairRow("A2", "A", 0.2), pairRow("B1", "B", 0.2)],
     interval: "1m",
@@ -112,18 +111,6 @@ describe("tokenFlow bars", () => {
       [T0 - 10 * MINUTE_MS, 70],
       [T0, 5]
     ]);
-  });
-
-  it("does not double count a pump token whose PumpSwap pool is also in the registry", () => {
-    const ledger = new FlowLedger({ now: () => NOW });
-    const same = [print("SWAP", T0, "buy", 100), print("SWAP", T0 + MINUTE_MS, "sell", 40)];
-    ledger.ingest([...same, ...same.map((p) => ({ ...p, pair: "pumpfun:MINT", source: "pumpfun" as const }))]);
-    const swap: PairRow = { ...pairRow("SWAP", "B", null), dex: "pumpswap", volume24Usd: 50 };
-    const other: PairRow = { ...pairRow("OTHER", "B", null), dex: "meteora", volume24Usd: 50 };
-    const pairs = buildRegistry({ chain: "solana", address: "MINT", dexPairs: [swap, other], geckoPools: [], clawTopPools: null, pumpPool: "pumpfun:MINT" });
-    const { bars, coverage } = tokenFlow(baseInput(ledger, { pairs }));
-    expect(bars.map((b) => [b.buyUsd, b.sellUsd, b.buys, b.sells])).toEqual([[100, 0, 1, 0], [0, 40, 0, 1]]);
-    expect(coverage).toMatchObject({ tierAPairs: 2, totalPairs: 3, volumeShare: 1 });
   });
 
   it("folds a 1m window into a single 5m bar", () => {

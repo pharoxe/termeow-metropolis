@@ -1,9 +1,9 @@
 import { createBackoff, type Backoff } from "../lib/backoff.js";
 import { UpstreamError, errorMessage } from "../lib/http.js";
-import { EvmRpcError } from "../tape/robinhood/rpc.js";
-import { robinhoodRpcFetch } from "../tape/robinhood/rpcPool.js";
+import { EvmRpcError } from "../tape/monad/rpc.js";
+import { monadRpcFetch } from "../tape/monad/rpcPool.js";
 
-/** Robinhood public RPC (rpc.mainnet.chain.robinhood.com) 429s intermittently; 4 rps kept the capture stage under the limit. */
+/** Monad public RPC (rpc.mainnet.chain.monad.com) 429s intermittently; 4 rps kept the capture stage under the limit. */
 export const DEFAULT_RPS = 4;
 /** Cloudflare retry-after measured 17-30 s on 2026-09-06; one block covers the whole window. */
 export const DEFAULT_BACKOFF_MS = 20_000;
@@ -67,7 +67,7 @@ function parseResult(label: string, method: string, text: string): unknown {
 /**
  * One JSON-RPC client paced at `rps` (a slot every 1000/rps ms, callers queue on the slot) with the shared 429 pattern
  * from lib/backoff.ts: a 429 blocks the client for `backoffMs`, every waiter re-queues behind the block, and the failed
- * call is retried once. Throws UpstreamError / EvmRpcError / Error like tape/robinhood/rpc.ts so callers map to null.
+ * call is retried once. Throws UpstreamError / EvmRpcError / Error like tape/monad/rpc.ts so callers map to null.
  */
 export class PacedRpc {
   private readonly rpcUrl: string;
@@ -88,7 +88,7 @@ export class PacedRpc {
   constructor(opts: PacedRpcOptions) {
     this.rpcUrl = opts.rpcUrl;
     this.label = opts.label;
-    this.fetchImpl = opts.fetchImpl ?? robinhoodRpcFetch;
+    this.fetchImpl = opts.fetchImpl ?? monadRpcFetch;
     this.now = opts.now ?? (() => Date.now());
     const rps = opts.rps ?? DEFAULT_RPS;
     if (!Number.isFinite(rps) || rps <= 0) throw new Error(`${opts.label}: rps must be > 0, got ${String(rps)}`);

@@ -2,7 +2,7 @@
  "_captured": "2026-09-07 IST via curl, keyless, page=1; 20 items in full response, first 8 kept; base_token relationship id = robinhood_<token>",
  "data": [
   {
-   "id": "robinhood_0x5eac4195930d5ff8b7a34a347f2bde951c42eb730d6e26075bea3dd7c66feb40",
+   "id": "monad_0x5eac4195930d5ff8b7a34a347f2bde951c42eb730d6e26075bea3dd7c66feb40",
    "type": "pool",
    "attributes": {
     "base_token_price_usd": "0.0121723554875435",
@@ -75,13 +75,13 @@
    "relationships": {
     "base_token": {
      "data": {
-      "id": "robinhood_0x11b70d0243baf75e85ce03201a92b5b7c33beb59",
+      "id": "monad_0x11b70d0243baf75e85ce03201a92b5b7c33beb59",
       "type": "token"
      }
     },
     "quote_token": {
      "data": {
-      "id": "robinhood_0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "id": "monad_0x5fc5360d0400a0fd4f2af552add042d716f1d168",
       "type": "token"
      }
     },
@@ -94,7 +94,7 @@
    }
   },
   {
-   "id": "robinhood_0x714442e9a611f8561a7df108d6d925132937cfb8",
+   "id": "monad_0x714442e9a611f8561a7df108d6d925132937cfb8",
    "type": "pool",
    "attributes": {
     "base_token_price_usd": "0.0386790503814506",
@@ -167,13 +167,13 @@
    "relationships": {
     "base_token": {
      "data": {
-      "id": "robinhood_0x0e0d2c89a5a019fe1cf762e5e33187631dacc21b",
+      "id": "monad_0x0e0d2c89a5a019fe1cf762e5e33187631dacc21b",
       "type": "token"
      }
     },
     "quote_token": {
      "data": {
-      "id": "robinhood_0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "id": "monad_0x0bd7d308f8e1639fab988df18a8011f41eacad73",
       "type": "token"
      }
     },
@@ -186,7 +186,7 @@
    }
   },
   {
-   "id": "robinhood_0x66afd314846523485d2e9505e46871fa49b8dfe4090d0f48d2580e89412097a9",
+   "id": "monad_0x66afd314846523485d2e9505e46871fa49b8dfe4090d0f48d2580e89412097a9",
    "type": "pool",
    "attributes": {
     "base_token_price_usd": "0.00134843926174564",
@@ -259,13 +259,13 @@
    "relationships": {
     "base_token": {
      "data": {
-      "id": "robinhood_0x47366e0f257ac009e82bd46fb74e2fb50826ce98",
+      "id": "monad_0x47366e0f257ac009e82bd46fb74e2fb50826ce98",
       "type": "token"
      }
     },
     "quote_token": {
      "data": {
-      "id": "robinhood_0x0000000000000000000000000000000000000000",
+      "id": "monad_0x0000000000000000000000000000000000000000",
       "type": "token"
      }
     },
@@ -278,7 +278,7 @@
    }
   },
   {
-   "id": "robinhood_0x4be9657ec9002e528f4f17a5c43edc525a07f888f7b180c2afbf75e096c4f38a",
+   "id": "monad_0x4be9657ec9002e528f4f17a5c43edc525a07f888f7b180c2afbf75e096c4f38a",
    "type": "pool",
    "attributes": {
     "base_token_price_usd": "0.808494689523997",
@@ -351,13 +351,13 @@
    "relationships": {
     "base_token": {
      "data": {
-      "id": "robinhood_0x39dbed3a2bd333467115de45665cc57f813c4571",
+      "id": "monad_0x39dbed3a2bd333467115de45665cc57f813c4571",
       "type": "token"
      }
     },
     "quote_token": {
      "data": {
-      "id": "robinhood_0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "id": "monad_0x5fc5360d0400a0fd4f2af552add042d716f1d168",
       "type": "token"
      }
     },
@@ -370,7 +370,7 @@
    }
   },
   {
-   "id": "robinhood_0x4b7c86491df95f366b31217b2950d2c5136a2f19b6879613eac73d0e69092a1a",
+   "id": "monad_0x4b7c86491df95f366b31217b2950d2c5136a2f19b6879613eac73d0e69092a1a",
    "type": "pool",
    "attributes": {
     "base_token_price_usd": "0.104908728745309",
@@ -443,13 +443,13 @@
    "relationships": {
     "base_token": {
      "data": {
-      "id": "robinhood_0x385f4f8ae47651ce5f58f5265395a669f8281e18",
+      "id": "monad_0x385f4f8ae47651ce5f58f5265395a669f8281e18",
       "type": "token"
      }
     },
     "quote_token": {
      "data": {
-      "id": "robinhood_0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "id": "monad_0x5fc5360d0400a0fd4f2af552add042d716f1d168",
       "type": "token"
      }
     },
@@ -462,7 +462,7 @@
    }
   },
   {
-   "id": "robinhood_0x6341bb9623bf753aaea89751665c4531865a7bbcb8a8cde9c9b83f2b9f4fcd8b",
+   "id": "monad_0x6341bb9623bf753aaea89751665c4531865a7bbcb8a8cde9c9b83f2b9f4fcd8b",
    "type": "pool",
    "attributes": {
     "base_token_price_usd": "0.000454811715501946",
@@ -535,13 +535,13 @@
    "relationships": {
     "base_token": {
      "data": {
-      "id": "robinhood_0xb1f8bafb97d40a011715c1ba8a822030b20bbd81",
+      "id": "monad_0xb1f8bafb97d40a011715c1ba8a822030b20bbd81",
       "type": "token"
      }
     },
     "quote_token": {
      "data": {
-      "id": "robinhood_0xf23250dac154d05bb671cb0d0ebef3c635c79ce2",
+      "id": "monad_0xf23250dac154d05bb671cb0d0ebef3c635c79ce2",
       "type": "token"
      }
     },
@@ -554,7 +554,7 @@
    }
   },
   {
-   "id": "robinhood_0x3206ce1c4d3f9fa25cfab95de7e743f61912fcb03efa6b3bff02cc577dcda22b",
+   "id": "monad_0x3206ce1c4d3f9fa25cfab95de7e743f61912fcb03efa6b3bff02cc577dcda22b",
    "type": "pool",
    "attributes": {
     "base_token_price_usd": "0.00208646287243136",
@@ -627,13 +627,13 @@
    "relationships": {
     "base_token": {
      "data": {
-      "id": "robinhood_0x3b4a0048a00787a644932cd648faa043410c163e",
+      "id": "monad_0x3b4a0048a00787a644932cd648faa043410c163e",
       "type": "token"
      }
     },
     "quote_token": {
      "data": {
-      "id": "robinhood_0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "id": "monad_0x5fc5360d0400a0fd4f2af552add042d716f1d168",
       "type": "token"
      }
     },
@@ -646,7 +646,7 @@
    }
   },
   {
-   "id": "robinhood_0xcbdfea90430a30ee4469c9902e120a77e7c7e4711d5643671c1d1957f2f1ce27",
+   "id": "monad_0xcbdfea90430a30ee4469c9902e120a77e7c7e4711d5643671c1d1957f2f1ce27",
    "type": "pool",
    "attributes": {
     "base_token_price_usd": "0.207696784639684",
@@ -719,13 +719,13 @@
    "relationships": {
     "base_token": {
      "data": {
-      "id": "robinhood_0x2e8c31162b855a2ffa90f6f8634643ad6f111e18",
+      "id": "monad_0x2e8c31162b855a2ffa90f6f8634643ad6f111e18",
       "type": "token"
      }
     },
     "quote_token": {
      "data": {
-      "id": "robinhood_0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "id": "monad_0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
       "type": "token"
      }
     },

@@ -72,7 +72,7 @@ export class TradeArchive {
         if (!token) continue;
         const tx = chainKey(p.chain, p.tx);
         const wallet = p.trader?.address ? chainKey(p.chain, p.trader.address) : null;
-        const granularity = p.eventId ? "execution" : pair.startsWith("fomo:") ? "wallet-net" : "transaction-pool";
+        const granularity = p.eventId ? "execution" : pair.startsWith("smart:") ? "wallet-net" : "transaction-pool";
         const id = [p.chain, token, tx, pair, p.eventId ?? (granularity === "wallet-net" ? `${wallet}:${p.side}` : p.side)].join(":");
         const oldRow = this.db.prepare("SELECT body FROM trades WHERE id=?").get(id) as {body: string} | undefined;
         const old: TradeEvent | undefined = oldRow ? JSON.parse(oldRow.body) : undefined;

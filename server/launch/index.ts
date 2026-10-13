@@ -8,7 +8,7 @@ export type TradeSide = "buy" | "sell";
 
 /**
  * Fields a source may contribute. `chain` + `token` key the row; everything else merges field-by-field, null and undefined
- * never overwrite a known value. `isStock` is index-side metadata (robinhoodtrenches `is_stock`), not part of the wire row.
+ * never overwrite a known value. `isStock` is index-side metadata (tokenised-stock flag from earlier feeds), not part of the wire row.
  */
 export type LaunchUpsert = Pick<LaunchRow, "chain" | "token"> & Partial<Omit<LaunchRow, "chain" | "token">> & { isStock?: boolean };
 
@@ -94,7 +94,7 @@ function newestFirst(a: LaunchRow, b: LaunchRow): number {
 
 /**
  * In-memory index of launchpad tokens across chains. Rows are immutable snapshots replaced on every write, keyed by
- * chain + lowercase token (the stored `token` keeps its first-seen case, which matters for Solana mints). Bounded by
+ * chain + lowercase token (the stored `token` keeps its first-seen case). Bounded by
  * `max`: the row with the oldest `createdAt` is evicted first, so a stale token surfaced late by enrichment cannot
  * displace a fresh launch. Nothing here throws on unknown tokens; writes to them return false.
  */
@@ -200,7 +200,7 @@ export class LaunchIndex {
   }
 
   stats(): LaunchIndexStats {
-    const byChain: Record<Chain, number> = { solana: 0, robinhood: 0 };
+    const byChain: Record<Chain, number> = { monad: 0 };
     const byPad: Record<string, number> = {};
     let graduated = 0;
     let oldest: number | null = null;

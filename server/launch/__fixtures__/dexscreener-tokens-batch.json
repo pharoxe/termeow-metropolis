@@ -1,6 +1,6 @@
 [
   {
-    "chainId": "robinhood",
+    "chainId": "monad",
     "dexId": "uniswap",
     "labels": [
       "v4"
@@ -60,7 +60,7 @@
     "info": null
   },
   {
-    "chainId": "robinhood",
+    "chainId": "monad",
     "dexId": "flapsh",
     "labels": null,
     "url": "https://dexscreener.com/robinhood/0x88dccc7c8b5264973a89c55a75c0cedde11ca2ff",

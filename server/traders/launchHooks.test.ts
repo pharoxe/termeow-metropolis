@@ -1,30 +1,36 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { FlowPrint } from "../../shared/wire.js";
-import type { ExtraLeg, LogsHandler, PollerStats, RawLog } from "../tape/robinhood/poller.js";
+import type { ExtraLeg, LogsHandler, PollerStats, RawLog } from "../tape/monad/poller.js";
+import { ADDRESSES, NADFUN_TOPICS } from "../launch/monad/pads.js";
 import { USER_OPERATION_EVENT_TOPIC } from "./attribute.js";
 import { USER_OP_LEG, curveTradeKey, curveTrader, isUserOpLog, userOpSenders, withTraderHooks, type TraderHooksLike } from "./launchHooks.js";
 import { ENTRY_POINT, type AnnotateContext, type MetaOf } from "./service.js";
 
 const NOW = 1_800_000_000_000;
 
-function fixture(name: string): RawLog[] {
-  return JSON.parse(readFileSync(new URL(`../launch/__fixtures__/${name}.json`, import.meta.url), "utf8")) as RawLog[];
-}
-
-const CURVE_BUY = fixture("pons-curve-CurveBuy")[0];
-const CURVE_SELL = fixture("pons-curve-CurveSell")[0];
-const FLAP_BOUGHT = fixture("flap-TokenBought")[0];
-const TRENCH_PURCHASE = fixture("trench-TokenPurchase")[0];
 const SENDER = "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1";
+const TOKEN = "0x90f4707151fde7b2acddc0ef68281d1bffe2e2a5";
+const BUYER = "0x1111111111111111111111111111111111111111";
+const SELLER = "0x2222222222222222222222222222222222222222";
+const pad = (address: string) => `0x${address.slice(2).padStart(64, "0")}`;
 
-function topicAddr(log: RawLog, index: number): string {
-  return `0x${log.topics[index].slice(-40).toLowerCase()}`;
+/** Synthetic nad.fun BondingCurve trade: topics sender (the wallet) / token; data amountIn, amountOut. */
+function curveLog(topic0: string, wallet: string, tx: string): RawLog {
+  return {
+    address: ADDRESSES.nadfunCurve,
+    topics: [topic0, pad(wallet), pad(TOKEN)],
+    data: `0x${"1".padStart(64, "0")}${"2".padStart(64, "0")}`,
+    blockNumber: "0x1",
+    blockHash: "0x2",
+    transactionHash: tx,
+    transactionIndex: "0x0",
+    logIndex: "0x3"
+  };
 }
 
-function wordAddr(log: RawLog, index: number): string {
-  return `0x${log.data.slice(2).slice(index * 64, (index + 1) * 64).slice(-40).toLowerCase()}`;
-}
+const CURVE_BUY = curveLog(NADFUN_TOPICS.CurveBuy, BUYER, "0xAbC1");
+const CURVE_SELL = curveLog(NADFUN_TOPICS.CurveSell, SELLER, "0xabc2");
+const CURVE_PAIR = `nadfun:${TOKEN}`;
 
 function userOpLog(sender: string, tx = "0xuserop"): RawLog {
   return {
@@ -67,7 +73,7 @@ class FakeTraders implements TraderHooksLike {
     await this.delay;
     return prints.map((print) => {
       const meta = ctx.meta(print);
-      return meta?.trader ? { ...print, trader: { address: meta.trader, kind: "fomo", handle: null, followers: null } } : print;
+      return meta?.trader ? { ...print, trader: { address: meta.trader, kind: "smart", handle: null, followers: null } } : print;
     });
   }
   record(prints: FlowPrint[], meta: MetaOf): void {
@@ -83,24 +89,15 @@ function flush(): Promise<void> {
 }
 
 describe("curveTrader", () => {
-  it("reads the wallet from Pons CurveBuy topic2 / CurveSell topic1 keyed by the pons:<curve> pair", () => {
-    const buy = curveTrader(CURVE_BUY);
-    expect(buy).toEqual({ key: `${CURVE_BUY.transactionHash.toLowerCase()}:pons:${CURVE_BUY.address.toLowerCase()}`, trader: topicAddr(CURVE_BUY, 2), token: null });
-    expect(curveTrader(CURVE_SELL)?.trader).toBe(topicAddr(CURVE_SELL, 1));
-  });
-
-  it("reads Flap wallets from the data words and Trench wallets from topic2, both carrying the token", () => {
-    expect(curveTrader(FLAP_BOUGHT)).toEqual({ key: `${FLAP_BOUGHT.transactionHash.toLowerCase()}:flap:${wordAddr(FLAP_BOUGHT, 1)}`, trader: wordAddr(FLAP_BOUGHT, 2), token: wordAddr(FLAP_BOUGHT, 1) });
-    expect(curveTrader(TRENCH_PURCHASE)).toEqual({
-      key: `${TRENCH_PURCHASE.transactionHash.toLowerCase()}:trench:${topicAddr(TRENCH_PURCHASE, 1)}`,
-      trader: topicAddr(TRENCH_PURCHASE, 2),
-      token: topicAddr(TRENCH_PURCHASE, 1)
-    });
+  it("reads the wallet from nad.fun CurveBuy / CurveSell topic1 keyed by the nadfun:<token> pair, carrying the token", () => {
+    expect(curveTrader(CURVE_BUY)).toEqual({ key: `0xabc1:${CURVE_PAIR}`, trader: BUYER, token: TOKEN });
+    expect(curveTrader(CURVE_SELL)?.trader).toBe(SELLER);
   });
 
   it("answers null for anything else and matches the key the stream's print would carry", () => {
     expect(curveTrader(userOpLog(SENDER))).toBeNull();
-    expect(curveTradeKey({ tx: CURVE_BUY.transactionHash.toUpperCase(), pair: `pons:${CURVE_BUY.address}` })).toBe(curveTrader(CURVE_BUY)?.key);
+    expect(curveTrader({ ...CURVE_BUY, topics: [NADFUN_TOPICS.CurveSync, pad(TOKEN)] })).toBeNull();
+    expect(curveTradeKey({ tx: CURVE_BUY.transactionHash.toUpperCase(), pair: CURVE_PAIR })).toBe(curveTrader(CURVE_BUY)?.key);
   });
 });
 
@@ -121,7 +118,7 @@ describe("withTraderHooks", () => {
     const traders = new FakeTraders();
     if (delay) traders.delay = delay;
     const log = vi.fn();
-    const hooked = withTraderHooks({ poller, ledger: { ingest: (prints) => ingested.push(prints) }, traders, tokenOf: (pair) => (pair.startsWith("pons:") ? "0xtoken" : null), log });
+    const hooked = withTraderHooks({ poller, ledger: { ingest: (prints) => ingested.push(prints) }, traders, tokenOf: (pair) => (pair.startsWith("nadfun:") ? "0xtoken" : null), log });
     return { poller, ingested, traders, hooked, log };
   }
 
@@ -145,23 +142,23 @@ describe("withTraderHooks", () => {
     const h = harness();
     h.hooked.poller.start(() => undefined);
     h.poller.handler?.([CURVE_BUY], 10);
-    const print: FlowPrint = { chain: "robinhood", pair: `pons:${CURVE_BUY.address.toLowerCase()}`, tx: CURVE_BUY.transactionHash, time: NOW, side: "buy", usd: 12, source: "own" };
+    const print: FlowPrint = { chain: "monad", pair: CURVE_PAIR, tx: CURVE_BUY.transactionHash, time: NOW, side: "buy", usd: 12, source: "own" };
     await h.hooked.ledger.ingest([print]);
     expect(h.ingested).toHaveLength(1);
-    expect(h.ingested[0][0].trader?.address).toBe(topicAddr(CURVE_BUY, 2));
+    expect(h.ingested[0][0].trader?.address).toBe(BUYER);
     const meta = h.traders.annotateCalls[0].ctx.meta(print);
-    expect(meta).toEqual({ token: "0xtoken", dex: "pons", trader: topicAddr(CURVE_BUY, 2) });
+    expect(meta).toEqual({ token: TOKEN, dex: "nadfun", trader: BUYER });
     expect(h.traders.recordCalls[0].prints).toBe(h.ingested[0]);
   });
 
   it("marks an unnamed curve print unattributable rather than guessing, and skips prints whose token is unknown", async () => {
     const h = harness();
     h.hooked.poller.start(() => undefined);
-    const named: FlowPrint = { chain: "robinhood", pair: "pons:0xnobody", tx: "0xunseen", time: NOW, side: "sell", usd: null, source: "own" };
-    const unknown: FlowPrint = { ...named, pair: "bags:0xamm", tx: "0xbags" };
+    const named: FlowPrint = { chain: "monad", pair: "nadfun:0xnobody", tx: "0xunseen", time: NOW, side: "sell", usd: null, source: "own" };
+    const unknown: FlowPrint = { ...named, pair: "0xpool", tx: "0xother" };
     await h.hooked.ledger.ingest([named, unknown]);
     const meta = h.traders.annotateCalls[0].ctx.meta;
-    expect(meta(named)).toEqual({ token: "0xtoken", dex: "pons", trader: null });
+    expect(meta(named)).toEqual({ token: "0xtoken", dex: "nadfun", trader: null });
     expect(meta(unknown)).toBeNull();
     expect(h.ingested[0]).toEqual([named, unknown]);
   });
@@ -172,7 +169,7 @@ describe("withTraderHooks", () => {
       release = resolve;
     });
     const h = harness(gate);
-    const first: FlowPrint = { chain: "robinhood", pair: "pons:0xa", tx: "0x1", time: NOW, side: "buy", usd: 1, source: "own" };
+    const first: FlowPrint = { chain: "monad", pair: "nadfun:0xa", tx: "0x1", time: NOW, side: "buy", usd: 1, source: "own" };
     const second: FlowPrint = { ...first, tx: "0x2" };
     void h.hooked.ledger.ingest([first]);
     void h.hooked.ledger.ingest([second]);
@@ -187,7 +184,7 @@ describe("withTraderHooks", () => {
   it("ingests unannotated and logs when the service throws", async () => {
     const h = harness();
     h.traders.annotate = () => Promise.reject(new Error("boom"));
-    const print: FlowPrint = { chain: "robinhood", pair: "pons:0xa", tx: "0x1", time: NOW, side: "buy", usd: 1, source: "own" };
+    const print: FlowPrint = { chain: "monad", pair: "nadfun:0xa", tx: "0x1", time: NOW, side: "buy", usd: 1, source: "own" };
     await h.hooked.ledger.ingest([print]);
     expect(h.ingested).toEqual([[print]]);
     expect(h.log).toHaveBeenCalledWith(expect.stringContaining("boom"));

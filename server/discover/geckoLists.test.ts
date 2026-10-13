@@ -9,15 +9,14 @@ const rows = trending.data as GeckoListRow[];
 const fresh = newPools.data as GeckoListRow[];
 
 describe("tokenFromRelationshipId", () => {
-  it("preserves Solana address case",()=>{expect(tokenFromRelationshipId("solana_So11111111111111111111111111111111111111112","solana")).toBe("So11111111111111111111111111111111111111112");});
   it("strips the network prefix and lowercases a 0x address", () => {
-    expect(tokenFromRelationshipId("robinhood_0x11B70d0243baf75e85ce03201a92b5b7c33beb59", "robinhood")).toBe(ROBIN);
+    expect(tokenFromRelationshipId("monad_0x11B70d0243baf75e85ce03201a92b5b7c33beb59", "monad")).toBe(ROBIN);
   });
 
   it("rejects other networks, non-addresses and non-strings", () => {
-    expect(tokenFromRelationshipId("solana_So11111111111111111111111111111111111111112", "robinhood")).toBeNull();
-    expect(tokenFromRelationshipId("robinhood_notanaddress", "robinhood")).toBeNull();
-    expect(tokenFromRelationshipId(42, "robinhood")).toBeNull();
+    expect(tokenFromRelationshipId("solana_So11111111111111111111111111111111111111112", "monad")).toBeNull();
+    expect(tokenFromRelationshipId("monad_notanaddress", "monad")).toBeNull();
+    expect(tokenFromRelationshipId(42, "monad")).toBeNull();
   });
 });
 
@@ -36,7 +35,7 @@ describe("baseSymbolFromPoolName", () => {
 
 describe("normalizeGeckoListRow (trending fixture)", () => {
   it("maps the 24h window of the first ROBIN / USDG pool with its rank and pool", () => {
-    const partial = normalizeGeckoListRow(rows[0], 0, "trending", "24h", "robinhood", NOW, NOW - 5_000, false);
+    const partial = normalizeGeckoListRow(rows[0], 0, "trending", "24h", "monad", NOW, NOW - 5_000, false);
     expect(partial).toMatchObject({
       token: ROBIN,
       source: GECKO_TRENDING_SOURCE,
@@ -53,19 +52,19 @@ describe("normalizeGeckoListRow (trending fixture)", () => {
       dex: "pons-v2-dex",
       lastOkAt: NOW - 5_000,
       stale: false,
-      fomoHolders: null,
+      smartHolders: null,
       trackedBuyers: null
     });
     expect(partial?.ageMs).toBe(NOW - Date.parse("2026-09-05T16:54:01Z"));
   });
 
   it("maps the 1h window from the h1 keys, not h24", () => {
-    const partial = normalizeGeckoListRow(rows[0], 3, "trending", "1h", "robinhood", NOW, NOW, false);
+    const partial = normalizeGeckoListRow(rows[0], 3, "trending", "1h", "monad", NOW, NOW, false);
     expect(partial).toMatchObject({ rank: 3, volumeUsd: 32750.6128522804, changePct: -2.612, txns: { buys: 65, sells: 108 } });
   });
 
-  it("keeps every fixture row: all carry a robinhood base token", () => {
-    const mapped = rows.map((row, index) => normalizeGeckoListRow(row, index, "trending", "24h", "robinhood", NOW, NOW, false));
+  it("keeps every fixture row: all carry a monad base token", () => {
+    const mapped = rows.map((row, index) => normalizeGeckoListRow(row, index, "trending", "24h", "monad", NOW, NOW, false));
     expect(mapped.every((partial) => partial !== null)).toBe(true);
     expect(new Set(mapped.map((partial) => partial?.token)).size).toBe(rows.length);
   });
@@ -73,12 +72,12 @@ describe("normalizeGeckoListRow (trending fixture)", () => {
 
 describe("normalizeGeckoListRow (new_pools fixture)", () => {
   it("leaves market cap null on a new pool instead of substituting fdv", () => {
-    const partial = normalizeGeckoListRow(fresh[0], 0, "new", "24h", "robinhood", NOW, NOW, true);
+    const partial = normalizeGeckoListRow(fresh[0], 0, "new", "24h", "monad", NOW, NOW, true);
     expect(partial).toMatchObject({ token: "0xc9b5781714a370e74257450d279d57fb1afdfafe", source: GECKO_NEW_SOURCE, symbol: "GPU", marketCapUsd: null, stale: true, dex: "pons-v2" });
     expect(partial?.ageMs).toBe(NOW - Date.parse("2026-09-07T13:45:19Z"));
   });
 
   it("returns null for a row without a base token relationship", () => {
-    expect(normalizeGeckoListRow({ attributes: { address: "0x1" } }, 0, "new", "24h", "robinhood", NOW, NOW, false)).toBeNull();
+    expect(normalizeGeckoListRow({ attributes: { address: "0x1" } }, 0, "new", "24h", "monad", NOW, NOW, false)).toBeNull();
   });
 });

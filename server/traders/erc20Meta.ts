@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import { errorMessage } from "../lib/http.js";
-import { isAddress, isRevert } from "../tape/robinhood/rpc.js";
+import { isAddress, isRevert } from "../tape/monad/rpc.js";
 import { LruMap } from "./lru.js";
 import { PacedRpc, type PacedRpcPriority, type PacedRpcStats } from "./pacedRpc.js";
 
@@ -72,7 +72,7 @@ export class Erc20Meta {
   private lastError: string | null = null;
 
   constructor(opts: Erc20MetaOptions = {}) {
-    this.rpc = opts.rpc ?? new PacedRpc({ rpcUrl: opts.rpcUrl ?? config.robinhood.rpcUrl, label: "erc20Meta", now: opts.now, rps: DEFAULT_ERC20_META_RPS });
+    this.rpc = opts.rpc ?? new PacedRpc({ rpcUrl: opts.rpcUrl ?? config.monad.rpcUrl, label: "erc20Meta", now: opts.now, rps: DEFAULT_ERC20_META_RPS });
     this.now = opts.now ?? (() => Date.now());
     this.retryMs = opts.retryMs ?? ERC20_META_RETRY_MS;
     this.entries = new LruMap(opts.max ?? DEFAULT_ERC20_META_MAX);

@@ -3,9 +3,9 @@ export type AttributionLookup = {
   peekKind(wallet:string):TraderKind|null;
   handles:{get(wallet:string):{handle:string;followers:number|null}|null|undefined};
 };
-/** Attach previously established mappings before archive normalization. Never apply EVM identity to Solana. */
+/** Attach previously established wallet labels (Nansen / watchlist) before archive normalization. */
 export function mapKnownAttribution(print:FlowPrint, lookup:AttributionLookup):FlowPrint {
-  if(print.chain!=='robinhood'||!print.trader?.address)return print;
+  if(print.chain!=='monad'||!print.trader?.address)return print;
   const wallet=print.trader.address.toLowerCase();
   const kind=lookup.peekKind(wallet);
   const social=lookup.handles.get(wallet);

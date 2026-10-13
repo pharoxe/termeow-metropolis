@@ -121,7 +121,7 @@ function fromUserOps(senders: string[], transfers: Transfer[], side: Side): Attr
 }
 
 /**
- * The trader wallet behind one fill in a receipt. Every fomo.family fill is relayed (tx.from is a bundler), so the
+ * The trader wallet behind one fill in a receipt. Every Nansen smart money fill is relayed (tx.from is a bundler), so the
  * wallet is read from the receipt itself: UserOperationEvent.sender when the tx went through the EntryPoint (relay A;
  * several ops => the sender that is also a Transfer counterparty of the token, else null), otherwise the endpoint of
  * the traded token's Transfer chain on the fill's side (buy => final recipient, sell => original sender), never an

@@ -1,21 +1,21 @@
 import type { TraderKind } from "../../shared/wire.js";
 import { config } from "../config.js";
-import type { StreamPollerLike } from "../launch/robinhood/stream.js";
+import type { StreamPollerLike } from "../launch/monad/stream.js";
 import { errorMessage } from "../lib/http.js";
-import { BlockTimeCache, type BlockTimeStats } from "../tape/robinhood/blocks.js";
-import type { ExtraLeg, LogsHandler, RawLog } from "../tape/robinhood/poller.js";
-import { EvmQuotePrice, type EvmQuotePriceStatus } from "../tape/robinhood/price.js";
+import { BlockTimeCache, type BlockTimeStats } from "../tape/monad/blocks.js";
+import type { ExtraLeg, LogsHandler, RawLog } from "../tape/monad/poller.js";
+import { EvmQuotePrice, type EvmQuotePriceStatus } from "../tape/monad/price.js";
 import type { TraderFill } from "./book.js";
 import type { Erc20MetaEntry } from "./erc20Meta.js";
 import type { HandleEntry } from "./handles.js";
-import { QUOTES } from "../launch/robinhood/pads.js";
+import { QUOTES } from "../launch/monad/pads.js";
 import { LruMap } from "./lru.js";
 import {
   TRANSFER_CHUNK,
   TRANSFER_WATCH_CAP,
   buildTransferLegs,
   decodeTxTransfers,
-  fomoPair,
+  smartPair,
   groupLogsByTx,
   isTransferLog,
   transferFillKey,
@@ -38,7 +38,7 @@ export const MAX_QUEUED_BATCHES = 50;
 /** Logs held across the waiting batches; past this the newest logs are dropped (counted in logsDropped). */
 export const MAX_QUEUED_LOGS = 50_000;
 export const SEEN_FILLS = 5_000;
-const CHAIN = "robinhood" as const;
+const CHAIN = "monad" as const;
 
 export type TransferReceiptLike = { logs: TransferLogLike[] };
 export type TransferPricesLike = { prime(quotes: string[]): Promise<void>; get(quote: string): number | null; status(): EvmQuotePriceStatus };
@@ -46,9 +46,9 @@ export type TransferBlocksLike = { timeMs(blockNumber: number): Promise<number |
 
 /** The slice of TraderService the feed drives; tests inject a fake. */
 export type TransferFeedTraders = {
-  /** Lowercase wallets to watch: classified FOMO plus seeded (robinhoodtrenches) minus those proven "other". */
+  /** Lowercase wallets to watch: classified SMART plus seeded (robinhoodtrenches) minus those proven "other". */
   transferWallets(): string[];
-  /** Seeded, named, or in-book: these occupy the watch budget before anonymous classified FOMO, and are the only overflow. */
+  /** Seeded, named, or in-book: these occupy the watch budget before anonymous classified SMART, and are the only overflow. */
   watchPriority?(wallet: string): boolean;
   /** Bumps whenever transferWallets() would change. */
   populationVersion(): number;
@@ -124,10 +124,10 @@ function hasSkips(skipped: SkipCounts): boolean {
 }
 
 /**
- * Chain-wide FOMO fills: wraps the launch poller so its one batch per tick also carries the population's Transfer legs
+ * Chain-wide SMART fills: wraps the launch poller so its one batch per tick also carries the population's Transfer legs
  * (server/traders/transfers.ts), strips the Transfer logs before the stream sees them and decodes them per tx against
  * the full receipt (the batch only holds the logs naming a wallet; the cash legs never do). Every fill goes through
- * TraderService.recordTransferFills as pair "fomo:<token>". Batches are processed in order on one promise chain; a
+ * TraderService.recordTransferFills as pair "smart:<token>". Batches are processed in order on one promise chain; a
  * batch that fails lands in lastError and the next one runs. Never throws into the poller.
  */
 export class TransferFeed {
@@ -153,14 +153,14 @@ export class TransferFeed {
   private lastError: string | null = null;
 
   constructor(opts: TransferFeedOptions) {
-    const rpcUrl = opts.rpcUrl ?? config.robinhood.rpcUrl;
+    const rpcUrl = opts.rpcUrl ?? config.monad.rpcUrl;
     this.traders = opts.traders;
     this.blocks = opts.blocks ?? new BlockTimeCache({ rpcUrl });
     this.prices = opts.prices ?? new EvmQuotePrice({ chain: CHAIN });
     this.now = opts.now ?? (() => Date.now());
     this.log = opts.log ?? ((msg) => console.warn(msg));
     this.checkMs = opts.checkMs ?? LEGS_CHECK_MS;
-    void this.prices.prime([QUOTES.weth, QUOTES.usdg]);
+    void this.prices.prime([QUOTES.wmon, QUOTES.usdc]);
     try {
       this.applyLegs(true);
     } catch (error) {
@@ -178,7 +178,7 @@ export class TransferFeed {
       },
       start: (onLogs: LogsHandler) => {
         void this.traders.handles.refresh?.();
-        void this.prices.prime([QUOTES.weth, QUOTES.usdg]);
+        void this.prices.prime([QUOTES.wmon, QUOTES.usdc]);
         this.startTimer();
         poller.start((logs, head) => this.split(logs, head, onLogs));
       },
@@ -312,7 +312,7 @@ export class TransferFeed {
     this.lastOkAt = this.now();
   }
 
-  /** Full-receipt decode with token decimals and the WETH price primed first; falls back to the batch view when the receipt is unavailable. */
+  /** Full-receipt decode with token decimals and the WMON price primed first; falls back to the batch view when the receipt is unavailable. */
   private async decodeWithReceipt(tx: string, partial: ReturnType<typeof decodeTxTransfers>, ctx: DecodeContext): Promise<ReturnType<typeof decodeTxTransfers>> {
     const receipt = await this.traders.receipts.get(tx).catch(() => null);
     if (!receipt) {
@@ -329,7 +329,7 @@ export class TransferFeed {
   /**
    * Seeded/named/in-book wallets are the ones overflow must not silently drop. The default 1,500 cap (3x500) left
    * the oldest in-book wallets out while the classifier tail drove overflow without bound. Matter wallets get up to
-   * 6 chunks of 500 (each leg still inside the measured 1,000-address envelope); anonymous classified FOMO only fill
+   * 6 chunks of 500 (each leg still inside the measured 1,000-address envelope); anonymous classified SMART only fill
    * leftover slots and never count as overflow.
    */
   private watchLegs(): TransferLegs {
@@ -349,7 +349,7 @@ export class TransferFeed {
   /** Token USD from the same DexScreener quote cache the market path uses, when the cash leg could not be tied. */
   private async priceFromMarket(fill: TransferFill): Promise<TransferFill> {
     if (fill.usd !== null || fill.units == null || !(fill.units > 0)) return fill;
-    await this.prices.prime([fill.token, fill.quote ?? "", QUOTES.weth, QUOTES.usdg]);
+    await this.prices.prime([fill.token, fill.quote ?? "", QUOTES.wmon, QUOTES.usdc]);
     const px = this.prices.get(fill.token);
     if (px == null || !(px > 0)) return fill;
     return { ...fill, usd: fill.units * px, price: px };
@@ -374,7 +374,7 @@ export class TransferFeed {
     return [
       {
         chain: CHAIN,
-        pair: fomoPair(fill.token),
+        pair: smartPair(fill.token),
         tx: fill.tx,
         time,
         side: fill.side,

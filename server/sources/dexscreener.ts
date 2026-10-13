@@ -51,7 +51,7 @@ function txnWindow(raw: RawTxnWindow): PairTxns {
 }
 
 function sameAddress(chain: Chain, left: string, right: string): boolean {
-  if (chain === "robinhood") return left.toLowerCase() === right.toLowerCase();
+  if (chain === "monad") return left.toLowerCase() === right.toLowerCase();
   return left === right;
 }
 
@@ -111,7 +111,7 @@ export function sumTxns(pairs: PairRow[]): { m5: PairTxns; h1: PairTxns; h6: Pai
 }
 
 function cacheKey(chain: Chain, address: string): string {
-  return `${chain}:${chain === "robinhood" ? address.toLowerCase() : address}`;
+  return `${chain}:${chain === "monad" ? address.toLowerCase() : address}`;
 }
 
 async function refresh(key: string, chain: Chain, address: string, previous?: CacheEntry): Promise<TokenPairsResult> {

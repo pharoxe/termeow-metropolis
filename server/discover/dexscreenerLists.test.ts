@@ -16,7 +16,7 @@ const MARSCOIN = "0x56e82e94b1354c771f5901e4af7ee4f1b08d4011";
 
 describe("discoveryAddresses", () => {
   it("unions profiles and boosts, lowercased, deduped, profiles first, capped to one call", () => {
-    const addresses = discoveryAddresses("robinhood", profiles, boosts);
+    const addresses = discoveryAddresses("monad", profiles, boosts);
     expect(addresses.length).toBeLessThanOrEqual(DEXSCREENER_LIST_MAX);
     expect(new Set(addresses).size).toBe(addresses.length);
     expect(addresses.every((address) => /^0x[0-9a-f]{40}$/.test(address))).toBe(true);
@@ -25,8 +25,8 @@ describe("discoveryAddresses", () => {
   });
 
   it("drops other chains", () => {
-    const solana = { ...profiles[0], chain: "solana" as const, address: "So11111111111111111111111111111111111111112" };
-    expect(discoveryAddresses("robinhood", [solana], [])).toEqual([]);
+    const other = { ...profiles[0], chain: "solana", address: "So11111111111111111111111111111111111111112" } as unknown as TokenProfile;
+    expect(discoveryAddresses("monad", [other], [])).toEqual([]);
   });
 });
 
@@ -40,16 +40,16 @@ describe("fetchDexScreenerList", () => {
     const spy = vi.fn(async (_input: string | URL | Request) => new Response(JSON.stringify(pairs), { status: 200, headers: { "Content-Type": "application/json" } }));
     vi.stubGlobal("fetch", spy);
     const feeds = { profiles: async () => profiles, boosts: async () => boosts };
-    const first = await fetchDexScreenerList("robinhood", feeds);
+    const first = await fetchDexScreenerList("monad", feeds);
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(String(spy.mock.calls[0][0])).toMatch(/^https:\/\/api\.dexscreener\.com\/tokens\/v1\/robinhood\//);
+    expect(String(spy.mock.calls[0][0])).toMatch(/^https:\/\/api\.dexscreener\.com\/tokens\/v1\/monad\//);
     expect(first.stale).toBe(false);
-    expect(first.value.requested).toEqual(discoveryAddresses("robinhood", profiles, boosts));
-    expect(dexScreenerListPartials("robinhood", first.value, "24h", NOW, first.observedAt, first.stale).length).toBeGreaterThan(0);
+    expect(first.value.requested).toEqual(discoveryAddresses("monad", profiles, boosts));
+    expect(dexScreenerListPartials("monad", first.value, "24h", NOW, first.observedAt, first.stale).length).toBeGreaterThan(0);
     // the launch enrichment and a second discovery read within 60 s reuse the same cached call
-    await fetchDexScreenerList("robinhood", feeds);
+    await fetchDexScreenerList("monad", feeds);
     expect(spy).toHaveBeenCalledTimes(1);
-    expect((await fetchDexScreenerList("robinhood", { profiles: async () => [], boosts: async () => [] })).value).toEqual({ requested: [], pairs: [] });
+    expect((await fetchDexScreenerList("monad", { profiles: async () => [], boosts: async () => [] })).value).toEqual({ requested: [], pairs: [] });
   });
 });
 
@@ -81,14 +81,14 @@ describe("normalizeDexScreenerPair", () => {
   });
 
   it("leaves symbol, name, pool and age null when the pair lacks them", () => {
-    const partial = normalizeDexScreenerPair(MARSCOIN, { chainId: "robinhood", baseToken: { address: MARSCOIN } }, "24h", NOW, null, true);
+    const partial = normalizeDexScreenerPair(MARSCOIN, { chainId: "monad", baseToken: { address: MARSCOIN } }, "24h", NOW, null, true);
     expect(partial).toMatchObject({ symbol: null, name: null, pool: null, dex: null, ageMs: null, priceUsd: null, txns: null, stale: true, lastOkAt: null });
   });
 });
 
 describe("dexScreenerListPartials", () => {
   it("yields one partial per listed token; the unlisted requested address is absent, not a blank row", () => {
-    const partials = dexScreenerListPartials("robinhood", { requested, pairs }, "24h", NOW, NOW, false);
+    const partials = dexScreenerListPartials("monad", { requested, pairs }, "24h", NOW, NOW, false);
     expect(partials).toHaveLength(9);
     expect(new Set(partials.map((partial) => partial.token)).size).toBe(9);
     expect(partials.every((partial) => partial.symbol !== null)).toBe(true);
