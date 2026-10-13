@@ -66,14 +66,15 @@ describe("writeSnapshot / readSnapshot", () => {
 });
 
 describe("configFingerprint", () => {
-  it("is stable for the same endpoints, changes with the Robinhood RPC, and never embeds a Solana API key", () => {
-    const base = { robinhoodRpcUrl: "https://rpc.mainnet.chain.robinhood.com", solanaRpcUrl: "https://mainnet.helius-rpc.com/?api-key=SECRET", nodeEnv: "development" };
+  it("is stable for the same endpoints, changes with the Monad RPC, chain id and env, and never embeds an RPC API key", () => {
+    const base = { monadRpcUrl: "https://rpc.monad.xyz/?api-key=SECRET", chainId: 143, nodeEnv: "development" };
     const a = configFingerprint(base);
     expect(a).toBe(configFingerprint({ ...base }));
     expect(a).toHaveLength(16);
-    expect(a).not.toBe(configFingerprint({ ...base, robinhoodRpcUrl: "https://robinhood-rpc.publicnode.com" }));
+    expect(a).not.toBe(configFingerprint({ ...base, monadRpcUrl: "https://monad-rpc.publicnode.com" }));
     expect(a).not.toBe(configFingerprint({ ...base, nodeEnv: "production" }));
+    expect(a).not.toBe(configFingerprint({ ...base, chainId: 10143 }));
     // the query string (where the key lives) is not part of the material
-    expect(a).toBe(configFingerprint({ ...base, solanaRpcUrl: "https://mainnet.helius-rpc.com/?api-key=OTHER" }));
+    expect(a).toBe(configFingerprint({ ...base, monadRpcUrl: "https://rpc.monad.xyz/?api-key=OTHER" }));
   });
 });

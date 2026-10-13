@@ -3,7 +3,7 @@ import { PrivyClient } from "@privy-io/server-auth";
 import { z } from "zod";
 import { config } from "../config.js";
 import { hasVoiceReservation } from "../agent/credits.js";
-import { parseClawpumpTool, runClawpumpTool } from "../agent/clawpumpTools.js";
+import { parseResearchTool, runResearchTool } from "../agent/monadTools.js";
 import { balance, createQuote, creditError, MAX_VOICE_SECONDS, reconcileVoice, reserveVoice, settleQuote, VOICE_CREDITS_PER_MINUTE, VOICE_RESERVE_CREDITS } from "../agent/credits.js";
 
 export const agentRouter = Router();
@@ -34,18 +34,18 @@ function failed(response: { status: (status: number) => { json: (body: unknown) 
   response.status(failure.status || 503).json({ error: failure.status ? failure.message : "Agent service temporarily unavailable. Please retry shortly." });
 }
 const toolWindows = new Map<string, { start: number; count: number }>();
-agentRouter.post("/tools/clawpump", async (request, response) => {
+agentRouter.post("/tools/research", async (request, response) => {
   try {
     const uid = await userId(request);
     if (!await hasVoiceReservation(uid)) throw creditError("Start an authenticated voice session to use agent research tools.", 402);
     const { tool, args } = z.object({ tool: z.string().max(60), args: z.record(z.string(), z.unknown()).default({}) }).strict().parse(request.body);
-    try { parseClawpumpTool(tool, args); } catch { throw creditError("Invalid or unavailable ClawPump tool arguments."); }
+    try { parseResearchTool(tool, args); } catch { throw creditError("Invalid or unavailable research tool arguments."); }
     const now = Date.now();
     for (const [key, value] of toolWindows) if (now - value.start > 60_000) toolWindows.delete(key);
     const window = toolWindows.get(uid) || { start: now, count: 0 };
     if (++window.count > 15) throw creditError("Research request limit reached. Try again in a minute.", 429);
     toolWindows.set(uid, window);
-    response.setHeader("Cache-Control", "no-store"); response.json(await runClawpumpTool(tool, args));
+    response.setHeader("Cache-Control", "no-store"); response.json(await runResearchTool(tool, args));
   } catch (error) { failed(response, error); }
 });
 
@@ -57,12 +57,11 @@ agentRouter.get("/credits", async (request, response) => {
 agentRouter.post("/credits/quote", async (request, response) => {
   try {
     const uid = await userId(request);
-    const { asset, usd, sender } = z.object({ asset: z.enum(["SOL", "USDC", "ETH", "USDG"]), usd: z.number().int().min(5).max(500), sender: z.string().min(32).max(64) }).parse(request.body);
+    const { asset, usd, sender } = z.object({ asset: z.enum(["MON", "USDC", "AUSD"]), usd: z.number().int().min(5).max(500), sender: z.string().regex(/^0x[a-fA-F0-9]{40}$/) }).parse(request.body);
     // A user must not quote another wallet and ask us to credit the resulting payment.
     const user = await privy!.getUser(uid);
     const linked = [user.wallet, ...user.linkedAccounts].filter(Boolean) as Array<{ type?: string; address?: string }>;
-    const isSolana = asset === "SOL" || asset === "USDC";
-    if (!linked.some((item) => item.address && (isSolana ? item.address === sender : item.address.toLowerCase() === sender.toLowerCase()))) throw creditError("Use a wallet connected to your Privy account.", 403);
+    if (!linked.some((item) => item.address && item.address.toLowerCase() === sender.toLowerCase())) throw creditError("Use a wallet connected to your Privy account.", 403);
     response.json({ quote: await createQuote(uid, asset, usd, sender) });
   } catch (error) { failed(response, error); }
 });
@@ -70,7 +69,7 @@ agentRouter.post("/credits/quote", async (request, response) => {
 agentRouter.post("/credits/settle", async (request, response) => {
   try {
     const uid = await userId(request);
-    const { quoteId, transactionHash } = z.object({ quoteId: z.string().uuid(), transactionHash: z.string().min(60).max(100) }).parse(request.body);
+    const { quoteId, transactionHash } = z.object({ quoteId: z.string().uuid(), transactionHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/) }).parse(request.body);
     response.setHeader("Cache-Control", "no-store"); response.json(await settleQuote(uid, quoteId, transactionHash));
   } catch (error) { failed(response, error); }
 });

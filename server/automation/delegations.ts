@@ -3,7 +3,7 @@ import path from "node:path";
 
 export interface AutomationDelegation {
   userId: string;
-  chain: "solana";
+  chain: "monad";
   walletAddress: string;
   walletId: string;
   signerId: string;
@@ -21,7 +21,7 @@ export class AutomationDelegationStore {
     this.restore();
   }
 
-  get(userId: string, chain: "solana" = "solana") { return this.records.get(`${userId}:${chain}`) ?? null; }
+  get(userId: string, chain: "monad" = "monad") { return this.records.get(`${userId}:${chain}`) ?? null; }
 
   set(input: Omit<AutomationDelegation, "enabledAt" | "updatedAt">) {
     const now = Date.now();
@@ -32,7 +32,7 @@ export class AutomationDelegationStore {
     return record;
   }
 
-  remove(userId: string, chain: "solana" = "solana") {
+  remove(userId: string, chain: "monad" = "monad") {
     const removed = this.records.delete(`${userId}:${chain}`);
     if (removed) this.persist();
     return removed;
@@ -42,7 +42,7 @@ export class AutomationDelegationStore {
     try {
       const rows = JSON.parse(readFileSync(this.file, "utf8"));
       if (Array.isArray(rows)) rows.forEach((row) => {
-        if (row?.userId && row?.chain === "solana" && row?.walletId) this.records.set(`${row.userId}:${row.chain}`, row);
+        if (row?.userId && row?.chain === "monad" && row?.walletId) this.records.set(`${row.userId}:${row.chain}`, row);
       });
     } catch { /* first boot */ }
   }

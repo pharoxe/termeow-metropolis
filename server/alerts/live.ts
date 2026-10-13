@@ -16,10 +16,10 @@ function liveEngineDeps(): AlertEngineDeps {
   return {
     launchOf: (chain, token) => getLaunchService().index.get(chain, token),
     walletTokenFills: (chain, wallet, token) => traders.book.fillsOf(chain, wallet).filter((fill) => fill.token === token).length,
-    fomoFillsOf: (chain, token) => traders.book.tape(chain, DEFAULT_FILL_RING, { kind: "fomo", token }).length,
+    smartFillsOf: (chain, token) => traders.book.tape(chain, DEFAULT_FILL_RING, { kind: "smart", token }).length,
     oldestFillAt: () => traders.book.oldestFillAt(),
     coverage: () => traders.coverage(),
-    symbolOf: (chain, token) => getLaunchService().index.get(chain, token)?.symbol ?? (chain === "robinhood" ? (traders.erc20Meta.get(token)?.symbol ?? null) : null),
+    symbolOf: (chain, token) => getLaunchService().index.get(chain, token)?.symbol ?? (chain === "monad" ? (traders.erc20Meta.get(token)?.symbol ?? null) : null),
     now: () => Date.now()
   };
 }

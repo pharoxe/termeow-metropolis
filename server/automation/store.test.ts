@@ -16,8 +16,8 @@ describe("AutomationStore", () => {
   it("isolates records by Privy user and requires approval before execution", () => {
     const { store } = makeStore();
     const draft = store.create("did:privy:alice", {
-      kind: "swap", chain: "solana", tokenAddress: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
-      side: "buy", router: "jupiter", amountMode: "wallet_percent", allocationPercent: 5, description: "Buy ANSEM with 5%"
+      kind: "swap", chain: "monad", tokenAddress: "0x1111111111111111111111111111111111111111",
+      side: "buy", router: "kuru", amountMode: "wallet_percent", allocationPercent: 5, description: "Buy ANSEM with 5%"
     }, { source: "elevenlabs_voice", conversationId: "conversation-1" });
     expect(draft.status).toBe("pending_approval");
     expect(store.list("did:privy:bob")).toEqual([]);
@@ -33,7 +33,7 @@ describe("AutomationStore", () => {
   it("persists records across process restarts", () => {
     const { directory, store } = makeStore();
     const draft = store.create("did:privy:alice", {
-      kind: "monitor_deployer", chain: "robinhood", tokenAddress: "0x1111111111111111111111111111111111111111",
+      kind: "monitor_deployer", chain: "monad", tokenAddress: "0x1111111111111111111111111111111111111111",
       tokenSymbol: "ANSEM", tokenName: "The Black Bull", tokenLogoUrl: "https://assets.example/ansem.png",
       trackedWallet: "0x2222222222222222222222222222222222222222", trackedWalletUsername: "trenchking",
       router: "0x", amountMode: "wallet_percent", allocationPercent: 5, durationHours: 72,
@@ -47,7 +47,7 @@ describe("AutomationStore", () => {
   it("edits only pending previews and remembers resolved trader preferences", () => {
     const { directory, store } = makeStore();
     const draft = store.create("did:privy:alice", {
-      kind: "monitor_wallet", chain: "robinhood", trackedWallet: "0x2222222222222222222222222222222222222222",
+      kind: "monitor_wallet", chain: "monad", trackedWallet: "0x2222222222222222222222222222222222222222",
       trackedWalletUsername: "FrankDeGods", side: "buy", router: "0x", amountMode: "wallet_percent",
       allocationPercent: 10, durationHours: 8, entryPriceTolerancePct: 25, slippageBps: 75,
       condition: "Buy any observed token within 25% of entry", description: "Track FrankDeGods buys"
@@ -63,7 +63,7 @@ describe("AutomationStore", () => {
   it("returns edited rules to approval and permanently removes non-executing rules", () => {
     const { store } = makeStore();
     const intent = {
-      kind: "monitor_wallet" as const, chain: "solana" as const, trackedWallet: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+      kind: "monitor_wallet" as const, chain: "monad" as const, trackedWallet: "0x1111111111111111111111111111111111111111",
       side: "buy" as const, amountMode: "wallet_percent" as const, allocationPercent: 3, description: "Watch a wallet"
     };
     const draft = store.create("did:privy:alice", intent);
@@ -78,8 +78,8 @@ describe("AutomationStore", () => {
   it("activates linked exits only after a successful buy entry", () => {
     const { store } = makeStore();
     const intent = {
-      kind: "swap" as const, chain: "solana" as const, tokenAddress: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
-      side: "buy" as const, router: "jupiter" as const, amountMode: "wallet_percent" as const, allocationPercent: 5,
+      kind: "swap" as const, chain: "monad" as const, tokenAddress: "0x1111111111111111111111111111111111111111",
+      side: "buy" as const, router: "kuru" as const, amountMode: "wallet_percent" as const, allocationPercent: 5,
       description: "Buy then manage exit", exitConditions: [{ id: "tp", type: "take_profit_pct" as const, value: 25,
         condition: "Sell after a 25% gain", sellPercent: 100, activateAfter: "entry_confirmed" as const }]
     };

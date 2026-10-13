@@ -2,8 +2,8 @@
  "_fixture": "first 20 rows of traders/__fixtures__/r4/trenches-tape.json (robinhoodtrenches /api/tape, real Robinhood fills) reshaped to TraderFill; kind fomo per the tape funding field, pair fomo:<token> as the R4 transfer feed keys them",
  "fills": [
   {
-   "chain": "robinhood",
-   "pair": "fomo:0xf2e122a481b440c40eee7a7ca6d5eef65a591b76",
+   "chain": "monad",
+   "pair": "smart:0xf2e122a481b440c40eee7a7ca6d5eef65a591b76",
    "tx": "0xb11a60d2032b0c5e6af9969ef0e4796a4771c4731d0a2499ce7a29f65f796027",
    "time": 1788716978000,
    "side": "buy",
@@ -14,12 +14,12 @@
    "token": "0xf2e122a481b440c40eee7a7ca6d5eef65a591b76",
    "handle": "remusofmars",
    "followers": 143043,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+   "chain": "monad",
+   "pair": "smart:0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
    "tx": "0x7799bb25e5dd706237df021bebc524447874f6fe95e1369ea7ba8367b67e2562",
    "time": 1788716794000,
    "side": "sell",
@@ -30,12 +30,12 @@
    "token": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
    "handle": "wrld_sol",
    "followers": 89160,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x681c033435288cb107fb30632406683086018171",
+   "chain": "monad",
+   "pair": "smart:0x681c033435288cb107fb30632406683086018171",
    "tx": "0x7fb2ea749131a945be8b416ef374f7fe738f3b56dad27c9ad85be17759f3eab8",
    "time": 1788716756000,
    "side": "buy",
@@ -46,12 +46,12 @@
    "token": "0x681c033435288cb107fb30632406683086018171",
    "handle": "TheDonAlpha_",
    "followers": 26207,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0xcdbb7008414aaf31de517dfea5bc1b09e9626690",
+   "chain": "monad",
+   "pair": "smart:0xcdbb7008414aaf31de517dfea5bc1b09e9626690",
    "tx": "0x8c41158cab253556ec5eab1c3b67b3756b2278b429c85a1a8cdc24541817d7d8",
    "time": 1788716604000,
    "side": "buy",
@@ -62,12 +62,12 @@
    "token": "0xcdbb7008414aaf31de517dfea5bc1b09e9626690",
    "handle": "C1phervoyager",
    "followers": 16118,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x681c033435288cb107fb30632406683086018171",
+   "chain": "monad",
+   "pair": "smart:0x681c033435288cb107fb30632406683086018171",
    "tx": "0x503cbaafdc608da8309a4742bb774495201be7e07422148c3968d35943ee0d03",
    "time": 1788716468000,
    "side": "buy",
@@ -78,12 +78,12 @@
    "token": "0x681c033435288cb107fb30632406683086018171",
    "handle": "TheDonAlpha_",
    "followers": 26207,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+   "chain": "monad",
+   "pair": "smart:0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
    "tx": "0xe4c76532960e43906ad4c025ac2d9c88af60626facdc455a45b208735ecec1a6",
    "time": 1788716466000,
    "side": "sell",
@@ -94,12 +94,12 @@
    "token": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
    "handle": "Aurelius0121",
    "followers": 275064,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0xbcef005602d14cdbcff7c2bba7927c00c7ba20ed",
+   "chain": "monad",
+   "pair": "smart:0xbcef005602d14cdbcff7c2bba7927c00c7ba20ed",
    "tx": "0x122ced16207041f685e04b72d406a6c4e694eecc8229a4dfb0f39378ca2e19fe",
    "time": 1788716456000,
    "side": "sell",
@@ -110,12 +110,12 @@
    "token": "0xbcef005602d14cdbcff7c2bba7927c00c7ba20ed",
    "handle": "TheDonAlpha_",
    "followers": 26207,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+   "chain": "monad",
+   "pair": "smart:0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
    "tx": "0xba36f28679de3a893d80b2b0bb7c1216df13b9a0b2e862ff4280aebea0fe6d15",
    "time": 1788716445000,
    "side": "sell",
@@ -126,12 +126,12 @@
    "token": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
    "handle": "Aurelius0121",
    "followers": 275064,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0xcdbb7008414aaf31de517dfea5bc1b09e9626690",
+   "chain": "monad",
+   "pair": "smart:0xcdbb7008414aaf31de517dfea5bc1b09e9626690",
    "tx": "0xf64d836b056b06b0a0a076c47e94762f00f6422e521e494120b0ad876caabe7c",
    "time": 1788716421000,
    "side": "buy",
@@ -142,12 +142,12 @@
    "token": "0xcdbb7008414aaf31de517dfea5bc1b09e9626690",
    "handle": "rasmr",
    "followers": 56977,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x7fe995a80075df3dc8ae11a9b82c7fe4202cd87f",
+   "chain": "monad",
+   "pair": "smart:0x7fe995a80075df3dc8ae11a9b82c7fe4202cd87f",
    "tx": "0xeedf49ea40d0eafa788c3f62ff09f3a3211b92f04440a4e8a3c4ad9e291b9a95",
    "time": 1788716411000,
    "side": "buy",
@@ -158,12 +158,12 @@
    "token": "0x7fe995a80075df3dc8ae11a9b82c7fe4202cd87f",
    "handle": "CryptoKaleo",
    "followers": 27961,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0xbe98b75361935b18d688409424a869a4c3dc7401",
+   "chain": "monad",
+   "pair": "smart:0xbe98b75361935b18d688409424a869a4c3dc7401",
    "tx": "0xc3b011fc2bee12052d96fef67b269a5c950ebbbce1c5e8167dd5475051bd1e88",
    "time": 1788716367000,
    "side": "sell",
@@ -174,12 +174,12 @@
    "token": "0xbe98b75361935b18d688409424a869a4c3dc7401",
    "handle": "andy",
    "followers": 43692,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x2e8c31162b855a2ffa90f6f8634643ad6f111e18",
+   "chain": "monad",
+   "pair": "smart:0x2e8c31162b855a2ffa90f6f8634643ad6f111e18",
    "tx": "0xe225e2ee065025402daf04336a10bb034f78cf9cd72b9025bbb2124b7f069ce2",
    "time": 1788716358000,
    "side": "sell",
@@ -190,12 +190,12 @@
    "token": "0x2e8c31162b855a2ffa90f6f8634643ad6f111e18",
    "handle": "ArtofConviction",
    "followers": 16336,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x39dbed3a2bd333467115de45665cc57f813c4571",
+   "chain": "monad",
+   "pair": "smart:0x39dbed3a2bd333467115de45665cc57f813c4571",
    "tx": "0xbf11d1e467b113faebd0439fa4963b67bc1dad69205914887627e581b4f3a93c",
    "time": 1788716356000,
    "side": "sell",
@@ -206,12 +206,12 @@
    "token": "0x39dbed3a2bd333467115de45665cc57f813c4571",
    "handle": "AvgJoesCrypto",
    "followers": 105301,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x8b3e3ba1a55b939f93f0a205f94520b9468e17f8",
+   "chain": "monad",
+   "pair": "smart:0x8b3e3ba1a55b939f93f0a205f94520b9468e17f8",
    "tx": "0xe2cab8b65daf419f2dae9daf0c2e1802b5cf265e551431dcd5dc736bdeaaef67",
    "time": 1788716353000,
    "side": "buy",
@@ -222,12 +222,12 @@
    "token": "0x8b3e3ba1a55b939f93f0a205f94520b9468e17f8",
    "handle": "pingucharts",
    "followers": 52729,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x34201a68f0b83a2d8a2239c62b7a05403b36c3a6",
+   "chain": "monad",
+   "pair": "smart:0x34201a68f0b83a2d8a2239c62b7a05403b36c3a6",
    "tx": "0xbc70ab2d6a81cdccc669887c7740ca9ffb72c0cfc7d7e49f54895208c99f7988",
    "time": 1788716344000,
    "side": "buy",
@@ -238,12 +238,12 @@
    "token": "0x34201a68f0b83a2d8a2239c62b7a05403b36c3a6",
    "handle": "sadcrissy",
    "followers": 40262,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x98096d17e191b3da1d5f99a6d7b3584351b11e18",
+   "chain": "monad",
+   "pair": "smart:0x98096d17e191b3da1d5f99a6d7b3584351b11e18",
    "tx": "0xe276d1aa527fe94bb55da17ff3cb8286e046c3728fb7cf34521ed848ea409805",
    "time": 1788716283000,
    "side": "buy",
@@ -254,12 +254,12 @@
    "token": "0x98096d17e191b3da1d5f99a6d7b3584351b11e18",
    "handle": "himgajria",
    "followers": 31665,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0xbe98b75361935b18d688409424a869a4c3dc7401",
+   "chain": "monad",
+   "pair": "smart:0xbe98b75361935b18d688409424a869a4c3dc7401",
    "tx": "0x5076d8031ec3573554623f7a4665e7daa56d6080e6900f14a2463be1bcc8e196",
    "time": 1788716257000,
    "side": "sell",
@@ -270,12 +270,12 @@
    "token": "0xbe98b75361935b18d688409424a869a4c3dc7401",
    "handle": "andy",
    "followers": 43692,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x39dbed3a2bd333467115de45665cc57f813c4571",
+   "chain": "monad",
+   "pair": "smart:0x39dbed3a2bd333467115de45665cc57f813c4571",
    "tx": "0x11a5e95b3e13529ab72deaead669fede0682f7ae4f2311ac9dc63f6e46d70649",
    "time": 1788716253000,
    "side": "sell",
@@ -286,12 +286,12 @@
    "token": "0x39dbed3a2bd333467115de45665cc57f813c4571",
    "handle": "AvgJoesCrypto",
    "followers": 105301,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x98096d17e191b3da1d5f99a6d7b3584351b11e18",
+   "chain": "monad",
+   "pair": "smart:0x98096d17e191b3da1d5f99a6d7b3584351b11e18",
    "tx": "0x8db8f21ad1bb995271d8009435dbfe9c3d5a0892227c630bc0bcf78f350fcf17",
    "time": 1788716233000,
    "side": "buy",
@@ -302,12 +302,12 @@
    "token": "0x98096d17e191b3da1d5f99a6d7b3584351b11e18",
    "handle": "himgajria",
    "followers": 31665,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   },
   {
-   "chain": "robinhood",
-   "pair": "fomo:0x2e8c31162b855a2ffa90f6f8634643ad6f111e18",
+   "chain": "monad",
+   "pair": "smart:0x2e8c31162b855a2ffa90f6f8634643ad6f111e18",
    "tx": "0x515b058bd1683be6872d635636e258374b19b07d98e984ea72ec4a495a2572a6",
    "time": 1788716176000,
    "side": "sell",
@@ -318,7 +318,7 @@
    "token": "0x2e8c31162b855a2ffa90f6f8634643ad6f111e18",
    "handle": "himgajria",
    "followers": 31665,
-   "kind": "fomo",
+   "kind": "smart",
    "usdVia": "wallet_leg"
   }
  ]

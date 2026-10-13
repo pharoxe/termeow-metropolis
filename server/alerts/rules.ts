@@ -4,7 +4,7 @@ import type {
   AlertRuleInfo,
   BigHandleEntryEvidence,
   Chain,
-  FirstFomoBuyEvidence,
+  FirstSmartBuyEvidence,
   GraduationEvidence,
   LaunchRow,
   TraderKind
@@ -13,36 +13,35 @@ import type { TraderFill } from "../traders/walletStats.js";
 
 /** A launch row younger than this at the fill's chain time counts as fresh. */
 export const LAUNCH_FRESH_MS = 30 * 60_000;
-/** robinhoodtrenches follower floor for big_handle_entry. */
-export const BIG_FOLLOWERS = 10_000;
+/** Follower floor for big_handle_entry; 0 on Monad, where the label (Nansen cohort or watchlist) is the signal, not followers. */
+export const BIG_FOLLOWERS = 0;
 /**
- * rpc:robinhood createdAt is estimateBlockTimeMs (100.7 ms/block from the poll head, clamped to now); a fill whose
+ * rpc:monad createdAt is estimateBlockTimeMs (~300 ms/block from the poll head, clamped to now); a fill whose
  * block timestamp lands a few seconds before that estimate is still a fill on that launch, not a leak.
  */
 export const CREATED_AT_SLACK_MS = 5_000;
-/** Sources that mean "this server saw the create event on chain"; rows first seen through enrichment (dexscreener, trenches) never make a launch fresh. */
-const CHAIN_LAUNCH_SOURCES: readonly string[] = ["rpc:robinhood", "pumpportal"];
-/** Only rows with these sources carry an estimated createdAt; PumpPortal frames carry their own timestamp. */
-const ESTIMATED_CREATED_AT_SOURCES: readonly string[] = ["rpc:robinhood"];
+/** Sources that mean "this server saw the create event on chain"; rows first seen through enrichment (dexscreener) never make a launch fresh. */
+const CHAIN_LAUNCH_SOURCES: readonly string[] = ["rpc:monad"];
+/** Only rows with these sources carry an estimated createdAt. */
+const ESTIMATED_CREATED_AT_SOURCES: readonly string[] = ["rpc:monad"];
 /**
- * Kinds a big_handle_entry may name: verified FOMO only. A seeded wallet's check is still pending (it may prove "other"),
- * and the live window showed 43 of 57 alerts on pending wallets from bundled multi-wallet txs; the ring row is immutable.
+ * Kinds a big_handle_entry may name: classified smart money only; a seeded wallet's check is still pending and the ring row is immutable.
  */
-const BIG_HANDLE_KINDS: readonly TraderKind[] = ["fomo"];
+const BIG_HANDLE_KINDS: readonly TraderKind[] = ["smart"];
 
-/** FOMO fills are Robinhood-only by construction (eth_getCode 7702 check); no rule has real evidence on Solana yet. */
+/** Smart-money fills come from the Monad trader book (Nansen labels + watchlist). */
 export const ALERT_RULES: readonly AlertRuleInfo[] = [
   {
-    rule: "first_fomo_buy",
-    chains: ["robinhood"],
-    description: `first verified-FOMO buy this server recorded (arrival order; untimed fills are dropped upstream) of a token whose launch row is younger than ${LAUNCH_FRESH_MS / 60_000} min at the fill's block time`
+    rule: "first_smart_buy",
+    chains: ["monad"],
+    description: `first verified-SMART buy this server recorded (arrival order; untimed fills are dropped upstream) of a token whose launch row is younger than ${LAUNCH_FRESH_MS / 60_000} min at the fill's block time`
   },
   {
     rule: "big_handle_entry",
-    chains: ["robinhood"],
-    description: `first fill (per the book, since its oldest fill) of a verified-FOMO robinhoodtrenches handle with >= ${BIG_FOLLOWERS.toLocaleString("en-US")} followers in a token`
+    chains: ["monad"],
+    description: "first fill (per the book, since its oldest fill) of a Nansen-labelled or watched wallet in a token"
   },
-  { rule: "graduation", chains: ["robinhood"], description: "decoded graduation (Pons LaunchSwept / PoolGraduated) of a token with verified-FOMO fills in the book" }
+  { rule: "graduation", chains: ["monad"], description: "decoded nad.fun graduation (CurveGraduate) of a token with smart-money fills in the book" }
 ];
 
 export const ALERT_RULE_NAMES = ALERT_RULES.map((info) => info.rule) as [AlertRule, ...AlertRule[]];
@@ -75,20 +74,18 @@ export function isFreshLaunch(row: Pick<LaunchRow, "createdAt" | "sources">, atM
   return age >= -CREATED_AT_SLACK_MS && age < freshMs;
 }
 
-/** Verified FOMO only: a seeded wallet's buy is never the first FOMO buy. */
-export function isFomoBuy(fill: Pick<TraderFill, "kind" | "side">): boolean {
-  return fill.kind === "fomo" && fill.side === "buy";
+/** Verified SMART only: a seeded wallet's buy is never the first SMART buy. */
+export function isSmartBuy(fill: Pick<TraderFill, "kind" | "side">): boolean {
+  return fill.kind === "smart" && fill.side === "buy";
 }
 
-export type BigHandleFill = TraderFill & { handle: string; followers: number };
+export type BigHandleFill = TraderFill & { handle: string; followers: number | null };
 
 export function isBigHandle(fill: TraderFill, floor: number = BIG_FOLLOWERS): fill is BigHandleFill {
   return (
     typeof fill.handle === "string" &&
     fill.handle.length > 0 &&
-    typeof fill.followers === "number" &&
-    Number.isFinite(fill.followers) &&
-    fill.followers >= floor &&
+    (floor <= 0 || (typeof fill.followers === "number" && Number.isFinite(fill.followers) && fill.followers >= floor)) &&
     fill.kind !== undefined &&
     fill.kind !== null &&
     BIG_HANDLE_KINDS.includes(fill.kind)
@@ -108,7 +105,7 @@ export function fillEvidence(fill: TraderFill): AlertFillEvidence {
   };
 }
 
-export function firstFomoBuyEvidence(row: LaunchRow, fill: TraderFill): FirstFomoBuyEvidence {
+export function firstSmartBuyEvidence(row: LaunchRow, fill: TraderFill): FirstSmartBuyEvidence {
   return {
     launchpad: row.launchpad,
     createdAt: row.createdAt,
@@ -124,6 +121,6 @@ export function bigHandleEvidence(fill: BigHandleFill, bookSince: number | null)
   return { ...fillEvidence(fill), handle: fill.handle, followers: fill.followers, bookSince };
 }
 
-export function graduationEvidence(row: LaunchRow, fomoFills: number): GraduationEvidence {
-  return { launchpad: row.launchpad, pool: row.pool, launchTx: row.tx, graduationTx: null, fomoFills };
+export function graduationEvidence(row: LaunchRow, smartFills: number): GraduationEvidence {
+  return { launchpad: row.launchpad, pool: row.pool, launchTx: row.tx, graduationTx: null, smartFills };
 }

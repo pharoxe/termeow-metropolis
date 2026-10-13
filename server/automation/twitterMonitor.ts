@@ -5,11 +5,10 @@ import { currentMarketCap, dispatchAutomationSignal } from "./dispatch.js";
 
 type Tweet = { id?: string; text?: string; url?: string; createdAt?: string };
 const EVM_ADDRESS = /\b0x[a-fA-F0-9]{40}\b/g;
-const SOLANA_ADDRESS = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g;
 
-export function contractAddresses(text: string, chain: "solana" | "robinhood") {
-  const values = chain === "robinhood" ? text.match(EVM_ADDRESS) ?? [] : text.match(SOLANA_ADDRESS) ?? [];
-  return [...new Set(values)].filter((value) => chain === "robinhood" || !/^(https?|twitter|solana|address)$/i.test(value));
+/** Distinct 0x contract addresses mentioned in a post, lowercase (Monad is EVM, so nothing else is a contract). */
+export function contractAddresses(text: string, _chain: "monad" = "monad") {
+  return [...new Set((text.match(EVM_ADDRESS) ?? []).map((value) => value.toLowerCase()))];
 }
 
 async function latestTweets(handle: string, apiKey: string): Promise<Tweet[]> {

@@ -9,13 +9,11 @@ import { reconcilePendingVoice } from "./agent/credits.js";
 import { systemRouter } from "./routes/system.js";
 import { onchainRouter } from "./routes/onchain.js";
 import { terminalRouter } from "./routes/terminal.js";
-import { thesesRouter } from './routes/theses.js';
-import { identityRouter } from './routes/identity.js';
 import { flowRouter } from "./routes/flow.js";
 import { flowCandlesRouter } from "./routes/flowCandles.js";
 import { marketRouter } from "./routes/market.js";
 import { launchesRouter } from "./routes/launches.js";
-import { fomoRouter } from "./routes/fomo.js";
+import { smartRouter } from "./routes/smart.js";
 import { liveAlertsRouter } from "./routes/alerts.js";
 import { discoverRouter } from "./routes/discover.js";
 import { agentRouter } from "./routes/agent.js";
@@ -25,7 +23,6 @@ import { internalAutomationsRouter } from "./routes/internalAutomations.js";
 import { automationRepository } from "./automation/runtime.js";
 import { startTwitterLaunchMonitor } from "./automation/twitterMonitor.js";
 import { startWalletAutomationMonitor } from "./automation/walletMonitor.js";
-import { clawpumpMcp } from "./clawpump/mcp.js";
 import { errorMessage, UpstreamError } from "./lib/http.js";
 import { installSnapshots } from "./persist/live.js";
 
@@ -45,13 +42,11 @@ app.use(express.json({ limit: "256kb" }));
 app.use("/api", systemRouter);
 app.use("/api/onchain", onchainRouter);
 app.use("/api/terminal", terminalRouter);
-app.use('/api/theses',thesesRouter);
-app.use('/api/identity',identityRouter);
 app.use("/api/flow", flowRouter);
 app.use("/api/flow", flowCandlesRouter);
 app.use("/api/market", marketRouter);
 app.use("/api/launches", launchesRouter);
-app.use("/api/fomo", fomoRouter);
+app.use("/api/smart", smartRouter);
 app.use("/api/alerts", liveAlertsRouter());
 app.use("/api/discover", discoverRouter);
 app.use("/api/agent", agentRouter);
@@ -88,7 +83,7 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
 
 const server = app.listen(config.port, config.host, () => {
   const visibleHost = config.host === "0.0.0.0" ? "127.0.0.1" : config.host;
-  console.log(`terminal-v-solana -> http://${visibleHost}:${config.port}`);
+  console.log(`termeow (monad) -> http://${visibleHost}:${config.port}`);
 });
 server.on("error", (error) => {
   console.error(error);
@@ -101,7 +96,6 @@ async function shutdown() {
   stopWalletAutomationMonitor();
   snapshots.saveAll("shutdown");
   server.close();
-  await clawpumpMcp.close();
   await automationRepository.close();
   process.exit(0);
 }

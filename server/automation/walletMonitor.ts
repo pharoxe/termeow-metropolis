@@ -1,10 +1,11 @@
 import { alertSink } from "../alerts/sink.js";
+import { getTraderService } from "../traders/service.js";
 import type { TraderFill } from "../traders/walletStats.js";
 import { automationRepository } from "./runtime.js";
 import { currentMarketCap, dispatchAutomationSignal } from "./dispatch.js";
 
-function sameWallet(chain: "solana" | "robinhood", left: string, right: string) {
-  return chain === "robinhood" ? left.toLowerCase() === right.toLowerCase() : left === right;
+function sameWallet(_chain: "monad", left: string, right: string) {
+  return left.toLowerCase() === right.toLowerCase();
 }
 
 export async function observeTrackedWalletFill(fill: TraderFill) {
@@ -29,6 +30,18 @@ export async function observeTrackedWalletFill(fill: TraderFill) {
   return matched;
 }
 
+/** Every armed wallet monitor's wallet joins the trader service's watchlist so its fills reach the alert sink. */
+export async function watchArmedWallets() {
+  const rules = await automationRepository.armed("monitor_wallet");
+  const wallets = rules.map((rule) => rule.intent.trackedWallet).filter((wallet): wallet is string => Boolean(wallet));
+  if (wallets.length) getTraderService().watchWallets(wallets);
+  return wallets.length;
+}
+
 export function startWalletAutomationMonitor() {
-  return alertSink.subscribe((event) => { if (event.kind === "fill") void observeTrackedWalletFill(event.fill); });
+  const timer = setInterval(() => void watchArmedWallets().catch(() => undefined), 5 * 60_000);
+  timer.unref?.();
+  void watchArmedWallets().catch((error) => console.warn("[automation] watchlist restore deferred:", error instanceof Error ? error.message : error));
+  const unsubscribe = alertSink.subscribe((event) => { if (event.kind === "fill") void observeTrackedWalletFill(event.fill); });
+  return () => { clearInterval(timer); unsubscribe(); };
 }

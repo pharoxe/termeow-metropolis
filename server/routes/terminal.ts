@@ -10,7 +10,7 @@ import { flowParamsSchema, liveDeps } from "./flow.js";
 export const terminalRouter = Router();
 terminalRouter.post("/participants/watch",(req,res,next)=>{
   try {
-    const body=z.object({chain:z.enum(["solana","robinhood"]),wallets:z.array(z.string()).max(32)}).parse(req.body);
+    const body=z.object({chain:z.literal("monad"),wallets:z.array(z.string()).max(32)}).parse(req.body);
     for(const wallet of body.wallets) flowParamsSchema.parse({chain:body.chain,address:wallet});
     res.json({snapshots:participantWorker.watch(body.chain,body.wallets),refreshMs:participantWorker.refreshMs,observedAt:Date.now()});
   }catch(e){next(e);}
@@ -23,7 +23,7 @@ async function prepare(params: unknown) {
   liveDeps.collector.subscribe(scope.chain,scope.address,registry.pairs.filter(p => !isLaunchpadRow(p)));
   return {...scope, pairs:registry.pairs};
 }
-function snapshot(chain: "solana"|"robinhood", address:string):TerminalSnapshot {
+function snapshot(chain: "monad", address:string):TerminalSnapshot {
   const history=tradeArchive.history(chain,address,0,Date.now(),200);
   return { chain,token:address,events:history.events,revision:tradeArchive.revision(chain,address),observedAt:Date.now(),health:liveDeps.collector.status?.(chain,address).feedHealth??null,archiveError:tradeArchive.error };
 }
@@ -61,7 +61,7 @@ terminalRouter.get("/:chain/:address/aggregate",(req,res,next)=>{
 let connections=0;
 const workspaceScopes=new Map<string,{refs:number;scope:ReturnType<typeof flowParamsSchema.parse>;ready:ReturnType<typeof prepare>|null;lastTouch:number;lastRegistry:number;cached?:{key:string;body:TerminalSnapshot}}>();
 terminalRouter.get('/workspace/stream',async(req,res,next)=>{
-  let scopes:Array<{chain:'solana'|'robinhood';address:string}>;
+  let scopes:Array<{chain:'monad';address:string}>;
   try{scopes=z.array(flowParamsSchema).min(1).max(4).parse(JSON.parse(String(req.query.scopes))).filter((s,i,all)=>all.findIndex(x=>x.chain===s.chain&&x.address===s.address)===i);}catch(e){res.status(400).json({error:'Invalid workspace scopes'});return;}
   if(connections>=16){res.status(503).json({error:'Live connection limit reached'});return;}
   connections++;let closed=false;

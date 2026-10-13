@@ -1,35 +1,27 @@
-import { QuoteCache, matchesOrder, matchesRoute } from "../trading/quotes.js";
-import { walletPortfolio } from "../market/walletPortfolio.js";
-import { robinhoodWalletPortfolio } from "../market/robinhoodWalletPortfolio.js";
-import { solanaWalletActivity } from "../market/walletActivity.js";
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
-import { AddressLookupTableAccount, Connection, PublicKey, TransactionInstruction, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
+import { NATIVE_SENTINEL, isNativeMon } from "../../shared/chains.js";
 import { config } from "../config.js";
-import { clawpumpMcp } from "../clawpump/mcp.js";
-import { getBoard, getHolders, getOnchainMarket, getTrenches, trenchSorts } from "../clawpump/market.js";
-import { errorMessage, fetchJson } from "../lib/http.js";
+import { fetchJson } from "../lib/http.js";
+import { monadWalletPortfolio } from "../market/monadWalletPortfolio.js";
+import { runResearchTool } from "../agent/monadTools.js";
+import { getNansen } from "../sources/nansen.js";
+import { getPerpl } from "../sources/perpl.js";
+import { KuruFlowClient, type KuruQuote } from "../trading/kuru.js";
+import { QuoteCache, matchesOrder } from "../trading/quotes.js";
 
-const address = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
 const evmAddress = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
-const chainAddress = z.union([address, evmAddress]);
 export const quoteSchema = z.object({
-  chain: z.enum(["solana", "robinhood"]).default("solana"),
-  router: z.enum(["0x", "jupiter", "clawpump"]).default("jupiter"),
-  inputMint: chainAddress,
-  outputMint: chainAddress,
-  amount: z.string().regex(/^[1-9]\d*$/),
+  chain: z.literal("monad").default("monad"),
+  router: z.enum(["kuru", "0x"]).default("kuru"),
+  inputMint: evmAddress,
+  outputMint: evmAddress,
+  amount: z.string().regex(/^[1-9]\d{0,77}$/),
   slippageBps: z.number().int().min(1).max(500).default(50),
-  walletAddress: chainAddress.optional()
+  walletAddress: evmAddress.optional()
 }).superRefine((input, ctx) => {
-  const validator = input.chain === "solana" ? address : evmAddress;
-  for (const [field, value] of [["inputMint", input.inputMint], ["outputMint", input.outputMint], ["walletAddress", input.walletAddress]] as const) {
-    if (value && !validator.safeParse(value).success) ctx.addIssue({ code: "custom", path: [field], message: `${field} is not valid for ${input.chain}` });
-  }
-  if (input.chain === "solana" && /^[1-9]\d*$/.test(input.amount) && BigInt(input.amount) > 18446744073709551615n) ctx.addIssue({ code: "custom", path: ["amount"], message: "Amount exceeds token range" });
-  if (input.chain === "robinhood" && input.router !== "0x") ctx.addIssue({ code: "custom", path: ["router"], message: "Robinhood Chain currently routes through 0x." });
-  if (input.chain === "solana" && input.router === "jupiter" && input.inputMint.startsWith("0x")) ctx.addIssue({ code: "custom", path: ["inputMint"], message: "Jupiter requires Solana mint addresses." });
+  if (input.inputMint.toLowerCase() === input.outputMint.toLowerCase()) ctx.addIssue({ code: "custom", path: ["outputMint"], message: "Input and output tokens must differ" });
 });
 
 export const onchainRouter = Router();
@@ -39,20 +31,7 @@ type QuoteInput = z.infer<typeof quoteSchema>;
 const quoteCache = new QuoteCache();
 const quoteCleanup = setInterval(() => quoteCache.prune(), 30_000);
 quoteCleanup.unref();
-
-type ZeroExInstruction = {
-  accounts: Array<{ pubkey: number[]; is_signer: boolean; is_writable: boolean }>;
-  data: number[];
-  program_id: number[];
-};
-type ZeroExSolanaQuote = {
-  address_lookup_tables?: string[];
-  amount_out: number | string;
-  min_amount_out: number | string;
-  instructions: ZeroExInstruction[];
-  route_plan?: Array<{ dex_label?: string }>;
-  zid?: string;
-};
+const kuru = new KuruFlowClient({ apiUrl: config.kuru.apiUrl });
 
 type ZeroExEvmQuote = {
   allowanceTarget?: string;
@@ -62,48 +41,12 @@ type ZeroExEvmQuote = {
   estimatedPriceImpact?: string;
   issues?: { allowance?: { actual?: string; spender?: string } | null };
   route?: { fills?: Array<{ source?: string; proportionBps?: string }> };
-  transaction: {
-    to: string;
-    data: string;
-    value?: string;
-    gas?: string;
-    gasPrice?: string;
-    maxFeePerGas?: string;
-    maxPriorityFeePerGas?: string;
-  };
+  transaction: { to: string; data: string; value?: string; gas?: string; gasPrice?: string; maxFeePerGas?: string; maxPriorityFeePerGas?: string };
 };
 
-const ROBINHOOD_CHAIN_ID = 4663;
-
-async function zeroExSolanaTransaction(quote: ZeroExSolanaQuote, taker: string) {
-  const connection = new Connection(config.rpc.primary, "confirmed");
-  const instructions = quote.instructions.map((instruction) => new TransactionInstruction({
-    programId: new PublicKey(Uint8Array.from(instruction.program_id)),
-    keys: instruction.accounts.map((account) => ({
-      pubkey: new PublicKey(Uint8Array.from(account.pubkey)),
-      isSigner: account.is_signer,
-      isWritable: account.is_writable
-    })),
-    data: Buffer.from(instruction.data)
-  }));
-  const lookupKeys = quote.address_lookup_tables ?? [];
-  const [lookupInfos, latestBlockhash] = await Promise.all([
-    lookupKeys.length ? connection.getMultipleAccountsInfo(lookupKeys.map((key) => new PublicKey(key))) : Promise.resolve([]),
-    connection.getLatestBlockhash("confirmed")
-  ]);
-  const lookups = lookupInfos.map((info, index) => {
-    if (!info) throw new Error(`0x address lookup table was unavailable: ${lookupKeys[index]}`);
-    return new AddressLookupTableAccount({
-      key: new PublicKey(lookupKeys[index]),
-      state: AddressLookupTableAccount.deserialize(info.data)
-    });
-  });
-  const message = new TransactionMessage({
-    payerKey: new PublicKey(taker),
-    recentBlockhash: latestBlockhash.blockhash,
-    instructions
-  }).compileToV0Message(lookups);
-  return Buffer.from(new VersionedTransaction(message).serialize()).toString("base64");
+/** 0x names native MON with the 0xEeee… sentinel; Kuru with the zero address (normalised inside the Kuru client). */
+function zeroExToken(address: string): string {
+  return isNativeMon(address) ? NATIVE_SENTINEL : address;
 }
 
 export function sameQuoteRequest(left: QuoteInput, right: QuoteInput) {
@@ -116,170 +59,75 @@ function cacheQuote(input: QuoteInput, quote: unknown) {
   return { quoteId, expiresAt };
 }
 
-function findJupiterQuote(value: unknown): Record<string, unknown> | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const record = value as Record<string, unknown>;
-  if (Array.isArray(record.routePlan) && typeof record.inputMint === "string" && typeof record.outputMint === "string") return record;
-  for (const child of Object.values(record)) {
-    const found = findJupiterQuote(child);
-    if (found) return found;
-  }
-  return undefined;
+/** The approval a user-signed ERC-20 sell needs before the swap; native MON never needs one. */
+function approvalFor(input: QuoteInput, spender: string | undefined, currentAllowance?: string) {
+  if (isNativeMon(input.inputMint) || !spender) return { required: false };
+  return { required: true, token: input.inputMint, spender, amount: input.amount, currentAllowance };
 }
-
-onchainRouter.get("/search", async (request, response, next) => {
-  try {
-    const query = z.string().min(1).max(80).parse(request.query.q);
-    const result = await clawpumpMcp.call("token_search", { query });
-    response.status(result.ok ? 200 : 502).json(result);
-  } catch (error) { next(error); }
-});
-
-
-onchainRouter.get("/board", async (_request, response) => {
-  try {
-    const board = await getBoard();
-    response.json({ observedAt: Date.now(), source: "clawpump-board", ttlMs: 30_000, ...board });
-  } catch (error) {
-    response.json({ observedAt: Date.now(), source: "clawpump-board", ttlMs: 30_000, error: errorMessage(error) });
-  }
-});
-
-onchainRouter.get("/trenches", async (request, response) => {
-  try {
-    const sort = trenchSorts.includes(String(request.query.sort) as typeof trenchSorts[number])
-      ? String(request.query.sort) as typeof trenchSorts[number]
-      : "hot";
-    response.json(await getTrenches(sort));
-  } catch (error) {
-    response.json({ sort: String(request.query.sort || "hot"), tokens: [], error: errorMessage(error) });
-  }
-});
-
-onchainRouter.get("/holders/:mint", async (request, response, next) => {
-  try {
-    const mint = address.parse(request.params.mint);
-    response.json(await getHolders(mint));
-  } catch (error) { next(error); }
-});
-
-onchainRouter.get("/market/:mint", async (request, response, next) => {
-  try {
-    const mint = address.parse(request.params.mint);
-    const interval = z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]).default("5m").parse(request.query.interval);
-    response.json(await getOnchainMarket(mint, interval));
-  } catch (error) { next(error); }
-});
 
 onchainRouter.post("/quote", async (request, response, next) => {
   try {
     const input = quoteSchema.parse(request.body);
-    if (input.router === "0x") {
-      if (!config.zeroEx.apiKey) {
-        response.status(503).json({ error: "0x routing is not configured", hint: "Set ZEROEX_API_KEY on the server." });
-        return;
-      }
-      if (!input.walletAddress) {
-        response.status(400).json({ error: `Connect the ${input.chain === "solana" ? "Solana" : "Robinhood"} wallet before requesting a firm 0x quote.` });
-        return;
-      }
-      if (input.chain === "robinhood") {
-        const params = new URLSearchParams({
-          chainId: String(ROBINHOOD_CHAIN_ID),
-          sellToken: input.inputMint,
-          buyToken: input.outputMint,
-          sellAmount: input.amount,
-          taker: input.walletAddress,
-          slippageBps: String(input.slippageBps)
-        });
-        const result = await fetchJson<ZeroExEvmQuote>(`${config.zeroEx.apiUrl}/swap/allowance-holder/quote?${params}`, {
-          headers: { "0x-api-key": config.zeroEx.apiKey, "0x-version": "v2" }
-        });
-        const { quoteId, expiresAt } = cacheQuote(input, result);
-        response.json({
-          quoteId,
-          expiresAt,
-          chain: input.chain,
-          router: "0x",
-          source: "0x AllowanceHolder · Robinhood Chain",
-          observedAt: Date.now(),
-          outAmount: result.buyAmount,
-          minimumOutAmount: result.minBuyAmount,
-          price: result.price,
-          priceImpactPct: result.estimatedPriceImpact,
-          allowanceRequired: Boolean(result.issues?.allowance),
-          routePlan: result.route?.fills ?? []
-        });
-        return;
-      }
-      const amountIn = Number(input.amount);
-      if (!Number.isSafeInteger(amountIn)) {
-        response.status(400).json({ error: "The atomic input amount is outside the supported range." });
-        return;
-      }
-      const result = await fetchJson<ZeroExSolanaQuote>(`${config.zeroEx.apiUrl}/solana/swap-instructions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "0x-api-key": config.zeroEx.apiKey },
-        body: JSON.stringify({
-          token_in: input.inputMint,
-          token_out: input.outputMint,
-          amount_in: amountIn,
-          taker: input.walletAddress,
-          slippage_bps: input.slippageBps
-        })
+    if (!input.walletAddress) {
+      response.status(400).json({ error: "Connect a Monad wallet before requesting a firm quote." });
+      return;
+    }
+    if (input.router === "kuru") {
+      const quote = await kuru.quote({
+        userAddress: input.walletAddress,
+        tokenIn: input.inputMint,
+        tokenOut: input.outputMint,
+        amount: input.amount,
+        slippageBps: input.slippageBps,
+        referrerAddress: config.kuru.referrerAddress,
+        referrerFeeBps: config.kuru.referrerFeeBps
       });
-      const { quoteId, expiresAt } = cacheQuote(input, result);
+      const { quoteId, expiresAt } = cacheQuote(input, quote);
       response.json({
         quoteId,
         expiresAt,
-        router: "0x",
-        source: "0x Solana Swap API",
+        chain: "monad",
+        router: "kuru",
+        source: "Kuru Flow · Monad",
         observedAt: Date.now(),
-        outAmount: String(result.amount_out),
-        minimumOutAmount: String(result.min_amount_out),
-        routePlan: result.route_plan ?? [],
-        zid: result.zid
+        outAmount: quote.output,
+        minimumOutAmount: quote.minOut,
+        // ERC-20 inputs approve the Kuru Flow router named in the quote, for the exact amount.
+        allowanceRequired: !isNativeMon(input.inputMint),
+        routePlan: [{ source: "Kuru Flow" }]
       });
       return;
     }
-    if (input.router === "jupiter") {
-      const params = new URLSearchParams({
-        inputMint: input.inputMint,
-        outputMint: input.outputMint,
-        amount: input.amount,
-        slippageBps: String(input.slippageBps),
-        swapMode: "ExactIn",
-        restrictIntermediateTokens: "true"
-      });
-      const result = await fetchJson<Record<string, unknown>>(`${config.jupiter.apiUrl}/quote?${params}`, {
-        headers: config.jupiter.apiKey ? { "x-api-key": config.jupiter.apiKey } : undefined
-      });
-      if (!matchesRoute(result, input)) {
-        response.status(502).json({ error: "Quote route differs from requested order" });
-        return;
-      }
-      const { quoteId, expiresAt } = cacheQuote(input, result);
-      response.json({ quoteId, expiresAt, chain: input.chain, router: "jupiter", source: "Jupiter Swap API", observedAt: Date.now(), ...result });
+    if (!config.zeroEx.apiKey) {
+      response.status(503).json({ error: "0x routing is not configured", hint: "Set ZEROEX_API_KEY on the server, or use Kuru Flow." });
       return;
     }
-    const result = await clawpumpMcp.call("swap_quote", {
-      ...(config.clawpump.agentId ? { agent_id: config.clawpump.agentId } : {}),
-      input_mint: input.inputMint,
-      output_mint: input.outputMint,
-      amount: input.amount,
-      slippage_bps: input.slippageBps
+    const params = new URLSearchParams({
+      chainId: String(config.network.chainId),
+      sellToken: zeroExToken(input.inputMint),
+      buyToken: zeroExToken(input.outputMint),
+      sellAmount: input.amount,
+      taker: input.walletAddress,
+      slippageBps: String(input.slippageBps)
     });
-    if (!result.ok) {
-      response.status(502).json({ error: "ClawPump quote failed", detail: result.error });
-      return;
-    }
-    const route = findJupiterQuote(result.data);
-    if (route && !matchesRoute(route, input)) {
-      response.status(502).json({ error: "Quote route differs from requested order" });
-      return;
-    }
-    const { quoteId, expiresAt } = cacheQuote(input, result.data);
-    response.json({ quoteId, expiresAt, router: "clawpump", source: "ClawPump + Jupiter", observedAt: Date.now(), ...result });
+    const result = await fetchJson<ZeroExEvmQuote>(`${config.zeroEx.apiUrl}/swap/allowance-holder/quote?${params}`, {
+      headers: { "0x-api-key": config.zeroEx.apiKey, "0x-version": "v2" }
+    });
+    const { quoteId, expiresAt } = cacheQuote(input, result);
+    response.json({
+      quoteId,
+      expiresAt,
+      chain: "monad",
+      router: "0x",
+      source: "0x AllowanceHolder · Monad",
+      observedAt: Date.now(),
+      outAmount: result.buyAmount,
+      minimumOutAmount: result.minBuyAmount,
+      price: result.price,
+      priceImpactPct: result.estimatedPriceImpact,
+      allowanceRequired: Boolean(result.issues?.allowance),
+      routePlan: result.route?.fills ?? []
+    });
   } catch (error) { next(error); }
 });
 
@@ -296,81 +144,82 @@ onchainRouter.post("/transaction", async (request, response, next) => {
       response.status(400).json({ error: "A connected wallet is required to build the transaction." });
       return;
     }
-    // The order is re-checked for every router: a quote is only good for the order it was priced against, and the 0x
-    // branch below builds a signable transaction, so letting a changed amount or mint through here would sign it.
+    // A quote is only good for the order it was priced against; letting a changed amount or token through would sign it.
     if (!matchesOrder(cached.order, input)) {
       response.status(409).json({ error: "Order changed; request a fresh quote" });
       return;
     }
     quoteCache.delete(quoteId);
-    if (cached.router === "0x") {
-      if (cached.chain === "robinhood") {
-        const quote = cached.quote as ZeroExEvmQuote;
-        const allowance = quote.issues?.allowance;
-        response.json({
-          source: "0x AllowanceHolder · Robinhood Chain",
-          router: "0x",
-          chain: "robinhood",
-          signingMode: "user-wallet",
-          transaction: { ...quote.transaction, chainId: ROBINHOOD_CHAIN_ID },
-          approval: allowance ? {
-            required: true,
-            token: input.inputMint,
-            spender: allowance.spender || quote.allowanceTarget,
-            amount: input.amount,
-            currentAllowance: allowance.actual
-          } : { required: false }
-        });
-        return;
-      }
-      const transaction = await zeroExSolanaTransaction(cached.quote as ZeroExSolanaQuote, input.walletAddress);
-      response.json({ source: "0x Solana Swap API", router: "0x", chain: "solana", signingMode: "user-wallet", transaction });
+    if (cached.router === "kuru") {
+      const quote = cached.quote as KuruQuote;
+      response.json({
+        source: "Kuru Flow · Monad",
+        router: "kuru",
+        chain: "monad",
+        signingMode: "user-wallet",
+        transaction: { to: quote.transaction.to, data: quote.transaction.data, value: quote.transaction.value, chainId: config.network.chainId },
+        approval: approvalFor(input, quote.transaction.to)
+      });
       return;
     }
-    const quoteResponse = cached.router === "jupiter" ? cached.quote as Record<string, unknown> : findJupiterQuote(cached.quote);
-    if (!quoteResponse) {
-      response.status(502).json({ error: "ClawPump quote did not contain a Jupiter-compatible route" });
-      return;
-    }
-    if (!matchesRoute(quoteResponse, input)) {
-      response.status(409).json({ error: "Quote route differs from requested order" });
-      return;
-    }
-    const result = await fetchJson<Record<string, unknown>>(`${config.jupiter.apiUrl}/swap`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(config.jupiter.apiKey ? { "x-api-key": config.jupiter.apiKey } : {})
-      },
-      body: JSON.stringify({
-        quoteResponse,
-        userPublicKey: input.walletAddress,
-        dynamicComputeUnitLimit: true,
-        prioritizationFeeLamports: "auto"
-      })
+    const quote = cached.quote as ZeroExEvmQuote;
+    const allowance = quote.issues?.allowance;
+    response.json({
+      source: "0x AllowanceHolder · Monad",
+      router: "0x",
+      chain: "monad",
+      signingMode: "user-wallet",
+      transaction: { ...quote.transaction, chainId: config.network.chainId },
+      approval: allowance ? approvalFor(input, allowance.spender || quote.allowanceTarget, allowance.actual) : { required: false }
     });
-    response.json({ source: cached.router === "jupiter" ? "Jupiter Swap API" : "clawpump+jupiter", router: cached.router, chain: "solana", signingMode: "user-wallet", ...result });
+  } catch (error) { next(error); }
+});
+
+/** DexScreener search narrowed to Monad, deepest pair per token: candidates for the desk's ticker box. */
+onchainRouter.get("/search", async (request, response, next) => {
+  try {
+    const query = z.string().trim().min(1).max(80).parse(request.query.q);
+    response.json(await runResearchTool("monad_token_search", { query }).then((result) => (result as { evidence?: unknown }).evidence ?? { candidates: [] }));
   } catch (error) { next(error); }
 });
 
 onchainRouter.get("/portfolio/:wallet", async (request, response, next) => {
   try {
-    const walletAddress = address.parse(request.params.wallet);
-    response.json(await walletPortfolio(walletAddress));
-  } catch (error) { next(error); }
-});
-
-onchainRouter.get("/portfolio/robinhood/:wallet", async (request, response, next) => {
-  try {
     const walletAddress = evmAddress.parse(request.params.wallet);
-    response.json(await robinhoodWalletPortfolio(walletAddress));
+    const tokens = z.string().max(600).optional().parse(request.query.tokens)?.split(",").map((token) => token.trim()).filter(Boolean) ?? [];
+    response.json(await monadWalletPortfolio(walletAddress, tokens));
   } catch (error) { next(error); }
 });
 
-onchainRouter.get("/wallet/solana/:wallet/activity", async (request, response, next) => {
+/** Perpl perps context for the desk (mark / oracle / OI / 24h change per market). */
+onchainRouter.get("/perps", async (_request, response, next) => {
   try {
-    const walletAddress = address.parse(request.params.wallet);
-    const limit = z.coerce.number().int().min(1).max(40).default(20).parse(request.query.limit);
-    response.json(await solanaWalletActivity(walletAddress, limit));
+    response.json(await getPerpl().tickers());
+  } catch (error) { next(error); }
+});
+
+/** Nansen smart-money netflows and recent DEX trades on Monad; 200 with `error` when Nansen is not configured. */
+onchainRouter.get("/smart-money", async (request, response, next) => {
+  try {
+    const token = evmAddress.optional().parse(request.query.token || undefined)?.toLowerCase();
+    const nansen = getNansen();
+    const [netflows, trades] = await Promise.all([nansen.netflows({ limit: 40 }), nansen.dexTrades({ token, limit: 100 })]);
+    response.json({
+      source: "nansen",
+      configured: nansen.configured,
+      observedAt: Date.now(),
+      netflows: netflows.data,
+      trades: trades.data,
+      error: netflows.error ?? trades.error
+    });
+  } catch (error) { next(error); }
+});
+
+/** Nansen flow intelligence for one token (smart traders / whales / top PnL / fresh wallets). */
+onchainRouter.get("/smart-money/:token/flows", async (request, response, next) => {
+  try {
+    const token = evmAddress.parse(request.params.token).toLowerCase();
+    const timeframe = z.enum(["5m", "1h", "6h", "12h", "1d", "7d"]).default("1d").parse(request.query.timeframe);
+    response.json(await getNansen().flowIntelligence(token, timeframe));
   } catch (error) { next(error); }
 });

@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { Chain, FeedHealth, FlowBar, FomoCoverage, FomoFill, PairRow, TapePrint, TokenFlowFomo, TokenFlowResponse } from "../../shared/wire.js";
-import { peekMarketProvider } from "../clawpump/market.js";
+import type { Chain, FeedHealth, FlowBar, SmartCoverage, SmartFill, PairRow, TapePrint, TokenFlowSmart, TokenFlowResponse } from "../../shared/wire.js";
 import {
   FLOW_INTERVALS,
   flowWindows,
@@ -14,7 +13,7 @@ import {
 } from "../flow/aggregate.js";
 import { flowCollector } from "../flow/collector.js";
 import { allSourcesDown } from "../flow/feedHealth.js";
-import { FOMO_MERGE_LIMIT, fomoWindowsFromFills, ledgerFomoFills, mergeFomoFills, type FomoLedgerLike } from "../flow/fomoFills.js";
+import { SMART_MERGE_LIMIT, smartWindowsFromFills, ledgerSmartFills, mergeSmartFills, type SmartLedgerLike } from "../flow/smartFills.js";
 import { FlowLedger } from "../flow/ledger.js";
 import { priceOf } from "../flow/printPrice.js";
 import { getRegistry, isLaunchpadRow, type RegistryResult } from "../flow/registry.js";
@@ -24,24 +23,17 @@ import { errorMessage } from "../lib/http.js";
 import { getTokenPairs, sumTxns } from "../sources/dexscreener.js";
 import { getTraderService } from "../traders/service.js";
 import { geckoTokenPools } from "../sources/gecko.js";
-import { pumpPoolFor } from "../sources/pumpfun.js";
-import { identityRegistry } from "../terminal/identityStore.js";
-import type { TraderIdentity } from "../../shared/identity.js";
 
-export const FLOW_SOURCE = "pumpfun+geckoterminal→ledger";
+export const FLOW_SOURCE = "monad logs+geckoterminal→ledger";
 export const DEFAULT_BAR_COUNT = 300;
 export const SESSION_START_MS = Date.now();
 export const TAPE_LIMIT = 40;
-export const FOMO_TAPE_LIMIT = 40;
-const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+export const SMART_TAPE_LIMIT = 40;
 const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
 const FLOW_ANCHORS = ["window", "session", "launch"] as const;
 
-/** Robinhood addresses are lowercased here, matching how the registry and DexScreener caches key them. */
-export const flowParamsSchema = z.discriminatedUnion("chain", [
-  z.object({ chain: z.literal("solana"), address: z.string().regex(SOLANA_ADDRESS) }),
-  z.object({ chain: z.literal("robinhood"), address: z.string().regex(EVM_ADDRESS).transform((address) => address.toLowerCase()) })
-]);
+/** Monad addresses are lowercased here, matching how the registry and DexScreener caches key them. */
+export const flowParamsSchema = z.object({ chain: z.literal("monad"), address: z.string().regex(EVM_ADDRESS).transform((address) => address.toLowerCase()) });
 
 export const flowQuerySchema = z.object({
   interval: z.enum(FLOW_INTERVALS).default("5m"),
@@ -73,15 +65,15 @@ export type FlowCollectorLike = {
   pairsOf?(chain: Chain, address: string): PairRow[] | null;
 };
 
-/** The slice of TraderService the FOMO block reads; absent means no FOMO block (tests, or the service not wired). */
+/** The slice of TraderService the SMART block reads; absent means no SMART block (tests, or the service not wired). */
 export type FlowTradersLike = {
-  /** Token-keyed book fills (pools and "fomo:<token>"), newest first, with symbol/handle/price when known. */
-  fillsForToken(chain: Chain, token: string, limit: number): FomoFill[];
-  fomoLedger: FomoLedgerLike;
+  /** Token-keyed book fills (pools and "smart:<token>"), newest first, with symbol/handle/price when known. */
+  fillsForToken(chain: Chain, token: string, limit: number): SmartFill[];
+  smartLedger: SmartLedgerLike;
   population: { size: number };
   handles: { stats(): { entries: number } };
   /** R5: watched-vs-population coverage, computed once in TraderService.coverage(). */
-  coverage(): FomoCoverage;
+  coverage(): SmartCoverage;
   dexOf(chain: Chain, pair: string): string;
 };
 
@@ -91,7 +83,6 @@ export type FlowRouteDeps = {
   sessionStartMs: number;
   now: () => number;
   traders?: FlowTradersLike;
-  identityOf?: (chain: Chain, wallet: string) => TraderIdentity | null;
 };
 
 /** Zod-validates route params and query; `to` defaults to now, `from` to DEFAULT_BAR_COUNT bars earlier. */
@@ -141,28 +132,20 @@ function anchorStart(params: FlowParams, bars: FlowBar[], deps: FlowRouteDeps): 
   return bars[0]?.t ?? null;
 }
 
-type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources" | "tape" | "feedHealth" | "fomo">;
+type SideOutputs = Pick<TokenFlowResponse, "windows" | "largePrints" | "sinceAnchor" | "sources" | "tape" | "feedHealth" | "smart">;
 
 /**
- * FOMO and seeded fills of this token, newest first: the token-keyed book merged with the pair-keyed FOMO ledger rings
- * (Tier A pairs + "fomo:<token>"), one row per tx+wallet, plus windows summed over the verified-FOMO subset of that
- * deduped list (seeded rows are tagged on `fills`, never folded into the cohort totals). Wallet identities come from
- * the chain-specific FomoScan registry; populations are "seen by this server".
+ * SMART and seeded fills of this token, newest first: the token-keyed book merged with the pair-keyed SMART ledger rings
+ * (Tier A pairs + "smart:<token>"), one row per tx+wallet, plus windows summed over the verified-SMART subset of that
+ * deduped list (seeded rows are tagged on `fills`, never folded into the cohort totals). Wallet labels come from Nansen
+ * and the user's watchlist; populations are "seen by this server".
  */
-export function fomoBlock(traders: FlowTradersLike, params: FlowParams, pairs: PairRow[], observedAt: number, identityOf?: FlowRouteDeps["identityOf"]): TokenFlowFomo {
+export function smartBlock(traders: FlowTradersLike, params: FlowParams, pairs: PairRow[], observedAt: number): TokenFlowSmart {
   const dexByPair = new Map(pairs.map((pair) => [pair.pairAddress, pair.dex]));
   const dexOf = (pair: string) => dexByPair.get(pair) ?? traders.dexOf(params.chain, pair);
-  const fromBook = traders.fillsForToken(params.chain, params.address, FOMO_MERGE_LIMIT).map((fill) => ({ ...fill, dex: dexByPair.get(fill.pair) ?? fill.dex }));
-  const merged = mergeFomoFills(fromBook, ledgerFomoFills(traders.fomoLedger, params.chain, params.address, pairs, dexOf)).map((fill) => {
-    const identity = identityOf?.(params.chain, fill.trader.address);
-    if (!identity) return fill;
-    return { ...fill, trader: {
-      ...fill.trader, kind: fill.trader.kind === "other" ? "fomo" as const : fill.trader.kind,
-      handle: identity.handle ?? fill.trader.handle, followers: identity.followers ?? fill.trader.followers,
-      displayName: identity.displayName, twitter: identity.twitter, avatarUrl: identity.avatarUrl
-    } };
-  });
-  return { fills: merged.slice(0, FOMO_TAPE_LIMIT), windows: fomoWindowsFromFills(merged.filter((fill) => fill.trader.kind === "fomo"), observedAt), population: traders.population.size, handles: traders.handles.stats().entries, coverage: traders.coverage() };
+  const fromBook = traders.fillsForToken(params.chain, params.address, SMART_MERGE_LIMIT).map((fill) => ({ ...fill, dex: dexByPair.get(fill.pair) ?? fill.dex }));
+  const merged = mergeSmartFills(fromBook, ledgerSmartFills(traders.smartLedger, params.chain, params.address, pairs, dexOf));
+  return { fills: merged.slice(0, SMART_TAPE_LIMIT), windows: smartWindowsFromFills(merged.filter((fill) => fill.trader.kind === "smart"), observedAt), population: traders.population.size, handles: traders.handles.stats().entries, coverage: traders.coverage() };
 }
 
 /** Newest Tier A prints across pairs from the ledger ring, dex from the PairRow, time desc, at most `limit`. Unpriced prints keep usd null. */
@@ -188,7 +171,7 @@ function sideOutputs(params: FlowParams, pairs: PairRow[], bars: FlowBar[], deps
     tape: recentTape(ledger, params.chain, pairs),
     ...(status ? { sources: sourceChips(status.sources) } : {}),
     ...(status?.feedHealth ? { feedHealth: status.feedHealth } : {}),
-    ...(deps.traders ? { fomo: fomoBlock(deps.traders, params, pairs, observedAt, deps.identityOf) } : {})
+    ...(deps.traders ? { smart: smartBlock(deps.traders, params, pairs, observedAt) } : {})
   };
 }
 
@@ -241,20 +224,10 @@ export async function buildTokenFlowResponse(params: FlowParams, deps: FlowRoute
   };
 }
 
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function cachedClawTopPools(mint: string): unknown {
-  return record(record(peekMarketProvider(mint)).intelligence_market).top_pools ?? null;
-}
-
 function liveRegistry(chain: Chain, address: string): Promise<RegistryResult> {
   return getRegistry(chain, address, {
     getTokenPairs,
     geckoTokenPools: (network, token) => geckoTokenPools(network, token),
-    clawTopPools: async () => cachedClawTopPools(address),
-    pumpPool: () => (address.endsWith("pump") ? pumpPoolFor(address) : null),
     launchpadPairs: (network, token) => getLaunchService().curvePairsFor(network, token)
   });
 }
@@ -265,8 +238,7 @@ export const liveDeps: FlowRouteDeps = {
   collector: flowCollector,
   sessionStartMs: SESSION_START_MS,
   now: () => Date.now(),
-  traders: getTraderService(),
-  identityOf: (chain, wallet) => identityRegistry.lookup(chain, wallet)
+  traders: getTraderService()
 };
 
 export const flowRouter = Router();

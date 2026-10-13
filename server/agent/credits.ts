@@ -1,20 +1,29 @@
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
-import { Connection, PublicKey } from "@solana/web3.js";
-import { createPublicClient, decodeEventLog, getAddress, http, parseAbi, type Hex } from "viem";
+import { createPublicClient, decodeEventLog, defineChain, getAddress, http, parseAbi, type Hex } from "viem";
 import { config } from "../config.js";
 import { CREDITS_PER_DOLLAR, INTRO_CREDITS, MAX_VOICE_SECONDS, VOICE_CREDITS_PER_MINUTE, VOICE_RESERVE_CREDITS, quoteBaseUnits, voiceChargeCredits } from "./pricing.js";
-import { jupiterPriceUrl, parseJupiterPrices, SOL_MINT } from "../tape/solana/price.js";
+import { dexScreenerTokensUrl, parseDexScreenerTokenPrices } from "../tape/monad/price.js";
 
-export const SOL_RECIPIENT = "FqdPiMhYdYTAnfXKY7opX5YxNLSL9UFtKE8HQq9T9VAb";
+/** Treasury that receives credit top-ups on Monad. */
 export const EVM_RECIPIENT = "0xbc28425dB5d9348EA6511e14313d9D28f2532B43";
-export const USDG_CONTRACT = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
-export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export { CREDITS_PER_DOLLAR, INTRO_CREDITS, MAX_VOICE_SECONDS, VOICE_CREDITS_PER_MINUTE, VOICE_RESERVE_CREDITS } from "./pricing.js";
-type Asset = "SOL" | "USDC" | "ETH" | "USDG";
-type Quote = { id: string; user_id: string; chain: "solana" | "robinhood"; asset: Asset; sender: string; recipient: string; amount_base_units: string; credits: number; expires_at: Date; settled_at: Date | null };
+export type Asset = "MON" | "USDC" | "AUSD";
+/** ERC-20 contracts accepted for top-ups (6 decimals each); MON is native. */
+export const TOKEN_CONTRACTS: Record<Exclude<Asset, "MON">, string> = {
+  USDC: config.network.tokens.usdc,
+  AUSD: config.network.tokens.ausd ?? config.network.tokens.usdc
+};
+export const ASSET_DECIMALS: Record<Asset, number> = { MON: 18, USDC: 6, AUSD: 6 };
+type Quote = { id: string; user_id: string; chain: "monad"; asset: Asset; sender: string; recipient: string; amount_base_units: string; credits: number; expires_at: Date; settled_at: Date | null };
 const sql = config.database.url ? postgres(config.database.url, { max: 3, idle_timeout: 10, connect_timeout: 15, connection: { application_name: "termeow-agent-credits" } }) : null;
-const evm = createPublicClient({ transport: http(config.robinhood.rpcUrl), chain: { id: 4663, name: "Robinhood Chain", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [config.robinhood.rpcUrl] } } } });
+const monadChain = defineChain({
+  id: config.network.chainId,
+  name: config.network.name,
+  nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
+  rpcUrls: { default: { http: [config.monad.rpcUrl] } }
+});
+const evm = createPublicClient({ transport: http(config.monad.rpcUrl), chain: monadChain });
 const transferEvent = parseAbi(["event Transfer(address indexed from, address indexed to, uint256 value)"]);
 function db() { if (!sql) throw new Error("Credit ledger is unavailable: DATABASE_URL is not configured"); return sql; }
 export function creditError(message: string, status = 400) { return Object.assign(new Error(message), { status }); }
@@ -30,9 +39,10 @@ export async function balance(userId: string) {
 
 const priceCache = new Map<Asset, { price: number; at: number }>();
 type PriceFetch = typeof fetch;
+const COINGECKO_IDS: Record<Asset, string> = { MON: "monad", USDC: "usd-coin", AUSD: "agora-dollar" };
 
 async function coingeckoAssetUsd(asset: Asset, fetchImpl: PriceFetch) {
-  const id = { SOL: "solana", ETH: "ethereum", USDC: "usd-coin", USDG: "global-dollar" }[asset];
+  const id = COINGECKO_IDS[asset];
   const response = await fetchImpl(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`, { signal: AbortSignal.timeout(4500) });
   if (!response.ok) throw new Error(`CoinGecko returned ${response.status}`);
   const price = Number((await response.json() as Record<string, { usd?: number }>)[id]?.usd);
@@ -40,18 +50,20 @@ async function coingeckoAssetUsd(asset: Asset, fetchImpl: PriceFetch) {
   return price;
 }
 
-async function jupiterSolUsd(fetchImpl: PriceFetch) {
-  const response = await fetchImpl(jupiterPriceUrl([SOL_MINT]), { signal: AbortSignal.timeout(4500) });
-  if (!response.ok) throw new Error(`Jupiter returned ${response.status}`);
-  const price = parseJupiterPrices(await response.json()).get(SOL_MINT);
-  if (!price) throw new Error("Jupiter returned no usable SOL price");
+/** MON from the deepest DexScreener WMON pair on Monad, independent of CoinGecko. */
+async function dexScreenerMonUsd(fetchImpl: PriceFetch) {
+  const wmon = config.network.tokens.wmon;
+  const response = await fetchImpl(dexScreenerTokensUrl("monad", [wmon]), { signal: AbortSignal.timeout(4500) });
+  if (!response.ok) throw new Error(`DexScreener returned ${response.status}`);
+  const price = parseDexScreenerTokenPrices(await response.json(), new Set([wmon]), "monad").get(wmon);
+  if (!price) throw new Error("DexScreener returned no usable MON price");
   return price;
 }
 
-/** Fetches from independent providers for SOL so transfer quotes do not depend on CoinGecko availability. */
+/** Independent providers for MON so transfer quotes do not depend on CoinGecko availability. */
 export async function fetchAssetUsd(asset: Asset, fetchImpl: PriceFetch = fetch) {
-  const providers = asset === "SOL"
-    ? [coingeckoAssetUsd(asset, fetchImpl), jupiterSolUsd(fetchImpl)]
+  const providers = asset === "MON"
+    ? [coingeckoAssetUsd(asset, fetchImpl), dexScreenerMonUsd(fetchImpl)]
     : [coingeckoAssetUsd(asset, fetchImpl)];
   try {
     return await Promise.any(providers);
@@ -71,7 +83,7 @@ export async function assetUsd(asset: Asset) {
     if (cached && Date.now() - cached.at < 10 * 60_000) return cached.price;
     throw error;
   }
-  if ((asset === "USDC" || asset === "USDG") && price < 0.98) throw creditError(`${asset} is below the accepted peg threshold. Choose another asset.`, 503);
+  if ((asset === "USDC" || asset === "AUSD") && price < 0.98) throw creditError(`${asset} is below the accepted peg threshold. Choose another asset.`, 503);
   priceCache.set(asset, { price, at: Date.now() });
   return price;
 }
@@ -79,60 +91,34 @@ export async function assetUsd(asset: Asset) {
 export async function createQuote(userId: string, asset: Asset, usd: number, sender: string) {
   const client = db(); await balance(userId);
   if (!Number.isInteger(usd) || usd < 5 || usd > 500) throw creditError("Choose a top-up from $5 to $500.");
-  const chain = asset === "SOL" || asset === "USDC" ? "solana" : "robinhood";
-  try { if (chain === "solana") new PublicKey(sender); else getAddress(sender); }
+  try { getAddress(sender); }
   catch { throw creditError("Invalid connected wallet address."); }
-  if (sender === SOL_RECIPIENT || sender.toLowerCase() === EVM_RECIPIENT.toLowerCase()) throw creditError("Use a customer wallet for top-ups.");
+  if (sender.toLowerCase() === EVM_RECIPIENT.toLowerCase()) throw creditError("Use a customer wallet for top-ups.");
   const price = await assetUsd(asset);
-  const decimals = asset === "SOL" ? 9 : asset === "ETH" ? 18 : 6;
-  const amount = quoteBaseUnits(usd, price, decimals);
-  const id = randomUUID(); const recipient = chain === "solana" ? SOL_RECIPIENT : EVM_RECIPIENT;
+  const amount = quoteBaseUnits(usd, price, ASSET_DECIMALS[asset]);
+  const id = randomUUID(); const recipient = EVM_RECIPIENT; const chain = "monad" as const;
   const expiresAt = new Date(Date.now() + 5 * 60_000);
   await client`INSERT INTO termeow.agent_credit_quotes (id, user_id, chain, asset, sender, recipient, amount_base_units, credits, expires_at)
     VALUES (${id}, ${userId}, ${chain}, ${asset}, ${sender}, ${recipient}, ${amount.toString()}, ${usd * CREDITS_PER_DOLLAR}, ${expiresAt})`;
-  return { id, chain, asset, sender, recipient, amountBaseUnits: amount.toString(), credits: usd * CREDITS_PER_DOLLAR, expiresAt: expiresAt.toISOString(), usd };
+  return { id, chain, asset, sender, recipient, contract: asset === "MON" ? null : TOKEN_CONTRACTS[asset], decimals: ASSET_DECIMALS[asset], amountBaseUnits: amount.toString(), credits: usd * CREDITS_PER_DOLLAR, expiresAt: expiresAt.toISOString(), usd };
 }
 
-async function verifiedSolana(quote: Quote, hash: string) {
-  const connection = new Connection(config.rpc.primary, "finalized");
-  const tx = await connection.getParsedTransaction(hash, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
-  if (!tx || tx.meta?.err || tx.blockTime == null || tx.blockTime * 1000 < new Date(quote.expires_at).getTime() - 5 * 60_000 || tx.blockTime * 1000 > new Date(quote.expires_at).getTime()) return false;
-  if (!tx.transaction.message.accountKeys.some(key => key.signer && key.pubkey.toBase58() === quote.sender)) return false;
-  const instructions = [...tx.transaction.message.instructions, ...(tx.meta?.innerInstructions || []).flatMap((item) => item.instructions)];
-  return instructions.some((instruction) => {
-    if (!("parsed" in instruction) || !instruction.parsed || typeof instruction.parsed !== "object") return false;
-    const parsed = instruction.parsed as { type?: string; info?: Record<string, string> }; const info = parsed.info || {};
-    if (quote.asset === "SOL") {
-      const recipientIndex = tx.transaction.message.accountKeys.findIndex(key => key.pubkey.toBase58() === quote.recipient);
-      if (recipientIndex < 0 || !tx.meta) return false;
-      const netReceived = BigInt(tx.meta.postBalances[recipientIndex]) - BigInt(tx.meta.preBalances[recipientIndex]);
-      return instruction.program === "system" && parsed.type === "transfer" && info.source === quote.sender && info.destination === quote.recipient && BigInt(info.lamports || 0) >= BigInt(quote.amount_base_units) && netReceived >= BigInt(quote.amount_base_units);
-    }
-    if (instruction.program !== "spl-token" || !["transfer", "transferChecked"].includes(parsed.type || "")) return false;
-    const recipientAta = PublicKey.findProgramAddressSync([new PublicKey(quote.recipient).toBuffer(), new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").toBuffer(), new PublicKey(USDC_MINT).toBuffer()], new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"))[0].toBase58();
-    const sourceBalance = tx.meta?.preTokenBalances?.find((item) => item.accountIndex === tx.transaction.message.accountKeys.findIndex((key) => key.pubkey.toBase58() === info.source));
-    const amount = info.amount || (info.tokenAmount as unknown as { amount?: string } | undefined)?.amount;
-    const recipientIndex = tx.transaction.message.accountKeys.findIndex(key => key.pubkey.toBase58() === recipientAta);
-    const pre = tx.meta?.preTokenBalances?.find(item => item.accountIndex === recipientIndex);
-    const post = tx.meta?.postTokenBalances?.find(item => item.accountIndex === recipientIndex);
-    const netReceived = BigInt(post?.uiTokenAmount.amount || 0) - BigInt(pre?.uiTokenAmount.amount || 0);
-    return info.destination === recipientAta && info.authority === quote.sender && sourceBalance?.mint === USDC_MINT && sourceBalance.owner === quote.sender && post?.mint === USDC_MINT && post.owner === quote.recipient && BigInt(amount || 0) >= BigInt(quote.amount_base_units) && netReceived >= BigInt(quote.amount_base_units);
-  });
-}
-
+/** Monad finalizes in two slots; the receipt must be at or below the `finalized` head before credits are granted. */
 async function verifiedEvm(quote: Quote, hash: Hex) {
-  if (await evm.getChainId() !== 4663) throw creditError("Robinhood RPC returned the wrong chain.", 503);
+  if (await evm.getChainId() !== config.network.chainId) throw creditError("Monad RPC returned the wrong chain.", 503);
   const receipt = await evm.getTransactionReceipt({ hash });
-  if (receipt.status !== "success" || receipt.blockNumber + 2n > await evm.getBlockNumber()) return false;
+  const finalized = await evm.getBlock({ blockTag: "finalized" });
+  if (receipt.status !== "success" || receipt.blockNumber > finalized.number) return false;
   const block = await evm.getBlock({ blockNumber: receipt.blockNumber });
   const time = Number(block.timestamp) * 1000, expiry = new Date(quote.expires_at).getTime();
   if (time > expiry || time < expiry - 5 * 60_000) return false;
   const tx = await evm.getTransaction({ hash });
   if (tx.from.toLowerCase() !== quote.sender.toLowerCase()) return false;
-  if (quote.asset === "ETH") return tx.to?.toLowerCase() === quote.recipient.toLowerCase() && tx.value >= BigInt(quote.amount_base_units);
-  if (tx.to?.toLowerCase() !== USDG_CONTRACT.toLowerCase()) return false;
+  if (quote.asset === "MON") return tx.to?.toLowerCase() === quote.recipient.toLowerCase() && tx.value >= BigInt(quote.amount_base_units);
+  const contract = TOKEN_CONTRACTS[quote.asset].toLowerCase();
+  if (tx.to?.toLowerCase() !== contract) return false;
   return receipt.logs.some((log) => { try { const event = decodeEventLog({ abi: transferEvent, data: log.data, topics: log.topics });
-    return log.address.toLowerCase() === USDG_CONTRACT.toLowerCase() && event.eventName === "Transfer" && event.args.from.toLowerCase() === quote.sender.toLowerCase() && event.args.to.toLowerCase() === quote.recipient.toLowerCase() && event.args.value >= BigInt(quote.amount_base_units);
+    return log.address.toLowerCase() === contract && event.eventName === "Transfer" && event.args.from.toLowerCase() === quote.sender.toLowerCase() && event.args.to.toLowerCase() === quote.recipient.toLowerCase() && event.args.value >= BigInt(quote.amount_base_units);
   } catch { return false; } });
 }
 
@@ -142,9 +128,9 @@ export async function settleQuote(userId: string, id: string, hash: string) {
   const quote = rows[0] as Quote | undefined;
   if (!quote) throw creditError("Top-up quote not found.", 404);
   if (quote.settled_at) return { balance: await balance(userId), credited: quote.credits };
-  if (quote.chain === "solana" ? !/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(hash) : !/^0x[0-9a-fA-F]{64}$/.test(hash)) throw creditError("Invalid transaction hash.");
-  if (quote.chain === "robinhood") hash = hash.toLowerCase();
-  const verified = quote.chain === "solana" ? await verifiedSolana(quote, hash) : await verifiedEvm(quote, hash as Hex);
+  if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw creditError("Invalid transaction hash.");
+  hash = hash.toLowerCase();
+  const verified = await verifiedEvm(quote, hash as Hex);
   if (!verified) throw creditError("Payment is not finalized or does not match this quote. Retry shortly.", 409);
   await client.begin(async (tx) => {
     const updated = await tx`UPDATE termeow.agent_credit_quotes SET tx_hash = ${hash}, settled_at = now()

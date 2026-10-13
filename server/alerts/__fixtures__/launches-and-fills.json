@@ -43,7 +43,7 @@
   {
    "token": "0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
    "launch": {
-    "chain": "robinhood",
+    "chain": "monad",
     "launchpad": "pons",
     "token": "0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
     "symbol": null,
@@ -72,9 +72,9 @@
    },
    "fills": [
     {
-     "chain": "robinhood",
+     "chain": "monad",
      "token": "0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
-     "pair": "fomo:0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
+     "pair": "smart:0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
      "dex": "",
      "tx": "0x26a3c28dcf70b6988249cdc73a0f748a5a76b86199dd5e75dd08e3cf9966688f",
      "time": 1788780594000,
@@ -82,7 +82,7 @@
      "usd": 14.076028,
      "trader": {
       "address": "0x5903b6c2fb5327f4f11a3d0a1f53c9546fd8e768",
-      "kind": "fomo",
+      "kind": "smart",
       "handle": null,
       "followers": null
      },
@@ -91,9 +91,9 @@
      "usdVia": "hub_leg"
     },
     {
-     "chain": "robinhood",
+     "chain": "monad",
      "token": "0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
-     "pair": "fomo:0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
+     "pair": "smart:0x7107b3365b1b1b5976d83831e8c5dc7d944124b8",
      "dex": "",
      "tx": "0xdc1a414e2e9fd33685e2009b0801811e36f9a30b6924c8c5d18aa60cc8a85102",
      "time": 1788780727000,
@@ -101,7 +101,7 @@
      "usd": 13.199564,
      "trader": {
       "address": "0x5903b6c2fb5327f4f11a3d0a1f53c9546fd8e768",
-      "kind": "fomo",
+      "kind": "smart",
       "handle": null,
       "followers": null
      },
@@ -110,7 +110,7 @@
      "usdVia": "hub_leg"
     }
    ],
-   "firstFomoBuy": {
+   "firstSmartBuy": {
     "tx": "0x26a3c28dcf70b6988249cdc73a0f748a5a76b86199dd5e75dd08e3cf9966688f",
     "wallet": "0x5903b6c2fb5327f4f11a3d0a1f53c9546fd8e768",
     "handle": null,
@@ -125,7 +125,7 @@
   {
    "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
    "launch": {
-    "chain": "robinhood",
+    "chain": "monad",
     "launchpad": "pons",
     "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
     "symbol": null,
@@ -154,9 +154,9 @@
    },
    "fills": [
     {
-     "chain": "robinhood",
+     "chain": "monad",
      "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
-     "pair": "fomo:0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+     "pair": "smart:0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
      "dex": "",
      "tx": "0x06e818376990d1a67537e1fedf3adf4d4334f4a00f9fcd113dc4d2321fcdb3b4",
      "time": 1788780644000,
@@ -164,7 +164,7 @@
      "usd": 7.827158,
      "trader": {
       "address": "0xa1b4b11abda5924e945d09c9a5f4d169b537faff",
-      "kind": "fomo",
+      "kind": "smart",
       "handle": null,
       "followers": null
      },
@@ -173,9 +173,9 @@
      "usdVia": "hub_leg"
     },
     {
-     "chain": "robinhood",
+     "chain": "monad",
      "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
-     "pair": "fomo:0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+     "pair": "smart:0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
      "dex": "",
      "tx": "0x36140083e5c5af5fa0fe4f3be774cac5998a43a686810962ecc7e7c94e718730",
      "time": 1788780927000,
@@ -183,7 +183,7 @@
      "usd": 34.146113,
      "trader": {
       "address": "0x30c6562dde5fbd9050ece2d4169d1fe7b681f37f",
-      "kind": "fomo",
+      "kind": "smart",
       "handle": null,
       "followers": null
      },
@@ -192,9 +192,9 @@
      "usdVia": "hub_leg"
     },
     {
-     "chain": "robinhood",
+     "chain": "monad",
      "token": "0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
-     "pair": "fomo:0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
+     "pair": "smart:0xe40bc06a385807bf91c3e45b00e8d5d46ead36e8",
      "dex": "",
      "tx": "0x40b7eaf42d6a170381ec8dc7c9beff34be13c3f1ac934b0972a94f0153456d82",
      "time": 1788780988000,
@@ -202,7 +202,7 @@
      "usd": 4.219192,
      "trader": {
       "address": "0x30c6562dde5fbd9050ece2d4169d1fe7b681f37f",
-      "kind": "fomo",
+      "kind": "smart",
       "handle": null,
       "followers": null
      },
@@ -211,7 +211,7 @@
      "usdVia": "hub_leg"
     }
    ],
-   "firstFomoBuy": {
+   "firstSmartBuy": {
     "tx": "0x36140083e5c5af5fa0fe4f3be774cac5998a43a686810962ecc7e7c94e718730",
     "wallet": "0x30c6562dde5fbd9050ece2d4169d1fe7b681f37f",
     "handle": null,
@@ -226,7 +226,7 @@
   {
    "token": "0x85cbb08468de217650fe1f684f4961a88808ff93",
    "launch": {
-    "chain": "robinhood",
+    "chain": "monad",
     "launchpad": "pons",
     "token": "0x85cbb08468de217650fe1f684f4961a88808ff93",
     "symbol": null,
@@ -255,9 +255,9 @@
    },
    "fills": [
     {
-     "chain": "robinhood",
+     "chain": "monad",
      "token": "0x85cbb08468de217650fe1f684f4961a88808ff93",
-     "pair": "fomo:0x85cbb08468de217650fe1f684f4961a88808ff93",
+     "pair": "smart:0x85cbb08468de217650fe1f684f4961a88808ff93",
      "dex": "",
      "tx": "0x728c7806a0389031d9eb405edd5c637131f79ff707dc3cad2adecba3bed639d8",
      "time": 1788780655000,
@@ -265,7 +265,7 @@
      "usd": 64.094576,
      "trader": {
       "address": "0x7ab2095bd7cc0a479a31d69eae96f4eef7a26ca8",
-      "kind": "fomo",
+      "kind": "smart",
       "handle": null,
       "followers": null
      },
@@ -274,7 +274,7 @@
      "usdVia": "hub_leg"
     }
    ],
-   "firstFomoBuy": {
+   "firstSmartBuy": {
     "tx": "0x728c7806a0389031d9eb405edd5c637131f79ff707dc3cad2adecba3bed639d8",
     "wallet": "0x7ab2095bd7cc0a479a31d69eae96f4eef7a26ca8",
     "handle": null,
@@ -289,9 +289,9 @@
  ],
  "highFollowerFills": [
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "token": "0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
-   "pair": "fomo:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "pair": "smart:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
    "dex": "",
    "tx": "0xf12d2d357d7d4db9d24ec7f94188761de58f657f3fff86dc47db11e0fb745c6a",
    "time": 1788780420000,
@@ -299,7 +299,7 @@
    "usd": 987.308396,
    "trader": {
     "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
-    "kind": "fomo",
+    "kind": "smart",
     "handle": "DopamineFeenFr1",
     "followers": 64149
    },
@@ -309,9 +309,9 @@
    "capturedVia": "GET /api/flow/token/robinhood/0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d fomo block (book fills older than the 200-row tape cap)"
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "token": "0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
-   "pair": "fomo:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "pair": "smart:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
    "dex": "",
    "tx": "0x6bb42b0b4d966abc018d2aa23346b3fa9355c789a3d157de495888b564a742a1",
    "time": 1788780423000,
@@ -319,7 +319,7 @@
    "usd": 953.147561,
    "trader": {
     "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
-    "kind": "fomo",
+    "kind": "smart",
     "handle": "DopamineFeenFr1",
     "followers": 64149
    },
@@ -329,9 +329,9 @@
    "capturedVia": "GET /api/flow/token/robinhood/0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d fomo block (book fills older than the 200-row tape cap)"
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "token": "0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
-   "pair": "fomo:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "pair": "smart:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
    "dex": "",
    "tx": "0x7f1543c52442ce6111b3566669c697e15e0d1b8110197a90aa88505a3f8e8364",
    "time": 1788780425000,
@@ -339,7 +339,7 @@
    "usd": 980.36663,
    "trader": {
     "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
-    "kind": "fomo",
+    "kind": "smart",
     "handle": "DopamineFeenFr1",
     "followers": 64149
    },
@@ -349,9 +349,9 @@
    "capturedVia": "GET /api/flow/token/robinhood/0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d fomo block (book fills older than the 200-row tape cap)"
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "token": "0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
-   "pair": "fomo:0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
+   "pair": "smart:0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
    "dex": "",
    "tx": "0x80f40a97bf4c0698816e5c39f9d0133cd4670045745bf71a4cc7a167b0cd53e2",
    "time": 1788780660000,
@@ -359,7 +359,7 @@
    "usd": 993.440382,
    "trader": {
     "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
-    "kind": "fomo",
+    "kind": "smart",
     "handle": "DopamineFeenFr1",
     "followers": 64149
    },
@@ -369,9 +369,9 @@
    "capturedVia": "GET /api/fomo/tape?chain=robinhood&limit=200"
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "token": "0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
-   "pair": "fomo:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
+   "pair": "smart:0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d",
    "dex": "",
    "tx": "0xd5d629ab42f94c98de72f905ca657f3da5f3d99f1eb9b3b0f74f21915a143dea",
    "time": 1788780735000,
@@ -379,7 +379,7 @@
    "usd": 986.379074,
    "trader": {
     "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
-    "kind": "fomo",
+    "kind": "smart",
     "handle": "DopamineFeenFr1",
     "followers": 64149
    },
@@ -389,9 +389,9 @@
    "capturedVia": "GET /api/fomo/tape?chain=robinhood&limit=200"
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "token": "0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
-   "pair": "fomo:0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
+   "pair": "smart:0x22ce16962f51ac19c34616efacffb1fee2efe6b1",
    "dex": "",
    "tx": "0x228f9cddc3586ce492a0ccdc69a84a85d74abb27b83937e2dc3f8db92684dc19",
    "time": 1788780807000,
@@ -399,7 +399,7 @@
    "usd": 671.137774,
    "trader": {
     "address": "0xbdce13a1cadea23a61013fbfb470c7eef4ba9520",
-    "kind": "fomo",
+    "kind": "smart",
     "handle": "DopamineFeenFr1",
     "followers": 64149
    },
@@ -412,9 +412,9 @@
  "highFollowerLaunchRows": [],
  "earlierProcessHighFollowerFills": [
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "token": "0x0521c5d59aac8c063224525bc44a0d38f02275c8",
-   "pair": "fomo:0x0521c5d59aac8c063224525bc44a0d38f02275c8",
+   "pair": "smart:0x0521c5d59aac8c063224525bc44a0d38f02275c8",
    "dex": "",
    "tx": "0x341f6f466a56568fb97630e1e151654e173ab22efdd411e216f6575720e752d8",
    "time": 1788778128000,

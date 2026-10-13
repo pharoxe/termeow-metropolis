@@ -303,7 +303,7 @@ export class AutomationRepository {
     });
   }
 
-  async getDelegation(userId: string, chain: "solana" = "solana") {
+  async getDelegation(userId: string, chain: "monad" = "monad") {
     if (!this.sql) return this.fileDelegations.get(userId, chain);
     const rows = await this.sql`SELECT * FROM termeow.automation_delegations WHERE user_id = ${userId} AND chain = ${chain} LIMIT 1`;
     return rows[0] ? delegationFromRow(rows[0]) : null;
@@ -325,7 +325,7 @@ export class AutomationRepository {
     return delegationFromRow(rows[0]);
   }
 
-  async removeDelegation(userId: string, chain: "solana" = "solana") {
+  async removeDelegation(userId: string, chain: "monad" = "monad") {
     if (!this.sql) return this.fileDelegations.remove(userId, chain);
     const rows = await this.sql`DELETE FROM termeow.automation_delegations WHERE user_id = ${userId} AND chain = ${chain} RETURNING user_id`;
     return rows.length > 0;

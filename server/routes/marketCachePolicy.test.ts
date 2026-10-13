@@ -7,7 +7,7 @@ const SHORT = 5_000;
 
 function market(overrides: Partial<MarketResponse> = {}): MarketResponse {
   return {
-    instrument: { chain: "robinhood", address: "0xtoken", symbol: "T", name: "T", image: null, socials: [], websites: [] },
+    instrument: { chain: "monad", address: "0xtoken", symbol: "T", name: "T", image: null, socials: [], websites: [] },
     priceUsd: 1, marketCapUsd: null, fdvUsd: null, liquidityUsd: null, volume24Usd: null, change24Pct: null,
     primaryPair: null, candles: [], interval: "1m", observedAt: 0, source: "geckoterminal", degraded: false, notes: [],
     ...overrides

@@ -16,20 +16,20 @@ describe("AlertingLaunchIndex", () => {
   it("fires launch once, when the row first carries a chain source, and behaves as a LaunchIndex otherwise", () => {
     const sink = recorder();
     const index = new AlertingLaunchIndex(sink, { now: () => launch.createdAt + 500 });
-    const row = index.upsert({ chain: "robinhood", token: launch.token, launchpad: "pons", createdAt: launch.createdAt, tx: launch.tx, sources: ["rpc:robinhood"] });
+    const row = index.upsert({ chain: "monad", token: launch.token, launchpad: "pons", createdAt: launch.createdAt, tx: launch.tx, sources: ["rpc:monad"] });
     expect(row.launchpad).toBe("pons");
     expect(sink.launches).toHaveLength(1);
-    index.upsert({ chain: "robinhood", token: launch.token, symbol: "LATE", sources: ["dexscreener-tokens"] });
+    index.upsert({ chain: "monad", token: launch.token, symbol: "LATE", sources: ["dexscreener-tokens"] });
     expect(sink.launches).toHaveLength(1);
-    expect(index.get("robinhood", launch.token)?.symbol).toBe("LATE");
+    expect(index.get("monad", launch.token)?.symbol).toBe("LATE");
   });
 
   it("an enrichment-born row fires only when a chain source later confirms it; dexscreener-only rows never fire", () => {
     const sink = recorder();
     const index = new AlertingLaunchIndex(sink);
-    index.upsert({ chain: "robinhood", token: launch.token, sources: ["dexscreener-profile"] });
+    index.upsert({ chain: "monad", token: launch.token, sources: ["dexscreener-profile"] });
     expect(sink.launches).toHaveLength(0);
-    index.upsert({ chain: "robinhood", token: launch.token, launchpad: "pons", createdAt: launch.createdAt, sources: ["rpc:robinhood"] });
+    index.upsert({ chain: "monad", token: launch.token, launchpad: "pons", createdAt: launch.createdAt, sources: ["rpc:monad"] });
     expect(sink.launches).toHaveLength(1);
     expect(sink.launches[0].createdAt).toBe(launch.createdAt);
   });
@@ -37,11 +37,11 @@ describe("AlertingLaunchIndex", () => {
   it("fires graduation per applied recordGraduation with the updated row and stays silent for unknown tokens", () => {
     const sink = recorder();
     const index = new AlertingLaunchIndex(sink);
-    expect(index.recordGraduation("robinhood", launch.token, 5, null)).toBe(false);
+    expect(index.recordGraduation("monad", launch.token, 5, null)).toBe(false);
     expect(sink.graduations).toEqual([]);
-    index.upsert({ chain: "robinhood", token: launch.token, launchpad: "pons", createdAt: launch.createdAt, sources: ["rpc:robinhood"] });
-    expect(index.recordGraduation("robinhood", launch.token, launch.createdAt + 60_000, null)).toBe(true);
+    index.upsert({ chain: "monad", token: launch.token, launchpad: "pons", createdAt: launch.createdAt, sources: ["rpc:monad"] });
+    expect(index.recordGraduation("monad", launch.token, launch.createdAt + 60_000, null)).toBe(true);
     expect(sink.graduations).toEqual([{ token: launch.token, at: launch.createdAt + 60_000 }]);
-    expect(index.get("robinhood", launch.token)?.graduatedAt).toBe(launch.createdAt + 60_000);
+    expect(index.get("monad", launch.token)?.graduatedAt).toBe(launch.createdAt + 60_000);
   });
 });

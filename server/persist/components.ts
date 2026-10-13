@@ -17,7 +17,7 @@ export const MAX_AGE_FACTS_MS = 30 * 24 * HOUR_MS;
 export const SEEDED_CAP = 5_000;
 export const HANDLES_LEARNED_CAP = 5_000;
 export const LEDGER_GENERAL_PAIRS_CAP = 64;
-export const LEDGER_FOMO_PAIRS_CAP = 256;
+export const LEDGER_SMART_PAIRS_CAP = 256;
 export const LEDGER_RING_CAP = 200;
 
 /** Owner-agnostic contract the manager drives: collect() answers null while the owner has not been constructed yet. */
@@ -32,7 +32,7 @@ export type ComponentSpec<T> = {
 };
 
 const EVM_ADDRESS = /^0x[a-f0-9]{40}$/i;
-const chainSchema = z.enum(["solana", "robinhood"]);
+const chainSchema = z.literal("monad");
 const sideSchema = z.enum(["buy", "sell"]);
 const finiteOrNull = z.number().finite().nullable();
 
@@ -44,7 +44,7 @@ const printSchema = z
     time: z.number().finite(),
     side: sideSchema,
     usd: finiteOrNull,
-    source: z.enum(["pumpfun", "geckoterminal", "own"])
+    source: z.enum(["geckoterminal", "own"])
   })
   .passthrough();
 
@@ -53,7 +53,7 @@ const fillSchema = printSchema.extend({ trader: z.string().min(1), token: z.stri
 const identitySchema = z.object({
   chain: chainSchema,
   wallet: z.string().min(1),
-  identity: z.object({ handle: z.string().nullable(), followers: finiteOrNull, kind: z.enum(["fomo", "other", "seeded"]).nullable() })
+  identity: z.object({ handle: z.string().nullable(), followers: finiteOrNull, kind: z.enum(["smart", "other", "seeded"]).nullable() })
 });
 
 const launchRowSchema = z

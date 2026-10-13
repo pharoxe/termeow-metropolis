@@ -2,19 +2,23 @@ import express from "express";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-vi.mock("../config.js", () => ({ config: { executionEnabled: true, clawpump: {}, jupiter: { apiUrl: "https://mock.invalid" }, zeroEx: {}, rpc: { primary: "https://mock.invalid" } } }));
-vi.mock("../clawpump/mcp.js", () => ({ clawpumpMcp: { call: vi.fn() } }));
-vi.mock("../clawpump/market.js", () => ({ getBoard: vi.fn(), getHolders: vi.fn(), getOnchainMarket: vi.fn(), getTrenches: vi.fn(), trenchSorts: [] }));
-vi.mock("../market/walletPortfolio.js", () => ({ walletPortfolio: vi.fn(async (walletAddress: string) => ({ walletAddress, assets: [] })) }));
-vi.mock("../lib/http.js", () => ({ errorMessage: String, fetchJson: vi.fn(async () => ({ swapTransaction: "unsigned" })) }));
+vi.mock("../config.js", () => ({ config: { executionEnabled: true, kuru: { apiUrl: "https://mock.invalid" }, zeroEx: { apiKey: "test", apiUrl: "https://mock.invalid" }, network: { chainId: 143 }, rpc: { primary: "https://mock.invalid" } } }));
+vi.mock("../agent/monadTools.js", () => ({ runResearchTool: vi.fn() }));
+vi.mock("../sources/nansen.js", () => ({ getNansen: vi.fn() }));
+vi.mock("../sources/perpl.js", () => ({ getPerpl: vi.fn() }));
+vi.mock("../market/monadWalletPortfolio.js", () => ({ monadWalletPortfolio: vi.fn(async (walletAddress: string) => ({ walletAddress, assets: [] })) }));
+vi.mock("../lib/http.js", () => ({ errorMessage: String, fetchJson: vi.fn(async () => ({ buyAmount: "5", transaction: { to: "0x3333333333333333333333333333333333333333", data: "0x" } })) }));
 
 import { onchainRouter, quoteSchema, sameQuoteRequest } from "./onchain";
-import { clawpumpMcp } from "../clawpump/mcp";
 import { fetchJson } from "../lib/http";
 
 let server: Server;
 let base: string;
-const order = { chain: "solana" as const, router: "clawpump" as const, inputMint: "So11111111111111111111111111111111111111112", outputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", amount: "1000000000", slippageBps: 50, walletAddress: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump" };
+const order = {
+  chain: "monad" as const, router: "0x" as const,
+  inputMint: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", outputMint: "0x1111111111111111111111111111111111111111",
+  amount: "1000000000", slippageBps: 50, walletAddress: "0x2222222222222222222222222222222222222222"
+};
 const post = (path: string, body: unknown) => fetch(base + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
 beforeAll(async () => {
@@ -27,18 +31,15 @@ beforeAll(async () => {
 afterAll(() => server?.close());
 
 describe("trade quote validation", () => {
-  it("accepts Jupiter on Solana and 0x on Robinhood", () => {
-    expect(quoteSchema.parse({ ...order, router: "jupiter" })).toMatchObject({ chain: "solana", router: "jupiter" });
-    expect(quoteSchema.parse({
-      chain: "robinhood", router: "0x", inputMint: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-      outputMint: "0x1111111111111111111111111111111111111111", amount: "1", slippageBps: 50,
-      walletAddress: "0x2222222222222222222222222222222222222222"
-    })).toMatchObject({ chain: "robinhood", router: "0x" });
+  it("accepts Kuru and 0x on Monad", () => {
+    expect(quoteSchema.parse({ ...order, router: "kuru" })).toMatchObject({ chain: "monad", router: "kuru" });
+    expect(quoteSchema.parse(order)).toMatchObject({ chain: "monad", router: "0x" });
   });
 
-  it("rejects cross-chain addresses and unsupported Robinhood routers", () => {
-    expect(() => quoteSchema.parse({ ...order, inputMint: "0x1111111111111111111111111111111111111111" })).toThrow();
-    expect(() => quoteSchema.parse({ ...order, chain: "robinhood", router: "jupiter" })).toThrow();
+  it("rejects non-EVM addresses and unsupported routers", () => {
+    expect(() => quoteSchema.parse({ ...order, inputMint: "So11111111111111111111111111111111111111112" })).toThrow();
+    expect(() => quoteSchema.parse({ ...order, router: "jupiter" })).toThrow();
+    expect(() => quoteSchema.parse({ ...order, outputMint: order.inputMint })).toThrow();
   });
 
   it("binds transaction creation to every quoted field", () => {
@@ -50,24 +51,15 @@ describe("trade quote validation", () => {
 });
 
 it("binds an executable quote to every order field and consumes it once", async () => {
-  vi.mocked(clawpumpMcp.call).mockResolvedValue({ ok: true, tool: "swap_quote", data: { ...order, inAmount: order.amount, routePlan: [] } });
   const quote = await (await post("/quote", order)).json() as { quoteId: string };
-  for (const change of [{ amount: "999" }, { inputMint: order.outputMint }, { outputMint: order.inputMint }, { slippageBps: 500 }, { walletAddress: "11111111111111111111111111111111" }, { router: "jupiter" }]) {
+  expect(fetchJson).toHaveBeenCalledTimes(1);
+  for (const change of [{ amount: "999" }, { outputMint: "0x4444444444444444444444444444444444444444" }, { slippageBps: 500 }, { walletAddress: "0x5555555555555555555555555555555555555555" }, { router: "kuru" }]) {
     expect((await post("/transaction", { ...order, ...change, quoteId: quote.quoteId })).status).toBe(409);
   }
-  expect(fetchJson).not.toHaveBeenCalled();
   expect((await post("/transaction", { ...order, quoteId: quote.quoteId })).status).toBe(200);
-  expect(fetchJson).toHaveBeenCalledTimes(1);
   expect((await post("/transaction", { ...order, quoteId: quote.quoteId })).status).toBe(409);
 });
 
-it("rejects an upstream quote for a different amount", async () => {
-  vi.mocked(clawpumpMcp.call).mockResolvedValue({ ok: true, tool: "swap_quote", data: { ...order, inAmount: "999", routePlan: [] } });
-  expect((await post("/quote", order)).status).toBe(502);
-});
-
-it("portfolio does not call the private agent tool", async () => {
-  vi.mocked(clawpumpMcp.call).mockClear();
+it("serves a wallet portfolio for an EVM address", async () => {
   expect(await (await fetch(base + "/portfolio/" + order.walletAddress)).json()).toMatchObject({ walletAddress: order.walletAddress });
-  expect(clawpumpMcp.call).not.toHaveBeenCalled();
 });

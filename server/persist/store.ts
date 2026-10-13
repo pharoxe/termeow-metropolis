@@ -44,13 +44,13 @@ export type ReadOptions<T> = {
   parse: (data: unknown) => T | null;
 };
 
-export type FingerprintInput = { robinhoodRpcUrl: string; solanaRpcUrl: string; nodeEnv: string };
+export type FingerprintInput = { monadRpcUrl: string; chainId: number; nodeEnv: string };
 
 export function snapshotFile(dir: string, component: string, version: number): string {
   return path.join(dir, `${component}.v${version}.json`);
 }
 
-/** Host + path only for the Solana URL: a keyed Helius/Alchemy URL must never reach the file even hashed with a guessable prefix. */
+/** Host + path only for an RPC URL: a keyed provider URL must never reach the file even hashed with a guessable prefix. */
 function rpcIdentity(url: string): string {
   try {
     const parsed = new URL(url);
@@ -62,7 +62,7 @@ function rpcIdentity(url: string): string {
 
 /** Short stable hash of the parts of config that decide what the in-memory stores mean (chains + RPC endpoints + env). */
 export function configFingerprint(input: FingerprintInput): string {
-  const material = JSON.stringify([rpcIdentity(input.robinhoodRpcUrl), rpcIdentity(input.solanaRpcUrl), input.nodeEnv]);
+  const material = JSON.stringify([rpcIdentity(input.monadRpcUrl), input.chainId, input.nodeEnv]);
   return createHash("sha256").update(material).digest("hex").slice(0, 16);
 }
 

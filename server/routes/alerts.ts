@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { AlertEngineStats, AlertRow, AlertsResponse, FomoCoverage } from "../../shared/wire.js";
+import type { AlertEngineStats, AlertRow, AlertsResponse, SmartCoverage } from "../../shared/wire.js";
 import { getAlertEngine, liveAlertsRouteDeps } from "../alerts/live.js";
 import type { AlertListQuery } from "../alerts/ring.js";
 import { ALERT_RULE_NAMES, rulesFor } from "../alerts/rules.js";
@@ -12,7 +12,7 @@ export const ALERTS_MAX = 500;
 
 /** `since` = the client's last observedAt (wall clock ms); `rule` narrows to one rule; chain defaults to all. */
 export const alertsQuerySchema = z.object({
-  chain: z.enum(["all", "solana", "robinhood"]).default("all"),
+  chain: z.enum(["all", "monad"]).default("all"),
   since: z.coerce.number().int().min(0).optional(),
   rule: z.enum(ALERT_RULE_NAMES).optional(),
   limit: z.coerce.number().int().min(1).max(ALERTS_MAX).default(ALERTS_DEFAULT)
@@ -23,7 +23,7 @@ export type AlertsQuery = z.infer<typeof alertsQuerySchema>;
 /** The slice of the engine and trader service the route reads; tests inject fakes. */
 export type AlertsRouteDeps = {
   engine: { list(query: AlertListQuery): AlertRow[]; ring: { size(): { size: number; max: number } }; stats(): AlertEngineStats };
-  coverage(): FomoCoverage;
+  coverage(): SmartCoverage;
   now: () => number;
 };
 

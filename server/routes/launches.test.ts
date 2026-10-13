@@ -7,7 +7,7 @@ const NOW = 1_800_000_000_000;
 
 function row(overrides: Partial<LaunchRow> = {}): LaunchRow {
   return {
-    chain: "robinhood",
+    chain: "monad",
     launchpad: "pons",
     token: "0xaaaa000000000000000000000000000000000001",
     symbol: "MEAO",
@@ -29,13 +29,13 @@ function row(overrides: Partial<LaunchRow> = {}): LaunchRow {
     curveSells: 0,
     curveNetUsd: null,
     tracked: null,
-    sources: ["rpc:robinhood"],
+    sources: ["rpc:monad"],
     observedAt: NOW,
     ...overrides
   };
 }
 
-const SOURCES = [{ name: "rpc:robinhood", lastOkAt: NOW - 100, lastError: null }];
+const SOURCES = [{ name: "rpc:monad", lastOkAt: NOW - 100, lastError: null }];
 
 function deps(overrides: Partial<LaunchesRouteDeps["service"]> = {}): LaunchesRouteDeps & { list: ReturnType<typeof vi.fn> } {
   const list = vi.fn(() => [row()]);
@@ -63,7 +63,7 @@ describe("resolveLaunchesQuery", () => {
 describe("toListQuery", () => {
   it("maps windows to ms, stocks to includeStocks, and caps the list", () => {
     expect(toListQuery({ chain: "all", window: "24h", stocks: "0" })).toEqual({ chain: "all", windowMs: 86_400_000, includeStocks: false, limit: LAUNCHES_LIMIT });
-    expect(toListQuery({ chain: "robinhood", window: "6h", stocks: "1", pad: "pons" })).toEqual({ chain: "robinhood", windowMs: 21_600_000, pad: "pons", includeStocks: true, limit: LAUNCHES_LIMIT });
+    expect(toListQuery({ chain: "monad", window: "6h", stocks: "1", pad: "pons" })).toEqual({ chain: "monad", windowMs: 21_600_000, pad: "pons", includeStocks: true, limit: LAUNCHES_LIMIT });
     expect(toListQuery({ chain: "solana", window: "1h", stocks: "0" }).windowMs).toBe(3_600_000);
   });
 });
@@ -71,9 +71,9 @@ describe("toListQuery", () => {
 describe("buildLaunchesResponse", () => {
   it("returns the LaunchesResponse envelope with rows, sources and observedAt", () => {
     const d = deps();
-    const response = buildLaunchesResponse({ chain: "robinhood", window: "6h", stocks: "1" }, d);
-    expect(d.list).toHaveBeenCalledWith({ chain: "robinhood", windowMs: 21_600_000, includeStocks: true, limit: LAUNCHES_LIMIT });
-    expect(response).toEqual({ launches: [row()], window: "6h", chain: "robinhood", observedAt: NOW, sources: SOURCES });
+    const response = buildLaunchesResponse({ chain: "monad", window: "6h", stocks: "1" }, d);
+    expect(d.list).toHaveBeenCalledWith({ chain: "monad", windowMs: 21_600_000, includeStocks: true, limit: LAUNCHES_LIMIT });
+    expect(response).toEqual({ launches: [row()], window: "6h", chain: "monad", observedAt: NOW, sources: SOURCES });
   });
 
   it("flags a capacity-truncated list so a full page is not mistaken for the whole window", () => {

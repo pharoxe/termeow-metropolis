@@ -42,7 +42,7 @@ const rpc = { call: () => Promise.reject(new Error("no network in tests")) };
 const noClassifier = { classify: () => Promise.resolve(null), peek: () => undefined, stats: () => ({ pending: 0 }) };
 const noReceipts = { get: () => Promise.resolve(null), stats: () => ({}) };
 function service(now = () => T0) {
-  const handles = new HandleBook({ now, fetchImpl: () => Promise.reject(new Error("no network in tests")) });
+  const handles = new HandleBook({ now, source: { configured: false, dexTrades: () => Promise.reject(new Error("no network in tests")) } });
   return new TraderService({ classifier: noClassifier, receipts: noReceipts, handles, erc20Meta: new Erc20Meta({ rpc, now }), now, log: (message) => logs.push(message) });
 }
 
@@ -57,8 +57,8 @@ describe("launch-index component", () => {
     const restored = manager(T0 + 90_000).register(launchIndexComponent(() => target));
     const report = restored.restore("launch-index");
     expect(report).toMatchObject({ skipped: null, savedAt: T0, ageMs: 90_000, counts: { rows: ROWS.length } });
-    expect(target.list({ chain: "robinhood", windowMs: 24 * 3_600_000 })).toEqual(source.list({ chain: "robinhood", windowMs: 24 * 3_600_000 }));
-    expect(target.get("robinhood", ROWS[0].token)?.observedAt).toBe(ROWS[0].observedAt);
+    expect(target.list({ chain: "monad", windowMs: 24 * 3_600_000 })).toEqual(source.list({ chain: "monad", windowMs: 24 * 3_600_000 }));
+    expect(target.get("monad", ROWS[0].token)?.observedAt).toBe(ROWS[0].observedAt);
     expect(restored.status()).toMatchObject({ restoredAt: T0 + 90_000, snapshotAge: 90_000 });
     expect(logs.some((line) => line.includes("restored launch-index") && line.includes("aged 90s"))).toBe(true);
   });
@@ -107,16 +107,16 @@ describe("flow ledger component", () => {
     expect(report.counts).toEqual({ pairs: pairs.length, prints: PRINTS.length });
     const from = T0 - 2 * 3_600_000;
     for (const pair of pairs) {
-      expect(target.recentPrints("robinhood", pair)).toEqual(source.recentPrints("robinhood", pair));
+      expect(target.recentPrints("monad", pair)).toEqual(source.recentPrints("monad", pair));
       // same prints folded in a different order: counts match exactly, usd sums to floating-point rounding
-      const expected = source.series("robinhood", pair, MINUTE_MS, from, T0);
-      const actual = target.series("robinhood", pair, MINUTE_MS, from, T0);
+      const expected = source.series("monad", pair, MINUTE_MS, from, T0);
+      const actual = target.series("monad", pair, MINUTE_MS, from, T0);
       expect(actual.map(({ buyUsd: _b, sellUsd: _s, ...rest }) => rest)).toEqual(expected.map(({ buyUsd: _b, sellUsd: _s, ...rest }) => rest));
       actual.forEach((bucket, i) => {
         expect(bucket.buyUsd).toBeCloseTo(expected[i].buyUsd, 6);
         expect(bucket.sellUsd).toBeCloseTo(expected[i].sellUsd, 6);
       });
-      expect(target.firstPrintAt("robinhood", pair)).toBe(Math.min(...PRINTS.filter((print) => print.pair === pair).map((print) => print.time)));
+      expect(target.firstPrintAt("monad", pair)).toBe(Math.min(...PRINTS.filter((print) => print.pair === pair).map((print) => print.time)));
     }
     expect(target.ingest(PRINTS)).toEqual({ accepted: 0, duplicates: PRINTS.length });
   });
@@ -125,9 +125,9 @@ describe("flow ledger component", () => {
     const early = T0 - 5 * 3_600_000;
     const target = new FlowLedger({ now: () => T0 });
     const ring = PRINTS.slice(0, 5);
-    target.restore({ pairs: [{ key: `robinhood:${ring[0].pair}`, recent: ring, firstPrintAt: early }] });
-    expect(target.firstPrintAt("robinhood", ring[0].pair)).toBe(Math.min(...ring.map((print) => print.time)));
-    expect(target.coverage("robinhood", ring[0].pair, early, T0).fraction).toBeLessThan(1);
+    target.restore({ pairs: [{ key: `monad:${ring[0].pair}`, recent: ring, firstPrintAt: early }] });
+    expect(target.firstPrintAt("monad", ring[0].pair)).toBe(Math.min(...ring.map((print) => print.time)));
+    expect(target.coverage("monad", ring[0].pair, early, T0).fraction).toBeLessThan(1);
   });
 
   it("rejects a ring file whose prints are malformed", () => {
@@ -142,15 +142,15 @@ describe("trader book component", () => {
   it("round-trips real fills and the wallets' post-classification identity", () => {
     const source = new TraderBook({ now: () => T0 });
     expect(source.recordAll(FILLS).accepted).toBe(FILLS.length);
-    source.classify("robinhood", FILLS[0].trader, "other");
+    source.classify("monad", FILLS[0].trader, "other");
     manager().register(traderBookComponent(() => source)).saveAll("test");
 
     const target = new TraderBook({ now: () => T0 });
     const report = manager().register(traderBookComponent(() => target)).restore("trader-book");
     expect(report.counts).toEqual({ fills: FILLS.length, duplicates: 0, rejected: 0 });
-    expect(target.tape("robinhood", 100)).toEqual(source.tape("robinhood", 100));
-    expect(target.stats("robinhood", FILLS[0].trader)).toEqual(source.stats("robinhood", FILLS[0].trader));
-    expect(target.stats("robinhood", FILLS[0].trader)?.kind).toBe("other");
+    expect(target.tape("monad", 100)).toEqual(source.tape("monad", 100));
+    expect(target.stats("monad", FILLS[0].trader)).toEqual(source.stats("monad", FILLS[0].trader));
+    expect(target.stats("monad", FILLS[0].trader)?.kind).toBe("other");
     expect(target.recordAll(FILLS).duplicates).toBe(FILLS.length);
   });
 
@@ -161,7 +161,7 @@ describe("trader book component", () => {
     const target = new TraderBook({ now: () => T0 });
     manager().register(traderBookComponent(() => target, 3)).restore("trader-book");
     expect(target.size().fills).toBe(3);
-    expect(target.tape("robinhood", 3).map((row) => row.tx)).toEqual(source.tape("robinhood", 3).map((row) => row.tx));
+    expect(target.tape("monad", 3).map((row) => row.tx)).toEqual(source.tape("monad", 3).map((row) => row.tx));
   });
 });
 
@@ -183,7 +183,7 @@ describe("trader population + erc20 components", () => {
     expect(target.populationVersion()).toBe(before + 1);
     expect(target.status().population).toMatchObject({ classified: 2, seeded: 3, seedQueue: 3 });
     expect(target.peekKind(wallets[0])).toBe("seeded");
-    expect(target.peekKind(wallets[3])).toBe("fomo");
+    expect(target.peekKind(wallets[3])).toBe("smart");
     expect(target.handles.get(wallets[4])?.source).toBe("learned");
     expect(target.snapshot()).toEqual(source.snapshot());
   });

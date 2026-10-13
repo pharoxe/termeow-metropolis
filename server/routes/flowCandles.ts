@@ -9,7 +9,7 @@ import { liveMarketResponse } from "./market.js";
 
 /**
  * GET /api/flow/candles/:chain/:address?interval=5s|15s|1m — candles from own-tape ring prints that carry a price.
- * When the ring has none, the same market builder /api/market uses (on-chain public fallback or robinhood assembly)
+ * When the ring has none, the same market builder /api/market uses (on-chain public fallback or monad assembly)
  * supplies the series, labeled with that source. Reads the same registry and collector as /api/flow/token (liveDeps)
  * so it never gathers anything twice; always answers 200, with an `untracked:` error when the registry failed with
  * nothing cached or knows no pair for the token and the market fallback also has no bars.
@@ -28,7 +28,7 @@ export type CandlesRouteDeps = Pick<FlowRouteDeps, "registry" | "collector" | "n
   marketCandles?: (params: CandlesParams) => Promise<{ candles: MarketCandle[]; source: string; error?: string } | null>;
 };
 
-/** Zod-validates params (same address rules as the flow route, Robinhood lowercased) and the interval query. */
+/** Zod-validates params (same address rules as the flow route, Monad lowercased) and the interval query. */
 export function resolveCandlesParams(params: unknown, query: unknown): CandlesParams {
   const { chain, address } = flowParamsSchema.parse(params);
   const { interval } = candlesQuerySchema.parse(query ?? {});

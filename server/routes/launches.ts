@@ -12,9 +12,9 @@ const WINDOW_MS: Record<LaunchWindow, number> = { "1h": HOUR_MS, "6h": 6 * HOUR_
 
 export type LaunchWindow = (typeof LAUNCH_WINDOWS)[number];
 
-/** `stocks` hides robinhoodtrenches-flagged tokenised stocks by default; `pad` matches the row's launchpad exactly. */
+/** `stocks` hides rows flagged as tokenised stocks by default; `pad` matches the row's launchpad exactly. */
 export const launchesQuerySchema = z.object({
-  chain: z.enum(["all", "solana", "robinhood"]).default("all"),
+  chain: z.enum(["all", "monad"]).default("all"),
   window: z.enum(LAUNCH_WINDOWS).default("24h"),
   pad: z.string().trim().min(1).max(40).optional(),
   stocks: z.enum(["0", "1"]).default("0")

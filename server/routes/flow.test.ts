@@ -16,15 +16,16 @@ import {
   type FlowTradersLike
 } from "./flow.js";
 
-const MINT = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
-const POOL = "8sLbNZoA1cfnvMJLPfp98ZLAnFSYCFApfJKMbiXNLwxj";
+const MINT = "0x9c0000000000000000000000000000000000beef";
+const SOLANA_MINT = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
+const POOL = "0x8500000000000000000000000000000000000001";
 const NOW = 1_800_000_000_000;
 const FIVE_MIN = 5 * MINUTE_MS;
 
 function row(pairAddress: string, tier: PairRow["tier"], share24: number | null, extra: Partial<PairRow> = {}): PairRow {
   return {
-    chain: "solana",
-    dex: "raydium",
+    chain: "monad",
+    dex: "kuru",
     pairAddress,
     baseMint: MINT,
     quoteMint: null,
@@ -39,11 +40,11 @@ function row(pairAddress: string, tier: PairRow["tier"], share24: number | null,
 }
 
 function print(pair: string, tx: string, time: number, side: FlowPrint["side"], usd: number): FlowPrint {
-  return { chain: "solana", pair, tx, time, side, usd, source: "geckoterminal" };
+  return { chain: "monad", pair, tx, time, side, usd, source: "geckoterminal" };
 }
 
 function params(overrides: Partial<FlowParams> = {}): FlowParams {
-  return { chain: "solana", address: MINT, interval: "5m", anchor: "window", fromMs: NOW - 2 * FIVE_MIN, toMs: NOW, ...overrides };
+  return { chain: "monad", address: MINT, interval: "5m", anchor: "window", fromMs: NOW - 2 * FIVE_MIN, toMs: NOW, ...overrides };
 }
 
 function deps(overrides: Partial<FlowRouteDeps> = {}, ledger = new FlowLedger({ now: () => NOW })): FlowRouteDeps & { subscribe: ReturnType<typeof vi.fn> } {
@@ -61,27 +62,27 @@ function deps(overrides: Partial<FlowRouteDeps> = {}, ledger = new FlowLedger({ 
 
 describe("resolveFlowParams", () => {
   it("applies defaults: 5m interval, window anchor, to=now, from=300 bars back", () => {
-    const resolved = resolveFlowParams({ chain: "solana", address: MINT }, {}, NOW);
-    expect(resolved).toEqual({ chain: "solana", address: MINT, interval: "5m", anchor: "window", fromMs: NOW - DEFAULT_BAR_COUNT * FIVE_MIN, toMs: NOW });
+    const resolved = resolveFlowParams({ chain: "monad", address: MINT }, {}, NOW);
+    expect(resolved).toEqual({ chain: "monad", address: MINT, interval: "5m", anchor: "window", fromMs: NOW - DEFAULT_BAR_COUNT * FIVE_MIN, toMs: NOW });
   });
 
   it("parses explicit interval, anchor and window from query strings", () => {
-    const resolved = resolveFlowParams({ chain: "solana", address: MINT }, { interval: "1h", anchor: "session", from: "100", to: "200" }, NOW);
+    const resolved = resolveFlowParams({ chain: "monad", address: MINT }, { interval: "1h", anchor: "session", from: "100", to: "200" }, NOW);
     expect(resolved).toMatchObject({ interval: "1h", anchor: "session", fromMs: 100, toMs: 200 });
   });
 
-  it("accepts robinhood with a lowercased EVM address and rejects anything else on that chain", () => {
-    const resolved = resolveFlowParams({ chain: "robinhood", address: "0x12D5ee7917cA430073C3A638ee1e6f0648A98a01" }, {}, NOW);
-    expect(resolved).toMatchObject({ chain: "robinhood", address: "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01" });
-    expect(() => resolveFlowParams({ chain: "robinhood", address: "0xabc" }, {}, NOW)).toThrow(ZodError);
-    expect(flowParamsSchema.safeParse({ chain: "robinhood", address: MINT }).success).toBe(false);
+  it("accepts monad with a lowercased EVM address and rejects anything else on that chain", () => {
+    const resolved = resolveFlowParams({ chain: "monad", address: "0x12D5ee7917cA430073C3A638ee1e6f0648A98a01" }, {}, NOW);
+    expect(resolved).toMatchObject({ chain: "monad", address: "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01" });
+    expect(() => resolveFlowParams({ chain: "monad", address: "0xabc" }, {}, NOW)).toThrow(ZodError);
+    expect(flowParamsSchema.safeParse({ chain: "monad", address: SOLANA_MINT }).success).toBe(false);
     expect(flowParamsSchema.safeParse({ chain: "solana", address: "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01" }).success).toBe(false);
   });
 
-  it("rejects non-base58 addresses, unknown intervals and inverted windows", () => {
-    expect(() => resolveFlowParams({ chain: "solana", address: "0OIl" }, {}, NOW)).toThrow(ZodError);
-    expect(() => resolveFlowParams({ chain: "solana", address: MINT }, { interval: "2m" }, NOW)).toThrow(ZodError);
-    expect(() => resolveFlowParams({ chain: "solana", address: MINT }, { from: "200", to: "100" }, NOW)).toThrow(ZodError);
+  it("rejects malformed addresses, unknown intervals and inverted windows", () => {
+    expect(() => resolveFlowParams({ chain: "monad", address: "0OIl" }, {}, NOW)).toThrow(ZodError);
+    expect(() => resolveFlowParams({ chain: "monad", address: MINT }, { interval: "2m" }, NOW)).toThrow(ZodError);
+    expect(() => resolveFlowParams({ chain: "monad", address: MINT }, { from: "200", to: "100" }, NOW)).toThrow(ZodError);
   });
 });
 
@@ -95,7 +96,7 @@ describe("buildTokenFlowResponse", () => {
     ]);
     const d = deps({}, ledger);
     const response = await buildTokenFlowResponse(params(), d);
-    expect(d.subscribe).toHaveBeenCalledWith("solana", MINT, [row(POOL, "A", 1)]);
+    expect(d.subscribe).toHaveBeenCalledWith("monad", MINT, [row(POOL, "A", 1)]);
     expect(response.source).toBe(FLOW_SOURCE);
     expect(response.observedAt).toBe(NOW);
     expect(response.error).toBeUndefined();
@@ -117,7 +118,7 @@ describe("buildTokenFlowResponse", () => {
     const curve = row(CURVE, "A", null, { dex: "pons", sources: ["launchpad"], volume24Usd: null, txns: { m5: null, h1: null, h6: null, h24: null } });
     const d = deps({ registry: async () => ({ pairs: [row(POOL, "A", 1), curve], observedAt: NOW, stale: false }) }, ledger);
     const response = await buildTokenFlowResponse(params(), d);
-    expect(d.subscribe).toHaveBeenCalledWith("solana", MINT, [row(POOL, "A", 1)]);
+    expect(d.subscribe).toHaveBeenCalledWith("monad", MINT, [row(POOL, "A", 1)]);
     expect(response.pairs.map((pair) => pair.pairAddress)).toEqual([POOL, CURVE]);
     expect(response.bars.map((bar) => bar.delta)).toEqual([40]);
     expect(response.tape?.[0]).toMatchObject({ pair: CURVE, dex: "pons", usd: 40 });
@@ -140,7 +141,7 @@ describe("buildTokenFlowResponse", () => {
     const launchMs = vi.fn(() => NOW - 4 * 60 * MINUTE_MS);
     const d = deps({}, ledger);
     const response = await buildTokenFlowResponse(params({ anchor: "launch" }), { ...d, collector: { ...d.collector, launchMs } });
-    expect(launchMs).toHaveBeenCalledWith("solana", MINT);
+    expect(launchMs).toHaveBeenCalledWith("monad", MINT);
     expect(response.bars.at(-1)?.cvd).toBe(55);
   });
 
@@ -149,24 +150,22 @@ describe("buildTokenFlowResponse", () => {
     ledger.ingest([print(POOL, "big", NOW - 2 * FIVE_MIN + 1000, "buy", 1500), print(POOL, "small", NOW - 30_000, "sell", 30)]);
     const status = vi.fn(() => ({
       sources: {
-        pumpfun: { lastOkAt: NOW - 5000, lastError: null, lastErrorAt: null },
         geckoterminal: { lastOkAt: null, lastError: "geckoterminal: 429", lastErrorAt: NOW - 1000 },
         own: { lastOkAt: NOW - 2000, lastError: null, lastErrorAt: null, tape: { prints: 7 } }
       }
     }));
     const d = deps({}, ledger);
     const response = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, status } });
-    expect(status).toHaveBeenCalledWith("solana", MINT);
+    expect(status).toHaveBeenCalledWith("monad", MINT);
     expect(response.windows?.map((w) => [w.label, w.net, w.buys, w.sells, w.aggressor])).toEqual([
       ["1m", -30, 0, 1, 0],
       ["5m", -30, 0, 1, 0],
       ["15m", 1470, 1, 1, 1500 / 1530],
       ["1h", 1470, 1, 1, 1500 / 1530]
     ]);
-    expect(response.largePrints).toEqual([{ pair: POOL, dex: "raydium", tx: "big", time: NOW - 2 * FIVE_MIN + 1000, side: "buy", usd: 1500, source: "geckoterminal" }]);
+    expect(response.largePrints).toEqual([{ pair: POOL, dex: "kuru", tx: "big", time: NOW - 2 * FIVE_MIN + 1000, side: "buy", usd: 1500, source: "geckoterminal" }]);
     expect(response.sinceAnchor).toEqual({ startMs: NOW - 2 * FIVE_MIN, net: 1470, buyUsd: 1500, sellUsd: 30, prints: 2 });
     expect(response.sources).toEqual([
-      { name: "pumpfun", lastOkAt: NOW - 5000, lastError: null },
       { name: "geckoterminal", lastOkAt: null, lastError: "geckoterminal: 429" },
       { name: "own", lastOkAt: NOW - 2000, lastError: null, prints: 7 }
     ]);
@@ -205,10 +204,10 @@ describe("buildTokenFlowResponse", () => {
   });
 
   it("returns an empty 200 envelope when the registry fails with nothing cached", async () => {
-    const d = deps({ registry: async () => { throw new Error("dexscreener: down; geckoterminal: down; clawpump: down"); } });
+    const d = deps({ registry: async () => { throw new Error("dexscreener: down; geckoterminal: down"); } });
     const response = await buildTokenFlowResponse(params(), d);
     expect(response).toMatchObject({
-      chain: "solana",
+      chain: "monad",
       address: MINT,
       interval: "5m",
       anchor: "window",
@@ -218,7 +217,7 @@ describe("buildTokenFlowResponse", () => {
       counts: { m5: null, h1: null, h6: null, h24: null },
       observedAt: NOW,
       source: FLOW_SOURCE,
-      error: "dexscreener: down; geckoterminal: down; clawpump: down"
+      error: "dexscreener: down; geckoterminal: down"
     });
     expect(response.windows).toBeUndefined();
     expect(response.sources).toBeUndefined();
@@ -230,7 +229,6 @@ describe("last-good tape (R6)", () => {
   const down = { ok: false, lastOkAt: NOW - 90_000, lastError: "GeckoTerminal backoff active after 429", nextRetryAt: NOW + 15_000 };
   const up = { ok: true, lastOkAt: NOW - 1000, lastError: null, nextRetryAt: null };
   const sources = {
-    pumpfun: { lastOkAt: null, lastError: null, lastErrorAt: null },
     geckoterminal: { lastOkAt: NOW - 90_000, lastError: "GeckoTerminal backoff active after 429", lastErrorAt: NOW - 1000 },
     own: { lastOkAt: NOW - 60_000, lastError: "rpc 429 rate limited", lastErrorAt: null, tape: { prints: 3 } }
   };
@@ -238,24 +236,24 @@ describe("last-good tape (R6)", () => {
   it("returns the ledger ring with stale:true and feedHealth when every source is down, never an empty tape", async () => {
     const ledger = new FlowLedger({ now: () => NOW });
     ledger.ingest([print(POOL, "old", NOW - 80_000, "buy", 12)]);
-    const feedHealth = { own: { ...down, lastError: "rpc 429 rate limited", nextRetryAt: NOW + 30_000 }, gecko: down, pumpfun: { ok: false, lastOkAt: null, lastError: null, nextRetryAt: null } };
+    const feedHealth = { own: { ...down, lastError: "rpc 429 rate limited", nextRetryAt: NOW + 30_000 }, gecko: down };
     const d = deps({}, ledger);
     const response = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, status: () => ({ sources, feedHealth }) } });
-    expect(response.tape).toEqual([{ pair: POOL, dex: "raydium", tx: "old", time: NOW - 80_000, side: "buy", usd: 12, source: "geckoterminal" }]);
+    expect(response.tape).toEqual([{ pair: POOL, dex: "kuru", tx: "old", time: NOW - 80_000, side: "buy", usd: 12, source: "geckoterminal" }]);
     expect(response.stale).toBe(true);
     expect(response.error).toBeUndefined();
     expect(response.feedHealth).toEqual(feedHealth);
-    expect(response.sources?.[1]).toEqual({ name: "geckoterminal", lastOkAt: NOW - 90_000, lastError: "GeckoTerminal backoff active after 429" });
+    expect(response.sources?.[0]).toEqual({ name: "geckoterminal", lastOkAt: NOW - 90_000, lastError: "GeckoTerminal backoff active after 429" });
   });
 
   it("is not stale while any source is ok, and never stale on an empty ring", async () => {
     const ledger = new FlowLedger({ now: () => NOW });
     ledger.ingest([print(POOL, "fresh", NOW - 1000, "buy", 12)]);
     const d = deps({}, ledger);
-    const live = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, status: () => ({ sources, feedHealth: { own: up, gecko: down, pumpfun: down } }) } });
+    const live = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, status: () => ({ sources, feedHealth: { own: up, gecko: down } }) } });
     expect(live.stale).toBeUndefined();
     const empty = deps();
-    const noPrints = await buildTokenFlowResponse(params(), { ...empty, collector: { ...empty.collector, status: () => ({ sources, feedHealth: { own: down, gecko: down, pumpfun: down } }) } });
+    const noPrints = await buildTokenFlowResponse(params(), { ...empty, collector: { ...empty.collector, status: () => ({ sources, feedHealth: { own: down, gecko: down } }) } });
     expect(noPrints.tape).toEqual([]);
     expect(noPrints.stale).toBeUndefined();
   });
@@ -264,23 +262,23 @@ describe("last-good tape (R6)", () => {
     const ledger = new FlowLedger({ now: () => NOW });
     ledger.ingest([print(POOL, "kept", NOW - 5000, "sell", 8)]);
     const pairsOf = vi.fn(() => [row(POOL, "A", 1)]);
-    const d = deps({ registry: async () => { throw new Error("dexscreener: 429; geckoterminal: 429; clawpump: down"); } }, ledger);
+    const d = deps({ registry: async () => { throw new Error("dexscreener: 429; geckoterminal: 429"); } }, ledger);
     const response = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, pairsOf } });
-    expect(pairsOf).toHaveBeenCalledWith("solana", MINT);
-    expect(d.subscribe).toHaveBeenCalledWith("solana", MINT, [row(POOL, "A", 1)]);
+    expect(pairsOf).toHaveBeenCalledWith("monad", MINT);
+    expect(d.subscribe).toHaveBeenCalledWith("monad", MINT, [row(POOL, "A", 1)]);
     expect(response.stale).toBe(true);
-    expect(response.error).toBe("registry: dexscreener: 429; geckoterminal: 429; clawpump: down (last-known pairs)");
-    expect(response.tape).toEqual([{ pair: POOL, dex: "raydium", tx: "kept", time: NOW - 5000, side: "sell", usd: 8, source: "geckoterminal" }]);
+    expect(response.error).toBe("registry: dexscreener: 429; geckoterminal: 429 (last-known pairs)");
+    expect(response.tape).toEqual([{ pair: POOL, dex: "kuru", tx: "kept", time: NOW - 5000, side: "sell", usd: 8, source: "geckoterminal" }]);
     expect(response.bars.length).toBeGreaterThan(0);
     const nothing = await buildTokenFlowResponse(params(), { ...d, collector: { ...d.collector, pairsOf: () => null } });
     expect(nothing.tape).toBeUndefined();
-    expect(nothing.error).toBe("dexscreener: 429; geckoterminal: 429; clawpump: down");
+    expect(nothing.error).toBe("dexscreener: 429; geckoterminal: 429");
   });
 });
 
 describe("tape", () => {
-  const POOL_B = "PoolBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
-  const POOL_TIER_B = "PoolCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+  const POOL_B = "0xbbbb000000000000000000000000000000000002";
+  const POOL_TIER_B = "0xcccc000000000000000000000000000000000003";
 
   it("merges Tier A pairs newest first with the PairRow dex, keeps unpriced prints and skips Tier B", () => {
     const ledger = new FlowLedger({ now: () => NOW });
@@ -290,11 +288,11 @@ describe("tape", () => {
       print(POOL, "a2", NOW - 2000, "sell", 20),
       print(POOL_TIER_B, "c1", NOW - 500, "buy", 999)
     ]);
-    const pairs = [row(POOL, "A", 0.5), row(POOL_B, "A", 0.5, { dex: "meteora" }), row(POOL_TIER_B, "B", null)];
-    expect(recentTape(ledger, "solana", pairs)).toEqual([
-      { pair: POOL_B, dex: "meteora", tx: "b1", time: NOW - 1000, side: "sell", usd: null, source: "own" },
-      { pair: POOL, dex: "raydium", tx: "a2", time: NOW - 2000, side: "sell", usd: 20, source: "geckoterminal" },
-      { pair: POOL, dex: "raydium", tx: "a1", time: NOW - 3000, side: "buy", usd: 10, source: "geckoterminal" }
+    const pairs = [row(POOL, "A", 0.5), row(POOL_B, "A", 0.5, { dex: "uniswap" }), row(POOL_TIER_B, "B", null)];
+    expect(recentTape(ledger, "monad", pairs)).toEqual([
+      { pair: POOL_B, dex: "uniswap", tx: "b1", time: NOW - 1000, side: "sell", usd: null, source: "own" },
+      { pair: POOL, dex: "kuru", tx: "a2", time: NOW - 2000, side: "sell", usd: 20, source: "geckoterminal" },
+      { pair: POOL, dex: "kuru", tx: "a1", time: NOW - 3000, side: "buy", usd: 10, source: "geckoterminal" }
     ]);
   });
 
@@ -304,52 +302,52 @@ describe("tape", () => {
       ...Array.from({ length: 30 }, (_, index) => print(POOL, `a${index}`, NOW - index * 10, "buy", 1)),
       ...Array.from({ length: 30 }, (_, index) => print(POOL_B, `b${index}`, NOW - index * 10 - 5, "sell", 1))
     ]);
-    const tape = recentTape(ledger, "solana", [row(POOL, "A", 0.5), row(POOL_B, "A", 0.5)]);
+    const tape = recentTape(ledger, "monad", [row(POOL, "A", 0.5), row(POOL_B, "A", 0.5)]);
     expect(TAPE_LIMIT).toBe(40);
     expect(tape).toHaveLength(40);
     expect(tape[0].tx).toBe("a0");
     expect(tape.every((item, index) => index === 0 || tape[index - 1].time >= item.time)).toBe(true);
-    expect(recentTape(ledger, "solana", [row(POOL, "A", 1)], 5)).toHaveLength(5);
+    expect(recentTape(ledger, "monad", [row(POOL, "A", 1)], 5)).toHaveLength(5);
   });
 
   it("rides on the flow response as a side output and is absent on the empty envelope", async () => {
     const ledger = new FlowLedger({ now: () => NOW });
     ledger.ingest([print(POOL, "x", NOW - 1000, "buy", 5)]);
     const response = await buildTokenFlowResponse(params(), deps({}, ledger));
-    expect(response.tape).toEqual([{ pair: POOL, dex: "raydium", tx: "x", time: NOW - 1000, side: "buy", usd: 5, source: "geckoterminal" }]);
+    expect(response.tape).toEqual([{ pair: POOL, dex: "kuru", tx: "x", time: NOW - 1000, side: "buy", usd: 5, source: "geckoterminal" }]);
     const failed = await buildTokenFlowResponse(params(), deps({ registry: async () => { throw new Error("down"); } }));
     expect(failed.tape).toBeUndefined();
   });
 });
 
-describe("FOMO block and trader on the tape", () => {
+describe("SMART block and trader on the tape", () => {
   const EVM_TOKEN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
   const EVM_POOL = "0x00000000000000000000000000000000000000aa";
-  const TRADER = { address: "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1", kind: "fomo" as const, handle: "AvgJoesCrypto", followers: 1200 };
+  const TRADER = { address: "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1", kind: "smart" as const, handle: "AvgJoesCrypto", followers: 1200 };
 
   function traders(): FlowTradersLike {
     return {
       fillsForToken: () => [],
-      fomoLedger: new FlowLedger({ now: () => NOW }),
+      smartLedger: new FlowLedger({ now: () => NOW }),
       population: { size: 94 },
       handles: { stats: () => ({ entries: 0 }) },
-      coverage: () => ({ watched: 60, population: 94, label: "watching 60 of 94 FOMO wallets · 0 named" }),
+      coverage: () => ({ watched: 60, population: 94, label: "watching 60 of 94 SMART wallets · 0 named" }),
       dexOf: () => ""
     };
   }
 
-  it("attaches a chain-specific fomo block on both Solana and Robinhood", async () => {
-    const solana = await buildTokenFlowResponse(params(), deps({ traders: traders() }));
-    expect(solana.fomo).toMatchObject({ fills: [], population: 94, handles: 0 });
-    const robinhoodRow = row(EVM_POOL, "A", 1, { chain: "robinhood", dex: "uniswap", baseMint: EVM_TOKEN });
-    const d = deps({ traders: traders(), registry: vi.fn(async () => ({ pairs: [robinhoodRow], observedAt: NOW - 1000, stale: false })) });
-    const robinhood = await buildTokenFlowResponse(params({ chain: "robinhood", address: EVM_TOKEN }), d);
-    expect(robinhood.fomo).toMatchObject({ fills: [], population: 94, handles: 0, coverage: { watched: 60, population: 94, label: "watching 60 of 94 FOMO wallets · 0 named" } });
+  it("attaches the smart block with coverage", async () => {
+    const plain = await buildTokenFlowResponse(params(), deps({ traders: traders() }));
+    expect(plain.smart).toMatchObject({ fills: [], population: 94, handles: 0 });
+    const monadRow = row(EVM_POOL, "A", 1, { chain: "monad", dex: "uniswap", baseMint: EVM_TOKEN });
+    const d = deps({ traders: traders(), registry: vi.fn(async () => ({ pairs: [monadRow], observedAt: NOW - 1000, stale: false })) });
+    const monad = await buildTokenFlowResponse(params({ chain: "monad", address: EVM_TOKEN }), d);
+    expect(monad.smart).toMatchObject({ fills: [], population: 94, handles: 0, coverage: { watched: 60, population: 94, label: "watching 60 of 94 SMART wallets · 0 named" } });
   });
 
-  it("carries seeded fills on the block tagged seeded but sums the FOMO windows over verified fills only", async () => {
+  it("carries seeded fills on the block tagged seeded but sums the SMART windows over verified fills only", async () => {
     const SEEDED = { address: "0x0a6ebed0155edb4b21d92ad02897a626cd90119e", kind: "seeded" as const, handle: "unipcs", followers: 514_576 };
-    const base = { chain: "robinhood" as const, token: EVM_TOKEN, pair: `fomo:${EVM_TOKEN}`, dex: "", side: "buy" as const };
+    const base = { chain: "monad" as const, token: EVM_TOKEN, pair: `smart:${EVM_TOKEN}`, dex: "", side: "buy" as const };
     const withSeeded: FlowTradersLike = {
       ...traders(),
       fillsForToken: () => [
@@ -357,18 +355,18 @@ describe("FOMO block and trader on the tape", () => {
         { ...base, tx: "0xs", time: NOW - 20_000, usd: 40, trader: SEEDED }
       ]
     };
-    const robinhoodRow = row(EVM_POOL, "A", 1, { chain: "robinhood", dex: "uniswap", baseMint: EVM_TOKEN });
-    const d = deps({ traders: withSeeded, registry: vi.fn(async () => ({ pairs: [robinhoodRow], observedAt: NOW - 1000, stale: false })) });
-    const response = await buildTokenFlowResponse(params({ chain: "robinhood", address: EVM_TOKEN }), d);
-    expect(response.fomo?.fills.map((fill) => [fill.tx, fill.trader.kind])).toEqual([["0xs", "seeded"], ["0xf", "fomo"]]);
-    const minute = response.fomo?.windows.find((window) => window.label === "1m");
+    const monadRow = row(EVM_POOL, "A", 1, { chain: "monad", dex: "uniswap", baseMint: EVM_TOKEN });
+    const d = deps({ traders: withSeeded, registry: vi.fn(async () => ({ pairs: [monadRow], observedAt: NOW - 1000, stale: false })) });
+    const response = await buildTokenFlowResponse(params({ chain: "monad", address: EVM_TOKEN }), d);
+    expect(response.smart?.fills.map((fill) => [fill.tx, fill.trader.kind])).toEqual([["0xs", "seeded"], ["0xf", "smart"]]);
+    const minute = response.smart?.windows.find((window) => window.label === "1m");
     expect(minute).toMatchObject({ buyUsd: 100, buys: 1, sells: 0 });
   });
 
   it("carries a per-print price onto the tape and omits the key when the producer gave none", () => {
     const ledger = new FlowLedger({ now: () => NOW });
     ledger.ingest([{ ...print(POOL, "p", NOW - 1000, "buy", 100), source: "own", price: 0.26783 }, print(POOL, "u", NOW - 2000, "sell", 5)]);
-    const tape = recentTape(ledger, "solana", [row(POOL, "A", 1)]);
+    const tape = recentTape(ledger, "monad", [row(POOL, "A", 1)]);
     expect(tape[0]).toMatchObject({ tx: "p", price: 0.26783 });
     expect("price" in tape[1]).toBe(false);
   });
@@ -376,7 +374,7 @@ describe("FOMO block and trader on the tape", () => {
   it("carries the ledger print's trader onto the tape and omits the key when there is none", () => {
     const ledger = new FlowLedger({ now: () => NOW });
     ledger.ingest([{ ...print(POOL, "a", NOW - 1000, "buy", 100), trader: TRADER }, print(POOL, "b", NOW - 2000, "sell", 5)]);
-    const tape = recentTape(ledger, "solana", [row(POOL, "A", 1)]);
+    const tape = recentTape(ledger, "monad", [row(POOL, "A", 1)]);
     expect(tape.map((p) => p.tx)).toEqual(["a", "b"]);
     expect(tape[0].trader).toEqual(TRADER);
     expect("trader" in tape[1]).toBe(false);

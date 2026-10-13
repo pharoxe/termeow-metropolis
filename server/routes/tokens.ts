@@ -4,7 +4,7 @@ import { getLaunchService } from "../launch/service.js";
 import { tokenRegistry } from "../terminal/tokenStore.js";
 import { fetchTokenBatches } from "../sources/dexscreenerTokens.js";
 
-const chain = z.enum(["solana", "robinhood"]);
+const chain = z.literal("monad");
 let refreshWritable = true;
 let refreshQueued = false;
 let lastRefreshRequestedAt = 0;

@@ -5,7 +5,7 @@ import type { AlertSinkLike } from "./sink.js";
 
 /**
  * The LaunchIndex the live LaunchService uses: identical storage, plus one sink call at the two chokepoints the
- * capture named. `launch` fires when a row first carries a chain source (rpc:robinhood / pumpportal) — on creation
+ * capture named. `launch` fires when a row first carries a chain source (rpc:monad / pumpportal) — on creation
  * or when an enrichment-born row is later confirmed on chain; rows known only through dexscreener never fire.
  * `graduation` fires once per applied recordGraduation (Pons emits LaunchSwept and PoolGraduated; the engine dedupes).
  */

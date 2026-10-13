@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { FomoCoverage, LaunchRow } from "../../shared/wire.js";
+import type { SmartCoverage, LaunchRow } from "../../shared/wire.js";
 import { TraderBook } from "../traders/book.js";
 import type { TraderFill } from "../traders/walletStats.js";
 import { AlertEngine, type AlertEngineDeps } from "./engine.js";
 import { LAUNCH_FRESH_MS } from "./rules.js";
 import fixture from "./__fixtures__/launches-and-fills.json";
 
-/** The FomoFill-shaped rows the capture holds (resolveJsonModule infers a per-entry literal type; this is the honest common shape). */
+/** The SmartFill-shaped rows the capture holds (resolveJsonModule infers a per-entry literal type; this is the honest common shape). */
 type FixtureFill = {
   token: string;
   pair: string;
@@ -18,12 +18,12 @@ type FixtureFill = {
   usdVia?: string;
 };
 
-const COVERAGE: FomoCoverage = { watched: 600, population: 1517, label: "watching 600 of 1,517 FOMO wallets · 147 named" };
+const COVERAGE: SmartCoverage = { watched: 600, population: 1517, label: "watching 600 of 1,517 SMART wallets · 147 named" };
 const CAPTURED_AT = Date.parse(fixture.meta.capturedAt.utc);
 
 function toFill(fill: FixtureFill): TraderFill {
   return {
-    chain: "robinhood",
+    chain: "monad",
     pair: fill.pair,
     tx: fill.tx,
     time: fill.time,
@@ -47,7 +47,7 @@ function harness(launches: LaunchRow[] = fixture.tokens.map((entry) => entry.lau
   const engine = new AlertEngine({
     launchOf: (_chain, token) => index.get(token) ?? null,
     walletTokenFills: (chain, wallet, token) => book.fillsOf(chain, wallet).filter((fill) => fill.token === token).length,
-    fomoFillsOf: (chain, token) => book.tape(chain, 20_000, { kind: "fomo", token }).length,
+    smartFillsOf: (chain, token) => book.tape(chain, 20_000, { kind: "smart", token }).length,
     oldestFillAt: () => book.oldestFillAt(),
     coverage: () => COVERAGE,
     symbolOf: (_chain, token) => index.get(token)?.symbol ?? null,
@@ -63,29 +63,29 @@ function harness(launches: LaunchRow[] = fixture.tokens.map((entry) => entry.lau
 /** Fixture fills in chain-time order, as the poller delivers them. */
 const allFills = ([...fixture.tokens.flatMap((entry) => entry.fills), ...fixture.highFollowerFills] as FixtureFill[]).map(toFill).sort((a, b) => a.time - b.time);
 
-describe("first_fomo_buy on the capture (3 unnamed Pons launches, unnamed FOMO wallets)", () => {
-  it("fires once per fresh token at the first FOMO buy with chain-time age and coverage", () => {
+describe("first_smart_buy on the capture (3 unnamed Pons launches, unnamed SMART wallets)", () => {
+  it("fires once per fresh token at the first SMART buy with chain-time age and coverage", () => {
     const h = harness();
-    const fired = allFills.flatMap((fill) => h.record(fill)).filter((row) => row.rule === "first_fomo_buy");
+    const fired = allFills.flatMap((fill) => h.record(fill)).filter((row) => row.rule === "first_smart_buy");
     expect(fired.map((row) => row.time)).toEqual([...fired.map((row) => row.time)].sort((a, b) => a - b));
     const byToken = new Map(fixture.tokens.map((entry) => [entry.token, entry]));
-    expect(new Map(fired.map((row) => [row.token, row.rule === "first_fomo_buy" ? row.evidence.launchAgeMs : null]))).toEqual(
-      new Map(fixture.tokens.map((entry) => [entry.token, entry.firstFomoBuy.launchAgeMs]))
+    expect(new Map(fired.map((row) => [row.token, row.rule === "first_smart_buy" ? row.evidence.launchAgeMs : null]))).toEqual(
+      new Map(fixture.tokens.map((entry) => [entry.token, entry.firstSmartBuy.launchAgeMs]))
     );
     for (const row of fired) {
       const entry = byToken.get(row.token);
       if (!entry) throw new Error(`unexpected token ${row.token}`);
-      const expected = entry.firstFomoBuy;
-      expect(row.chain).toBe("robinhood");
+      const expected = entry.firstSmartBuy;
+      expect(row.chain).toBe("monad");
       expect(row.symbol).toBeNull();
       expect(row.coverage).toEqual(COVERAGE);
       expect(row.time).toBe(expected.time);
       expect(row.observedAt).toBe(CAPTURED_AT);
-      if (row.rule !== "first_fomo_buy") throw new Error("rule");
-      expect(row.evidence.fill).toMatchObject({ tx: expected.tx, wallet: expected.wallet, handle: null, kind: "fomo", side: "buy", usd: expected.usd, usdVia: "hub_leg" });
+      if (row.rule !== "first_smart_buy") throw new Error("rule");
+      expect(row.evidence.fill).toMatchObject({ tx: expected.tx, wallet: expected.wallet, handle: null, kind: "smart", side: "buy", usd: expected.usd, usdVia: "hub_leg" });
       expect(row.evidence).toMatchObject({ launchpad: "pons", createdAtEstimated: true, launchTx: entry.launch.tx });
     }
-    expect(h.engine.stats().fired.first_fomo_buy).toBe(3);
+    expect(h.engine.stats().fired.first_smart_buy).toBe(3);
   });
 
   it("a first SELL never fires; the first BUY afterwards does (token 0xe40b: sell at 125 s, buy at 408 s)", () => {
@@ -96,9 +96,9 @@ describe("first_fomo_buy on the capture (3 unnamed Pons launches, unnamed FOMO w
     expect(h.record(sell)).toEqual([]);
     const fired = h.record(buy);
     expect(fired).toHaveLength(1);
-    if (fired[0].rule === "first_fomo_buy") expect(fired[0].evidence.launchAgeMs).toBe(407_680);
+    if (fired[0].rule === "first_smart_buy") expect(fired[0].evidence.launchAgeMs).toBe(407_680);
     expect(h.record(later)).toEqual([]);
-    expect(h.engine.stats().suppressed.first_fomo_buy).toBe(1);
+    expect(h.engine.stats().suppressed.first_smart_buy).toBe(1);
   });
 
   it("a stale first buy (launch 30 min old) is remembered so no later buy poses as first", () => {
@@ -108,7 +108,7 @@ describe("first_fomo_buy on the capture (3 unnamed Pons launches, unnamed FOMO w
     const [, buy, later] = (entry.fills as FixtureFill[]).map(toFill);
     expect(h.record(buy)).toEqual([]);
     expect(h.record(later)).toEqual([]);
-    expect(h.engine.stats().suppressed.first_fomo_buy).toBe(2);
+    expect(h.engine.stats().suppressed.first_smart_buy).toBe(2);
   });
 
   it("never fires for seeded or unclassified wallets, unknown tokens, or enrichment-only rows", () => {
@@ -132,11 +132,11 @@ describe("first_fomo_buy on the capture (3 unnamed Pons launches, unnamed FOMO w
       expect(h.record(later)).toEqual([]);
       const fired = h.engine.handle({ kind: "launch", row: launch });
       expect(fired).toHaveLength(1);
-      expect(fired[0]).toMatchObject({ rule: "first_fomo_buy", token: buy.token, time: buy.time });
-      if (fired[0].rule === "first_fomo_buy") expect(fired[0].evidence).toMatchObject({ launchAgeMs: 35_891, fill: { tx: buy.tx, wallet: buy.trader } });
+      expect(fired[0]).toMatchObject({ rule: "first_smart_buy", token: buy.token, time: buy.time });
+      if (fired[0].rule === "first_smart_buy") expect(fired[0].evidence).toMatchObject({ launchAgeMs: 35_891, fill: { tx: buy.tx, wallet: buy.trader } });
       expect(h.engine.handle({ kind: "launch", row: launch })).toEqual([]);
       expect(h.record({ ...later, tx: "0xafter", time: later.time + 1_000 })).toEqual([]);
-      expect(h.engine.stats()).toMatchObject({ seen: { launches: 2 }, fired: { first_fomo_buy: 1 }, suppressed: { first_fomo_buy: 3 } });
+      expect(h.engine.stats()).toMatchObject({ seen: { launches: 2 }, fired: { first_smart_buy: 1 }, suppressed: { first_smart_buy: 3 } });
     });
 
     it("a parked buy is judged against the row when the next buy arrives after the row (no launch event seen)", () => {
@@ -146,7 +146,7 @@ describe("first_fomo_buy on the capture (3 unnamed Pons launches, unnamed FOMO w
       index.set(launch.token.toLowerCase(), launch);
       const fired = h.record({ ...buy, tx: "0xlater", time: buy.time + 5_000, trader: "0x1111111111111111111111111111111111111111" });
       expect(fired).toHaveLength(1);
-      if (fired[0].rule === "first_fomo_buy") expect(fired[0].evidence.fill.tx).toBe(buy.tx);
+      if (fired[0].rule === "first_smart_buy") expect(fired[0].evidence.fill.tx).toBe(buy.tx);
     });
 
     it("an enrichment-only row parks the buy too; the chain-sourced row later fires it", () => {
@@ -160,7 +160,7 @@ describe("first_fomo_buy on the capture (3 unnamed Pons launches, unnamed FOMO w
       expect(h.record(buy)).toEqual([]);
       expect(h.engine.handle({ kind: "launch", row: { ...launch, createdAt: buy.time - LAUNCH_FRESH_MS } })).toEqual([]);
       expect(h.record({ ...buy, tx: "0xlater", time: buy.time + 5_000 })).toEqual([]);
-      expect(h.engine.stats().suppressed.first_fomo_buy).toBe(3);
+      expect(h.engine.stats().suppressed.first_smart_buy).toBe(3);
     });
   });
 
@@ -182,7 +182,7 @@ describe("big_handle_entry on the capture (DopamineFeenFr1, 64,149 followers, 6 
     const [pare, hoodshop] = fired;
     if (pare.rule !== "big_handle_entry" || hoodshop.rule !== "big_handle_entry") throw new Error("rule");
     expect(pare.token).toBe("0x15d36b6a28d8327abc7afabf0f106ae2c9af5c4d");
-    expect(pare.evidence).toMatchObject({ handle: "DopamineFeenFr1", followers: 64_149, side: "sell", usd: 987.308396, kind: "fomo", tx: fixture.highFollowerFills[0].tx });
+    expect(pare.evidence).toMatchObject({ handle: "DopamineFeenFr1", followers: 64_149, side: "sell", usd: 987.308396, kind: "smart", tx: fixture.highFollowerFills[0].tx });
     // "first per the book" is bounded by the book's oldest fill: the PARE sell is the oldest fill in this run.
     expect(pare.evidence.bookSince).toBe(pare.time);
     expect(hoodshop.token).toBe("0x22ce16962f51ac19c34616efacffb1fee2efe6b1");
@@ -216,18 +216,18 @@ describe("graduation", () => {
   const launch = fixture.tokens[2].launch as LaunchRow;
   const at = launch.createdAt + 20 * 60_000;
 
-  it("fires once for a token with FOMO fills in the book, counting them; the second Pons topic is deduped", () => {
+  it("fires once for a token with SMART fills in the book, counting them; the second Pons topic is deduped", () => {
     const h = harness();
     h.record(toFill(fixture.tokens[2].fills[0]));
     const first = h.engine.handle({ kind: "graduation", row: { ...launch, graduatedAt: at }, at });
     expect(first).toHaveLength(1);
     expect(first[0]).toMatchObject({ rule: "graduation", token: launch.token, time: at, observedAt: CAPTURED_AT, coverage: COVERAGE });
-    if (first[0].rule === "graduation") expect(first[0].evidence).toEqual({ launchpad: "pons", pool: null, launchTx: launch.tx, graduationTx: null, fomoFills: 1 });
+    if (first[0].rule === "graduation") expect(first[0].evidence).toEqual({ launchpad: "pons", pool: null, launchTx: launch.tx, graduationTx: null, smartFills: 1 });
     expect(h.engine.handle({ kind: "graduation", row: { ...launch, graduatedAt: at }, at })).toEqual([]);
     expect(h.engine.stats()).toMatchObject({ seen: { graduations: 2 }, fired: { graduation: 1 }, suppressed: { graduation: 1 } });
   });
 
-  it("a graduation with no FOMO fill in the book is not an alert", () => {
+  it("a graduation with no SMART fill in the book is not an alert", () => {
     const h = harness();
     expect(h.engine.handle({ kind: "graduation", row: launch, at })).toEqual([]);
     expect(h.engine.stats().fired.graduation).toBe(0);
@@ -235,11 +235,11 @@ describe("graduation", () => {
 });
 
 describe("engine hygiene", () => {
-  it("launch events are counted, fire nothing, and Solana fills (kind null, no handle) never fire", () => {
+  it("launch events are counted, fire nothing, and unclassified fills (kind null, no handle) never fire", () => {
     const h = harness();
     expect(h.engine.handle({ kind: "launch", row: fixture.tokens[0].launch as LaunchRow })).toEqual([]);
-    const solana: TraderFill = { chain: "solana", pair: "pool", tx: "sig", time: CAPTURED_AT, side: "buy", usd: 5, source: "own", trader: "So1ana", token: "Mint", kind: null, handle: null, followers: null };
-    expect(h.record(solana)).toEqual([]);
+    const unclassified: TraderFill = { chain: "monad", pair: "pool", tx: "0xsig", time: CAPTURED_AT, side: "buy", usd: 5, source: "own", trader: "0x1111111111111111111111111111111111111111", token: fixture.tokens[0].token, kind: null, handle: null, followers: null };
+    expect(h.record(unclassified)).toEqual([]);
     expect(h.engine.stats().seen).toEqual({ fills: 1, launches: 1, graduations: 0 });
   });
 
@@ -270,6 +270,6 @@ describe("engine hygiene", () => {
     h.record(toFill(fixture.tokens[0].fills[0]));
     expect(h.engine.list({ chain: "all" })).toHaveLength(2);
     expect(h.engine.list({ chain: "all", since: mark }).map((row) => row.token)).toEqual([fixture.tokens[0].token]);
-    expect(h.engine.list({ chain: "solana" })).toEqual([]);
+    expect(h.engine.list({ chain: "monad" })).toHaveLength(2);
   });
 });

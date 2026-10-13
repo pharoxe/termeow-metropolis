@@ -5,22 +5,25 @@ import { PrivyClient } from "@privy-io/server-auth";
 import { z } from "zod";
 import { config } from "../config.js";
 import { automationRepository } from "../automation/runtime.js";
-import { SOLANA_AUTOMATION_PROGRAM_ALLOWLIST } from "../automation/privyPolicy.js";
-import { verifyDelegatedSolanaWallet } from "../automation/privyExecutor.js";
+import { MONAD_AUTOMATION_CONTRACT_ALLOWLIST } from "../automation/privyPolicy.js";
+import { verifyDelegatedMonadWallet } from "../automation/privyExecutor.js";
 import { assetUsd } from "../agent/credits.js";
-import { computeSolanaTransferQuote, validateSolanaRecipientAccount, validateSolanaTransferRecipient } from "../automation/solanaTransfer.js";
+import { getTraderService } from "../traders/service.js";
+import { computeMonTransferQuote, validateMonadRecipient } from "../automation/monadTransfer.js";
+
+const evmAddress = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
 
 const intentSchema = z.object({
   kind: z.enum(["swap", "transfer", "monitor_deployer", "monitor_wallet", "monitor_x_launch", "conditional_swap"]),
-  chain: z.enum(["solana", "robinhood"]), tokenAddress: z.string().min(20).max(64).optional(),
+  chain: z.literal("monad"), tokenAddress: evmAddress.optional(),
   tokenSymbol: z.string().max(20).optional(), tokenName: z.string().max(120).optional(), tokenLogoUrl: z.string().url().max(1000).optional(),
-  trackedWallet: z.string().min(20).max(64).optional(), trackedWalletUsername: z.string().max(80).optional(),
+  trackedWallet: evmAddress.optional(), trackedWalletUsername: z.string().max(80).optional(),
   trackedXAccount: z.string().max(80).optional(),
-  side: z.enum(["buy", "sell"]).optional(), router: z.enum(["0x", "jupiter"]).optional(),
+  side: z.enum(["buy", "sell"]).optional(), router: z.enum(["kuru", "0x"]).optional(),
   amountMode: z.enum(["fixed", "wallet_percent"]).optional(), amount: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),
-  transferAmountSol: z.string().regex(/^\d+(?:\.\d{1,9})?$/).optional(), transferAmountUsd: z.number().positive().max(10_000).optional(),
+  transferAmountMon: z.string().regex(/^\d+(?:\.\d{1,18})?$/).optional(), transferAmountUsd: z.number().positive().max(10_000).optional(),
   transferPriceUsd: z.number().positive().optional(), transferQuotedAt: z.number().int().positive().optional(),
-  recipientAddress: z.string().min(32).max(44).optional(),
+  recipientAddress: evmAddress.optional(),
   allocationPercent: z.number().positive().max(25).optional(), durationHours: z.number().int().positive().max(24 * 30).optional(),
   maxSlippageBps: z.number().int().min(1).max(2500).optional(),
   marketCapMinUsd: z.number().nonnegative().optional(), marketCapMaxUsd: z.number().nonnegative().optional(),
@@ -34,18 +37,16 @@ const intentSchema = z.object({
 }).superRefine((intent, context) => {
   if (intent.kind === "swap" && (!intent.side || !intent.amountMode)) context.addIssue({ code: "custom", message: "A swap requires side and amountMode" });
   if (intent.kind === "swap" && !intent.tokenAddress) context.addIssue({ code: "custom", message: "A swap requires a token address" });
-  if (intent.kind === "transfer" && (intent.chain !== "solana" || !intent.recipientAddress || !intent.transferAmountSol)) context.addIssue({ code: "custom", message: "A transfer requires a Solana recipient and exact SOL amount" });
+  if (intent.kind === "transfer" && (!intent.recipientAddress || !intent.transferAmountMon)) context.addIssue({ code: "custom", message: "A transfer requires a Monad recipient and exact MON amount" });
   if (intent.kind === "transfer" && intent.recipientAddress) {
-    try { validateSolanaTransferRecipient(intent.recipientAddress); }
-    catch (error) { context.addIssue({ code: "custom", message: error instanceof Error ? error.message : "Invalid Solana recipient" }); }
+    try { validateMonadRecipient(intent.recipientAddress); }
+    catch (error) { context.addIssue({ code: "custom", message: error instanceof Error ? error.message : "Invalid Monad recipient" }); }
   }
-  if (intent.kind === "transfer" && intent.transferAmountSol && Number(intent.transferAmountSol) > 1_000) context.addIssue({ code: "custom", message: "A transfer cannot exceed 1000 SOL" });
+  if (intent.kind === "transfer" && intent.transferAmountMon && Number(intent.transferAmountMon) > 1_000_000) context.addIssue({ code: "custom", message: "A transfer cannot exceed 1,000,000 MON" });
   if (intent.kind === "monitor_wallet" && !intent.trackedWallet) context.addIssue({ code: "custom", message: "A wallet monitor requires a resolved tracked wallet" });
   if (intent.kind === "monitor_x_launch" && !intent.trackedXAccount) context.addIssue({ code: "custom", message: "An X launch monitor requires an X account" });
   if (intent.amountMode === "fixed" && !intent.amount) context.addIssue({ code: "custom", message: "A fixed swap requires amount" });
   if (intent.amountMode === "wallet_percent" && !intent.allocationPercent) context.addIssue({ code: "custom", message: "A wallet-percent action requires allocationPercent" });
-  if (intent.chain === "robinhood" && intent.router && intent.router !== "0x") context.addIssue({ code: "custom", message: "Robinhood actions must use 0x" });
-  if (intent.chain === "solana" && intent.router && intent.router !== "jupiter" && intent.router !== "0x") context.addIssue({ code: "custom", message: "Unsupported Solana router" });
   if (intent.marketCapMinUsd != null && intent.marketCapMaxUsd != null && intent.marketCapMinUsd > intent.marketCapMaxUsd)
     context.addIssue({ code: "custom", message: "Minimum market cap cannot exceed maximum market cap" });
   if (intent.exitConditions?.length && intent.side !== "buy") context.addIssue({ code: "custom", message: "Linked sell conditions require a buy entry" });
@@ -70,15 +71,13 @@ export const automationsRouter = Router();
 automationsRouter.use(requirePrivy);
 automationsRouter.get("/", async (request: AuthRequest, response) => response.json({ automations: await store.list(request.privyUserId!) }));
 automationsRouter.post("/transfers/quote", async (request: AuthRequest, response) => {
-  const body = z.object({ recipient: z.string().min(32).max(64), amount: z.number().positive(), denomination: z.enum(["usd", "sol"]) }).parse(request.body);
-  const [recipient, priceUsd] = await Promise.all([
-    validateSolanaRecipientAccount(body.recipient, config.rpc.primary),
-    assetUsd("SOL")
-  ]);
-  const quote = computeSolanaTransferQuote({ ...body, recipient, priceUsd });
+  const body = z.object({ recipient: evmAddress, amount: z.number().positive(), denomination: z.enum(["usd", "mon"]) }).parse(request.body);
+  const recipient = validateMonadRecipient(body.recipient);
+  const priceUsd = await assetUsd("MON");
+  const quote = computeMonTransferQuote({ ...body, recipient, priceUsd });
   response.json({ quote });
 });
-automationsRouter.get("/delegation/solana", async (request: AuthRequest, response) => {
+automationsRouter.get("/delegation/monad", async (request: AuthRequest, response) => {
   const configured = Boolean(config.privy.automationSignerId && config.privy.automationPolicyId && config.privy.automationAuthPrivateKey);
   const current = await store.getDelegation(request.privyUserId!);
   response.json({
@@ -87,24 +86,25 @@ automationsRouter.get("/delegation/solana", async (request: AuthRequest, respons
     signerId: config.privy.automationSignerId,
     policyIds: config.privy.automationPolicyId ? [config.privy.automationPolicyId] : [],
     walletAddress: current?.walletAddress,
-    allowedPrograms: SOLANA_AUTOMATION_PROGRAM_ALLOWLIST
+    allowedContracts: MONAD_AUTOMATION_CONTRACT_ALLOWLIST,
+    chainId: config.network.chainId
   });
 });
-automationsRouter.post("/delegation/solana", async (request: AuthRequest, response, next) => {
+automationsRouter.post("/delegation/monad", async (request: AuthRequest, response, next) => {
   if (!config.privy.automationSignerId || !config.privy.automationPolicyId || !config.privy.automationAuthPrivateKey) {
     response.status(503).json({ error: "Privy automation signer is not configured" }); return;
   }
   try {
-    const body = z.object({ walletAddress: z.string().min(32).max(64), walletId: z.string().min(3).max(200) }).parse(request.body);
-    await verifyDelegatedSolanaWallet(body);
+    const body = z.object({ walletAddress: evmAddress, walletId: z.string().min(3).max(200) }).parse(request.body);
+    await verifyDelegatedMonadWallet(body);
     const delegation = await store.setDelegation({
-      userId: request.privyUserId!, chain: "solana", walletAddress: body.walletAddress, walletId: body.walletId,
+      userId: request.privyUserId!, chain: "monad", walletAddress: body.walletAddress.toLowerCase(), walletId: body.walletId,
       signerId: config.privy.automationSignerId, policyId: config.privy.automationPolicyId
     });
     response.json({ delegation });
   } catch (error) { next(error); }
 });
-automationsRouter.delete("/delegation/solana", async (request: AuthRequest, response) => {
+automationsRouter.delete("/delegation/monad", async (request: AuthRequest, response) => {
   await store.removeDelegation(request.privyUserId!);
   response.json({ removed: true });
 });
@@ -116,9 +116,9 @@ automationsRouter.post("/", async (request: AuthRequest, response) => {
 automationsRouter.get("/preferences/me", async (request: AuthRequest, response) => response.json({ preferences: await store.userPreferences(request.privyUserId!) }));
 automationsRouter.patch("/preferences/me", async (request: AuthRequest, response) => {
   const parsed = z.object({
-    favoriteTraders: z.array(z.object({ handle: z.string().min(1).max(64), chain: z.enum(["solana", "robinhood"]), wallet: z.string().min(32).max(120), followers: z.number().int().nonnegative().nullable().optional() })).max(25).optional(),
-    favoriteTokens: z.array(z.object({ symbol: z.string().min(1).max(32), chain: z.enum(["solana", "robinhood"]).optional(), address: z.string().min(32).max(120).optional(), name: z.string().max(120).optional() })).max(25).optional(),
-    linkedWallets: z.array(z.object({ address: z.string().min(32).max(120), chain: z.enum(["solana", "robinhood"]), label: z.string().min(1).max(40).optional(), addedAt: z.number().int().positive() })).max(20).optional(),
+    favoriteTraders: z.array(z.object({ handle: z.string().min(1).max(64), chain: z.literal("monad"), wallet: evmAddress, followers: z.number().int().nonnegative().nullable().optional() })).max(25).optional(),
+    favoriteTokens: z.array(z.object({ symbol: z.string().min(1).max(32), chain: z.literal("monad").optional(), address: evmAddress.optional(), name: z.string().max(120).optional() })).max(25).optional(),
+    linkedWallets: z.array(z.object({ address: evmAddress, chain: z.literal("monad"), label: z.string().min(1).max(40).optional(), addedAt: z.number().int().positive() })).max(20).optional(),
     defaultAllocationPercent: z.number().positive().max(25).optional(), defaultSlippageBps: z.number().int().min(1).max(500).optional(), defaultDurationHours: z.number().int().positive().max(720).optional(), onboardingCompleted: z.boolean().optional()
   }).parse(request.body);
   const { onboardingCompleted, ...patch } = parsed;
@@ -144,11 +144,12 @@ automationsRouter.delete("/:id", async (request: AuthRequest, response) => {
 automationsRouter.post("/:id/approve", async (request: AuthRequest, response) => {
   approveSchema.parse(request.body);
   const pending = await store.get(request.privyUserId!, String(request.params.id));
-  if (pending?.intent.chain === "solana" && !["swap", "transfer"].includes(pending.intent.kind) && !await store.getDelegation(request.privyUserId!)) {
+  if (pending && !["swap", "transfer"].includes(pending.intent.kind) && !await store.getDelegation(request.privyUserId!)) {
     response.status(409).json({ error: "Enable the scoped Privy automation signer before arming this workflow" }); return;
   }
   const automation = await store.approve(request.privyUserId!, String(request.params.id));
   if (!automation) { response.status(409).json({ error: "Automation is missing or no longer awaiting approval" }); return; }
+  if (automation.intent.kind === "monitor_wallet" && automation.intent.trackedWallet) getTraderService().watchWallets([automation.intent.trackedWallet]);
   response.json({ automation });
 });
 automationsRouter.post("/:id/cancel", async (request: AuthRequest, response) => {

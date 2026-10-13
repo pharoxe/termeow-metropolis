@@ -1,10 +1,14 @@
 import { createHash } from "node:crypto";
 import { PrivyClient } from "@privy-io/node";
-import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { config } from "../config.js";
-import { SOLANA_AUTOMATION_PROGRAM_ALLOWLIST } from "./privyPolicy.js";
+import { MONAD_AUTOMATION_CONTRACT_ALLOWLIST } from "./privyPolicy.js";
 
-const SOLANA_MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+/** approve(address,uint256) */
+const APPROVE_SELECTOR = "0x095ea7b3";
+/** Unattended swaps may spend at most this much native MON in one transaction (a guard on top of allocation limits). */
+export const MAX_AUTOMATION_VALUE_WEI = 10n ** 18n * 10_000n;
+
+export type EvmAutomationTransaction = { to: string; data: string; value: string; chainId: number };
 
 function client() {
   const { appId, appSecret } = config.privy;
@@ -12,59 +16,60 @@ function client() {
   return new PrivyClient({ appId, appSecret });
 }
 
-export async function verifyDelegatedSolanaWallet(input: { walletId: string; walletAddress: string }) {
+/** The wallet must be the user's Privy EVM wallet with our scoped signer and policy attached. */
+export async function verifyDelegatedMonadWallet(input: { walletId: string; walletAddress: string }) {
   const { automationSignerId, automationPolicyId } = config.privy;
   if (!automationSignerId || !automationPolicyId) throw new Error("Privy automation signer is not configured.");
   const wallet = await client().wallets().get(input.walletId);
-  if (wallet.chain_type !== "solana" || wallet.address !== input.walletAddress) throw new Error("Privy wallet ID does not match the submitted Solana wallet.");
-  const signer = wallet.additional_signers.find((candidate) => candidate.signer_id === automationSignerId);
+  if (wallet.chain_type !== "ethereum" || String(wallet.address).toLowerCase() !== input.walletAddress.toLowerCase()) throw new Error("Privy wallet ID does not match the submitted Monad wallet.");
+  const signer = wallet.additional_signers.find((candidate: { signer_id: string; override_policy_ids?: string[] }) => candidate.signer_id === automationSignerId);
   if (!signer || !signer.override_policy_ids?.includes(automationPolicyId)) throw new Error("The required Privy signer policy is not attached to this wallet.");
   return wallet;
 }
 
-function decodePrograms(serialized: Buffer) {
-  try {
-    const tx = VersionedTransaction.deserialize(serialized);
-    const staticKeys = tx.message.staticAccountKeys;
-    const programs = tx.message.compiledInstructions.map((instruction) => {
-      const key = staticKeys[instruction.programIdIndex];
-      if (!key) throw new Error("Automation transaction uses an unresolved lookup-table program ID.");
-      return key.toBase58();
-    });
-    return { feePayer: staticKeys[0]?.toBase58(), programs };
-  } catch (versionedError) {
-    try {
-      const tx = Transaction.from(serialized);
-      return { feePayer: tx.feePayer?.toBase58(), programs: tx.instructions.map((instruction) => instruction.programId.toBase58()) };
-    } catch {
-      throw versionedError;
-    }
+/**
+ * Server-side mirror of the Privy policy, checked before anything is sent: Monad chain id, a target on the Kuru Flow
+ * allowlist, or an ERC-20 approve() whose spender is on it; bounded native value.
+ */
+export function inspectAutomationTransaction(transaction: EvmAutomationTransaction) {
+  if (transaction.chainId !== config.network.chainId) throw new Error(`Automation transaction targets chain ${transaction.chainId}, not Monad.`);
+  if (!/^0x[0-9a-fA-F]{40}$/.test(transaction.to)) throw new Error("Automation transaction target is invalid.");
+  if (!/^0x([0-9a-fA-F]{2})*$/.test(transaction.data) || transaction.data.length > 200_000) throw new Error("Automation transaction calldata is invalid.");
+  const value = BigInt(transaction.value || "0");
+  if (value < 0n || value > MAX_AUTOMATION_VALUE_WEI) throw new Error("Automation transaction value is outside the allowed range.");
+  const to = transaction.to.toLowerCase();
+  if (MONAD_AUTOMATION_CONTRACT_ALLOWLIST.includes(to)) return { kind: "swap" as const, to };
+  if (transaction.data.toLowerCase().startsWith(APPROVE_SELECTOR) && value === 0n) {
+    const spender = `0x${transaction.data.slice(10 + 24, 10 + 64).toLowerCase()}`;
+    if (MONAD_AUTOMATION_CONTRACT_ALLOWLIST.includes(spender)) return { kind: "approve" as const, to, spender };
+    throw new Error(`Automation approval names an unapproved spender: ${spender}`);
   }
+  throw new Error(`Automation transaction targets an unapproved contract: ${to}`);
 }
 
-export function inspectAutomationTransaction(transaction: string, expectedWallet: string) {
-  const bytes = Buffer.from(transaction, "base64");
-  if (!bytes.length || bytes.length > 1_500) throw new Error("Automation transaction encoding is invalid.");
-  const decoded = decodePrograms(bytes);
-  if (!decoded.feePayer || !new PublicKey(decoded.feePayer).equals(new PublicKey(expectedWallet))) {
-    throw new Error("Automation transaction fee payer does not match the delegated wallet.");
-  }
-  const unexpected = [...new Set(decoded.programs)].filter((program) => !SOLANA_AUTOMATION_PROGRAM_ALLOWLIST.includes(program as never));
-  if (unexpected.length) throw new Error(`Automation transaction contains unapproved programs: ${unexpected.join(", ")}`);
-  if (!decoded.programs.includes("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4")) throw new Error("Automation transaction is not a Jupiter v6 swap.");
-  return { programs: [...new Set(decoded.programs)], byteLength: bytes.length };
+function toHexQuantity(value: string): string {
+  return `0x${BigInt(value || "0").toString(16)}`;
 }
 
-export async function signAndSendDelegatedSolana(input: { walletId: string; walletAddress: string; transaction: string; executionId: string }) {
+/** Signs and broadcasts through the user's delegated Privy wallet with the server's authorization key (policy-bound). */
+export async function sendDelegatedMonadTransaction(input: { walletId: string; walletAddress: string; transaction: EvmAutomationTransaction; executionId: string }) {
   const { appId, appSecret, automationAuthPrivateKey } = config.privy;
   if (!appId || !appSecret || !automationAuthPrivateKey) throw new Error("Privy automation signing is not configured.");
-  inspectAutomationTransaction(input.transaction, input.walletAddress);
+  inspectAutomationTransaction(input.transaction);
   const reference = createHash("sha256").update(input.executionId).digest("hex").slice(0, 48);
-  return client().wallets().solana().signAndSendTransaction(input.walletId, {
-    caip2: SOLANA_MAINNET_CAIP2,
-    transaction: input.transaction,
+  const result = await client().wallets().ethereum().sendTransaction(input.walletId, {
+    caip2: config.network.caip2,
+    params: {
+      transaction: {
+        from: input.walletAddress,
+        to: input.transaction.to,
+        data: input.transaction.data,
+        value: toHexQuantity(input.transaction.value),
+        chain_id: input.transaction.chainId
+      }
+    },
     authorization_context: { authorization_private_keys: [automationAuthPrivateKey] },
-    idempotency_key: reference,
-    reference_id: reference
+    idempotency_key: reference
   });
+  return { hash: String(result.hash) };
 }

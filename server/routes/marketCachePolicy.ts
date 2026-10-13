@@ -1,8 +1,8 @@
 import type { MarketResponse } from "../../shared/wire.js";
-import { CHAIN_FILL_PENDING_PREFIXES } from "../market/robinhood/chainCandles.js";
+import { CHAIN_FILL_PENDING_PREFIXES } from "../market/monad/chainCandles.js";
 
 /**
- * Cache rules for the Robinhood market route (routes/market.ts), kept apart so each is testable on its own:
+ * Cache rules for the Monad market route (routes/market.ts), kept apart so each is testable on its own:
  * - an answer is re-read on the short TTL not only while its chain series is still backfilling, but also while it is
  *   a fallback (no candleSource) whose notes quote a first fill still running: measured 2026-09-07, every paste's first
  *   read landed before the priority fill finished, and the 45 s TTL floored "seconds to first bar" at ~50 s;

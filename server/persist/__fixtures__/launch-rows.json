@@ -2,7 +2,7 @@
  "_fixture": "first 12 rows of GET /api/launches?chain=robinhood captured 2026-09-07 19:10 IST from the dev server (API 9301)",
  "rows": [
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "dexscreener-profile",
    "token": "0x0592c583eafc5e96bd16f8a2f5d367358461f1a9",
    "symbol": null,
@@ -30,7 +30,7 @@
    "observedAt": 1788788395478
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "dexscreener-profile",
    "token": "0x65bff5da8fd12f493738d6f1310f7bf402af3022",
    "symbol": null,
@@ -58,7 +58,7 @@
    "observedAt": 1788788395478
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "pons",
    "token": "0x1229262b8cad9cf66762b81fd00cd4151fba7a7b",
    "symbol": null,
@@ -86,7 +86,7 @@
    "observedAt": 1788788311820
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "pons",
    "token": "0x10e13c8c5d60fddf5ce8f661093e610e99df2976",
    "symbol": null,
@@ -114,7 +114,7 @@
    "observedAt": 1788788311820
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "pons",
    "token": "0xbb8754f9e30810f9a3f66884ac2a8303652f27be",
    "symbol": null,
@@ -142,7 +142,7 @@
    "observedAt": 1788788311820
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "pons",
    "token": "0x6e5594d9ac089f5ff797406fcb9cb561066c4e42",
    "symbol": null,
@@ -170,7 +170,7 @@
    "observedAt": 1788788311820
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "pons",
    "token": "0xe90e0697a390ef4cbbfd2885fe31198d99d1b2c6",
    "symbol": null,
@@ -198,7 +198,7 @@
    "observedAt": 1788788311820
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "pons",
    "token": "0x46dbfa639298c77125117a2ee2d351fbbe114355",
    "symbol": null,
@@ -226,7 +226,7 @@
    "observedAt": 1788788311820
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "pons",
    "token": "0x5f34a6045b8e827e7346cc05453fc203b9948c73",
    "symbol": null,
@@ -254,7 +254,7 @@
    "observedAt": 1788788311820
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "pons",
    "token": "0xbf15acecee0d07843499ce5700a5d13232c0d797",
    "symbol": null,
@@ -282,7 +282,7 @@
    "observedAt": 1788788311820
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "pons",
    "token": "0x369ea1b0bd2d02b3f4414da2a230835d32ff0199",
    "symbol": null,
@@ -310,7 +310,7 @@
    "observedAt": 1788788311820
   },
   {
-   "chain": "robinhood",
+   "chain": "monad",
    "launchpad": "dexscreener-profile",
    "token": "0xd8f9a3ae97d7097a6e24fe84be69f7a8e3525edf",
    "symbol": null,
