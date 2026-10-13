@@ -45,7 +45,7 @@ describe("launch freshness (chain time only)", () => {
     expect(hasChainLaunchSource(enriched.sources)).toBe(false);
     expect(isFreshLaunch(enriched, buy36.time)).toBe(false);
     expect(hasChainLaunchSource(undefined)).toBe(false);
-    expect(hasChainLaunchSource(["pumpportal"])).toBe(true);
+    expect(hasChainLaunchSource(["rpc:monad"])).toBe(true);
   });
 
   it("first_smart_buy evidence names launchpad, estimated createdAt, age, launch tx and the fill", () => {
@@ -68,8 +68,12 @@ describe("SMART buy and big handle predicates", () => {
     const dopamine = fixture.highFollowerFills[0];
     const base = fill({ handle: dopamine.trader.handle, followers: dopamine.trader.followers, side: "sell" });
     expect(isBigHandle(base)).toBe(true);
-    expect(isBigHandle(fill({ handle: "x", followers: BIG_FOLLOWERS - 1 }))).toBe(false);
-    expect(isBigHandle(fill({ handle: "x", followers: BIG_FOLLOWERS }))).toBe(true);
+    // Monad has no follower data, so the default floor is off (BIG_FOLLOWERS 0); an explicit floor still gates
+    expect(BIG_FOLLOWERS).toBe(0);
+    expect(isBigHandle(fill({ handle: "x", followers: 9_999 }), 10_000)).toBe(false);
+    expect(isBigHandle(fill({ handle: "x", followers: null }), 10_000)).toBe(false);
+    expect(isBigHandle(fill({ handle: "x", followers: 10_000 }), 10_000)).toBe(true);
+    expect(isBigHandle(fill({ handle: "x", followers: null }))).toBe(true);
     expect(isBigHandle(fill({ handle: null, followers: 999_999 }))).toBe(false);
     expect(isBigHandle(fill({ handle: "x", followers: 999_999, kind: "other" }))).toBe(false);
     expect(isBigHandle(fill({ handle: "x", followers: 999_999, kind: null }))).toBe(false);

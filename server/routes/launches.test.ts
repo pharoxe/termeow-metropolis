@@ -49,11 +49,12 @@ describe("resolveLaunchesQuery", () => {
   });
 
   it("parses chain, window, pad and stocks from query strings", () => {
-    expect(resolveLaunchesQuery({ chain: "solana", window: "1h", pad: " pump.fun ", stocks: "1" })).toEqual({ chain: "solana", window: "1h", pad: "pump.fun", stocks: "1" });
+    expect(resolveLaunchesQuery({ chain: "monad", window: "1h", pad: " nad.fun ", stocks: "1" })).toEqual({ chain: "monad", window: "1h", pad: "nad.fun", stocks: "1" });
   });
 
   it("rejects unknown chains, windows, stock flags and empty pads", () => {
     expect(() => resolveLaunchesQuery({ chain: "base" })).toThrow(ZodError);
+    expect(() => resolveLaunchesQuery({ chain: "solana" })).toThrow(ZodError);
     expect(() => resolveLaunchesQuery({ window: "7d" })).toThrow(ZodError);
     expect(() => resolveLaunchesQuery({ stocks: "yes" })).toThrow(ZodError);
     expect(() => resolveLaunchesQuery({ pad: "  " })).toThrow(ZodError);
@@ -64,7 +65,7 @@ describe("toListQuery", () => {
   it("maps windows to ms, stocks to includeStocks, and caps the list", () => {
     expect(toListQuery({ chain: "all", window: "24h", stocks: "0" })).toEqual({ chain: "all", windowMs: 86_400_000, includeStocks: false, limit: LAUNCHES_LIMIT });
     expect(toListQuery({ chain: "monad", window: "6h", stocks: "1", pad: "pons" })).toEqual({ chain: "monad", windowMs: 21_600_000, pad: "pons", includeStocks: true, limit: LAUNCHES_LIMIT });
-    expect(toListQuery({ chain: "solana", window: "1h", stocks: "0" }).windowMs).toBe(3_600_000);
+    expect(toListQuery({ chain: "all", window: "1h", stocks: "0" }).windowMs).toBe(3_600_000);
   });
 });
 

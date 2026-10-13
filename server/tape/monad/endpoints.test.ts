@@ -7,9 +7,6 @@ import {
   EndpointPool,
   FAIL_STREAK_DECAY_MS,
   LOGS_FORBIDDEN_RETRY_MS,
-  NO_LOGS_HOSTS,
-  LOGS_RANGE_CAPS,
-  NO_SPECULATIVE_TOBLOCK_HOSTS,
   MONAD_CHAIN_ID,
   SLOW_P50_MS,
   endpointKey,
@@ -18,8 +15,17 @@ import {
 
 const A = "https://monad-rpc.publicnode.com";
 const B = "https://rpc-monad.blockmachine.io";
-const C = "https://rpc.mainnet.chain.monad.com";
+const C = "https://rpc2.monad.xyz"; // the one DEPRIORITIZED_HOSTS member
 /** A host with no measured cap, no logs ban and no 429 history: pure configured-order/in-flight ranking. */
+/**
+ * Host rules for the routing tests. Monad's production sets start empty (endpoints.ts), so the tests pin their own:
+ * A is head-only, B serves at most 9,999 blocks and refuses a speculative toBlock.
+ */
+const RULES = {
+  noLogsHosts: new Set(["monad-rpc.publicnode.com"]),
+  logsRangeCaps: new Map([["rpc-monad.blockmachine.io", 9_999]]),
+  noSpeculativeToBlockHosts: new Set(["rpc-monad.blockmachine.io"])
+};
 const NEUTRAL = "https://rpc.neutral.example.test";
 const T0 = 1_788_788_395_478; // 2026-09-07 19:09:55 IST
 
@@ -28,8 +34,9 @@ type Handler = (method: string, body: unknown) => Reply;
 type Seen = { url: string; method: string; userAgent: string | null; batch: boolean };
 
 const ok = (result: unknown): Reply => ({ status: 200, body: { jsonrpc: "2.0", id: 1, result } });
-/** Real chain: every measured endpoint answers eth_chainId "0x1237" (4663). */
-const CHAIN_OK = ok("0x1237");
+/** Monad mainnet: every endpoint answers eth_chainId "0x8f" (143). */
+const CHAIN_HEX = `0x${MONAD_CHAIN_ID.toString(16)}`;
+const CHAIN_OK = ok(CHAIN_HEX);
 const RATE_LIMITED: Reply = { status: 429, text: '{"code":429,"message":"Too Many Requests"}' };
 
 /** Stub fetch keyed by endpoint URL; eth_chainId answers CHAIN_OK unless the handler says otherwise. */
@@ -56,7 +63,7 @@ const script = (replies: Reply[]): Handler => {
 };
 
 function makePool(net: ReturnType<typeof fakeNet>, urls: string[], clock: { now: number }, log = vi.fn()) {
-  return { pool: new EndpointPool({ urls, fetchImpl: net.fetchImpl, now: () => clock.now, log }), log };
+  return { pool: new EndpointPool({ ...RULES, urls, fetchImpl: net.fetchImpl, now: () => clock.now, log }), log };
 }
 
 const rpcInit = (method: string, params: unknown[] = []): RequestInit => ({
@@ -181,7 +188,7 @@ describe("EndpointPool backoff", () => {
       if (String(input) === A && String(init?.body).includes("eth_blockNumber")) throw new Error("socket hang up");
       return net.fetchImpl(input, init);
     });
-    const second = new EndpointPool({ urls: [A, B], fetchImpl: throwing as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
+    const second = new EndpointPool({ ...RULES, urls: [A, B], fetchImpl: throwing as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
     const served = await second.fetch(A, rpcInit("eth_blockNumber"));
     expect(await served.json()).toMatchObject({ result: "0xb" });
     expect(second.stats().endpoints[0]).toMatchObject({ ok: false, failures: 1, lastError: "socket hang up" });
@@ -189,7 +196,7 @@ describe("EndpointPool backoff", () => {
 });
 
 describe("EndpointPool chain-id gate", () => {
-  it("disables an endpoint whose eth_chainId is not 4663 with a logged reason and never sends it traffic", async () => {
+  it("disables an endpoint whose eth_chainId is not 143 with a logged reason and never sends it traffic", async () => {
     const net = fakeNet({
       [A]: (method) => (method === "eth_chainId" ? ok("0x1") : ok("0xa")),
       [B]: always(ok("0xb"))
@@ -202,7 +209,7 @@ describe("EndpointPool chain-id gate", () => {
     expect(log).toHaveBeenCalledWith(`monad rpc pool: disabled ${A} (eth_chainId 1 != ${MONAD_CHAIN_ID})`);
     await pool.fetch(A, rpcInit("eth_blockNumber"));
     expect(net.methods(A)).toEqual(["eth_chainId"]);
-    expect(pool.stats().endpoints[0]).toMatchObject({ enabled: false, ok: false, chainVerified: false, disabledReason: "eth_chainId 1 != 4663", calls: 0 });
+    expect(pool.stats().endpoints[0]).toMatchObject({ enabled: false, ok: false, chainVerified: false, disabledReason: "eth_chainId 1 != 143", calls: 0 });
     expect(pool.stats().endpoints[1]).toMatchObject({ enabled: true, chainVerified: true });
   });
 
@@ -233,7 +240,6 @@ describe("EndpointPool lanes", () => {
   });
 
   it("never sends eth_getLogs to a measured head-only host while still using it for eth_blockNumber", async () => {
-    expect(NO_LOGS_HOSTS.has("monad-rpc.publicnode.com")).toBe(true);
     const net = fakeNet({ [A]: always(ok("0xa")), [C]: always(ok("0xc")) });
     const clock = { now: T0 };
     const { pool } = makePool(net, [A, C], clock);
@@ -306,13 +312,13 @@ describe("EndpointPool recovery", () => {
     const clock = { now: T0 };
     const gates: Array<() => void> = [];
     const slowNet = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      if (String(init?.body).includes("eth_chainId")) return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x1237" }), { status: 200 });
+      if (String(init?.body).includes("eth_chainId")) return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: CHAIN_HEX }), { status: 200 });
       await new Promise<void>((resolve) => gates.push(resolve));
       return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: String(input) }), { status: 200 });
     });
     // Three hosts none of which is in DEPRIORITIZED_HOSTS: a 429-penalised host ranks last by design (that ordering is
     // covered separately), which would collapse the fan-out onto two endpoints and hide what this test is about.
-    const pool = new EndpointPool({ urls: [A, B, NEUTRAL], fetchImpl: slowNet as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
+    const pool = new EndpointPool({ ...RULES, urls: [A, B, NEUTRAL], fetchImpl: slowNet as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
     // nothing verified yet: the reservation is taken before the chain check, so the fan-out still spreads
     const fanOut = Promise.all(Array.from({ length: 6 }, () => pool.fetch(A, rpcInit("eth_blockNumber"))));
     await vi.waitFor(() => expect(gates).toHaveLength(6));
@@ -359,9 +365,9 @@ describe("EndpointPool stats", () => {
     const slow = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const chainCheck = String(init?.body).includes("eth_chainId");
       if (!chainCheck) clock.now += latencies.shift() ?? 0;
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: chainCheck ? "0x1237" : "0x1" }), { status: 200 });
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: chainCheck ? CHAIN_HEX : "0x1" }), { status: 200 });
     });
-    const pool = new EndpointPool({ urls: [A], fetchImpl: slow as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
+    const pool = new EndpointPool({ ...RULES, urls: [A], fetchImpl: slow as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
     for (let i = 0; i < 3; i += 1) await pool.fetch(A, rpcInit("eth_blockNumber"));
     const stats = pool.stats();
     expect(stats.chainId).toBe(MONAD_CHAIN_ID);
@@ -380,7 +386,7 @@ describe("EndpointPool stats", () => {
       p50Ms: 200,
       lastError: null
     });
-    const untouched = new EndpointPool({ urls: [A, B], fetchImpl: slow as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
+    const untouched = new EndpointPool({ ...RULES, urls: [A, B], fetchImpl: slow as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
     expect(untouched.stats().endpoints[1]).toMatchObject({ url: B, ok: true, calls: 0, p50Ms: null, chainVerified: false, logs: true });
   });
 
@@ -389,9 +395,9 @@ describe("EndpointPool stats", () => {
     const paced = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const chainCheck = String(init?.body).includes("eth_chainId");
       if (!chainCheck) clock.now += String(input) === A ? 300 : 100;
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: chainCheck ? "0x1237" : "0x1" }), { status: 200 });
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: chainCheck ? CHAIN_HEX : "0x1" }), { status: 200 });
     });
-    const pool = new EndpointPool({ urls: [A, B], fetchImpl: paced as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
+    const pool = new EndpointPool({ ...RULES, urls: [A, B], fetchImpl: paced as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
     for (let i = 0; i < 4; i += 1) await pool.fetch(A, rpcInit("eth_blockNumber"));
     // A (first in order, p50 unknown) is tried first, then B (p50 unknown beats 300), then B keeps winning on p50 100 < 300
     expect(pool.stats().endpoints.map((e) => e.calls)).toEqual([1, 3]);
@@ -402,12 +408,12 @@ describe("EndpointPool stats", () => {
     let failB = false;
     const paced = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const chainCheck = String(init?.body).includes("eth_chainId");
-      if (chainCheck) return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x1237" }), { status: 200 });
+      if (chainCheck) return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: CHAIN_HEX }), { status: 200 });
       if (String(input) === B && failB) return new Response("boom", { status: 503 });
       clock.now += String(input) === A ? SLOW_P50_MS + 4_000 : 150;
       return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x1" }), { status: 200 });
     });
-    const pool = new EndpointPool({ urls: [A, B], fetchImpl: paced as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
+    const pool = new EndpointPool({ ...RULES, urls: [A, B], fetchImpl: paced as unknown as typeof fetch, now: () => clock.now, log: vi.fn() });
     for (let i = 0; i < 3; i += 1) await pool.fetch(A, rpcInit("eth_blockNumber"));
     // A answers in 8 s, B in 150 ms: after the first probe of each, B wins on p50
     expect(pool.stats().endpoints.map((e) => e.calls)).toEqual([1, 2]);
@@ -425,7 +431,7 @@ describe("EndpointPool stats", () => {
     const clock = { now: T0 };
     const hanging = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const chainCheck = String(init?.body).includes("eth_chainId");
-      if (chainCheck) return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x1237" }), { status: 200 });
+      if (chainCheck) return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: CHAIN_HEX }), { status: 200 });
       if (String(input) === A) {
         clock.now += 15_000;
         const controller = init?.signal as AbortSignal | undefined;
@@ -435,7 +441,7 @@ describe("EndpointPool stats", () => {
       return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x1" }), { status: 200 });
     });
     const log = vi.fn();
-    const pool = new EndpointPool({ urls: [A, B], fetchImpl: hanging as unknown as typeof fetch, now: () => clock.now, log });
+    const pool = new EndpointPool({ ...RULES, urls: [A, B], fetchImpl: hanging as unknown as typeof fetch, now: () => clock.now, log });
     const controller = new AbortController();
     await expect(pool.fetch(A, { ...rpcInit("eth_blockNumber"), signal: controller.signal })).rejects.toThrow(/aborted/);
     const a = pool.stats().endpoints[0];
@@ -447,7 +453,7 @@ describe("EndpointPool stats", () => {
   });
 
   it("dedupes member URLs that differ only by a trailing slash and answers has() for either form", () => {
-    const pool = new EndpointPool({ urls: [`${A}/`, A, B], fetchImpl: vi.fn() as unknown as typeof fetch, log: vi.fn() });
+    const pool = new EndpointPool({ ...RULES, urls: [`${A}/`, A, B], fetchImpl: vi.fn() as unknown as typeof fetch, log: vi.fn() });
     expect(pool.urls()).toEqual([`${A}/`, B]);
     expect(pool.has(A)).toBe(true);
     expect(pool.has(`${B}/`)).toBe(true);
@@ -477,7 +483,6 @@ describe("EndpointPool logs routing by request shape", () => {
   });
 
   it("sends a backfill span to the largest-range endpoint and never to a host whose cap it exceeds", async () => {
-    expect(LOGS_RANGE_CAPS.get("rpc-monad.blockmachine.io")).toBe(9_999);
     const net = fakeNet({ [A]: always(ok("0xa")), [B]: always(ok("0xb")), [C]: always(ok("0xc")) });
     const clock = { now: T0 };
     const { pool } = makePool(net, [A, B, C], clock);
@@ -511,7 +516,6 @@ describe("EndpointPool logs routing by request shape", () => {
   });
 
   it("never sends a batched tick (speculative toBlock) to blockmachine, so one 429 on the tick endpoint does not also stall small getLogs there", async () => {
-    expect(NO_SPECULATIVE_TOBLOCK_HOSTS.has("rpc-monad.blockmachine.io")).toBe(true);
     const net = fakeNet({ [A]: always(ok("0xa")), [B]: always(ok("0xb")), [C]: always(ok("0xc")) });
     const clock = { now: T0 };
     const { pool } = makePool(net, [A, B, C], clock);
@@ -527,7 +531,7 @@ describe("EndpointPool logs routing by request shape", () => {
     const reporter = { report429: vi.fn(), reportOk: vi.fn(), holdUntil: vi.fn() };
     const net = fakeNet({ [A]: always(ok("0xa")), [C]: script([RATE_LIMITED]) });
     const clock = { now: T0 };
-    const pool = new EndpointPool({ urls: [A, C], fetchImpl: net.fetchImpl, now: () => clock.now, log: vi.fn(), logsLane: reporter });
+    const pool = new EndpointPool({ ...RULES, urls: [A, C], fetchImpl: net.fetchImpl, now: () => clock.now, log: vi.fn(), logsLane: reporter });
     await pool.fetch(A, rpcInit("eth_blockNumber"));
     expect(reporter.reportOk).not.toHaveBeenCalled();
     const refused = await pool.fetch(A, logsInit(1, 405));

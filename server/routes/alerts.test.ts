@@ -52,11 +52,8 @@ describe("buildAlertsResponse", () => {
     expect(response.stale).toBeUndefined();
   });
 
-  it("Solana is an honest empty list with an empty rule registry", () => {
-    const response = buildAlertsResponse(alertsQuerySchema.parse({ chain: "solana" }), deps([alert("a", NOW - 1)]));
-    expect(response.alerts).toEqual([]);
-    expect(response.rules).toEqual([]);
-    expect(response.error).toBeUndefined();
+  it("rejects chains the Monad build does not serve", () => {
+    expect(() => alertsQuerySchema.parse({ chain: "solana" })).toThrow();
   });
 
   it("since / rule / limit reach the engine query", () => {

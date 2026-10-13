@@ -72,7 +72,7 @@ describe("wsLegs", () => {
     expect(logBlockTimestampMs(log)).toBe(0x6a9ef8a2 * 1000);
     expect(logBlockNumber(log)).toBe(0x3661cf4);
     const official = JSON.parse(readFileSync(new URL("./__fixtures__/r7/http-getlogs-blocktimestamp.json", import.meta.url), "utf8")) as Record<string, any>;
-    const officialStamps = official.results["https://rpc.mainnet.chain.monad.com"].blockTimestamps as string[];
+    const officialStamps = official.results["https://rpc.mainnet.chain.robinhood.com"] /* captured on the pre-fork node */.blockTimestamps as string[];
     expect(officialStamps).toEqual(["0x0"]);
     for (const stamp of officialStamps) expect(logBlockTimestampMs({ ...log, blockTimestamp: stamp })).toBeNull();
     expect(logBlockTimestampMs({ ...log, blockTimestamp: undefined })).toBeNull();

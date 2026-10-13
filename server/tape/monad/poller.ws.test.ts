@@ -257,7 +257,8 @@ describe("MonadLogPoller websocket transport", () => {
   it("keeps HTTP as the backstop however far the socket runs ahead: sweeps from its own verified block, pages at the catch-up delay, dedupes what the frames delivered", async () => {
     const http = fakeHttp({ head: HEAD, logs: [] });
     const ws = new FakeWs();
-    const { poller, onLogs } = build(http, ws);
+    const RANGE = 400; // five pages to cover the 2,000-block gap
+    const { poller, onLogs } = build(http, ws, { maxRange: RANGE });
     poller.start(onLogs);
     await tick();
     ws.open();
@@ -271,10 +272,10 @@ describe("MonadLogPoller websocket transport", () => {
     const farOverHttp: RawLog = { ...far, blockTimestamp: "0x0" } as RawLog; // the official node's row shape for the same log
     http.chain.logs = [farOverHttp];
     await tick(WS_CATCHUP_INTERVAL_MS);
-    expect(http.windows.at(-1)).toEqual({ from: HEAD - 5, to: HEAD + DEFAULT_MAX_RANGE });
+    expect(http.windows.at(-1)).toEqual({ from: HEAD - 5, to: HEAD + RANGE });
     for (let page = 2; page <= 5; page += 1) {
       await tick(CATCHUP_DELAY_MS);
-      expect(http.windows.at(-1)).toEqual({ from: HEAD + (page - 1) * DEFAULT_MAX_RANGE - 5, to: HEAD + page * DEFAULT_MAX_RANGE });
+      expect(http.windows.at(-1)).toEqual({ from: HEAD + (page - 1) * RANGE - 5, to: HEAD + page * RANGE });
     }
     expect(poller.transport()).toMatchObject({ mode: "ws", httpCursor: HEAD + 2_000 });
     expect(onLogs).toHaveBeenCalledTimes(1); // page 4 re-read `far`; the frame's key was still held, so no second print

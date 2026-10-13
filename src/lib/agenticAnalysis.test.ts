@@ -31,9 +31,11 @@ describe("agentic analysis", () => {
     expect(result.setups[0].conditions.map((condition) => condition.label)).toContain("Net flow (1H) turns positive");
   });
 
-  it("detects whale distribution in market intelligence", () => {
-    const result = analyzeToken({ market, candles, flow: null, provider: { anomalies: [{ summary: "Whale sell distribution detected" }] } });
+  it("detects whale distribution in Nansen flow intelligence", () => {
+    const result = analyzeToken({ market, candles, flow: null, provider: { data: { whale: { netFlowUsd: -250_000 } } } });
     expect(result.whaleSellRisk).toBe(true);
+    expect(result.summary).toContain("whales or smart money distributing");
+    expect(analyzeToken({ market, candles, flow: null, provider: { data: { whale: { netFlowUsd: 250_000 } } } }).whaleSellRisk).toBe(false);
     expect(result.netFlowUsd).toBeNull();
     expect(result.flowWindow).toBeNull();
     expect(result.summary).toContain("still resolving");

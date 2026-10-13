@@ -87,8 +87,13 @@ function timeMsFor(fixture: Fixture): number {
   return Number(BigInt(loadJson<{ timestamp: string }>(fixture.blockFile).timestamp)) * 1000;
 }
 
+/** PoolManager on the chain the receipts were captured from; v4 logs are re-homed to Monad's so the decoder accepts them. */
+const CAPTURE_POOL_MANAGER = "0x8366a39cc670b4001a1121b8f6a443a643e40951";
+
 function receiptLogs(file: string): EvmLog[] {
-  return loadJson<{ logs: EvmLog[] }>(file).logs;
+  return loadJson<{ logs: EvmLog[] }>(file).logs.map((log) =>
+    log.address.toLowerCase() === CAPTURE_POOL_MANAGER ? { ...log, address: POOL_MANAGER } : log
+  );
 }
 
 function word(value: bigint): string {

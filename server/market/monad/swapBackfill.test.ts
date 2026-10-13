@@ -205,7 +205,7 @@ describe("backfillSwaps", () => {
 describe("topUpSwaps", () => {
   it("fills forward from the cached head to the chain head, oldest chunk first, and no-ops when already current", async () => {
     const rpc = fakeRpc();
-    const result = await topUpSwaps(POOL, HEAD - 25_000, rpc, { chunkBlocks: 10_000, ...noSleep });
+    const result = await topUpSwaps(POOL, HEAD - 25_000, rpc, { chunkBlocks: 10_000, maxBlocks: 30_000, ...noSleep }); // the fixture gap is wider than MAX_BACKFILL_BLOCKS
     expect(result.stoppedBy).toBe("head");
     expect(result.toBlock).toBe(HEAD);
     expect(rpc.calls.map((filter) => hexToNumber(filter.fromBlock))).toEqual([HEAD - 24_999, HEAD - 14_999, HEAD - 4_999]);

@@ -230,7 +230,7 @@ describe("MonadLogPoller", () => {
 
   it("chunks by maxRange when far behind and catches up on the short delay instead of the interval", async () => {
     const node = fakeNode({ head: HEAD });
-    const { poller, onLogs } = build(node);
+    const { poller, onLogs } = build(node, { maxRange: 400 });
     poller.setFilter([V3_POOL], []);
     poller.start(onLogs);
     await tick();
@@ -273,6 +273,8 @@ describe("MonadLogPoller", () => {
 
   it("splits v4 into its own PoolManager leg with tracked poolIds as topic1, so foreign v4 swaps never arrive", async () => {
     const receipt = JSON.parse(readFileSync(new URL("./__fixtures__/v4-0x70b5b746-0xa72a4c2f.json", import.meta.url), "utf8")) as { logs: RawLog[] };
+    // captured on another chain: re-home its PoolManager logs to Monad's so the address filter keeps them
+    for (const log of receipt.logs) if (log.address.toLowerCase() === "0x8366a39cc670b4001a1121b8f6a443a643e40951") log.address = V4_POOL_MANAGER;
     const block = Number.parseInt(receipt.logs[0]!.blockNumber, 16);
     const v3Log = mkLog(block, "0xdd", 1, V3_POOL, V3_SWAP_TOPIC);
     const node = fakeNode({ head: block, logs: [...receipt.logs, v3Log] });

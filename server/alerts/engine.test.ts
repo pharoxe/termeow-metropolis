@@ -196,7 +196,7 @@ describe("big_handle_entry on the capture (DopamineFeenFr1, 64,149 followers, 6 
     const [first, second] = (fixture.highFollowerFills as FixtureFill[]).map(toFill);
     expect(h.book.record(first)).toBe("accepted");
     expect(h.record(second)).toEqual([]);
-    expect(harness().record({ ...first, followers: 9_999 })).toEqual([]);
+    expect(harness(undefined, { bigFollowers: 10_000 }).record({ ...first, followers: 9_999 })).toEqual([]);
     expect(harness().record({ ...first, kind: "other" })).toEqual([]);
     const unpriced = harness().record({ ...first, usd: null, usdVia: undefined, tx: "0xunpriced" });
     expect(unpriced).toHaveLength(1);

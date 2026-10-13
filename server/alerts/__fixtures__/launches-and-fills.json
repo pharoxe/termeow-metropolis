@@ -66,7 +66,7 @@
     "curveNetUsd": null,
     "tracked": null,
     "sources": [
-     "rpc:robinhood"
+     "rpc:monad"
     ],
     "observedAt": 1788783528449
    },
@@ -148,7 +148,7 @@
     "curveNetUsd": 3177.301349999997,
     "tracked": null,
     "sources": [
-     "rpc:robinhood"
+     "rpc:monad"
     ],
     "observedAt": 1788784598558
    },
@@ -249,7 +249,7 @@
     "curveNetUsd": 86.4780350430947,
     "tracked": null,
     "sources": [
-     "rpc:robinhood"
+     "rpc:monad"
     ],
     "observedAt": 1788783303830
    },
