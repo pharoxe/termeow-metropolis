@@ -1,73 +1,64 @@
 # termeow
 
-The canonical repository root is this directory (`Terminal V`). Do not create or run a nested clone inside it; branches and worktrees should live outside this folder so local work cannot be hidden from Git or Railway builds.
+An onchain trading agent for **Monad**. It pairs market intelligence (live order flow, smart-money tracking, launches, perps context) with **conditional execution**: a voice/text agent drafts trades and monitored strategies, you approve them with a passkey, and the server fires them later through a policy-bound delegated wallet.
 
-Voice-ready Solana trading terminal built around ClawPump. This branch (`solana-dex-fork`) replaces the Hyperliquid/Python runtime with a single TypeScript service:
+Built for the **Monad Metropolis** hackathon, Onchain Finance & Trading track. See [MONAD_METROPOLIS.md](MONAD_METROPOLIS.md) for the submission write-up and sponsor-track fit.
 
-- **`/onchain`** — ANSEM/USD desk with multi-timeframe candles, EMA / Bollinger / VWAP / S-R / volume / RSI / MACD / OBV, ClawPump movers, anomalies, smart-flow signals, pool liquidity, narrative research, swap quotes, and user-wallet-signed execution.
-- **`/perps`** — Phoenix screener, live chart and book, contract / funding / risk data, agent account state, and guarded ClawPump execution.
+## What it does
 
-Both pages use termeow's dense neon-green pixel desk theme with light and dark modes. Helius is the primary Solana RPC; Alchemy is the automatic backup.
-
-ANSEM mint: `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump`.
+- **Desk (`/onchain`)**: multi-chart workspace for any Monad token. It shows candles built from the chain itself (Uniswap v2/v3/v4 swap logs, about 300 ms blocks), order-flow windows and CVD, large-print tape, both-sides wallet flow, a nad.fun launch radar, trending and new pools, and a Perpl perps regime strip.
+- **Smart money**: the Nansen smart-money netflow and DEX-trade feed on chain `monad`, plus a label book built from Nansen labels and your own watchlist. A SMART tape and board show fills from labelled wallets as they happen.
+- **Execution**:
+  - Swaps go through **Kuru Flow**, the default router, which aggregates across Kuru's onchain order book and AMMs. 0x is an optional fallback.
+  - The connected **Privy** embedded EVM wallet signs every trade.
+  - Exact-amount ERC-20 approvals are requested only when they're needed.
+- **Agent (`/agent`)**: an ElevenLabs voice/text agent with client tools.
+  - It can resolve tokens, analyse a token or wallet, and inspect large orders.
+  - It can query Kuru quotes, nad.fun, Perpl and Nansen, and propose a swap, a MON transfer or an automation.
+  - Nothing executes without a passkey-confirmed approval.
+- **Conditional automations**: monitor a wallet, a deployer or an X account, or set a conditional swap with exits.
+  - Once armed, the server executes on a Privy delegated signer.
+  - The signer is restricted by a Privy policy: Monad chain only, Kuru Flow contracts only, and approvals only to those spenders.
+  - The server inspects every transaction before it is sent.
 
 ## Local setup
 
-Node.js 22.13+ is required (the durable trade archive uses built-in SQLite).
+Node.js 22.13+ is required (the trade archive uses built-in SQLite).
 
-```powershell
-Copy-Item .env.example .env
+```bash
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-Open [http://localhost:5173/onchain](http://localhost:5173/onchain). The API listens on `127.0.0.1:9300`. Vite proxies `/api` there.
+Open http://localhost:5174/onchain. The API listens on `127.0.0.1:9300`, and Vite proxies `/api` there.
 
-Without credentials, ANSEM uses labelled public/demo fallbacks and all execution stays disabled. See [API keys](docs/API_KEYS.md).
-
-## Production
-
-```powershell
-npm run build
-$env:NODE_ENV="production"
-npm start
-```
-
-Open [http://127.0.0.1:9300/onchain](http://127.0.0.1:9300/onchain).
-
-In production the process binds `0.0.0.0` so container and PaaS health checks can reach it. Override with `HOST` if needed. Empty environment values are treated as unset so a copied `.env.example` does not crash boot.
-
-## Deploy
-
-The repo is a single Node service: `npm run build` then `npm start`.
-
-| File | Use |
-| --- | --- |
-| `Dockerfile` | Node 22 image; builds the frontend, then serves API + `dist` |
-| `railway.toml` | Railway Dockerfile builder and `/api/health` check |
-| `Procfile` | `web: npm start` for Heroku-style hosts |
-
-Do not copy `.env` into the image. Set secrets on the host. Typical platform variables: `NODE_ENV=production`, `PORT` (provided by the host), `HOST=0.0.0.0`, plus the keys in [API keys](docs/API_KEYS.md).
-
-## Safety model
-
-- Mainnet routing is available by default through the selected 0x or ClawPump/Jupiter adapter.
-- Spot transactions are returned unsigned and signed by the connected Privy wallet. Private keys never enter this app.
-- Privy is the embedded-wallet path when `VITE_PRIVY_APP_ID` is set.
-- Wallet signatures remain mandatory for every submitted spot transaction.
-- Phoenix writes are isolated from spot routes and use the configured ClawPump agent.
-- ElevenLabs is lazy-loaded and activated only after explicit user interaction.
+With no keys at all you still get live Monad market data, public RPCs, Kuru quotes, nad.fun and Perpl. Nansen, Privy, ElevenLabs and Postgres each switch on when their keys are set (see `.env.example`). Set `MONAD_NETWORK=testnet` (and `VITE_MONAD_NETWORK=testnet`) to point everything at Monad testnet.
 
 ## Commands
 
-```powershell
-npm run dev     # backend watcher + Vite
-npm run test    # indicator/unit tests
-npm run build   # typecheck + production bundle
-npm run start   # serve API + built UI
-npm run check   # tests + build
+```bash
+npm run dev                     # backend watcher + Vite
+npm run test                    # unit tests (vitest)
+npm run build                   # typecheck + production bundle
+npm run start                   # serve API + built UI
+npm run check                   # tests + build
+npm run db:migrate              # apply db/migrations (Neon/Postgres)
+npm run setup:privy-automation  # create the Monad delegated-execution policy once
+npm run sync:elevenlabs         # push agent tools + knowledge to ElevenLabs
 ```
 
-Start scripts enable Node’s system CA store so the app works behind Windows-managed HTTPS inspection without disabling TLS verification.
+## Production
 
-`@clawpump/agents` is pinned to `0.1.23` until upstream `0.1.25` ships a complete `dist` tarball.
+`npm run build`, then `NODE_ENV=production npm start`. The `Dockerfile`, `railway.toml` and `fly.toml` deploy it as a single Node service. Set secrets on the host; never bake `.env` into the image.
+
+## Safety model
+
+- Interactive swaps and transfers are built server-side as unsigned transactions and signed in the browser by the user's own Privy wallet.
+- Delegated (unattended) execution is limited to Monad. It may only call the Kuru Flow entrypoint and router, and may only approve those spenders. The server also re-checks the destination and calldata before signing.
+- Every agent-proposed action needs explicit passkey MFA approval. The agent's research tools are read-only.
+- The `/api/rpc` proxy forwards only an allowlist of read methods.
+
+## Theme
+
+The palette is true black with a light-purple accent (`#b9a4ff`) in dark mode, and lavender-white with `#8b6cf6` in light mode. The look is a clean retro-terminal one. Color tokens live in `src/styles.css` and `src/lib/themeTokens.ts`.
