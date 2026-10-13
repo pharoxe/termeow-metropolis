@@ -5,7 +5,7 @@ import { UpstreamError } from "./http.js";
 describe("createBackoff", () => {
   it("blocks only after a 429 and only for blockMs", () => {
     let now = 1_000;
-    const backoff = createBackoff("pump.fun", 20_000, () => now);
+    const backoff = createBackoff("geckoterminal", 20_000, () => now);
     expect(backoff.isBlocked()).toBe(false);
     backoff.noteError(new UpstreamError("Upstream returned 500", 500));
     backoff.noteError(new Error("socket hang up"));
@@ -19,11 +19,11 @@ describe("createBackoff", () => {
   });
 
   it("reset lifts the block and blockedError carries the label and a 429 status", () => {
-    const backoff = createBackoff("pump.fun", 20_000, () => 0);
+    const backoff = createBackoff("geckoterminal", 20_000, () => 0);
     backoff.noteError(new UpstreamError("Upstream returned 429", 429));
     expect(backoff.isBlocked()).toBe(true);
     backoff.reset();
     expect(backoff.isBlocked()).toBe(false);
-    expect(backoff.blockedError()).toMatchObject({ message: "pump.fun backoff active after 429", status: 429 });
+    expect(backoff.blockedError()).toMatchObject({ message: "geckoterminal backoff active after 429", status: 429 });
   });
 });

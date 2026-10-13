@@ -1,0 +1,15 @@
+// Read-only Monad research tools for the voice/text agent. Nothing here signs, approves or executes: every trade still
+// goes through propose_swap / propose_automation and the user's Privy approval.
+const field = (type, description) => ({ type, description });
+const definition = (name, description, properties = {}, required = []) => ({ name: `monad_${name}`, upstream: name, description,
+  parameters: { type: "object", description: "Read-only Monad research arguments", properties, required } });
+export const monadAgentTools = [
+  definition("token_search", "Search Monad tokens on DexScreener when Termeow's local index misses. Returns candidates with liquidity, not proof of identity; confirm ambiguous contracts before trading.", { query: field("string", "Token name, ticker, or 0x contract; maximum 100 characters") }, ["query"]),
+  definition("get_price", "Read current DexScreener price, liquidity, 24h volume and change for up to five Monad token contracts. Spot reference, not an executable price.", { tokens: field("string", "Up to five comma-separated 0x contracts on Monad") }, ["tokens"]),
+  definition("kuru_quote", "Preview a Kuru Flow route on Monad (Kuru CLOB + AMM aggregation): expected output and minimum out, without executing. Amount is exact smallest units of the input token. Use 0x0000000000000000000000000000000000000000 for native MON. A quote never authorizes a trade.", { token_in: field("string", "Input token contract or the zero address for MON"), token_out: field("string", "Output token contract or the zero address for MON"), amount: field("string", "Positive integer in smallest input-token units"), slippage_bps: field("number", "Maximum slippage 1-500 basis points") }, ["token_in", "token_out", "amount"]),
+  definition("nadfun_token", "Read a nad.fun launch: curve vs graduated DEX state, MON/USD price, holders, volume and reserve. Use for tokens launched on nad.fun.", { token: field("string", "Token contract on Monad") }, ["token"]),
+  definition("perps_markets", "Read Perpl perpetuals on Monad: mark, oracle, 24h change, volume and open interest per market (BTC, ETH, MON, SOL, ...). Research only; Termeow does not open leveraged positions.", {}),
+  definition("smart_money_netflow", "Read Nansen smart-money net flows on Monad: which tokens labelled smart wallets are accumulating or distributing over 1h/24h/7d. Leads, not trade approval.", { limit: field("number", "Rows 1-50, default 20") }),
+  definition("smart_money_trades", "Read Nansen smart-money DEX trades on Monad from the last 24h, optionally for one token: who (label), what side, size in USD.", { token: field("string", "Optional token contract to filter"), limit: field("number", "Rows 1-50, default 20") }),
+  definition("token_flow_intelligence", "Read Nansen flow intelligence for one Monad token: net USD flow and wallet counts for smart traders, whales, top PnL wallets, public figures and fresh wallets.", { token: field("string", "Token contract on Monad"), timeframe: { type: "string", enum: ["5m", "1h", "6h", "12h", "1d", "7d"], description: "Default 1d" } }, ["token"])
+];

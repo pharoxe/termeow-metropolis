@@ -10,10 +10,9 @@
     "test": "vitest run",
     "check": "npm run test && npm run build",
     "sync:elevenlabs": "cross-env NODE_OPTIONS=--use-system-ca node scripts/sync-elevenlabs-tools.mjs",
-    "setup:privy-automation": "cross-env NODE_OPTIONS=--use-system-ca node scripts/create-privy-automation-policy.mjs",
+    "setup:privy-automation": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/create-privy-automation-policy.ts",
     "db:migrate": "cross-env NODE_OPTIONS=--use-system-ca node scripts/migrate-database.mjs",
-    "deploy:automation-worker": "cross-env NODE_OPTIONS=--use-system-ca wrangler deploy --config workers/automation-ingress/wrangler.jsonc",
-    "sync:fomoscan-identities": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/sync-fomoscan-identities.ts"
+    "deploy:automation-worker": "cross-env NODE_OPTIONS=--use-system-ca wrangler deploy --config workers/automation-ingress/wrangler.jsonc"
   },
   "dependencies": {
     "@clawpump/agents": "0.1.23",

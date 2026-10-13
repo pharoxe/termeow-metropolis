@@ -1,4 +1,4 @@
-export type AutomationChain = "solana" | "robinhood";
+export type AutomationChain = "monad";
 export type AutomationKind = "swap" | "transfer" | "monitor_deployer" | "monitor_wallet" | "monitor_x_launch" | "conditional_swap";
 export type AutomationStatus = "pending_approval" | "armed" | "executing" | "completed" | "cancelled" | "failed";
 
@@ -24,12 +24,13 @@ export interface AutomationIntent {
   trackedWalletUsername?: string;
   trackedXAccount?: string;
   side?: "buy" | "sell";
-  router?: "0x" | "jupiter";
+  /** Kuru Flow by default; 0x when the server has a 0x key and the user picks it. Unattended runs use Kuru only. */
+  router?: "kuru" | "0x";
   amountMode?: "fixed" | "wallet_percent";
   amount?: string;
-  /** Exact native SOL amount approved for a one-time wallet transfer. */
-  transferAmountSol?: string;
-  /** User-requested USD amount, retained for display when the SOL amount was quoted from USD. */
+  /** Exact native MON amount approved for a one-time wallet transfer. */
+  transferAmountMon?: string;
+  /** User-requested USD amount, retained for display when the MON amount was quoted from USD. */
   transferAmountUsd?: number;
   transferPriceUsd?: number;
   transferQuotedAt?: number;

@@ -8,7 +8,7 @@ export type TradeEvent = {
   quantity: number | null;
   /**
    * Where `quantity` came from, and how much of a claim it is:
-   * "decoded" - the producer read the token amount off the chain (Solana swap delta, Robinhood Transfer units);
+   * "decoded" - the producer read the token amount off the chain (Monad Transfer units);
    * "derived" - this row's own usd divided by this row's own price, both decoded here ("own" source): exact arithmetic the reader can re-check, not a guess;
    * "provider-estimated" - the same division over a provider's usd and price, so it inherits whatever that provider rounded;
    * "estimated" - a row archived before the split above, when both of those were labelled the same way; the inputs' provenance was not recorded, so it is not re-interpreted here;
@@ -32,5 +32,5 @@ export type CapturedCandles = {
   firstPrintAt: number | null; pricedBySource: Record<string, number>; error?: string;
 };
 export function chainKey(chain: Chain, value: string): string {
-  return chain === "robinhood" ? value.toLowerCase() : value;
+  return chain === "monad" ? value.toLowerCase() : value;
 }

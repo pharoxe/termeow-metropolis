@@ -1,11 +1,11 @@
 // Wire types shared by server/ and src/. Import type-only from either side.
-export type Chain = "solana" | "robinhood";
+export type Chain = "monad";
 export type Side = "buy" | "sell";
 
 /** One pool print as ingested into the flow ledger. `usd` is null when it cannot be priced honestly. */
 export type FlowPrint = {
   eventId?: string;
-  /** Whole tokens as the producer decoded them (Solana swap delta, Robinhood Transfer units); never a usd/price back-calculation, which the archive derives for itself and labels as such. */
+  /** Whole tokens as the producer decoded them (the decoded Swap / Transfer token amount); never a usd/price back-calculation, which the archive derives for itself and labels as such. */
   quantity?: number;
   identitySource?: string;
   chain: Chain;
@@ -14,7 +14,7 @@ export type FlowPrint = {
   time: number; // ms epoch
   side: Side;
   usd: number | null;
-  source: "pumpfun" | "geckoterminal" | "own";
+  source: "geckoterminal" | "own";
   /** Attributed trader wallet when the receipt named one (R3); absent when unattributed. */
   trader?: TraderRef;
   /** USD per token at this print, from the print's own amounts and quote price; null or absent when the source gives none. Never carried over from another print. */
@@ -50,7 +50,7 @@ export type PairRow = {
   share24: number | null; // volume24Usd / sum over pairs, null when the sum is unknown
   txns: { m5: PairTxns; h1: PairTxns; h6: PairTxns; h24: PairTxns };
   tier: PairTier;
-  sources: string[]; // e.g. ["dexscreener", "geckoterminal", "clawpump", "pumpfun"]
+  sources: string[]; // e.g. ["dexscreener", "geckoterminal", "nad.fun"]
 };
 
 export type FlowCoverage = {
@@ -79,15 +79,15 @@ export type FlowWindow = {
 export type LargePrint = { pair: string; dex: string; tx: string; time: number; side: Side; usd: number; source: FlowPrint["source"] };
 
 /** Collector health per print source; `prints` is the own tape's counter when the token is tracked. */
-export type SourceChip = { name: "pumpfun" | "geckoterminal" | "own"; lastOkAt: number | null; lastError: string | null; prints?: number };
+export type SourceChip = { name: "geckoterminal" | "own"; lastOkAt: number | null; lastError: string | null; prints?: number };
 
 /**
  * R6 feed health per print source: `ok` = the source's last attempt succeeded and it is not sitting in a backoff;
  * `nextRetryAt` = when a backoff lifts (null when none is known). Timestamps are epoch ms from this server's clock.
  */
 export type FeedSourceHealth = { ok: boolean; lastOkAt: number | null; lastError: string | null; nextRetryAt: number | null };
-/** `own` = this server's chain poller, `gecko` = GeckoTerminal pool trades, `pumpfun` = the pump.fun trades feed (Solana only). */
-export type FeedHealth = { own: FeedSourceHealth; gecko: FeedSourceHealth; pumpfun: FeedSourceHealth };
+/** `own` = this server's Monad log poller, `gecko` = GeckoTerminal pool trades. */
+export type FeedHealth = { own: FeedSourceHealth; gecko: FeedSourceHealth };
 
 /** Tier A totals from the resolved anchor start; `startMs` null means the anchor is unknown and the totals are zeros. */
 export type SinceAnchor = { startMs: number | null; net: number; buyUsd: number; sellUsd: number; prints: number };
@@ -114,8 +114,8 @@ export type TokenFlowResponse = {
   tape?: TapePrint[];
   /** R6: per-source feed health; when no source is ok and `tape` still has prints, the response is `stale: true` (last-good ring). */
   feedHealth?: FeedHealth;
-  /** FOMO trader fills for this token when the trader service is running; absent otherwise. */
-  fomo?: TokenFlowFomo;
+  /** SMART trader fills for this token when the trader service is running; absent otherwise. */
+  smart?: TokenFlowSmart;
 };
 
 // ---- Chain-neutral market (GET /api/market/:chain/:address) ----
@@ -131,7 +131,7 @@ export type FlowCandleInterval = "5s" | "15s" | "1m";
 
 /**
  * Candles from ledger ring prints that carry `price` when the own tape has any; otherwise the same candle series the
- * market route already serves (on-chain public fallback / robinhood assembly), labeled with that route's `source`.
+ * market route already serves (on-chain public fallback / monad assembly), labeled with that route's `source`.
  * `prints`/`priced`/`spanMs` describe the series that was actually returned. An empty own-tape ring is never the
  * answer when market candles exist.
  */
@@ -153,11 +153,11 @@ export type FlowCandlesResponse = {
   error?: string;
 };
 
-/** Where a Robinhood candle series came from; the same string is MarketResponse.source when candles are present. */
+/** Where a Monad candle series came from; the same string is MarketResponse.source when candles are present. */
 export type CandleSourceKind = "chain swaps" | "geckoterminal";
 
 /**
- * Provenance of the Robinhood candle series (R6). "chain swaps" = every bar built from this pool's own Swap logs
+ * Provenance of the Monad candle series (R6). "chain swaps" = every bar built from this pool's own Swap logs
  * (eth_getLogs backfill + the own tape's live prints ticking the forming bar); "geckoterminal" = GeckoTerminal pool
  * OHLCV, used only when the chain path failed.
  */
@@ -189,8 +189,8 @@ export type CandleSourceInfo = {
 };
 
 /**
- * One instrument on either chain. Solana adapts getOnchainMarket (ClawPump intel rides in `provider`);
- * Robinhood assembles DexScreener pairs for metadata and, when the chain path works, candles from the pool's own swaps
+ * One Monad instrument. Market data adapts getOnchainMarket (third-party intel rides in `provider`);
+ * Monad assembles DexScreener pairs for metadata and, when the chain path works, candles from the pool's own swaps
  * ("chain swaps"), else GeckoTerminal pool OHLCV ("geckoterminal").
  * `source` is the candle provenance when candles exist ("dexscreener + geckoterminal" remains the legacy label when the
  * chain path is not wired). `stale`/`error` follow the read-route contract.
@@ -218,7 +218,7 @@ export type MarketResponse = {
   source: string;
   degraded: boolean;
   notes: string[];
-  /** R6 (Robinhood): which series the candles are and how far it reaches; absent on Solana and on the legacy path. */
+  /** R6 (Monad): which series the candles are and how far it reaches; absent on the legacy path. */
   candleSource?: CandleSourceInfo;
   provider?: unknown;
   stale?: boolean;
@@ -229,7 +229,7 @@ export type MarketResponse = {
 
 /**
  * One launchpad token on either chain as the launch index knows it. Nulls mean "not exposed by any source yet";
- * `tracked` is populated only from an external tracked-trader population (label it, e.g. "robinhoodtrenches").
+ * `tracked` is populated only from an external tracked-trader population (label it, e.g. "nansen").
  */
 export type LaunchRow = {
   chain: Chain;
@@ -277,14 +277,14 @@ export type LaunchesResponse = {
   error?: string;
 };
 
-// ---- FOMO trader fills (R3, optional block on GET /api/flow/token) ----
+// ---- SMART trader fills (R3, optional block on GET /api/flow/token) ----
 
 /**
- * One fill attributed to a trader wallet. `kind` is "fomo" only when the wallet passed the EIP-7702 designator
- * check on this server, "seeded" while a robinhoodtrenches-listed wallet still awaits that check (never shown as FOMO);
- * `handle`/`followers` come from the robinhoodtrenches trader population and stay null otherwise.
+ * One fill attributed to a trader wallet. `kind` is "smart" only when the wallet passed the smart-money label
+ * check on this server, "seeded" while a Nansen-listed wallet still awaits that check (never shown as SMART);
+ * `handle`/`followers` come from the Nansen smart-money labels and stay null otherwise.
  */
-export type FomoFill = {
+export type SmartFill = {
   chain: Chain;
   token: string;
   pair: string;
@@ -305,51 +305,51 @@ export type FomoFill = {
 };
 
 /**
- * How much of the FOMO population the transfer legs actually watch (R5): `watched` = wallets inside the legs right now,
- * `population` = wallets this server should watch (FOMO seen here plus seeded wallets awaiting their 7702 check),
- * `label` = "watching 1,200 of 1,377 FOMO wallets · 147 named". Fills can only come from watched wallets, so any FOMO
+ * How much of the SMART population the transfer legs actually watch (R5): `watched` = wallets inside the legs right now,
+ * `population` = wallets this server should watch (SMART seen here plus seeded wallets awaiting their smart-money check),
+ * `label` = "watching 1,200 of 1,377 SMART wallets · 147 named". Fills can only come from watched wallets, so any SMART
  * count on the same response is a count over `watched`, not over `population`. Zeros with the same shape on failure.
  */
-export type FomoCoverage = { watched: number; population: number; label: string };
+export type SmartCoverage = { watched: number; population: number; label: string };
 
-/** Optional FOMO block on TokenFlowResponse: `population` = FOMO wallets seen by this server, `handles` = robinhoodtrenches handles known, `coverage` = how many of them the legs watch; seeded fills ride in `fills` tagged "seeded", `windows` sum verified-FOMO fills only. */
-export type TokenFlowFomo = { fills: FomoFill[]; windows: FlowWindow[]; population: number; handles: number; coverage: FomoCoverage };
+/** Optional SMART block on TokenFlowResponse: `population` = SMART wallets seen by this server, `handles` = Nansen labels known, `coverage` = how many of them the legs watch; seeded fills ride in `fills` tagged "seeded", `windows` sum verified-SMART fills only. */
+export type TokenFlowSmart = { fills: SmartFill[]; windows: FlowWindow[]; population: number; handles: number; coverage: SmartCoverage };
 
 // ---- Trader identity (R3: server/traders) ----
 
 /**
- * "fomo" only when eth_getCode(wallet) equals the EIP-7702 FOMO designator on this server; "other" when the check said
- * otherwise; "seeded" when the wallet is on the robinhoodtrenches traders list and the check has not answered here yet.
- * A seeded wallet is never shown as FOMO; the classifier itself only ever writes fomo/other.
+ * "smart" only when eth_getCode(wallet) equals the smart-money label (Nansen or watchlist) on this server; "other" when the check said
+ * otherwise; "seeded" when the wallet is on the Nansen smart-money list and the check has not answered here yet.
+ * A seeded wallet is never shown as SMART; the classifier itself only ever writes smart/other.
  */
-export type TraderKind = "fomo" | "other" | "seeded";
-/** A wallet attributed to a print. `handle`/`followers` come from the robinhoodtrenches population and stay null otherwise. */
+export type TraderKind = "smart" | "other" | "seeded";
+/** A wallet attributed to a print. `handle`/`followers` come from the Nansen population and stay null otherwise. */
 export type TraderRef = {
   address: string; kind: TraderKind; handle: string | null; followers: number | null;
-  /** Optional identity supplied by Termeow's local FomoScan registry; clients never call FomoScan. */
+  /** Optional display identity for a labelled wallet (unused on Monad today; Nansen labels arrive as `handle`). */
   displayName?: string | null; twitter?: string | null; avatarUrl?: string | null;
 };
 
-// ---- FOMO routes (GET /api/fomo/tape, GET /api/fomo/board) ----
+// ---- SMART routes (GET /api/smart/tape, GET /api/smart/board) ----
 
-export type FomoChainScope = "all" | Chain;
-export type FomoBoardWindow = "1h" | "24h" | "7d";
+export type SmartChainScope = "all" | Chain;
+export type SmartBoardWindow = "1h" | "24h" | "7d";
 
-/** Newest FOMO and seeded fills across every tracked token as this server saw them; `population` = FOMO wallets seen here. */
-export type FomoTapeResponse = {
-  chain: FomoChainScope;
-  fills: FomoFill[];
+/** Newest SMART and seeded fills across every tracked token as this server saw them; `population` = SMART wallets seen here. */
+export type SmartTapeResponse = {
+  chain: SmartChainScope;
+  fills: SmartFill[];
   population: number;
   handles: number;
   /** R5: which share of `population` the transfer legs watch; the tape can only show fills of watched wallets. */
-  coverage: FomoCoverage;
+  coverage: SmartCoverage;
   observedAt: number;
   stale?: boolean;
   error?: string;
 };
 
 /** One wallet on the board. netUsd = buyUsd - sellUsd (net flow into tokens, not P&L); closed/wins are realized-partial round trips. */
-export type FomoBoardRow = {
+export type SmartBoardRow = {
   chain: Chain;
   wallet: string;
   handle: string | null;
@@ -366,21 +366,21 @@ export type FomoBoardRow = {
   wilsonLow: number | null;
   lastSeenAt: number;
   profileUrl: string | null;
-  /** Verbatim from the book: "fomo" (7702 check passed here), "seeded" (listed, check pending), null when never classified. */
+  /** Verbatim from the book: "smart" (smart-money check passed here), "seeded" (listed, check pending), null when never classified. */
   kind: TraderKind | null;
 };
 
-export type FomoBoardResponse = {
-  chain: FomoChainScope;
-  window: FomoBoardWindow;
-  rows: FomoBoardRow[];
+export type SmartBoardResponse = {
+  chain: SmartChainScope;
+  window: SmartBoardWindow;
+  rows: SmartBoardRow[];
   population: number;
-  /** Always name the population: "FOMO wallets seen by this server". */
+  /** Always name the population: "SMART wallets seen by this server". */
   populationLabel: string;
   /** Oldest fill still in the ring when the window reaches past it (numbers are truncated, not lifetime); null otherwise. */
   truncatedAt: number | null;
   /** R5: which share of `population` the transfer legs watch; unwatched wallets cannot rank. */
-  coverage: FomoCoverage;
+  coverage: SmartCoverage;
   observedAt: number;
   stale?: boolean;
   error?: string;
@@ -388,13 +388,13 @@ export type FomoBoardResponse = {
 
 // ---- Alerts (GET /api/alerts) ----
 
-export type AlertRule = "first_fomo_buy" | "big_handle_entry" | "graduation";
+export type AlertRule = "first_smart_buy" | "big_handle_entry" | "graduation";
 
 /** The fill an alert names; `usd` null when the fill was unpriced (bundled segment), `usdVia` says where a price came from. */
 export type AlertFillEvidence = {
   tx: string;
   wallet: string;
-  /** Verbatim from the book at firing: "fomo" (7702 check passed here) or "seeded" (listed, check pending) — never relabelled. */
+  /** Verbatim from the book at firing: "smart" (smart-money check passed here) or "seeded" (listed, check pending) — never relabelled. */
   kind: TraderKind | null;
   handle: string | null;
   followers: number | null;
@@ -404,13 +404,13 @@ export type AlertFillEvidence = {
 };
 
 /**
- * First verified-FOMO buy THIS SERVER RECORDED of a token whose launch row is younger than the rule's freshness window at
+ * First verified-SMART buy THIS SERVER RECORDED of a token whose launch row is younger than the rule's freshness window at
  * the fill's chain time. "First" is book arrival order, not chain order: fills the public RPC could not time are dropped
  * upstream (TransferFeed untimed counter) and the pool-print path can land a later block before the transfer path.
  */
-export type FirstFomoBuyEvidence = {
+export type FirstSmartBuyEvidence = {
   launchpad: string;
-  /** Launch row createdAt (ms). For rpc:robinhood rows this is estimateBlockTimeMs (~100.7 ms/block from the poll head), not a block timestamp. */
+  /** Launch row createdAt (ms). For rpc:monad rows this is estimateBlockTimeMs (~300 ms/block from the poll head), not a block timestamp. */
   createdAt: number;
   createdAtEstimated: boolean;
   /** fill.time - createdAt, chain time on both sides; never a wall-clock age. */
@@ -420,21 +420,22 @@ export type FirstFomoBuyEvidence = {
 };
 
 /**
- * A wallet with followers >= the rule's floor took its first fill (per the book) in this token; the side is whatever it was.
+ * A labelled smart-money wallet (Nansen label or the user's watchlist) took its first fill (per the book) in this token; the
+ * side is whatever it was. `followers` is null on Monad (Nansen labels carry no follower count).
  * `bookSince` = the book's oldest fill time (chain ms) at firing: "first" means no earlier fill since then, not ever (the
  * book is a process-scoped ring that restarts empty); null when the book held no other fill.
  */
-export type BigHandleEntryEvidence = AlertFillEvidence & { handle: string; followers: number; bookSince: number | null };
+export type BigHandleEntryEvidence = AlertFillEvidence & { handle: string; followers: number | null; bookSince: number | null };
 
-/** A decoded graduation event (Pons LaunchSwept / PoolGraduated) for a token with verified-FOMO fills in the book. */
+/** A decoded nad.fun CurveGraduate event for a token with smart-money fills in the book. */
 export type GraduationEvidence = {
   launchpad: string;
   pool: string | null;
   launchTx: string;
   /** The graduation tx is not carried through the launch index; null until it is. */
   graduationTx: string | null;
-  /** Verified-FOMO fills of the token in the book at firing (ring-bounded: fills already evicted are not counted). */
-  fomoFills: number;
+  /** Verified-SMART fills of the token in the book at firing (ring-bounded: fills already evicted are not counted). */
+  smartFills: number;
 };
 
 type AlertBase = {
@@ -443,42 +444,42 @@ type AlertBase = {
   chain: Chain;
   /** Chain time of the event (fill block time, graduation block time), ms. */
   time: number;
-  /** When this server saw the event (wall clock), ms; observedAt - time is the delivery lag (public RPC 429 backlog reached ~60 min on 2026-09-07). */
+  /** When this server saw the event (wall clock), ms; observedAt - time is the delivery lag behind the public RPC. */
   observedAt: number;
   token: string;
   /** Null until something on this server (launch index, erc20Meta) knows it; alert text must name the token by address. */
   symbol: string | null;
-  /** FOMO coverage as of firing: fills can only come from watched wallets. */
-  coverage: FomoCoverage;
+  /** SMART coverage as of firing: fills can only come from watched wallets. */
+  coverage: SmartCoverage;
 };
 
 export type AlertRow = AlertBase &
   (
-    | { rule: "first_fomo_buy"; evidence: FirstFomoBuyEvidence }
+    | { rule: "first_smart_buy"; evidence: FirstSmartBuyEvidence }
     | { rule: "big_handle_entry"; evidence: BigHandleEntryEvidence }
     | { rule: "graduation"; evidence: GraduationEvidence }
   );
 
-/** Which chains a rule can fire on with real evidence; a chain absent here (Solana for every FOMO rule) gets an empty list, never a stand-in. */
+/** Which chains a rule can fire on with real evidence; a chain absent here gets an empty list, never a stand-in. */
 export type AlertRuleInfo = { rule: AlertRule; chains: Chain[]; description: string };
 
 /** Engine bookkeeping on every answer, so "nothing qualified" and "engine erroring" are distinguishable from the wire. */
 export type AlertEngineStats = {
   seen: { fills: number; launches: number; graduations: number };
   fired: Record<AlertRule, number>;
-  /** Events a rule looked at and declined (not fresh, not first, no FOMO fills, duplicate id). */
+  /** Events a rule looked at and declined (not fresh, not first, no SMART fills, duplicate id). */
   suppressed: Record<AlertRule, number>;
   errors: number;
   lastError: string | null;
 };
 
 export type AlertsResponse = {
-  chain: FomoChainScope;
+  chain: SmartChainScope;
   /** Newest first (by observedAt). */
   alerts: AlertRow[];
   observedAt: number;
   ring: { size: number; max: number };
-  coverage: FomoCoverage;
+  coverage: SmartCoverage;
   rules: AlertRuleInfo[];
   /** Null only on the failure branch. */
   engine: AlertEngineStats | null;
@@ -488,7 +489,7 @@ export type AlertsResponse = {
 
 // ---- GET /api/health: the slice the desk status line reads (older servers omit every optional field) ----
 
-/** One Robinhood RPC endpoint of the process pool (tape/robinhood/endpoints.ts). */
+/** One Monad RPC endpoint of the process pool (tape/monad/endpoints.ts). */
 export type RpcEndpointHealth = {
   url: string;
   /** Enabled and not currently blocked. */
@@ -507,8 +508,8 @@ export type RpcEndpointHealth = {
 };
 export type RpcPoolHealth = { chainId: number; endpoints: RpcEndpointHealth[] };
 export type SnapshotComponentHealth = { component: string; restoredAt: number | null; skipped: string | null };
-/** Socket detail of one Robinhood log poller (server/tape/robinhood/wsLogs.ts WsTransportStatus; times are ms epoch). */
-export type RobinhoodWsHealth = {
+/** Socket detail of one Monad log poller (server/tape/monad/wsLogs.ts WsTransportStatus; times are ms epoch). */
+export type MonadWsHealth = {
   connected: boolean;
   url: string | null;
   connectedAt: number | null;
@@ -519,7 +520,7 @@ export type RobinhoodWsHealth = {
   lastError: string | null;
 };
 /** One log poller: `mode` is "ws" only while the socket is open and every wanted leg is subscribed; otherwise its prints come from the HTTP sweep. */
-export type RobinhoodPollerTransportHealth = {
+export type MonadPollerTransportHealth = {
   name: string;
   mode: "ws" | "http";
   wsEnabled: boolean;
@@ -527,14 +528,14 @@ export type RobinhoodPollerTransportHealth = {
   catchUpTicks: number;
   wsLogs: number;
   lastWsBlock: number | null;
-  ws: RobinhoodWsHealth | null;
+  ws: MonadWsHealth | null;
 };
-/** Which transport carries Robinhood log prints: "WS" when every poller is fully subscribed, "HTTP" when none is, "MIXED" otherwise. */
-export type RobinhoodTransportHealth = {
+/** Which transport carries Monad log prints: "WS" when every poller is fully subscribed, "HTTP" when none is, "MIXED" otherwise. */
+export type MonadTransportHealth = {
   label: "WS" | "HTTP" | "MIXED";
   mode: "ws" | "http" | "mixed";
   wsEnabled: boolean;
-  pollers: RobinhoodPollerTransportHealth[];
+  pollers: MonadPollerTransportHealth[];
 };
 export type SystemHealth = {
   now?: string;
@@ -543,8 +544,8 @@ export type SystemHealth = {
   /** Largest file age among the restored components, ms at restore time (not the current age). */
   snapshotAge?: number | null;
   snapshot?: { lastSaveAt?: number | null; components?: SnapshotComponentHealth[] };
-  robinhoodRpc?: RpcPoolHealth;
-  robinhoodTransport?: RobinhoodTransportHealth;
+  monadRpc?: RpcPoolHealth;
+  monadTransport?: MonadTransportHealth;
 };
 
 // ---- Discovery (R6: GET /api/discover/:chain) ----
@@ -554,8 +555,8 @@ export type DiscoverWindow = "1h" | "24h";
 
 /**
  * Figures one source reported for one token inside the requested window. `txns`, `liquidityUsd`, `pool` and `dex` are
- * per-pool (the source's best pool); `fomoHolders` = distinct verified-FOMO buyers in this server's trader book, null when
- * the book holds no fills; `trackedBuyers` = robinhoodtrenches' own tracked-buyer count (their population, unofficial).
+ * per-pool (the source's best pool); `smartHolders` = distinct verified-SMART buyers in this server's trader book, null when
+ * the book holds no fills; `trackedBuyers` = the external label source's tracked-buyer count (their population, unofficial).
  */
 export type DiscoverFigures = {
   priceUsd: number | null;
@@ -567,7 +568,7 @@ export type DiscoverFigures = {
   ageMs: number | null;
   pool: string | null;
   dex: string | null;
-  fomoHolders: number | null;
+  smartHolders: number | null;
   trackedBuyers: number | null;
 };
 
@@ -603,8 +604,8 @@ export type DiscoverResponse = {
   rows: DiscoverRow[];
   observedAt: number;
   sources: DiscoverSourceHealth[];
-  /** FOMO coverage label from the trader book; null when the book is empty or the chain has no book. */
-  coverage: FomoCoverage | null;
+  /** SMART coverage label from the trader book; null when the book is empty or the chain has no book. */
+  coverage: SmartCoverage | null;
   stale?: boolean;
   error?: string;
 };
