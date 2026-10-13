@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DiscoverResponse, DiscoverRow } from "../../shared/wire";
 import {
-  ageLabel, changeCell, disputedLabel, emptyCopy, fomoHoldersCell, isDiscoverTab, rowKey, sourceChipLabel, sourceChips, sourcesSummary, symbolLabel, txnsLabel, viewFor, windowParam
+  ageLabel, changeCell, disputedLabel, emptyCopy, smartHoldersCell, isDiscoverTab, rowKey, sourceChipLabel, sourceChips, sourcesSummary, symbolLabel, txnsLabel, viewFor, windowParam
 } from "./discover";
 
 const NOW = 1_788_790_000_000;
@@ -9,12 +9,12 @@ const TOKEN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
 
 function row(overrides: Partial<DiscoverRow> = {}): DiscoverRow {
   return {
-    chain: "robinhood", token: TOKEN, symbol: "FATCOIN", name: "Fatcoin",
+    chain: "monad", token: TOKEN, symbol: "FATCOIN", name: "Fatcoin",
     priceUsd: 0.0204, marketCapUsd: 20_400_000, liquidityUsd: 1_000_000, volumeUsd: 550_000, changePct: -3.2,
-    txns: { buys: 120, sells: 80 }, ageMs: 5 * 3_600_000, pool: "0xpool", dex: "uniswap", fomoHolders: 4, trackedBuyers: 36,
+    txns: { buys: 120, sells: 80 }, ageMs: 5 * 3_600_000, pool: "0xpool", dex: "uniswap", smartHolders: 4, trackedBuyers: 36,
     sources: [
-      { source: "dexscreener profiles+boosts", lastOkAt: NOW - 20_000, stale: false, symbol: "FATCOIN", name: "Fatcoin", rank: null, priceUsd: 0.0204, marketCapUsd: 20_400_000, liquidityUsd: 1_000_000, volumeUsd: 550_000, changePct: -3.2, txns: { buys: 120, sells: 80 }, ageMs: null, pool: "0xpool", dex: "uniswap", fomoHolders: null, trackedBuyers: null },
-      { source: "geckoterminal trending_pools", lastOkAt: NOW - 90_000, stale: true, symbol: "FATCOIN", name: null, rank: 2, priceUsd: 0.0198, marketCapUsd: null, liquidityUsd: null, volumeUsd: 600_000, changePct: null, txns: null, ageMs: null, pool: "0xpool", dex: "uniswap", fomoHolders: null, trackedBuyers: null }
+      { source: "dexscreener profiles+boosts", lastOkAt: NOW - 20_000, stale: false, symbol: "FATCOIN", name: "Fatcoin", rank: null, priceUsd: 0.0204, marketCapUsd: 20_400_000, liquidityUsd: 1_000_000, volumeUsd: 550_000, changePct: -3.2, txns: { buys: 120, sells: 80 }, ageMs: null, pool: "0xpool", dex: "uniswap", smartHolders: null, trackedBuyers: null },
+      { source: "geckoterminal trending_pools", lastOkAt: NOW - 90_000, stale: true, symbol: "FATCOIN", name: null, rank: 2, priceUsd: 0.0198, marketCapUsd: null, liquidityUsd: null, volumeUsd: 600_000, changePct: null, txns: null, ageMs: null, pool: "0xpool", dex: "uniswap", smartHolders: null, trackedBuyers: null }
     ],
     disputed: ["volumeUsd"],
     ...overrides
@@ -22,7 +22,7 @@ function row(overrides: Partial<DiscoverRow> = {}): DiscoverRow {
 }
 
 function feed(overrides: Partial<DiscoverResponse> = {}): DiscoverResponse {
-  return { chain: "robinhood", view: "trending", window: "24h", rows: [], observedAt: NOW, sources: [{ name: "dexscreener profiles+boosts", lastOkAt: NOW, lastError: null, stale: false }, { name: "geckoterminal new_pools", lastOkAt: null, lastError: "Upstream returned 429", stale: true }], coverage: null, ...overrides };
+  return { chain: "monad", view: "trending", window: "24h", rows: [], observedAt: NOW, sources: [{ name: "dexscreener profiles+boosts", lastOkAt: NOW, lastError: null, stale: false }, { name: "geckoterminal new_pools", lastOkAt: null, lastError: "Upstream returned 429", stale: true }], coverage: null, ...overrides };
 }
 
 describe("tabs and params", () => {
@@ -60,7 +60,7 @@ describe("cells", () => {
     expect(chips[1].title).toContain("vol $600K");
     expect(chips[1].title).toContain("stale");
     expect(sourceChipLabel("robinhoodtrenches · unofficial")).toBe("TRENCHES");
-    expect(sourceChipLabel("trader book · verified-FOMO buyers seen by this server")).toBe("BOOK");
+    expect(sourceChipLabel("trader book · verified-SMART buyers seen by this server")).toBe("BOOK");
     expect(sourceChipLabel("something else")).toBe("SOMETHING");
   });
   it("names disputed fields and stays silent when sources agree", () => {
@@ -68,15 +68,15 @@ describe("cells", () => {
     expect(disputedLabel(row({ disputed: ["marketCapUsd", "priceUsd"] }))).toBe("DISPUTED mcap, px");
     expect(disputedLabel(row({ disputed: [] }))).toBeNull();
   });
-  it("renders FOMO holders against the coverage label and never turns an empty book into 0", () => {
-    const coverage = { watched: 1200, population: 1377, label: "watching 1,200 of 1,377 FOMO wallets · 147 named" };
-    const cell = fomoHoldersCell(row(), coverage);
+  it("renders SMART holders against the coverage label and never turns an empty book into 0", () => {
+    const coverage = { watched: 1200, population: 1377, label: "watching 1,200 of 1,377 SMART wallets · 147 named" };
+    const cell = smartHoldersCell(row(), coverage);
     expect(cell.text).toBe("4");
-    expect(cell.title).toContain("WATCHING 1,200 OF 1,377 FOMO WALLETS");
+    expect(cell.title).toContain("WATCHING 1,200 OF 1,377 SMART WALLETS");
     expect(cell.title).toContain("36 tracked buyers per robinhoodtrenches");
-    const empty = fomoHoldersCell(row({ fomoHolders: null, trackedBuyers: null }), null);
+    const empty = smartHoldersCell(row({ smartHolders: null, trackedBuyers: null }), null);
     expect(empty.text).toBe("—");
-    expect(empty.title).toContain("FOMO COVERAGE UNKNOWN");
+    expect(empty.title).toContain("SMART COVERAGE UNKNOWN");
   });
 });
 
@@ -92,6 +92,6 @@ describe("feed summary", () => {
     expect(emptyCopy(feed({ error: "geckoterminal new_pools: Upstream returned 429" }), "")).toBe("No rows · geckoterminal new_pools: Upstream returned 429");
     expect(emptyCopy(feed({ view: "holders" }), "")).toContain("book for this window");
     expect(emptyCopy(feed(), "")).toBe("No rows from dexscreener profiles+boosts, geckoterminal new_pools in this window.");
-    expect(rowKey(row())).toBe(`robinhood:${TOKEN}`);
+    expect(rowKey(row())).toBe(`monad:${TOKEN}`);
   });
 });

@@ -1,7 +1,7 @@
 import type { LargePrint } from "../../shared/wire";
 import { toSeconds } from "./chartTime";
 import { FLOW_PALETTE, type FlowChartTheme } from "./flowChart";
-import { MARKER_SIZE_BY_CLASS, candleIndexFor, sizeClass, type FomoMarker } from "./fomoMarkers";
+import { MARKER_SIZE_BY_CLASS, candleIndexFor, sizeClass, type SmartMarker } from "./smartMarkers";
 import { money } from "./format";
 
 /**
@@ -83,8 +83,8 @@ export function sortMarkers<T extends Pick<ChartMarker, "time" | "position">>(ma
   return markers.slice().sort((a, b) => a.time - b.time || POSITION_RANK[a.position] - POSITION_RANK[b.position]);
 }
 
-/** One sorted list for the single markers plugin; FomoMarker is structurally a ChartMarker. */
-export function mergeMarkers(...lists: Array<Array<ChartMarker | FomoMarker> | undefined>): ChartMarker[] {
+/** One sorted list for the single markers plugin; SmartMarker is structurally a ChartMarker. */
+export function mergeMarkers(...lists: Array<Array<ChartMarker | SmartMarker> | undefined>): ChartMarker[] {
   return sortMarkers(lists.flatMap((list) => list ?? []));
 }
 

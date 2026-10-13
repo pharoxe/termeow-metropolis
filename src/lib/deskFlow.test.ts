@@ -12,7 +12,7 @@ const NOW = 1_788_717_300_000;
 
 function flow(overrides: Partial<TokenFlowResponse> = {}): TokenFlowResponse {
   return {
-    chain: "robinhood", address: FATCOIN, interval: "1m", anchor: "window",
+    chain: "monad", address: FATCOIN, interval: "1m", anchor: "window",
     bars: [{ t: NOW - 120_000, buyUsd: 10, sellUsd: 4, buys: 2, sells: 1, unpricedBuys: 0, unpricedSells: 0, delta: 6, cvd: 6 }, { t: NOW - 60_000, buyUsd: 1, sellUsd: 5, buys: 1, sells: 2, unpricedBuys: 0, unpricedSells: 1, delta: -4, cvd: 2 }],
     pairs: [],
     coverage: { fraction: 0.5, firstPrintAt: NOW - 600_000, volumeShare: null, tierAPairs: 1, totalPairs: 2 },
@@ -29,7 +29,7 @@ function window(label: FlowWindow["label"], net: number, extra: Partial<FlowWind
 
 function market(overrides: Partial<MarketResponse> = {}): MarketResponse {
   return {
-    instrument: { chain: "robinhood", address: FATCOIN, symbol: "FAT", name: "Fatcoin", image: null, socials: [], websites: [] },
+    instrument: { chain: "monad", address: FATCOIN, symbol: "FAT", name: "Fatcoin", image: null, socials: [], websites: [] },
     priceUsd: 0.02, marketCapUsd: 20_000_000, fdvUsd: null, liquidityUsd: 1, volume24Usd: 1, change24Pct: 0, primaryPair: null,
     candles: [{ time: NOW - 60_000, open: 1, high: 1, low: 1, close: 1, volume: 1 }], interval: "1m", observedAt: NOW - 5000, source: "gecko", degraded: false, notes: [],
     ...overrides
@@ -38,7 +38,7 @@ function market(overrides: Partial<MarketResponse> = {}): MarketResponse {
 
 function own(overrides: Partial<FlowCandlesResponse> = {}): FlowCandlesResponse {
   return {
-    chain: "robinhood", address: FATCOIN, interval: "15s", candles: [{ time: NOW - 15_000, open: 0.02, high: 0.02, low: 0.02, close: 0.02, volume: 12 }],
+    chain: "monad", address: FATCOIN, interval: "15s", candles: [{ time: NOW - 15_000, open: 0.02, high: 0.02, low: 0.02, close: 0.02, volume: 12 }],
     source: "own tape", spanMs: 186_000, prints: 200, priced: 180, firstPrintAt: NOW - 186_000, pricedBySource: { own: 180 }, observedAt: NOW - 1000, ...overrides
   };
 }
@@ -92,7 +92,7 @@ describe("selectCandles", () => {
     expect(selectCandles("5S", null, null).candles).toEqual([]);
   });
   it("keys the series by source so a fallback resets instead of blending", () => {
-    const ref = { chain: "robinhood" as const, address: FATCOIN };
+    const ref = { chain: "monad" as const, address: FATCOIN };
     expect(candleSeriesKey(ref, "15S", "own tape")).not.toBe(candleSeriesKey(ref, "15S", "market"));
   });
   it("formats spans", () => {
@@ -169,14 +169,14 @@ describe("flowReadoutCells", () => {
 
 describe("event marker input", () => {
   const row: LaunchRow = {
-    chain: "robinhood", launchpad: "pons", token: FATCOIN.toUpperCase().replace("0X", "0x"), symbol: "FAT", name: null, image: null, creator: null, curve: null, pool: null,
+    chain: "monad", launchpad: "pons", token: FATCOIN.toUpperCase().replace("0X", "0x"), symbol: "FAT", name: null, image: null, creator: null, curve: null, pool: null,
     createdAt: NOW - 3_600_000, tx: "0xabc", graduatedAt: NOW - 1_800_000, priceUsd: null, marketCapUsd: null, liquidityUsd: null, volume24Usd: null, change24Pct: null,
     pricedAt: null, curveBuys: 0, curveSells: 0, curveNetUsd: null, tracked: null, sources: [], observedAt: NOW
   };
-  it("finds the focused token case-insensitively on Robinhood and builds launch + graduation from the index row", () => {
-    const found = launchRowFor([row], { chain: "robinhood", address: FATCOIN });
+  it("finds the focused token case-insensitively on Monad and builds launch + graduation from the index row", () => {
+    const found = launchRowFor([row], { chain: "monad", address: FATCOIN });
     expect(found).toBe(row);
-    expect(launchRowFor([row], { chain: "solana", address: FATCOIN })).toBeNull();
+    expect(launchRowFor([row], { chain: "monad", address: "0x0000000000000000000000000000000000000001" })).toBeNull();
     const input = eventMarkerInput(found, flow({ largePrints: [{ pair: "p", dex: "d", tx: "t", time: NOW, side: "buy", usd: 5000, source: "own" }] }));
     expect(input.launch).toEqual({ createdAt: NOW - 3_600_000, launchpad: "pons" });
     expect(input.graduation).toEqual({ time: NOW - 1_800_000 });
@@ -219,19 +219,20 @@ describe("R6 candle provenance and no-candles reason", () => {
 describe("R6 feed health and last-good flow", () => {
   const health = {
     own: { ok: false, lastOkAt: NOW - 40_000, lastError: "rpc 429 rate limited", nextRetryAt: NOW + 18_000 },
-    gecko: { ok: false, lastOkAt: null, lastError: "GeckoTerminal backoff active after 429", nextRetryAt: null },
-    pumpfun: { ok: true, lastOkAt: NOW - 2_000, lastError: null, nextRetryAt: null }
+    gecko: { ok: true, lastOkAt: NOW - 2_000, lastError: null, nextRetryAt: null }
   };
+  const geckoDown = { ok: false, lastOkAt: null, lastError: "GeckoTerminal backoff active after 429", nextRetryAt: null };
   it("builds one chip per source with tone and a title naming error and retry", () => {
     const chips = feedHealthChips(health, NOW);
-    expect(chips.map((chip) => [chip.label, chip.tone])).toEqual([["OWN", "warn"], ["GECKO", "bad"], ["PUMP", "good"]]);
+    expect(chips.map((chip) => [chip.label, chip.tone])).toEqual([["OWN", "warn"], ["GECKO", "good"]]);
     expect(chips[0].title).toBe("OWN · down · last ok 40s ago · rpc 429 rate limited · retry in 18s");
     expect(feedHealthChips(undefined, NOW)).toEqual([]);
     expect(allFeedsDown(health)).toBe(false);
-    expect(allFeedsDown({ ...health, pumpfun: { ...health.pumpfun, ok: false } })).toBe(true);
+    expect(allFeedsDown({ ...health, gecko: geckoDown })).toBe(true);
+    expect(feedHealthChips({ ...health, gecko: geckoDown }, NOW)[1].tone).toBe("bad");
   });
   it("explains an empty tape by the down sources", () => {
-    expect(tapeEmptyCopy(flow({ feedHealth: { ...health, pumpfun: { ...health.pumpfun, ok: false } } }))).toBe("No pool prints held · every print source is down (OWN rpc 429 rate limited · GECKO GeckoTerminal backoff active after 429 · PUMP).");
+    expect(tapeEmptyCopy(flow({ feedHealth: { ...health, gecko: geckoDown } }))).toBe("No pool prints held · every print source is down (OWN rpc 429 rate limited · GECKO GeckoTerminal backoff active after 429).");
     expect(tapeEmptyCopy(flow({ feedHealth: health }))).toBe("No pool prints in this window.");
     expect(tapeEmptyCopy(null)).toBe("No pool prints in this window.");
   });
@@ -248,21 +249,21 @@ describe("R6 feed health and last-good flow", () => {
   it("condenses /api/health into one status line with per-endpoint detail in the title", () => {
     const line = systemStatusLine({
       restoredAt: NOW - 3_000, snapshotAge: 200_000, snapshot: { lastSaveAt: NOW - 30_000 },
-      robinhoodRpc: { chainId: 4663, endpoints: [
-        { url: "https://robinhood-rpc.publicnode.com", ok: true, enabled: true, disabledReason: null, chainVerified: true, logs: false, blockedUntil: null, calls: 10, rateLimited: 0, failures: 0, p50Ms: 195, lastError: null },
-        { url: "https://rpc.mainnet.chain.robinhood.com/", ok: true, enabled: true, disabledReason: null, chainVerified: true, logs: true, blockedUntil: null, calls: 4, rateLimited: 1, failures: 1, p50Ms: 385.4, lastError: "upstream returned 429" },
-        { url: "https://rpc.nodeflare.app/robinhood/public", ok: false, enabled: true, disabledReason: null, chainVerified: true, logs: true, blockedUntil: new Date(NOW + 20_000).toISOString(), calls: 1, rateLimited: 1, failures: 0, p50Ms: null, lastError: "rate_limited" },
+      monadRpc: { chainId: 4663, endpoints: [
+        { url: "https://monad-rpc.publicnode.com", ok: true, enabled: true, disabledReason: null, chainVerified: true, logs: false, blockedUntil: null, calls: 10, rateLimited: 0, failures: 0, p50Ms: 195, lastError: null },
+        { url: "https://rpc.mainnet.chain.monad.com/", ok: true, enabled: true, disabledReason: null, chainVerified: true, logs: true, blockedUntil: null, calls: 4, rateLimited: 1, failures: 1, p50Ms: 385.4, lastError: "upstream returned 429" },
+        { url: "https://rpc.nodeflare.app/monad/public", ok: false, enabled: true, disabledReason: null, chainVerified: true, logs: true, blockedUntil: new Date(NOW + 20_000).toISOString(), calls: 1, rateLimited: 1, failures: 0, p50Ms: null, lastError: "rate_limited" },
         { url: "https://x.example", ok: false, enabled: false, disabledReason: "eth_chainId 1 != 4663", chainVerified: false, logs: false, blockedUntil: null, calls: 0, rateLimited: 0, failures: 0, p50Ms: null, lastError: null }
       ] },
-      robinhoodTransport: { label: "MIXED", mode: "mixed", wsEnabled: true, pollers: [
-        { name: "launch", mode: "ws", wsEnabled: true, httpCursor: 57_053_099, catchUpTicks: 12, wsLogs: 400, lastWsBlock: 57_053_120, ws: { connected: true, url: "wss://robinhood-rpc.publicnode.com", connectedAt: NOW - 600_000, subscriptions: 8, wantedLegs: 8, rejectedLegs: 0, reconnects: 1, lastError: null } },
-        { name: "tape", mode: "http", wsEnabled: true, httpCursor: 57_053_090, catchUpTicks: 3, wsLogs: 20, lastWsBlock: 57_053_000, ws: { connected: false, url: "wss://robinhood.api.pocket.network", connectedAt: null, subscriptions: 0, wantedLegs: 2, rejectedLegs: 0, reconnects: 2, lastError: "closed (1006)" } }
+      monadTransport: { label: "MIXED", mode: "mixed", wsEnabled: true, pollers: [
+        { name: "launch", mode: "ws", wsEnabled: true, httpCursor: 57_053_099, catchUpTicks: 12, wsLogs: 400, lastWsBlock: 57_053_120, ws: { connected: true, url: "wss://monad-rpc.publicnode.com", connectedAt: NOW - 600_000, subscriptions: 8, wantedLegs: 8, rejectedLegs: 0, reconnects: 1, lastError: null } },
+        { name: "tape", mode: "http", wsEnabled: true, httpCursor: 57_053_090, catchUpTicks: 3, wsLogs: 20, lastWsBlock: 57_053_000, ws: { connected: false, url: "wss://monad.api.pocket.network", connectedAt: null, subscriptions: 0, wantedLegs: 2, rejectedLegs: 0, reconnects: 2, lastError: "closed (1006)" } }
       ] }
     }, NOW);
     expect(line?.text).toBe("RPC 2/4 UP · LOGS 1 · MIXED · SNAP 3m OLD");
-    expect(line?.title).toMatch(/launch · prints via WS · robinhood-rpc\.publicnode\.com up since \d\d [A-Z][a-z]{2} \d\d:\d\d IST · 8\/8 legs · HTTP verified to 57053099/);
+    expect(line?.title).toMatch(/launch · prints via WS · monad-rpc\.publicnode\.com up since \d\d [A-Z][a-z]{2} \d\d:\d\d IST · 8\/8 legs · HTTP verified to 57053099/);
     expect(line?.title).toContain("tape · prints via HTTP · socket down · 2 reconnects · HTTP verified to 57053090 · closed (1006)");
-    expect(line?.title).toContain("rpc.mainnet.chain.robinhood.com · up · logs · p50 385ms · 4 calls · 1 429 · upstream returned 429");
+    expect(line?.title).toContain("rpc.mainnet.chain.monad.com · up · logs · p50 385ms · 4 calls · 1 429 · upstream returned 429");
     expect(line?.title).toContain("rpc.nodeflare.app · blocked until");
     expect(line?.title).toContain("x.example · disabled");
     expect(line?.title).toContain("snapshot restored 3s ago, aged 3m at restore · last save 30s ago");

@@ -1,10 +1,10 @@
-import type { FomoMarker } from "./fomoMarkers";
-import { walletLabel } from "./fomoPanel";
+import type { SmartMarker } from "./smartMarkers";
+import { walletLabel } from "./smartPanel";
 import { money } from "./format";
 
-/** Pure view model for the FOMO hover strip under the chart legend. No React, tested in node. */
+/** Pure view model for the SMART hover strip under the chart legend. No React, tested in node. */
 
-export type FomoHoverRow = {
+export type SmartHoverRow = {
   /** Handle from the population or the short address; never invented. */
   label: string;
   side: "buy" | "sell";
@@ -13,17 +13,17 @@ export type FomoHoverRow = {
   seeded: boolean;
 };
 
-export type FomoHoverView = {
-  /** Bucket texts joined, buy first: "3 FOMO buys · $1.2K | 1 FOMO sell". */
+export type SmartHoverView = {
+  /** Bucket texts joined, buy first: "3 SMART buys · $1.2K | 1 SMART sell". */
   title: string;
-  rows: FomoHoverRow[];
+  rows: SmartHoverRow[];
   /** Rows beyond `maxRows` that were not rendered. */
   more: number;
 };
 
 export const DEFAULT_HOVER_ROWS = 8;
 
-function amountLabel(wallet: FomoMarker["wallets"][number]): string {
+function amountLabel(wallet: SmartMarker["wallets"][number]): string {
   const count = wallet.count > 1 ? `×${wallet.count} ` : "";
   if (wallet.usd == null) return `${count}unpriced`.trim();
   const tail = wallet.unpriced > 0 ? ` (+${wallet.unpriced} unpriced)` : "";
@@ -34,13 +34,13 @@ function usdRank(usd: number | null): number {
   return usd == null ? -1 : usd;
 }
 
-/** Rows across every bucket on the candle, largest priced first (unpriced last); null when the candle has no FOMO fills. */
-export function fomoHoverView(markers: readonly FomoMarker[], maxRows = DEFAULT_HOVER_ROWS): FomoHoverView | null {
+/** Rows across every bucket on the candle, largest priced first (unpriced last); null when the candle has no SMART fills. */
+export function smartHoverView(markers: readonly SmartMarker[], maxRows = DEFAULT_HOVER_ROWS): SmartHoverView | null {
   if (markers.length === 0) return null;
   const rows = markers
     .flatMap((marker) => marker.wallets.map((wallet) => ({ wallet, side: marker.side })))
     .sort((a, b) => usdRank(b.wallet.usd) - usdRank(a.wallet.usd) || b.wallet.count - a.wallet.count)
-    .map(({ wallet, side }): FomoHoverRow => ({
+    .map(({ wallet, side }): SmartHoverRow => ({
       label: walletLabel(wallet.address, wallet.handle),
       side,
       amount: amountLabel(wallet),

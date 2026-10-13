@@ -20,9 +20,9 @@ import { useNotifications } from "./NotificationSystem";
 type OpenAlert = (ref: InstrumentRef, symbol?: string) => void;
 
 /**
- * WatchPanel ALERTS tab: polls /api/alerts every 15 s (chip = ALL / SOL / RH), newest first. Each row names its
+ * WatchPanel ALERTS tab: polls /api/alerts every 15 s, newest first. Each row names its
  * evidence (wallet or handle, followers, usd or "unpriced", launchpad, launch age) and its chain time in IST; the header
- * carries the FOMO coverage the alerts were measured under. Alerts unseen since the previous poll raise a toast through
+ * carries the SMART coverage the alerts were measured under. Alerts unseen since the previous poll raise a toast through
  * the shared NotificationSystem (deduped by alert id; the first load only seeds the seen set, so a reload is silent).
  */
 export function AlertsTab({ onOpen, selected }: { onOpen?: OpenAlert; selected?: string }) {
@@ -61,7 +61,7 @@ export function AlertsTab({ onOpen, selected }: { onOpen?: OpenAlert; selected?:
   return (
     <>
       <div className="launch-bar">
-        {CHAIN_CHIPS.map((item) => <button key={item} type="button" className={chip === item ? "on" : ""} onClick={() => setChip(item)}>{item}</button>)}
+        {CHAIN_CHIPS.length > 1 ? CHAIN_CHIPS.map((item) => <button key={item} type="button" className={chip === item ? "on" : ""} onClick={() => setChip(item)}>{item}</button>) : null}
         <span className="pm" title={(feed?.rules ?? []).map((rule) => `${rule.rule}: ${rule.description}`).join("\n") || undefined}>
           {alertsHeader(rows.length, feed?.coverage, feed?.ring.size, feed?.ring.max, feed?.engine?.errors ?? 0)}{feed?.stale ? " · STALE" : ""}
         </span>
@@ -74,7 +74,7 @@ export function AlertsTab({ onOpen, selected }: { onOpen?: OpenAlert; selected?:
             {rows.map((row) => {
               const view = alertRowView(row, now);
               return (
-                <tr key={view.key} className={row.token === selected ? "selected" : ""} title={view.title} onClick={() => onOpen?.(view.instrument, row.symbol ?? undefined)}>
+                <tr key={view.key} className={row.token.toLowerCase() === selected?.toLowerCase() ? "selected" : ""} title={view.title} onClick={() => onOpen?.(view.instrument, row.symbol ?? undefined)}>
                   <td><span className={`chip ${view.tone}`}>{view.badge}</span><small>{view.clock} IST · {view.age} ago</small></td>
                   <td><b>{view.token}</b><small><span className="chip">{view.chain}</span>{view.lag ? <span className="alert-lag">{view.lag}</span> : null}</small></td>
                   <td className="r"><small>{view.evidence}</small></td>

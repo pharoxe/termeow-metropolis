@@ -63,7 +63,7 @@ export function AsciiImage({ src, alt, status, className = "" }: { src: string; 
     let live = true;
 
     const render = (now: number) => {
-      context.fillStyle = "#010402";
+      context.fillStyle = "#020104";
       context.fillRect(0, 0, width, height);
       const grid = currentRef.current;
       if (!grid) { if (!reduced) animation = requestAnimationFrame(render); return; }

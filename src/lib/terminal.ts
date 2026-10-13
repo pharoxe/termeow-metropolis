@@ -2,10 +2,10 @@ import type { ParticipantSnapshot } from "../../shared/participant";
 import type { TradeEvent } from "../../shared/terminal";
 import type { MarketCandle } from "../../shared/wire";
 import type { ChartMarker } from "./chartMarkers";
-import { candleIndexFor } from "./fomoMarkers";
+import { candleIndexFor } from "./smartMarkers";
 
-export type TradeFilter = { side: "all"|"buy"|"sell"; cohort:"all"|"named"|"followed"|"fomo"; minimum:number; influencerFollowers:number; walletMinimum?:number };
-/** The FOMO rank floor defaults to 0 because every floor below the lowest follower count present in the data
+export type TradeFilter = { side: "all"|"buy"|"sell"; cohort:"all"|"named"|"followed"|"smart"; minimum:number; influencerFollowers:number; walletMinimum?:number };
+/** The SMART rank floor defaults to 0 because every floor below the lowest follower count present in the data
  *  selects an identical set: a non-zero default would advertise a gate the data cannot support. The floor that
  *  is actually observed is measured live per load (TradeFilterBreakdown.rankFloor) and shown beside the control. */
 export const DEFAULT_TRADE_FILTER:TradeFilter={side:"all",cohort:"all",minimum:500,influencerFollowers:0};
@@ -16,9 +16,9 @@ export const walletId=(e:Pick<TradeEvent,"chain"|"wallet">)=>`${e.chain}:${e.wal
 export type TradeFilterBreakdown = {
   loaded:number; shown:number;
   hiddenBySide:number; hiddenByCohort:number; hiddenByWallet:number; hiddenByRank:number; hiddenUnderMinimum:number; hiddenUsdUnknown:number;
-  /** Named FOMO rows carrying no follower count at all: unrankedLoaded were loaded, shownUnranked reached the screen. */
+  /** Named SMART rows carrying no follower count at all: unrankedLoaded were loaded, shownUnranked reached the screen. */
   unrankedLoaded:number; shownUnranked:number;
-  /** Follower counts actually present in the loaded named FOMO rows; null when not one of them carries a count. */
+  /** Follower counts actually present in the loaded named SMART rows; null when not one of them carries a count. */
   rankFloor:number|null; rankCeiling:number|null;
   /** Tracked wallets whose valuation could satisfy a threshold right now, out of the wallets tracked at all. */
   walletsValued:number; walletsTracked:number;
@@ -36,13 +36,13 @@ export function filterTradesWithBreakdown(events:TradeEvent[],filter:TradeFilter
   let hiddenBySide=0,hiddenByCohort=0,hiddenByWallet=0,hiddenByRank=0,hiddenUnderMinimum=0,hiddenUsdUnknown=0;
   let unrankedLoaded=0,shownUnranked=0,rankFloor:number|null=null,rankCeiling:number|null=null;
   for(const e of events){
-    const named = e.kind === "fomo" && Boolean(e.wallet && e.handle);
+    const named = e.kind === "smart" && Boolean(e.wallet && e.handle);
     const rank = typeof e.followers === "number" && Number.isFinite(e.followers) ? e.followers : null;
     if(named && rank === null) unrankedLoaded++;
     if(named && rank !== null){rankFloor=rankFloor===null||rank<rankFloor?rank:rankFloor;rankCeiling=rankCeiling===null||rank>rankCeiling?rank:rankCeiling;}
     const significant = Number.isFinite(e.usd) && (e.usd ?? -1) >= filter.minimum;
-    const influencer = notableFomo(e, filter.influencerFollowers);
-    const cohort = filter.cohort === "all" || filter.cohort === "named" && Boolean(e.handle) || filter.cohort === "fomo" && e.kind === "fomo" || filter.cohort === "followed" && followed.includes(walletId(e));
+    const influencer = notableSmart(e, filter.influencerFollowers);
+    const cohort = filter.cohort === "all" || filter.cohort === "named" && Boolean(e.handle) || filter.cohort === "smart" && e.kind === "smart" || filter.cohort === "followed" && followed.includes(walletId(e));
     const side = filter.side === "all" || e.side === filter.side;
     const baseline = e.wallet == null ? undefined : baselines.get(snapshotKey(e.chain, e.wallet));
     const walletMatches=!filter.walletMinimum || Boolean(baseline && baseline.status==='fresh' && baseline.balanceComplete && baseline.checkedAt!=null && baseline.nextCheckAt>now && (baseline.balanceUsd??-1)>=filter.walletMinimum);
@@ -56,11 +56,11 @@ export function filterTradesWithBreakdown(events:TradeEvent[],filter:TradeFilter
   }
   return {trades,breakdown:{loaded:events.length,shown:trades.length,hiddenBySide,hiddenByCohort,hiddenByWallet,hiddenByRank,hiddenUnderMinimum,hiddenUsdUnknown,unrankedLoaded,shownUnranked,rankFloor,rankCeiling,walletsValued,walletsTracked:baselines.size}};
 }
-/** A named FOMO wallet counts as notable at or above the rank floor. A wallet whose follower count was never
+/** A named SMART wallet counts as notable at or above the rank floor. A wallet whose follower count was never
  *  recorded stays visible as named-but-unranked: a missing count is not a count of zero, and no threshold can
  *  rank it, so excluding it would hide that trade at every setting including 0. */
-export function notableFomo(e:TradeEvent, minimumFollowers:number):boolean {
-  if(e.kind !== "fomo" || !e.wallet || !e.handle) return false;
+export function notableSmart(e:TradeEvent, minimumFollowers:number):boolean {
+  if(e.kind !== "smart" || !e.wallet || !e.handle) return false;
   return typeof e.followers === "number" && Number.isFinite(e.followers) ? e.followers >= minimumFollowers : true;
 }
 /** Hidden-row counts in display order. A reason is reported whenever it hides something, and also whenever its
@@ -69,7 +69,7 @@ export function hiddenReasons(filter:TradeFilter,b:TradeFilterBreakdown):HiddenR
   const all:(HiddenReason&{always:boolean})[]=[
     {key:"size",count:b.hiddenUnderMinimum,label:"under the trade-size floor",always:filter.minimum>0},
     {key:"usd",count:b.hiddenUsdUnknown,label:"no USD value reported by the source",always:false},
-    {key:"rank",count:b.hiddenByRank,label:"below the FOMO rank floor",always:filter.influencerFollowers>0},
+    {key:"rank",count:b.hiddenByRank,label:"below the SMART rank floor",always:filter.influencerFollowers>0},
     {key:"side",count:b.hiddenBySide,label:"excluded by the side selector",always:filter.side!=="all"},
     {key:"cohort",count:b.hiddenByCohort,label:"excluded by the cohort selector",always:filter.cohort!=="all"},
     {key:"wallet",count:b.hiddenByWallet,label:"excluded by the wallet valuation gate",always:Boolean(filter.walletMinimum)},
@@ -89,7 +89,7 @@ export function walletGateState(breakdown?:TradeFilterBreakdown):WalletGateState
  *  division ("derived") from one over a provider's rounded inputs ("provider-estimated"), and "estimated" now
  *  means only "archived before that split was recorded" while reading identically to the old label. */
 export const QUANTITY_SOURCE_LABELS:Record<TradeEvent["quantitySource"],{short:string;title:string}>={
-  decoded:{short:"decoded",title:"Token amount read off the chain here: a Solana swap delta or a Robinhood Transfer's own data word."},
+  decoded:{short:"decoded",title:"Token amount read off the chain here: a Monad Swap or Transfer log's own data word."},
   derived:{short:"derived",title:"This row's own USD divided by its own price, both decoded here. Exact arithmetic you can re-check, not a guess."},
   "provider-estimated":{short:"provider est.",title:"The same division over a provider's USD and price, so it inherits whatever that provider rounded."},
   estimated:{short:"estimated · legacy",title:"Archived before decoded and provider inputs were labelled apart, so which of the two this division used was not recorded."},
@@ -112,7 +112,7 @@ export function tradeMarkers(events:TradeEvent[],candles:MarketCandle[],interval
     const key=`${i}:${e.side}`;const bucket=buckets.get(key)??{time:times[i],side:e.side,events:[]};bucket.events.push(e);buckets.set(key,bucket);
   }
   const markers=[...buckets.values()].map(b=>{
-    const picked=b.events.find(e=>e.id===selected);const named=picked??b.events.find(e=>followed.includes(walletId(e)))??b.events.find(e=>e.kind==="fomo"&&e.handle);
+    const picked=b.events.find(e=>e.id===selected);const named=picked??b.events.find(e=>followed.includes(walletId(e)))??b.events.find(e=>e.kind==="smart"&&e.handle);
     const usd=b.events.reduce((s,e)=>s+(e.usd??0),0);
     return {time:b.time/1000,position:b.side==="buy"?"belowBar" as const:"aboveBar" as const,shape:b.side==="buy"?"arrowUp" as const:"arrowDown" as const,color:picked?"#69acff":b.side==="buy"?"#42c99a":"#ef7885",text:named?`${named.handle??named.wallet?.slice(0,6)??"Trade"}${b.events.length>1?` +${b.events.length-1}`:""}`:"",size:picked?1.2:usd>=5000?0.8:0.5};
   }).sort((a,b)=>a.time-b.time);

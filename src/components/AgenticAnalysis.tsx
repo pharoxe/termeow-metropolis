@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
+import { useSendTransaction, useWallets } from "@privy-io/react-auth";
+import { parseUnits } from "viem";
 import type { Candle, OnchainMarket, PublicConfig } from "../types";
 import { analyzeToken, type AgentTradeSetup, type AnalysisFlow } from "../lib/agenticAnalysis";
-import { api, deepFind } from "../api/client";
+import { api } from "../api/client";
 import { money, pct, signedMoney } from "../lib/format";
+import { NATIVE_MON } from "../lib/swapAssets";
 import { useNotifications } from "./NotificationSystem";
 import { hasPrivy } from "../auth/WalletProviders";
-import { useFundingNetwork } from "../features/NetworkContext";
+import { MONAD_CHAIN } from "../features/NetworkContext";
 
 type Props = {
   open: boolean;
@@ -14,23 +16,20 @@ type Props = {
   candles: Candle[];
   /** One named Tier A flow window from /api/flow/token; null until the poll has windows. */
   flow: AnalysisFlow | null;
+  /** Nansen flow intelligence for the token (/api/onchain/smart-money/:token/flows); null while loading or unconfigured. */
   provider: unknown;
   config: PublicConfig;
   onClose(): void;
 };
-
-function decodeBase64(value: string) {
-  const binary = atob(value);
-  return Uint8Array.from(binary, character => character.charCodeAt(0));
-}
+type EvmTx = { to: string; data: string; value?: string };
 
 function PrivyAgenticAnalysisPanel(props: Props) {
   const { wallets } = useWallets();
-  const { signAndSendTransaction } = useSignAndSendTransaction();
-  const wallet = wallets[0];
-  return <AnalysisSurface {...props} walletAddress={wallet?.address} send={wallet ? async transaction => {
-    const result = await signAndSendTransaction({ transaction, wallet, chain: "solana:mainnet" });
-    return Array.from(result.signature).map(byte => byte.toString(16).padStart(2, "0")).join("");
+  const { sendTransaction } = useSendTransaction();
+  const wallet = wallets.find(item => ["privy", "privy-v2"].includes(item.walletClientType)) ?? wallets[0];
+  return <AnalysisSurface {...props} walletAddress={wallet?.address} send={wallet ? async (tx) => {
+    const result = await sendTransaction({ to: tx.to, data: tx.data, ...(tx.value && /^\d+$/.test(tx.value) ? { value: BigInt(tx.value) } : {}), chainId: MONAD_CHAIN.id }, { address: wallet.address });
+    return result.hash;
   } : undefined} />;
 }
 
@@ -38,15 +37,15 @@ export function AgenticAnalysisPanel(props: Props) {
   return hasPrivy ? <PrivyAgenticAnalysisPanel {...props} /> : <AnalysisSurface {...props} />;
 }
 
-function AnalysisSurface({ open, market, candles, flow, provider, config, onClose, walletAddress, send }: Props & { walletAddress?: string; send?: (transaction: Uint8Array) => Promise<string> }) {
+function AnalysisSurface({ open, market, candles, flow, provider, config, onClose, walletAddress, send }: Props & { walletAddress?: string; send?: (tx: EvmTx) => Promise<string> }) {
   const { notify } = useNotifications();
-  const { network } = useFundingNetwork();
   const [selected, setSelected] = useState<AgentTradeSetup | null>(null);
-  const [notional, setNotional] = useState("100");
+  const [notional, setNotional] = useState("10");
   const [slippage, setSlippage] = useState("0.5");
   const [reviewed, setReviewed] = useState(false);
   const [executionMessage, setExecutionMessage] = useState("");
   const analysis = useMemo(() => analyzeToken({ market, candles, flow, provider }), [market, candles, flow, provider]);
+  const kuru = config.routers.find(router => router.id === "kuru");
 
   useEffect(() => {
     if (!open) return;
@@ -69,17 +68,17 @@ function AnalysisSurface({ open, market, candles, flow, provider, config, onClos
     setExecutionMessage("");
   };
   const execute = async () => {
-    if (!selected || !walletAddress || !reviewed || !send || network !== "solana") return;
-    setExecutionMessage("Preparing the Privy wallet transaction…");
+    if (!selected || !walletAddress || !reviewed || !send) return;
+    setExecutionMessage("Routing through Kuru Flow…");
     try {
-      const input = { chain: "solana" as const, router: "jupiter" as const, inputMint: config.usdcMint, outputMint: market.mint, amount: String(Math.round(Number(notional) * 1_000_000)), slippageBps: Math.round(Number(slippage) * 100), walletAddress };
+      const input = { chain: "monad" as const, router: "kuru" as const, inputMint: NATIVE_MON, outputMint: market.mint, amount: parseUnits(notional || "0", 18).toString(), slippageBps: Math.round(Number(slippage) * 100), walletAddress };
       const quote = await api.quote(input);
       const payload = await api.transaction({ ...input, quoteId: quote.quoteId });
-      const base64 = deepFind(payload, ["transaction", "swapTransaction", "unsignedTransaction", "serializedTransaction"]);
-      if (typeof base64 !== "string") throw new Error("The selected router did not return a recognizable unsigned transaction");
-      const signature = await send(decodeBase64(base64));
-      setExecutionMessage(`Submitted · ${signature.slice(0, 12)}…`);
-      notify({ title: "AGENT TRADE SUBMITTED", message: `${market.symbol} execution was submitted successfully.`, tone: "success" });
+      const transaction = payload.transaction as EvmTx | undefined;
+      if (!transaction?.to || !transaction.data) throw new Error("Kuru Flow did not return a complete Monad transaction");
+      const hash = await send(transaction);
+      setExecutionMessage(`Submitted · ${hash.slice(0, 12)}…`);
+      notify({ title: "AGENT TRADE SUBMITTED", message: `${market.symbol} buy was submitted on Monad.`, tone: "success" });
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       setExecutionMessage(message);
@@ -90,7 +89,7 @@ function AnalysisSurface({ open, market, candles, flow, provider, config, onClos
   return <div className="analysis-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside className="analysis-drawer" role="dialog" aria-modal="true" aria-labelledby="agentic-analysis-title">
       <header className="analysis-header">
-        <div><small>CLAWPUMP SIGNAL SYNTHESIS</small><h2 id="agentic-analysis-title">ANALYZE {market.symbol}</h2></div>
+        <div><small>CHART · FLOW · NANSEN SYNTHESIS</small><h2 id="agentic-analysis-title">ANALYZE {market.symbol}</h2></div>
         <button type="button" className="analysis-close" aria-label="Close analysis" onClick={onClose}>×</button>
       </header>
 
@@ -122,16 +121,16 @@ function AnalysisSurface({ open, market, candles, flow, provider, config, onClos
       </div>
 
       {selected && <section className="analysis-confirmation">
-        <div className="ph"><span className="pt">CONFIRM OPTION {selected.option}</span><span className="pm">AUTOMATED SPOT INTENT</span></div>
-        <p>The agent will monitor every listed condition, request the route when they converge, and execute only inside these limits.</p>
+        <div className="ph"><span className="pt">CONFIRM OPTION {selected.option}</span><span className="pm">SPOT BUY · KURU FLOW</span></div>
+        <p>Buys now at the routed price, inside these limits. To wait for the conditions instead, ask the agent to arm it as an automation.</p>
         <div className="analysis-order-grid">
-          <label>NOTIONAL USDC<input type="number" min="1" step="1" value={notional} onChange={(event) => setNotional(event.target.value)} /></label>
+          <label>SPEND MON<input type="number" min="0.01" step="any" value={notional} onChange={(event) => setNotional(event.target.value)} /></label>
           <label>MAX SLIPPAGE %<input type="number" min="0.01" max="5" step="0.01" value={slippage} onChange={(event) => setSlippage(event.target.value)} /></label>
         </div>
         <div className="analysis-order-summary"><span>SIDE <b className="up">BUY</b></span><span>ENTRY <b>{money(selected.entryPrice)}</b></span><span>EXIT <b>{selected.exitPrice ? money(selected.exitPrice) : "CONDITION-LED"}</b></span></div>
         <label className="analysis-review"><input type="checkbox" checked={reviewed} onChange={(event) => setReviewed(event.target.checked)} /><span>I reviewed the trigger, amount, slippage, and exit logic.</span></label>
-        <div className="session-guard"><b>PRIVY EMBEDDED WALLET</b><span>Execution requires the Solana wallet and a final user confirmation.</span></div>
-        <button type="button" className="primary analysis-execute" disabled={network !== "solana" || !walletAddress || !reviewed || !(Number(notional) > 0)} onClick={() => void execute()}>{network !== "solana" ? "SWITCH TO SOLANA" : walletAddress ? "EXECUTE TRADE" : "LOG IN TO EXECUTE"}</button>
+        <div className="session-guard"><b>PRIVY EMBEDDED WALLET</b><span>Execution requires your Monad wallet and a final confirmation in Privy.</span></div>
+        <button type="button" className="primary analysis-execute" disabled={!kuru?.available || !walletAddress || !reviewed || !(Number(notional) > 0)} onClick={() => void execute()}>{walletAddress ? "EXECUTE TRADE" : "LOG IN TO EXECUTE"}</button>
         {executionMessage && <p className="analysis-execution-message" role="status">{executionMessage}</p>}
       </section>}
 

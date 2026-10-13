@@ -9,10 +9,10 @@ export const SOURCE_WARN_MS = 5 * 60_000;
 export const EM_DASH = "—";
 
 export type SourceTone = "good" | "warn" | "bad" | "off";
-export type SourceLabel = "OWN" | "PUMP" | "GECKO";
+export type SourceLabel = "OWN" | "GECKO";
 export type SourceChipState = { label: SourceLabel; tone: SourceTone; title: string };
 
-const SOURCE_LABELS: Record<SourceChip["name"], SourceLabel> = { own: "OWN", pumpfun: "PUMP", geckoterminal: "GECKO" };
+const SOURCE_LABELS: Record<SourceChip["name"], SourceLabel> = { own: "OWN", geckoterminal: "GECKO" };
 
 /** Age of `time` relative to `now` as 12s / 3m / 2h / 1d; em-dash when the time is unknown. */
 /** Compact duration ("42s", "39m", "2h", "3d") for a non-negative span in ms; the single formatter for ages and spans. */

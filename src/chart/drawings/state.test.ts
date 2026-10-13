@@ -149,7 +149,7 @@ describe("serialize / deserialize", () => {
 
 describe("storage helpers", () => {
   it("namespaces by instrument key", () => {
-    expect(storageKey("solana:9cRC")).toBe("drawings:solana:9cRC");
+    expect(storageKey("monad:0x12d5")).toBe("drawings:monad:0x12d5");
   });
   it("saves, loads, and removes the key when empty", () => {
     const storage = fakeStorage();

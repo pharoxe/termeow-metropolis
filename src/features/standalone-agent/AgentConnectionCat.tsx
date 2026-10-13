@@ -49,11 +49,11 @@ export function AgentConnectionCat() {
       const pulse = .83 + Math.sin(now / 310) * .1;
       context.textBaseline = "top";
       context.font = `${Math.max(2, Math.ceil(step * 1.32))}px "Cascadia Mono",monospace`;
-      context.shadowColor = "#45ff88";
+      context.shadowColor = "#b293fb";
       context.shadowBlur = 7 + pulse * 6;
       for (const point of points) {
         if (point.eye && Math.abs(point.y - 36) > 7 * blink) continue;
-        context.fillStyle = point.eye ? `rgba(112,255,155,${pulse})` : `rgba(52,226,116,${(.36 + point.darkness * .38) * pulse})`;
+        context.fillStyle = point.eye ? `rgba(178,147,251,${pulse})` : `rgba(182,157,241,${(.36 + point.darkness * .38) * pulse})`;
         context.fillText(point.glyph, x0 + point.x * step, y0 + point.y * step);
       }
       context.shadowBlur = 0;

@@ -7,14 +7,14 @@ import {
   DISCOVER_POLL_MS, WINDOW_CHIPS, changeCell, emptyCopy, rowKey, sourcesSummary, sourcesTitle, symbolLabel, txnsLabel, viewFor, windowParam,
   type DiscoverTab as DiscoverTabName, type WindowChip
 } from "../lib/discover";
-import { fomoCoverageLabel } from "../lib/fomoPanel";
+import { smartCoverageLabel } from "../lib/smartPanel";
 
 type OpenInstrument = (ref: InstrumentRef, symbol?: string) => void;
 
 function DiscoverRowItem({ row, selected, onOpen }: { row: DiscoverRow; selected?: string; onOpen?: OpenInstrument }) {
   const change = changeCell(row.changePct);
   return (
-    <tr className={(row.chain === "solana" ? row.token === selected : row.token.toLowerCase() === selected?.toLowerCase()) ? "selected" : ""} title={row.token} onClick={() => onOpen?.({ chain: row.chain, address: row.token }, row.symbol ?? undefined)}>
+    <tr className={row.token.toLowerCase() === selected?.toLowerCase() ? "selected" : ""} title={row.token} onClick={() => onOpen?.({ chain: row.chain, address: row.token }, row.symbol ?? undefined)}>
       <td>
         <button onClick={e=>{e.stopPropagation();onOpen?.({chain:row.chain,address:row.token},row.symbol??undefined);}}>{symbolLabel(row)}</button>
       </td>
@@ -24,8 +24,8 @@ function DiscoverRowItem({ row, selected, onOpen }: { row: DiscoverRow; selected
   );
 }
 
-/** Robinhood discovery view for the TRENDING / BIGGEST MOVERS / NEW / SMART HOLDERS tabs: polls /api/discover/robinhood every 30s. */
-export function DiscoverTab({ chain="robinhood", tab, onOpen, selected }: { chain?:Chain; tab: DiscoverTabName; onOpen?: OpenInstrument; selected?: string }) {
+/** Monad discovery view for the TRENDING / BIGGEST MOVERS / NEW / SMART HOLDERS tabs: polls /api/discover/monad every 30s. */
+export function DiscoverTab({ chain="monad", tab, onOpen, selected }: { chain?:Chain; tab: DiscoverTabName; onOpen?: OpenInstrument; selected?: string }) {
   const [windowChip, setWindowChip] = useState<WindowChip>("24H");
   const [feed, setFeed] = useState<DiscoverResponse | null>(null);
   const [failure, setFailure] = useState("");
@@ -57,7 +57,7 @@ export function DiscoverTab({ chain="robinhood", tab, onOpen, selected }: { chai
         {WINDOW_CHIPS.map((item) => <button key={item} type="button" className={windowChip === item ? "on" : ""} onClick={() => setWindowChip(item)}>{item}</button>)}
         <span className="pm" title={sourcesTitle(sources, now)}>{sourcesSummary(sources, shown?.stale)}</span>
       </div>
-      {view === "holders" ? <p className="pm discover-coverage" title="verified-FOMO buyers per this server's trader book; a wallet that later sold still counts">{fomoCoverageLabel(shown?.coverage)}</p> : null}
+      {view === "holders" ? <p className="pm discover-coverage" title="verified-SMART buyers per this server's trader book; a wallet that later sold still counts">{smartCoverageLabel(shown?.coverage)}</p> : null}
       {rows.length && shown ? (
         <table className="terminal-table launch-table discover-table">
           <thead><tr><th>TOKEN</th><th className="r">MCAP / LIQ</th><th className="r">CHG · VOL</th></tr></thead>

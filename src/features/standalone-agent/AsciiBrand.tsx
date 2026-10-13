@@ -40,7 +40,7 @@ export function AsciiBrand({ text = "TERMEOW" }: { text?: string }) {
       context.clearRect(0, 0, width, height);
       context.font = `700 ${Math.floor(height * .82)}px "Silkscreen", monospace`;
       context.textBaseline = "middle";
-      context.fillStyle = "rgba(69,255,136,.42)";
+      context.fillStyle = "rgba(178,147,251,.42)";
       context.fillText(text, 0, height * .53, width);
       context.font = '7px "Cascadia Mono", monospace';
       context.textBaseline = "top";
@@ -51,7 +51,7 @@ export function AsciiBrand({ text = "TERMEOW" }: { text?: string }) {
           if (!mask || mask[offset] < 65) continue;
           const pulse = .72 + .28 * Math.sin(time * .004 + x * .1);
           const glyph = GLYPHS[(Math.floor(x / 4) + Math.floor(y / 5) + tick) % GLYPHS.length];
-          context.fillStyle = `rgba(69,255,136,${pulse})`;
+          context.fillStyle = `rgba(178,147,251,${pulse})`;
           context.fillText(glyph, x, y);
         }
       }

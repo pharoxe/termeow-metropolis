@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import type {CrosshairBus} from '../lib/crosshairBus';
 import { useResource } from '../lib/resource';
 import type { ChartTileState } from '../lib/workspace';
-import { ThesisActivity } from './ThesisActivity';
 import { useAggregateFlow } from "../hooks/useAggregateFlow";
 import { TerminalCommand } from "../components/TerminalCommand";
 import { TraderInspector, TradeTape } from "../components/TraderContext";
@@ -22,7 +21,6 @@ import { ExecutionRail } from "../components/ExecutionRail";
 import { AuthControls } from "../auth/AuthControls";
 import { money, pct } from "../lib/format";
 import { atr, macd, rsi } from "../lib/indicators";
-import { MINT_RE } from "../lib/mint";
 import { extractAddress, type InstrumentRef } from "../lib/address";
 import { brandSuffix, instrumentKey, isValidInstrument, legacyMarket, sameInstrument } from "../lib/instrument";
 import { mcapScale, scaleCandlesToMcap } from "../lib/mcap";
@@ -37,16 +35,16 @@ import {
 } from "../lib/deskFlow";
 import { DrawingToolbar, type DrawingsApi, type DrawingsSnapshot } from "../chart/drawings";
 import { MarketStrips, SocialPanel, WatchPanel } from "../components/DeskPanels";
-import { FomoTapePanel } from "../components/FomoTapePanel";
+import { SmartTapePanel } from "../components/SmartTapePanel";
 import { ThemeToggle, useTheme } from "../components/ThemeToggle";
 import { FeatureSection } from "../features/WorkspaceFeatures";
 import { AccountScreen } from "../components/AccountScreens";
 import { AgenticAnalysisPanel } from "../components/AgenticAnalysis";
 import { SfxToggle, useNotifications } from "../components/NotificationSystem";
-import { useFundingNetwork } from "../features/NetworkContext";
+import { MONAD_PROFILE } from "../features/NetworkContext";
 import { AgentHeaderButton, useAgent } from "../features/voice-agent";
 import { recentRallyStructure } from "../lib/chartStructure";
-import { buildFomoMarkers } from "../lib/fomoMarkers";
+import { buildSmartMarkers } from "../lib/smartMarkers";
 
 type ChartUnit = "price" | "mcap";
 type Row = Record<string, unknown>;
@@ -105,7 +103,6 @@ function providerImageUrl(value: unknown): string | null {
 export type TileProps={onName:(key:string,name:string)=>void;config:PublicConfig;tile:ChartTileState;isActive:boolean;slots:{header:HTMLElement;discovery:HTMLElement;context:HTMLElement;rail:HTMLElement};onInstrument:(id:string,instrument:InstrumentRef)=>void;onInterval:(id:string,interval:string)=>void;onNew:(instrument:InstrumentRef)=>void;onSection:(section:string)=>void;onReplay:(id:string,time:number|null)=>void;linkedReplay?:{source:string;time:number|null;revision:number};crosshairBus:CrosshairBus;theme:"dark"|"light";setTheme:(value:"dark"|"light")=>void;onCrosshair:(id:string,time:number|null)=>void};
 export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,onInterval,onNew,onSection,onReplay,linkedReplay,crosshairBus,onCrosshair,theme,setTheme }: TileProps) {
 
-  const { network, setNetwork } = useFundingNetwork();
   const { notify } = useNotifications();
   const [section, setSectionLocal] = useState(() => new URLSearchParams(window.location.search).get("view") === "portfolio" ? "Portfolio" : "Trade");
   useEffect(()=>{if(isActive)onSection(section);},[isActive,section,onSection]);
@@ -114,7 +111,6 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
 
   const instrument=tile.instrument;
   const setInstrument=(next:InstrumentRef)=>onInstrument(tile.id,next);
-  const solana = instrument.chain === "solana";
   const [query, setQuery] = useState("");
   const interval=tile.interval;
   const setIntervalValue=(next:string)=>onInterval(tile.id,next);
@@ -126,7 +122,6 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
   const [indicators, setIndicators] = useState(()=>{try{return {...initialIndicators,...JSON.parse(localStorage.getItem(`tile-indicators:${tile.id}`)??'{}')};}catch{return initialIndicators;}});
   useEffect(()=>{try{localStorage.setItem(`tile-indicators:${tile.id}`,JSON.stringify(indicators));}catch{}},[indicators,tile.id]);
   const [error, setError] = useState("");
-  const [trenchSort, setTrenchSort] = useState<"hot" | "new" | "mcap" | "volume">("hot");
   /** Own-tape candles for the 5S/15S chips; null until the route answered (or while a minute+ interval is selected). */
   const capturedLoader = useRef<(()=>void)|null>(null);
   const [liveStats, setLiveStats] = useState<LiveCandleStats | null>(null);
@@ -168,17 +163,16 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
 
   const marketQuery=useResource(`market:${instrumentKey(instrument)}:${marketIntervalFor(interval)}`,()=>api.market(instrument.chain,instrument.address,marketIntervalFor(interval)),45000);
   const flowQuery=useResource(`flow:${instrumentKey(instrument)}:${marketIntervalFor(interval)}`,()=>api.flowToken(instrument.chain,instrument.address,marketIntervalFor(interval)),15000);
-  const boardQuery=useResource(isActive&&solana?'board':null,()=>api.board(),30000);
-  const trenchesQuery=useResource(isActive&&solana?`trenches:${trenchSort}`:null,()=>api.trenches(trenchSort),30000);
-  const holderQuery=useResource(isActive&&solana?`holders:${instrumentKey(instrument)}`:null,()=>api.holders(instrument.address),45000);
+  const trendingQuery=useResource(isActive?'discover:monad:trending:24h':null,()=>api.discover('monad','trending','24h'),60000);
+  const perpsQuery=useResource(isActive?'perps:monad':null,()=>api.perps(),15000);
+  const nansenFlowQuery=useResource(isActive?`smart-money:flows:${instrumentKey(instrument)}`:null,()=>api.smartMoneyFlows(instrument.address,'1d'),300000);
   const healthQuery=useResource('health',()=>api.health(),30000);
   const launchesQuery=useResource(`launches:${instrument.chain}`,()=>api.launches({chain:instrument.chain,window:'24h',stocks:true}),LAUNCH_POLL_MS);
   const capturedQuery=useResource(ownInterval?`captured:${instrumentKey(instrument)}:${ownInterval}`:null,()=>api.capturedCandles(instrument.chain,instrument.address,ownInterval!),OWN_TAPE_POLL_MS);
   const spot=marketQuery.data;
   const flowState=flowQuery.data;
-  const board=useMemo(()=>object(boardQuery.data),[boardQuery.data]);
-  const trenches=useMemo(()=>object(trenchesQuery.data),[trenchesQuery.data]);
-  const holders=useMemo(()=>object(holderQuery.data),[holderQuery.data]);
+  const trendingRows=trendingQuery.data?.rows??[];
+  const monPerp=perpsQuery.data?.markets.find(market=>market.symbol==="MON")??null;
   const health=healthQuery.data;
   const launchRows=useMemo(()=>launchesQuery.data?.launches??[],[launchesQuery.data]);
   const ownCandles=capturedQuery.data;
@@ -199,19 +193,16 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
     if (!isActive || !feed || lastNotifiedInstrument.current === instrumentKey(feed.instrument)) return;
     lastNotifiedInstrument.current = instrumentKey(feed.instrument);
     notify({ title: `${feed.instrument.symbol} LOADED`, message: "Market response received. Check the source status for live trade coverage and provider availability.", tone: "success" });
-  }, [feed, notify, solana, isActive]);
+  }, [feed, notify, isActive]);
   useEffect(() => {
     if (!isActive || !error || lastNotifiedError.current === error) return;
     lastNotifiedError.current = error;
     notify({ title: "FEED DEGRADED", message: error, tone: "warning" });
   }, [error, notify, isActive]);
-  const trenchRows = array(trenches.tokens);
-  const focusedTrench = solana ? trenchRows.find((item) => String(item.mintAddress) === instrument.address) || null : null;
-  const mergedProvider = solana ? { ...board, ...object(feed?.provider) } : {};
-  const tokenIconUrl = feed?.instrument.image ?? providerImageUrl([focusedTrench, feed?.provider]);
-  const analysisProvider = { ...mergedProvider, holders, trenches };
-  const clawSentiment = String(object(mergedProvider.get_indicators).sentiment || "").trim();
-  const regimeLabel = clawSentiment ? clawSentiment.toUpperCase() : "—";
+  const tokenIconUrl = feed?.instrument.image ?? providerImageUrl([feed?.provider]);
+  const analysisProvider = nansenFlowQuery.data ?? null;
+  /** Perps regime from Perpl's MON market: 24h mark change; "—" until Perpl answers. */
+  const regimeLabel = monPerp?.change24Pct == null ? "—" : monPerp.change24Pct >= 1 ? "BULLISH" : monPerp.change24Pct <= -1 ? "BEARISH" : "FLAT";
   const scale = feed ? mcapScale(feed) : { mcap: null, supply: null, source: null as "mcap" | "fdv" | null };
   const hasMcap = Boolean(scale.source && scale.supply);
   const useMcap = chartUnit === "mcap" && hasMcap;
@@ -260,9 +251,9 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
   // Participant activity is represented by identity-rich bubbles. Keep only event squares in the chart plugin,
   // avoiding the anonymous red/green arrow pile-ups that obscured recent candles.
   const chartMarkers = useMemo(()=>events.markers.filter(m=>m.shape==="square"),[events.markers]);
-  const fomoMarkers = useMemo(
-    () => buildFomoMarkers(flowState?.fomo?.fills ?? [], rawSpotCandles.map((candle) => candle.time), { theme }).markers,
-    [flowState?.fomo?.fills, rawSpotCandles, theme]
+  const smartMarkers = useMemo(
+    () => buildSmartMarkers(flowState?.smart?.fills ?? [], rawSpotCandles.map((candle) => candle.time), { theme }).markers,
+    [flowState?.smart?.fills, rawSpotCandles, theme]
   );
   const eventsMeta = [events.dropped ? `+${events.dropped} large prints capped` : "", events.beforeRange ? `${events.beforeRange} events off-chart` : ""].filter(Boolean).join(" · ");
   const liveMeta = liveStats && livePrints.length ? `LIVE ${liveStats.applied} ticked · ${liveStats.volumeOnly} vol-only` : "";
@@ -328,34 +319,22 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
     setQuery(symbol ? symbol.toUpperCase() : next.address);
     setError("");
   };
-  /** ClawPump lists, movers, and ticker search only ever yield Solana mints. */
-  const focusSolana = (nextMint: string, symbol?: string) => focusInstrument({ chain: "solana", address: nextMint }, symbol);
   const submitQuery = async () => {
     const text = query.trim();
     if (!text) return;
     const parsed = extractAddress(text);
     if (parsed && "error" in parsed) { setError(parsed.error); return; }
     if (parsed) { focusInstrument(parsed); return; }
-    const upper = text.toUpperCase();
-    const trenchHit = trenchRows.find((item) => {
-      const symbol = String(item.symbol || "").toUpperCase();
-      const name = String(item.name || "").toUpperCase();
-      const mintAddress = String(item.mintAddress || item.mint || item.contract || "");
-      return symbol === upper || name === upper || mintAddress === text || mintAddress.toUpperCase() === upper;
-    });
-    const trenchMint = String(trenchHit?.mintAddress || trenchHit?.mint || trenchHit?.contract || "");
-    if (trenchHit && MINT_RE.test(trenchMint)) { focusSolana(trenchMint, String(trenchHit.symbol || text)); return; }
     try {
+      // Local verified index first (MON, USDC, AUSD and every token this server has seen), then DexScreener on Monad.
+      const resolved = await api.resolveToken(text, "monad").catch(() => null);
+      const exact = resolved && !resolved.ambiguous ? resolved.match : null;
+      if (exact) { focusInstrument({ chain: "monad", address: exact.address }, exact.symbol); return; }
       const result = await api.search(text);
-      const data = object(result.data);
-      const rows = array(data.tokens || data.results || data.matches).concat(array(result.data));
-      const hit = rows.find((item) => {
-        const symbol = String(item.symbol || "").toUpperCase();
-        return symbol === upper || MINT_RE.test(String(item.address || item.mint || item.contract || ""));
-      }) || rows.find((item) => MINT_RE.test(String(item.address || item.mint || item.contract || "")));
-      const found = String(hit?.address || hit?.mint || hit?.contract || "");
-      if (found && MINT_RE.test(found)) focusSolana(found, String(hit?.symbol || text));
-      else setError(`No mint found for ${text}`);
+      const upper = text.toUpperCase();
+      const hit = result.candidates.find((item) => item.symbol?.toUpperCase() === upper) ?? result.candidates[0];
+      if (hit?.token) focusInstrument({ chain: "monad", address: hit.token }, hit.symbol ?? text);
+      else setError(`No Monad token found for ${text}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     }
@@ -379,42 +358,26 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
           <span className="brand-mark" aria-hidden="true"><img src="/termeow-logo.svg" alt="" /></span><strong>termeow</strong><b>{brandSuffix(instrument.chain)}</b>
         </div>
         <nav className="primary-navigation" aria-label="Main navigation">{["Trade", "Automation", "Portfolio"].map(item => <button key={item} aria-current={section === item ? "page" : undefined} className={section === item ? "active" : ""} onClick={() => setSection(item)}>{item}</button>)}</nav>
-        <nav className="mode-switch funding-network-picker header-network-picker" aria-label="Funding network">
-          <button type="button" className={network === "robinhood" ? "active" : ""} aria-pressed={network === "robinhood"} onClick={() => { setNetwork("robinhood"); notify({ title: "ROBINHOOD WALLET", message: "ETH funding is selected. Solana execution remains disabled until you switch back.", tone: "info" }); }}>ROBINHOOD</button>
-          <button type="button" className={network === "solana" ? "active" : ""} aria-pressed={network === "solana"} onClick={() => { setNetwork("solana"); notify({ title: "SOLANA WALLET", message: "SOL funding and Solana spot execution are selected.", tone: "info" }); }}>SOLANA</button>
-        </nav>
+        <span className="network-badge" title={`${MONAD_PROFILE.name} · chain ${MONAD_PROFILE.chainId} · ~${MONAD_PROFILE.blockMs} ms blocks`}><i aria-hidden="true" />{MONAD_PROFILE.name.toUpperCase()}{monPerp?.markPrice != null ? <b>MON {money(monPerp.markPrice)}</b> : null}</span>
         <ThemeToggle theme={theme} onChange={setTheme} />
         <SfxToggle />
         <AgentHeaderButton />
         <AuthControls />
       </header>
       {scannerSearch}
-      {legacy && <MarketStrips market={legacy} onPick={focusSolana} />}
+      {legacy && <MarketStrips market={legacy} movers={trendingRows} onPick={focusInstrument} />}
       {section !== "Trade" && <AccountScreen section={section as "Automation" | "Portfolio"} onBack={() => setSection("Trade")} />}
       </>,slots.header)}
       {isActive && createPortal(<>
         <WatchPanel
-
-          market={{ provider: mergedProvider } as OnchainMarket}
           selected={instrument.address}
           activeInstrument={instrument}
-          onSpot={focusSolana}
           onInstrument={focusInstrument}
           onNewChart={onNew}
-          trenches={trenchRows}
-          onTrenchSort={setTrenchSort}
         />
         <FeatureSection id="social" className="radar-panel discovery-live-feed" meta={<span className="social-live"><i /> LIVE</span>}>
-        {legacy && solana ? <SocialPanel
-          market={{ ...legacy, provider: mergedProvider }}
-          trench={focusedTrench}
-          onPick={focusSolana}
-          onInstrument={focusInstrument}
-        /> : solana ? (
-          <section className="panel radar-panel social-panel">
-            <p className="empty-copy">Fetching KOL, narrative, and social links for this mint.</p>
-          </section>
-        ) : <FomoTapePanel onInstrument={focusInstrument} onNewChart={onNew} />}
+        {legacy ? <SocialPanel market={legacy} onInstrument={focusInstrument} /> : null}
+        <SmartTapePanel onInstrument={focusInstrument} onNewChart={onNew} />
         </FeatureSection>
       </>,slots.discovery)}
         <section className={`panel chart-panel${chartExpanded ? " chart-expanded" : ""}`}>
@@ -438,7 +401,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
                 {chartUnitLabel && <em className={chartUnitLabel === "NO MCAP" ? "chart-unit warn" : "chart-unit"}>{chartUnitLabel}</em>}
                 {chartSub && <small className={`chart-sub${!useMcap ? " mcap-value" : ""}`}>{chartSub}</small>}
               </span>
-              <button type="button" className="analyze-trigger" title="Synthesize token data into executable trade setups" disabled={!solana || !feed || !feed.candles.length} onClick={() => { setAnalysisOpen(true); notify({ title: `ANALYZING ${feed?.instrument.symbol || "TOKEN"}`, message: "Synthesizing momentum, Tier A net flow, liquidity, whale flow, and project intelligence.", tone: "success" }); }}>✦ ANALYZE</button>
+              <button type="button" className="analyze-trigger" title="Synthesize token data into executable trade setups" disabled={!feed || !feed.candles.length} onClick={() => { setAnalysisOpen(true); notify({ title: `ANALYZING ${feed?.instrument.symbol || "TOKEN"}`, message: "Synthesizing momentum, Tier A net flow, liquidity and Nansen smart-money flow.", tone: "success" }); }}>✦ ANALYZE</button>
             </div>
           </div>
           <details className="chart-coverage">
@@ -450,7 +413,6 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
               </div>)}
             </dl>
           </details>
-          <ThesisActivity instrument={instrument} compact />
           <IndicatorBar value={indicators} onChange={setIndicators} />
           <div className="chart-tools" role="group" aria-label="Chart navigation tools">
             <span className="chart-tool-status" id="chart-navigation-help" title="Drag to pan · scroll/pinch to zoom · drag either axis to scale · double-click an axis to reset · focus chart for +/− and arrow keys">DRAG · SCROLL TO ZOOM</span>
@@ -473,7 +435,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
             </details>
           </div>
           {spotLoading ? (
-            <div className="integration-empty chart-loading"><span className="notification-pixel chart-loader" aria-hidden="true"><i /><i /><i /><i /></span><h2>LOADING {mintLabel}</h2><p>{error || "Fetching chart, intel, holders, and social for this contract."}</p></div>
+            <div className="integration-empty chart-loading"><span className="notification-pixel chart-loader" aria-hidden="true"><i /><i /><i /><i /></span><h2>LOADING {mintLabel}</h2><p>{error || "Fetching chart, flow and smart-money context for this contract."}</p></div>
           ) : candles.length ? <MarketChart
             ref={chartRef}
             candles={candles}
@@ -485,7 +447,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
             onLiveStats={setLiveStats}
             scaleMode={scaleMode}
             eventMarkers={chartMarkers}
-            fomoMarkers={fomoMarkers}
+            smartMarkers={smartMarkers}
             flow={aggregateChart}
             onSelectTime={pickCandle}
             onCrosshairTime={time=>onCrosshair(tile.id,time)}
@@ -504,7 +466,7 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
             <span>SUP <b>{money(technicals?.low, chartPriceCompact)}</b></span>
             <span>RES <b>{money(technicals?.high, chartPriceCompact)}</b></span>
             {aggregateCells.map(cell => <span key={cell.key} title={cell.title}>{cell.label} <b className={cell.tone}>{cell.value}</b></span>)}
-            <span>REGIME <b className={biasTone(regimeLabel)}>{regimeLabel}</b></span>
+            <span title={monPerp ? `Perpl MON-PERP mark ${money(monPerp.markPrice)} · OI ${monPerp.openInterest ?? "—"}` : "Perpl perps context"}>PERPS <b className={biasTone(regimeLabel)}>{regimeLabel}</b></span>
           </div>
         </section>
         {isActive && createPortal(<>
@@ -517,10 +479,9 @@ export function InstrumentTile({ onName,config,tile,isActive,slots,onInstrument,
         <div className="terminal-tape-slot">
           <TradeTape events={visibleTrades} selected={selectedTrade?.id??null} onSelect={selectTrade} loading={terminal.loading} hasMore={Boolean(terminal.nextCursor)} onMore={terminal.loadMore} paused={replayTime!=null} replayTime={replayTime} onReplay={setReplayTime} error={terminal.error}/>
         </div>
-        <ThesisActivity instrument={instrument} />
       </>,slots.context)}
       <TerminalCommand open={commandsOpen} onClose={()=>setCommandsOpen(false)} events={terminal.events} onSelect={selectTrade} onAction={action=>{if(action==="live"){setReplayTime(null);chartRef.current?.goToRealtime();}if(action==="fit")chartRef.current?.fitHistory();if(action==="reset")chartRef.current?.resetView();if(action==="expand")setChartExpanded(v=>!v);if(action==="replay")setReplayTime(t=>t==null?Date.now():null);}} />
-      {legacy && solana && <AgenticAnalysisPanel open={analysisOpen} market={legacy} candles={legacy.candles} flow={analysisFlow} provider={analysisProvider} config={config} onClose={() => setAnalysisOpen(false)} />}
+      {legacy && <AgenticAnalysisPanel open={analysisOpen} market={legacy} candles={legacy.candles} flow={analysisFlow} provider={analysisProvider} config={config} onClose={() => setAnalysisOpen(false)} />}
     </div>
   );
 }

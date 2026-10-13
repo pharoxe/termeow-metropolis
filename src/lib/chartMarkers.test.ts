@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LargePrint } from "../../shared/wire";
 import { LAUNCH_MARKER_SIZE, buildEventMarkers, largePrintText, mergeMarkers, sortMarkers, type ChartMarker } from "./chartMarkers";
 import { FLOW_PALETTE } from "./flowChart";
-import { MARKER_SIZE_BY_CLASS } from "./fomoMarkers";
+import { MARKER_SIZE_BY_CLASS } from "./smartMarkers";
 
 const MINUTE = 60_000;
 const T0 = 1_700_000_000_000;
@@ -71,13 +71,13 @@ describe("largePrintText", () => {
 });
 
 describe("mergeMarkers / sortMarkers", () => {
-  it("merges FOMO and event markers into one time-sorted list, below before above, stable within ties", () => {
-    const fomo: ChartMarker[] = [
+  it("merges SMART and event markers into one time-sorted list, below before above, stable within ties", () => {
+    const smart: ChartMarker[] = [
       { time: 20, position: "aboveBar", shape: "arrowDown", color: "#f00", text: "alice" },
       { time: 10, position: "belowBar", shape: "arrowUp", color: "#0f0", text: "bob" }
     ];
     const events = buildEventMarkers({ largePrints: [print(T0, "buy", 900)] }, [T0 / 1000 * 1000], { theme: "dark" }).markers;
-    const merged = mergeMarkers(fomo, events, undefined);
+    const merged = mergeMarkers(smart, events, undefined);
     expect(merged.map((marker) => marker.time)).toEqual([10, 20, T0 / 1000]);
     const tie = sortMarkers([
       { time: 5, position: "aboveBar", text: "a" },

@@ -44,7 +44,7 @@ export type FlowPalette = {
 /**
  * Muted variants are the buy/sell colors at 0.25 alpha so the tape boundary stays visible.
  * buy/sell are the same direction hues the candles, drawings and trade markers use (--up / --down): the flow bars
- * and the FOMO arrows sit on the same pane, so a second "buy green" here would mean two greens on one chart.
+ * and the SMART arrows sit on the same pane, so a second "buy green" here would mean two greens on one chart.
  */
 export const FLOW_PALETTE: Record<FlowChartTheme, FlowPalette> = {
   dark: {
@@ -54,8 +54,8 @@ export const FLOW_PALETTE: Record<FlowChartTheme, FlowPalette> = {
     sellMuted: "rgba(239,120,133,0.25)",
     cvd: "#28d7d0",
     pair: ["#f5cf5f", "#d08cff", "#64b5ff", "#ff9f0a"],
-    marker: "#8c9a91",
-    midline: "#526357"
+    marker: "#908c9a",
+    midline: "#575263"
   },
   light: {
     buy: "#0a7a4b",
@@ -64,8 +64,8 @@ export const FLOW_PALETTE: Record<FlowChartTheme, FlowPalette> = {
     sellMuted: "rgba(192,45,67,0.25)",
     cvd: "#0e8f8a",
     pair: ["#b58a00", "#8a3fd9", "#1f6fd0", "#d97706"],
-    marker: "#516058",
-    midline: "#7b8d82"
+    marker: "#565160",
+    midline: "#807b8d"
   }
 };
 

@@ -13,7 +13,7 @@ import {
 const NOW = 1_800_000_000_000;
 
 function chip(over: Partial<SourceChip> = {}): SourceChip {
-  return { name: "pumpfun", lastOkAt: null, lastError: null, ...over };
+  return { name: "geckoterminal", lastOkAt: null, lastError: null, ...over };
 }
 
 describe("printAgeLabel", () => {
@@ -38,20 +38,19 @@ describe("printAgeLabel", () => {
 describe("sourceChipState", () => {
   it("maps source names to the panel labels", () => {
     expect(sourceChipState(chip({ name: "own" }), NOW).label).toBe("OWN");
-    expect(sourceChipState(chip({ name: "pumpfun" }), NOW).label).toBe("PUMP");
     expect(sourceChipState(chip({ name: "geckoterminal" }), NOW).label).toBe("GECKO");
   });
 
   it("is good when the last ok is within 60s and there is no error", () => {
     const state = sourceChipState(chip({ lastOkAt: NOW - 30_000 }), NOW);
     expect(state.tone).toBe("good");
-    expect(state.title).toBe("PUMP · last ok 30s ago");
+    expect(state.title).toBe("GECKO · last ok 30s ago");
   });
 
   it("is warn when an error exists but the last ok is within 5 minutes", () => {
     const state = sourceChipState(chip({ lastOkAt: NOW - 4 * 60_000, lastError: "429" }), NOW);
     expect(state.tone).toBe("warn");
-    expect(state.title).toBe("PUMP · last ok 4m ago · 429");
+    expect(state.title).toBe("GECKO · last ok 4m ago · 429");
   });
 
   it("is warn when there is no error but the last ok is older than 60s", () => {
@@ -62,7 +61,7 @@ describe("sourceChipState", () => {
     expect(sourceChipState(chip({ lastOkAt: NOW - 6 * 60_000, lastError: "timeout" }), NOW).tone).toBe("bad");
     const never = sourceChipState(chip({ lastError: "boom" }), NOW);
     expect(never.tone).toBe("bad");
-    expect(never.title).toBe("PUMP · never ok · boom");
+    expect(never.title).toBe("GECKO · never ok · boom");
   });
 
   it("is off when the source has never succeeded and has no error", () => {
@@ -105,10 +104,10 @@ describe("windowRow", () => {
 });
 
 describe("largePrintRow", () => {
-  const print: LargePrint = { pair: "pairA", dex: "pumpswap", tx: "tx1", time: NOW - 90_000, side: "buy", usd: 2400, source: "pumpfun" };
+  const print: LargePrint = { pair: "pairA", dex: "kuru", tx: "tx1", time: NOW - 90_000, side: "buy", usd: 2400, source: "own" };
 
   it("formats a buy with dex and age", () => {
-    expect(largePrintRow(print, NOW)).toEqual({ key: "pairA:tx1", side: "BUY", tone: "up", usd: "$2.4K", dex: "PUMPSWAP", age: "2m" });
+    expect(largePrintRow(print, NOW)).toEqual({ key: "pairA:tx1", side: "BUY", tone: "up", usd: "$2.4K", dex: "KURU", age: "2m" });
   });
 
   it("formats a sell and dashes a missing dex", () => {
@@ -137,11 +136,11 @@ describe("sinceAnchorLine", () => {
 describe("buildChartFlowInput", () => {
   const bar = { t: 0, buyUsd: 0, sellUsd: 0, buys: 0, sells: 0, unpricedBuys: 0, unpricedSells: 0, delta: 0, cvd: 0 };
   const pair = (pairAddress: string, tier: "A" | "B") => ({
-    chain: "solana" as const, dex: "x", pairAddress, baseMint: "m", quoteMint: null, liquidityUsd: null, volume24Usd: null, share24: null,
+    chain: "monad" as const, dex: "x", pairAddress, baseMint: "m", quoteMint: null, liquidityUsd: null, volume24Usd: null, share24: null,
     txns: { m5: null, h1: null, h6: null, h24: null }, tier, sources: [], bars: [bar]
   });
   const flow = {
-    chain: "solana", address: "m", interval: "1m", anchor: "window", bars: [bar],
+    chain: "monad", address: "m", interval: "1m", anchor: "window", bars: [bar],
     pairs: [pair("b1", "B"), pair("a1", "A"), pair("b2", "B"), pair("a2", "A")],
     coverage: { fraction: 1, firstPrintAt: 5, volumeShare: null, tierAPairs: 2, totalPairs: 4 },
     counts: { m5: null, h1: null, h6: null, h24: null }, observedAt: NOW, source: "ledger"

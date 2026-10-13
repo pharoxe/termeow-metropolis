@@ -1,9 +1,9 @@
-import type { DiscoverProvenance, DiscoverResponse, DiscoverRow, DiscoverSourceHealth, DiscoverView, DiscoverWindow, FomoCoverage, PairTxns } from "../../shared/wire";
+import type { DiscoverProvenance, DiscoverResponse, DiscoverRow, DiscoverSourceHealth, DiscoverView, DiscoverWindow, SmartCoverage, PairTxns } from "../../shared/wire";
 import { durationLabel, EM_DASH, printAgeLabel } from "./flowPanel";
 import { money, pct, shortAddress } from "./format";
-import { fomoCoverageLabel } from "./fomoPanel";
+import { smartCoverageLabel } from "./smartPanel";
 
-/** Pure helpers for the Robinhood discovery tabs (GET /api/discover/robinhood). No React, no Date.now(): callers pass `now`. */
+/** Pure helpers for the Monad discovery tabs (GET /api/discover/monad). No React, no Date.now(): callers pass `now`. */
 
 export const DISCOVER_POLL_MS = 30_000;
 export type DiscoverTab = "TRENDING" | "BIGGEST MOVERS" | "SMART HOLDERS" | "NEW";
@@ -18,7 +18,6 @@ const SOURCE_CHIPS: ReadonlyArray<[RegExp, string]> = [
   [/^geckoterminal trending/i, "GECKO TREND"],
   [/^geckoterminal new/i, "GECKO NEW"],
   [/^dexscreener/i, "DEXSCREENER"],
-  [/^robinhoodtrenches/i, "TRENCHES"],
   [/^trader book/i, "BOOK"],
   [/^erc20/i, "ERC20"]
 ];
@@ -88,17 +87,17 @@ export function disputedLabel(row: Pick<DiscoverRow, "disputed">): string | null
   return `DISPUTED ${row.disputed.map((field) => names[field] ?? field).join(", ")}`;
 }
 
-export type FomoCell = { text: string; title: string };
+export type SmartCell = { text: string; title: string };
 
 /**
- * Verified-FOMO buyers per the server's own book (null = the book holds no fills, shown as an em-dash, never 0);
+ * Verified-SMART buyers per the server's own book (null = the book holds no fills, shown as an em-dash, never 0);
  * the title always carries the coverage label so a count is read against the wallets actually watched.
  */
-export function fomoHoldersCell(row: Pick<DiscoverRow, "fomoHolders" | "trackedBuyers">, coverage: FomoCoverage | null): FomoCell {
-  const label = fomoCoverageLabel(coverage);
-  const tracked = row.trackedBuyers == null ? "" : ` · ${row.trackedBuyers} tracked buyers per robinhoodtrenches (their population, unofficial)`;
-  if (row.fomoHolders == null) return { text: EM_DASH, title: `no FOMO buy fills in this server's book for this token · ${label}${tracked}` };
-  return { text: String(row.fomoHolders), title: `${row.fomoHolders} distinct verified-FOMO buyers in the window · this server's book · ${label}${tracked}` };
+export function smartHoldersCell(row: Pick<DiscoverRow, "smartHolders" | "trackedBuyers">, coverage: SmartCoverage | null): SmartCell {
+  const label = smartCoverageLabel(coverage);
+  const tracked = row.trackedBuyers == null ? "" : ` · ${row.trackedBuyers} tracked buyers reported by the source`;
+  if (row.smartHolders == null) return { text: EM_DASH, title: `no SMART buy fills in this server's book for this token · ${label}${tracked}` };
+  return { text: String(row.smartHolders), title: `${row.smartHolders} distinct verified-SMART buyers in the window · this server's book · ${label}${tracked}` };
 }
 
 /** "3/4 SRC · STALE" header summary; a source is counted healthy when its last attempt succeeded and it is not stale. */
@@ -116,7 +115,7 @@ export function sourcesTitle(sources: ReadonlyArray<DiscoverSourceHealth>, now: 
 export function emptyCopy(feed: DiscoverResponse | null, failure: string): string {
   if (!feed) return failure ? `Discovery unavailable · ${failure}` : "Loading discovery rows…";
   if (feed.error) return `No rows · ${feed.error}`;
-  if (feed.view === "holders") return `No verified-FOMO buy fills in this server's book for this window · ${fomoCoverageLabel(feed.coverage)}`;
+  if (feed.view === "holders") return `No verified-SMART buy fills in this server's book for this window · ${smartCoverageLabel(feed.coverage)}`;
   const names = feed.sources.map((source) => source.name);
   return `No rows from ${names.length ? names.join(", ") : "any source"} in this window.`;
 }

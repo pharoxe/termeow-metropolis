@@ -12,8 +12,7 @@ import { TermeowAgentProvider } from "./features/voice-agent";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { Buffer } from "buffer/";
 
-// Solana's legacy transaction serializer and Privy's embedded-wallet bridge still
-// reference the Node global in a few browser paths.
+// Privy's embedded-wallet bridge still references the Node Buffer global in a few browser paths.
 if (typeof Reflect.get(globalThis, "Buffer") !== "function") {
   Reflect.set(globalThis, "Buffer", Buffer);
 }

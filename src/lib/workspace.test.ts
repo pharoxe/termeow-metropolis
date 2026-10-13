@@ -1,7 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
 import {initialWorkspace,addTile,closeTile,restoreWorkspace} from './workspace';
 import {resource} from './resource';
-const instrument={chain:'solana' as const,address:'So11111111111111111111111111111111111111112'};
+const instrument={chain:'monad' as const,address:'0x3bd359c1119da7da1d913d1c4d2b7c461115433a'};
 describe('chart workspace',()=>{
   it('preserves intervals, caps charts and keeps the final chart',()=>{
     let state=initialWorkspace(instrument);state.tiles[0].interval='1H';
@@ -13,7 +13,7 @@ describe('chart workspace',()=>{
   });
   it('rejects invalid saved tokens and duplicate IDs',()=>{
     const state=initialWorkspace(instrument);
-    const restored=restoreWorkspace({...state,activeId:'missing',tiles:[...state.tiles,...state.tiles,{id:'bad',instrument:{chain:'solana',address:'bad'}}]},instrument);
+    const restored=restoreWorkspace({...state,activeId:'missing',tiles:[...state.tiles,...state.tiles,{id:'bad',instrument:{chain:'monad',address:'bad'}}]},instrument);
     expect(restored.tiles).toHaveLength(1);expect(restored.activeId).toBe('chart-1');
   });
   it('shares requests and stops polling only after the final subscriber leaves',async()=>{

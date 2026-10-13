@@ -1,8 +1,8 @@
-import type { FomoFill, Side, TapePrint } from "../../shared/wire";
+import type { SmartFill, Side, TapePrint } from "../../shared/wire";
 
 export const AGENT_SIGNAL_MIN_USD = 1_000;
 
-export function isLargeAgentSignal(fill: Pick<FomoFill, "usd">) {
+export function isLargeAgentSignal(fill: Pick<SmartFill, "usd">) {
   return (fill.usd || 0) >= AGENT_SIGNAL_MIN_USD;
 }
 

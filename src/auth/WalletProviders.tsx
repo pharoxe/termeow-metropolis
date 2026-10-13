@@ -1,20 +1,10 @@
 import type { PropsWithChildren } from "react";
 import { PrivyProvider } from "@privy-io/react-auth";
-import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
-import { NetworkProvider, ROBINHOOD_CHAIN } from "../features/NetworkContext";
+import { NetworkProvider, MONAD_CHAIN } from "../features/NetworkContext";
 
 const privyAppId = import.meta.env.VITE_PRIVY_APP_ID as string | undefined;
-const solanaRpcUrl = typeof window === "undefined"
-  ? "https://api.mainnet-beta.solana.com"
-  : new URL("/api/rpc", window.location.origin).toString();
-const solanaMainnetRpc = {
-  rpc: createSolanaRpc(solanaRpcUrl),
-  // Signing broadcasts through our same-origin Helius/Alchemy proxy. A websocket
-  // subscription is still required by Privy while it waits for confirmation.
-  rpcSubscriptions: createSolanaRpcSubscriptions("wss://api.mainnet-beta.solana.com"),
-  blockExplorerUrl: "https://explorer.solana.com"
-};
 
+/** Privy embedded EVM wallets on Monad: social login, one wallet per user, Monad as the only and default chain. */
 export function WalletProviders({ children }: PropsWithChildren) {
   if (!privyAppId) return <NetworkProvider>{children}</NetworkProvider>;
   return (
@@ -22,20 +12,18 @@ export function WalletProviders({ children }: PropsWithChildren) {
       appId={privyAppId}
       config={{
         appearance: {
-          theme: "#050705",
-          accentColor: "#39ff88",
+          theme: "light",
+          accentColor: "#8b6cf6",
           landingHeader: "Log in to termeow",
-          loginMessage: "Create your private Solana and Robinhood Chain wallets.",
-          walletChainType: "ethereum-and-solana"
+          loginMessage: "Create your private Monad wallet.",
+          walletChainType: "ethereum-only"
         },
         loginMethods: ["email", "google", "twitter", "discord"],
-        supportedChains: [ROBINHOOD_CHAIN],
-        defaultChain: ROBINHOOD_CHAIN,
+        supportedChains: [MONAD_CHAIN],
+        defaultChain: MONAD_CHAIN,
         embeddedWallets: {
-          ethereum: { createOnLogin: "users-without-wallets" },
-          solana: { createOnLogin: "users-without-wallets" }
-        },
-        solana: { rpcs: { "solana:mainnet": solanaMainnetRpc } }
+          ethereum: { createOnLogin: "users-without-wallets" }
+        }
       }}
     >
       <NetworkProvider>{children}</NetworkProvider>

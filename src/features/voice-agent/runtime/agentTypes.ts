@@ -21,14 +21,14 @@ export interface AgentMessage {
 
 export type AgentHudWindow = {
   type: "market_chart";
-  chain: "solana" | "robinhood";
+  chain: "monad";
   tokenAddress: string;
   tokenSymbol?: string;
   timeframe: string;
   requestedAt: number;
 } | {
   type: "order_flow";
-  chain: "solana" | "robinhood";
+  chain: "monad";
   tokenAddress: string;
   tokenSymbol?: string;
   windowMinutes: number;

@@ -4,12 +4,12 @@ import {
   brandSuffix, instrumentLabel, isEmptyMarket, isValidInstrument, legacyMarket, sameInstrument, tapeRows, tradeLinks
 } from "./instrument";
 
-const ANSEM = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
+const SOLANA_MINT = "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 const FATCOIN = "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01";
 
 function market(overrides: Partial<MarketResponse> = {}): MarketResponse {
   return {
-    instrument: { chain: "robinhood", address: FATCOIN, symbol: "FAT", name: "Fatcoin", image: null, socials: [], websites: [] },
+    instrument: { chain: "monad", address: FATCOIN, symbol: "FAT", name: "Fatcoin", image: null, socials: [], websites: [] },
     priceUsd: 0.5,
     marketCapUsd: 1000,
     fdvUsd: null,
@@ -29,41 +29,38 @@ function market(overrides: Partial<MarketResponse> = {}): MarketResponse {
 
 describe("instrument labels", () => {
   it("names the chain on the slab and the brand", () => {
-    expect(instrumentLabel("solana")).toBe("SOLANA SPOT");
-    expect(instrumentLabel("robinhood")).toBe("ROBINHOOD SPOT");
-    expect(brandSuffix("solana")).toBe("sol");
-    expect(brandSuffix("robinhood")).toBe("rhc");
+    expect(instrumentLabel("monad")).toBe("MONAD SPOT");
+    expect(brandSuffix("monad")).toBe("mon");
   });
 });
 
 describe("isValidInstrument / sameInstrument", () => {
   it("validates per chain", () => {
-    expect(isValidInstrument({ chain: "solana", address: ANSEM })).toBe(true);
-    expect(isValidInstrument({ chain: "solana", address: FATCOIN })).toBe(false);
-    expect(isValidInstrument({ chain: "robinhood", address: FATCOIN })).toBe(true);
-    expect(isValidInstrument({ chain: "robinhood", address: ANSEM })).toBe(false);
+    expect(isValidInstrument({ chain: "monad", address: FATCOIN })).toBe(true);
+    expect(isValidInstrument({ chain: "monad", address: SOLANA_MINT })).toBe(false);
   });
-  it("compares Robinhood addresses case-insensitively and Solana exactly", () => {
-    expect(sameInstrument({ chain: "robinhood", address: FATCOIN }, { chain: "robinhood", address: FATCOIN.toUpperCase().replace("0X", "0x") })).toBe(true);
-    expect(sameInstrument({ chain: "solana", address: ANSEM }, { chain: "solana", address: ANSEM.toLowerCase() })).toBe(false);
-    expect(sameInstrument({ chain: "solana", address: ANSEM }, { chain: "robinhood", address: ANSEM })).toBe(false);
+  it("compares Monad addresses case-insensitively", () => {
+    expect(sameInstrument({ chain: "monad", address: FATCOIN }, { chain: "monad", address: FATCOIN.toUpperCase().replace("0X", "0x") })).toBe(true);
+    expect(sameInstrument({ chain: "monad", address: FATCOIN }, { chain: "monad", address: "0x0000000000000000000000000000000000000001" })).toBe(false);
   });
 });
 
 describe("tradeLinks", () => {
-  it("builds the Uniswap deep link and the DexScreener pair URL", () => {
+  it("builds the Kuru, nad.fun, explorer and DexScreener pair links", () => {
     expect(tradeLinks(FATCOIN, "0xpair")).toEqual({
-      uniswap: `https://app.uniswap.org/swap?chain=robinhood&outputCurrency=${FATCOIN}`,
-      dexscreener: "https://dexscreener.com/robinhood/0xpair"
+      kuru: `https://www.kuru.io/swap?to=${FATCOIN}`,
+      nadfun: `https://nad.fun/tokens/${FATCOIN}`,
+      dexscreener: "https://dexscreener.com/monad/0xpair",
+      explorer: `https://monadvision.com/token/${FATCOIN}`
     });
   });
   it("falls back to the token page when no primary pair is known", () => {
-    expect(tradeLinks(FATCOIN, null).dexscreener).toBe(`https://dexscreener.com/robinhood/${FATCOIN}`);
+    expect(tradeLinks(FATCOIN, null).dexscreener).toBe(`https://dexscreener.com/monad/${FATCOIN}`);
   });
 });
 
 describe("legacyMarket", () => {
-  it("maps the neutral shape back onto the ClawPump panel shape without inventing values", () => {
+  it("maps the neutral shape back onto the legacy panel shape without inventing values", () => {
     const legacy = legacyMarket(market({ provider: { a: 1 } }));
     expect(legacy.mint).toBe(FATCOIN);
     expect(legacy.symbol).toBe("FAT");

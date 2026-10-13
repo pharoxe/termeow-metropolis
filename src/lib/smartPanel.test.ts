@@ -1,27 +1,27 @@
 import { describe, expect, it } from "vitest";
-import type { FomoBoardRow, FomoFill } from "../../shared/wire";
+import type { SmartBoardRow, SmartFill } from "../../shared/wire";
 import {
   BOARD_WINDOWS,
   COVERAGE_UNKNOWN,
-  FOMO_PROFILE_BASE,
+  SMART_PROFILE_BASE,
   WILSON_MIN_CLOSED,
-  fomoBoardRowView,
-  fomoCoverageLabel,
-  fomoTapeRow,
-  fomoWindowRows,
+  smartBoardRowView,
+  smartCoverageLabel,
+  smartTapeRow,
+  smartWindowRows,
   followersLabel,
   profileHref,
   provenanceTag,
   truncationNote,
   walletLabel
-} from "./fomoPanel";
+} from "./smartPanel";
 
 const NOW = 1_800_000_000_000;
 const WALLET = "0x06de9c48b1e639ed5c13ec8fbd4080a38e39f2d1";
 
-function fill(overrides: Partial<FomoFill> = {}): FomoFill {
+function fill(overrides: Partial<SmartFill> = {}): SmartFill {
   return {
-    chain: "robinhood",
+    chain: "monad",
     token: "0x12d5ee7917ca430073c3a638ee1e6f0648a98a01",
     pair: "0x353f2bd390d8db7bfc9b3dd389f8b71e8df524fa",
     dex: "uniswap",
@@ -29,14 +29,14 @@ function fill(overrides: Partial<FomoFill> = {}): FomoFill {
     time: NOW - 90_000,
     side: "buy",
     usd: 1234,
-    trader: { address: WALLET, kind: "fomo", handle: "AvgJoesCrypto", followers: 12_400 },
+    trader: { address: WALLET, kind: "smart", handle: "AvgJoesCrypto", followers: 12_400 },
     ...overrides
   };
 }
 
-function boardRow(overrides: Partial<FomoBoardRow> = {}): FomoBoardRow {
+function boardRow(overrides: Partial<SmartBoardRow> = {}): SmartBoardRow {
   return {
-    chain: "robinhood",
+    chain: "monad",
     wallet: WALLET,
     handle: "AvgJoesCrypto",
     followers: 12_400,
@@ -50,7 +50,7 @@ function boardRow(overrides: Partial<FomoBoardRow> = {}): FomoBoardRow {
     wilsonLow: 0.3,
     lastSeenAt: NOW - 60_000,
     profileUrl: null,
-    kind: "fomo",
+    kind: "smart",
     ...overrides
   };
 }
@@ -62,12 +62,12 @@ describe("walletLabel / profileHref / followersLabel", () => {
     expect(walletLabel(WALLET, null)).toBe("0x06…f2d1");
   });
 
-  it("links out to fomo.family only when a handle is known, and prefers a server-supplied url", () => {
-    expect(profileHref("AvgJoesCrypto")).toBe(`${FOMO_PROFILE_BASE}AvgJoesCrypto`);
-    expect(profileHref("@AvgJoesCrypto")).toBe(`${FOMO_PROFILE_BASE}AvgJoesCrypto`);
-    expect(profileHref("a b/c")).toBe(`${FOMO_PROFILE_BASE}a%20b%2Fc`);
+  it("links out to Nansen smart money only when a handle is known, and prefers a server-supplied url", () => {
+    expect(profileHref("AvgJoesCrypto")).toBe(`${SMART_PROFILE_BASE}AvgJoesCrypto`);
+    expect(profileHref("@AvgJoesCrypto")).toBe(`${SMART_PROFILE_BASE}AvgJoesCrypto`);
+    expect(profileHref("a b/c")).toBe(`${SMART_PROFILE_BASE}a%20b%2Fc`);
     expect(profileHref(null)).toBeNull();
-    expect(profileHref(null, "https://fomo.family/profile/x")).toBe("https://fomo.family/profile/x");
+    expect(profileHref(null, "https://app.nansen.ai/profiler?chain=monad&address=x")).toBe("https://app.nansen.ai/profiler?chain=monad&address=x");
   });
 
   it("shows an em-dash for unknown follower counts instead of zero", () => {
@@ -78,30 +78,30 @@ describe("walletLabel / profileHref / followersLabel", () => {
   });
 });
 
-describe("fomoTapeRow", () => {
+describe("smartTapeRow", () => {
   it("formats a priced buy with handle, symbol and age", () => {
-    const row = fomoTapeRow(fill({ symbol: "pons" }), NOW);
+    const row = smartTapeRow(fill({ symbol: "pons" }), NOW);
     expect(row).toMatchObject({ label: "AvgJoesCrypto", side: "BUY", tone: "up", usd: "$1.23K", token: "PONS", age: "2m", followers: "12K" });
-    expect(row.href).toBe(`${FOMO_PROFILE_BASE}AvgJoesCrypto`);
+    expect(row.href).toBe(`${SMART_PROFILE_BASE}AvgJoesCrypto`);
     expect(row.title).toContain(WALLET);
   });
 
   it("keeps an unpriced fill unpriced and falls back to the short token address", () => {
-    const row = fomoTapeRow(fill({ usd: null, side: "sell", symbol: null, trader: { address: WALLET, kind: "fomo", handle: null, followers: null } }), NOW);
+    const row = smartTapeRow(fill({ usd: null, side: "sell", symbol: null, trader: { address: WALLET, kind: "smart", handle: null, followers: null } }), NOW);
     expect(row).toMatchObject({ usd: "—", side: "SELL", tone: "dn", label: "0x06…f2d1", href: null, followers: "—" });
     expect(row.token).toBe("0x12…8a01");
   });
 
   it("keys a row by chain, tx, pair and wallet so bundled multi-trader txs stay distinct", () => {
-    const a = fomoTapeRow(fill(), NOW);
-    const b = fomoTapeRow(fill({ trader: { address: "0xother", kind: "fomo", handle: null, followers: null } }), NOW);
+    const a = smartTapeRow(fill(), NOW);
+    const b = smartTapeRow(fill({ trader: { address: "0xother", kind: "smart", handle: null, followers: null } }), NOW);
     expect(a.key).not.toBe(b.key);
   });
 });
 
-describe("fomoBoardRowView", () => {
+describe("smartBoardRowView", () => {
   it("formats totals and the win record", () => {
-    expect(fomoBoardRowView(boardRow(), NOW)).toMatchObject({
+    expect(smartBoardRowView(boardRow(), NOW)).toMatchObject({
       label: "AvgJoesCrypto",
       fills: "9",
       buy: "$5K",
@@ -114,45 +114,45 @@ describe("fomoBoardRowView", () => {
   });
 
   it("shows an em-dash for Wilson under the minimum closed trades and for no round trips at all", () => {
-    expect(fomoBoardRowView(boardRow({ closed: WILSON_MIN_CLOSED - 1, wins: 2, wilsonLow: null }), NOW).wilson).toBe("—");
-    expect(fomoBoardRowView(boardRow({ closed: 0, wins: 0, wilsonLow: null }), NOW).record).toBe("—");
+    expect(smartBoardRowView(boardRow({ closed: WILSON_MIN_CLOSED - 1, wins: 2, wilsonLow: null }), NOW).wilson).toBe("—");
+    expect(smartBoardRowView(boardRow({ closed: 0, wins: 0, wilsonLow: null }), NOW).record).toBe("—");
   });
 
   it("shows em-dashes, not $0, for a wallet whose fills are all unpriced and counts unpriced fills next to the total", () => {
-    const view = fomoBoardRowView(boardRow({ fills: 3, unpriced: 3, buyUsd: 0, sellUsd: 0, netUsd: 0 }), NOW);
+    const view = smartBoardRowView(boardRow({ fills: 3, unpriced: 3, buyUsd: 0, sellUsd: 0, netUsd: 0 }), NOW);
     expect(view).toMatchObject({ fills: "3 (3u)", buy: "—", sell: "—", net: "—", netTone: "" });
-    expect(fomoBoardRowView(boardRow({ fills: 4, unpriced: 1 }), NOW).fills).toBe("4 (1u)");
+    expect(smartBoardRowView(boardRow({ fills: 4, unpriced: 1 }), NOW).fills).toBe("4 (1u)");
   });
 
   it("marks a negative net and keeps the server profile url when one is given", () => {
-    const row = fomoBoardRowView(boardRow({ netUsd: -250, profileUrl: "https://fomo.family/profile/zz" }), NOW);
+    const row = smartBoardRowView(boardRow({ netUsd: -250, profileUrl: "https://app.nansen.ai/profiler?chain=monad&address=zz" }), NOW);
     expect(row.netTone).toBe("dn");
     expect(row.net.startsWith("+")).toBe(false);
-    expect(row.href).toBe("https://fomo.family/profile/zz");
+    expect(row.href).toBe("https://app.nansen.ai/profiler?chain=monad&address=zz");
   });
 });
 
 describe("labels and windows", () => {
-  it("renders the server's coverage label on every FOMO header and never a bare count without it", () => {
-    expect(fomoCoverageLabel({ watched: 600, population: 1519, label: "watching 600 of 1,519 FOMO wallets · 147 named" })).toBe("WATCHING 600 OF 1,519 FOMO WALLETS · 147 NAMED");
-    expect(fomoCoverageLabel(undefined)).toBe(COVERAGE_UNKNOWN);
-    expect(fomoCoverageLabel({ watched: 0, population: 0, label: "  " })).toBe(COVERAGE_UNKNOWN);
+  it("renders the server's coverage label on every SMART header and never a bare count without it", () => {
+    expect(smartCoverageLabel({ watched: 600, population: 1519, label: "watching 600 of 1,519 SMART wallets · 147 named" })).toBe("WATCHING 600 OF 1,519 SMART WALLETS · 147 NAMED");
+    expect(smartCoverageLabel(undefined)).toBe(COVERAGE_UNKNOWN);
+    expect(smartCoverageLabel({ watched: 0, population: 0, label: "  " })).toBe(COVERAGE_UNKNOWN);
   });
 
-  it("tags seeded rows with their provenance and never tags verified FOMO rows", () => {
+  it("tags seeded rows with their provenance and never tags verified SMART rows", () => {
     expect(provenanceTag("seeded")).toBe("SEEDED");
-    expect(provenanceTag("fomo")).toBeNull();
+    expect(provenanceTag("smart")).toBeNull();
     expect(provenanceTag("other")).toBeNull();
     expect(provenanceTag(null)).toBeNull();
-    const seeded = fomoTapeRow(fill({ trader: { address: WALLET, kind: "seeded", handle: "unipcs", followers: 514_576 } }), NOW);
+    const seeded = smartTapeRow(fill({ trader: { address: WALLET, kind: "seeded", handle: "unipcs", followers: 514_576 } }), NOW);
     expect(seeded.tag).toBe("SEEDED");
-    expect(seeded.title).toContain("seeded from robinhoodtrenches · 7702 check pending");
-    const verified = fomoTapeRow(fill(), NOW);
+    expect(seeded.title).toContain("seeded from Nansen / your watchlist · smart-money check pending");
+    const verified = smartTapeRow(fill(), NOW);
     expect(verified.tag).toBeNull();
     expect(verified.title).not.toContain("7702");
-    expect(fomoBoardRowView(boardRow({ kind: "seeded" }), NOW).tag).toBe("SEEDED");
-    expect(fomoBoardRowView(boardRow({ kind: "seeded" }), NOW).title).toContain("7702 check pending");
-    expect(fomoBoardRowView(boardRow(), NOW).tag).toBeNull();
+    expect(smartBoardRowView(boardRow({ kind: "seeded" }), NOW).tag).toBe("SEEDED");
+    expect(smartBoardRowView(boardRow({ kind: "seeded" }), NOW).title).toContain("7702 check pending");
+    expect(smartBoardRowView(boardRow(), NOW).tag).toBeNull();
   });
 
   it("reports truncation only when the ring is shorter than the window", () => {
@@ -160,13 +160,13 @@ describe("labels and windows", () => {
     expect(truncationNote(NOW - 3_600_000, NOW)?.toLowerCase()).toContain("1h");
   });
 
-  it("formats FOMO window rows like the all-flow windows and tolerates a missing block", () => {
-    expect(fomoWindowRows(undefined)).toEqual([]);
-    const rows = fomoWindowRows({
+  it("formats SMART window rows like the all-flow windows and tolerates a missing block", () => {
+    expect(smartWindowRows(undefined)).toEqual([]);
+    const rows = smartWindowRows({
       fills: [],
       population: 1,
       handles: 1,
-      coverage: { watched: 1, population: 1, label: "watching 1 of 1 FOMO wallets · 1 named" },
+      coverage: { watched: 1, population: 1, label: "watching 1 of 1 SMART wallets · 1 named" },
       windows: [{ label: "1m", buyUsd: 100, sellUsd: 40, net: 60, buys: 2, sells: 1, unpriced: 1, aggressor: 0.714 }]
     });
     expect(rows).toEqual([{ label: "1M", buy: "$100", sell: "$40", net: "+$60", netTone: "up", prints: "3 (1u)", aggr: "71%" }]);

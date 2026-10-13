@@ -1,8 +1,8 @@
-import type { AlertRow, AlertRule, FomoChainScope, FomoCoverage } from "../../shared/wire";
+import type { AlertRow, AlertRule, SmartChainScope, SmartCoverage } from "../../shared/wire";
 import type { InstrumentRef } from "./address";
 import { formatIst, istParts } from "./chartTime";
 import { durationLabel, EM_DASH } from "./flowPanel";
-import { fomoCoverageLabel, followersLabel, walletLabel } from "./fomoPanel";
+import { smartCoverageLabel, followersLabel, walletLabel } from "./smartPanel";
 import { money, shortAddress } from "./format";
 import { chipChain, padLabel, type ChainChip } from "./launches";
 
@@ -18,11 +18,11 @@ export const UNPRICED = "unpriced";
 /** Ids remembered for toast dedupe: the newest page plus one page of history, so the set never grows past this. */
 export const SEEN_CAP = ALERTS_LIMIT * 2;
 
-const RULE_BADGE: Record<AlertRule, string> = { first_fomo_buy: "1ST FOMO BUY", big_handle_entry: "BIG HANDLE", graduation: "GRAD" };
+const RULE_BADGE: Record<AlertRule, string> = { first_smart_buy: "1ST SMART BUY", big_handle_entry: "BIG HANDLE", graduation: "GRAD" };
 /** Tones reuse the global .chip.good / .chip.warn styles. */
-const RULE_TONE: Record<AlertRule, "warn" | "good"> = { first_fomo_buy: "good", big_handle_entry: "warn", graduation: "good" };
+const RULE_TONE: Record<AlertRule, "warn" | "good"> = { first_smart_buy: "good", big_handle_entry: "warn", graduation: "good" };
 
-export function alertQuery(chip: ChainChip): { chain: FomoChainScope; limit: number } {
+export function alertQuery(chip: ChainChip): { chain: SmartChainScope; limit: number } {
   return { chain: chipChain(chip), limit: ALERTS_LIMIT };
 }
 
@@ -65,7 +65,7 @@ export function lagNote(row: Pick<AlertRow, "observedAt" | "time">): string | nu
 
 /** Evidence line: handle · followers · usd or unpriced · launchpad · launch age. Every part comes from the row; nothing inferred. */
 export function alertEvidenceLine(row: AlertRow): string {
-  if (row.rule === "first_fomo_buy") {
+  if (row.rule === "first_smart_buy") {
     const { fill } = row.evidence;
     const parts = [walletLabel(fill.wallet, fill.handle)];
     if (fill.followers != null) parts.push(`${followersLabel(fill.followers)} followers`);
@@ -81,14 +81,14 @@ export function alertEvidenceLine(row: AlertRow): string {
     parts.push(fill.bookSince == null ? "first in an empty book" : `first since ${alertClockIst(fill.bookSince)} IST`);
     return parts.join(" · ");
   }
-  const parts = [padLabel(row.evidence.launchpad), `${row.evidence.fomoFills} FOMO fills`];
+  const parts = [padLabel(row.evidence.launchpad), `${row.evidence.smartFills} SMART fills`];
   if (row.evidence.pool) parts.push(`pool ${shortAddress(row.evidence.pool)}`);
   return parts.join(" · ");
 }
 
 /** The tx the alert rests on; graduation rows carry none (the index drops it), so null stays null. */
 export function alertTx(row: AlertRow): string | null {
-  if (row.rule === "first_fomo_buy") return row.evidence.fill.tx;
+  if (row.rule === "first_smart_buy") return row.evidence.fill.tx;
   if (row.rule === "big_handle_entry") return row.evidence.tx;
   return row.evidence.graduationTx;
 }
@@ -101,7 +101,7 @@ export type AlertRowView = {
   /** Full IST stamp, token address, tx and coverage as of firing. */
   title: string;
   token: string;
-  chain: "SOL" | "RH";
+  chain: "MON";
   evidence: string;
   /** "seen 3m late" when the server trailed the chain; null otherwise. */
   lag: string | null;
@@ -114,16 +114,16 @@ export type AlertRowView = {
 
 export function alertRowView(row: AlertRow, now: number): AlertRowView {
   const tx = alertTx(row);
-  const fill = row.rule === "first_fomo_buy" ? row.evidence.fill : row.rule === "big_handle_entry" ? row.evidence : null;
+  const fill = row.rule === "first_smart_buy" ? row.evidence.fill : row.rule === "big_handle_entry" ? row.evidence : null;
   const handle = fill?.handle?.trim().replace(/^@+/, "") || null;
   return {
     key: row.id,
     badge: ruleBadge(row.rule),
     tone: ruleTone(row.rule),
     clock: alertClockIst(row.time),
-    title: [formatIst(row.time, "second"), row.token, tx ? `tx ${tx}` : "no tx carried", fomoCoverageLabel(row.coverage)].join(" · "),
+    title: [formatIst(row.time, "second"), row.token, tx ? `tx ${tx}` : "no tx carried", smartCoverageLabel(row.coverage)].join(" · "),
     token: alertTokenLabel(row),
-    chain: row.chain === "solana" ? "SOL" : "RH",
+    chain: "MON",
     evidence: alertEvidenceLine(row),
     lag: lagNote(row),
     age: durationLabel(Math.max(0, now - row.time)),
@@ -163,14 +163,13 @@ export function alertToast(row: AlertRow): AlertToast {
 }
 
 /** Header line: rule count plus the coverage label; a count is never shown without the coverage it was measured under, and an erroring engine says so. */
-export function alertsHeader(count: number, coverage: FomoCoverage | undefined, ringSize: number | undefined, ringMax: number | undefined, engineErrors = 0): string {
+export function alertsHeader(count: number, coverage: SmartCoverage | undefined, ringSize: number | undefined, ringMax: number | undefined, engineErrors = 0): string {
   const ring = ringSize != null && ringMax != null && ringSize >= ringMax ? " · RING FULL" : "";
   const errors = engineErrors > 0 ? ` · ENGINE ERRORS ${engineErrors}` : "";
-  return `${count} ALERTS · ${fomoCoverageLabel(coverage)}${ring}${errors}`;
+  return `${count} ALERTS · ${smartCoverageLabel(coverage)}${ring}${errors}`;
 }
 
-/** Cold copy for a chain scope with no alerts yet; Solana has no FOMO rules, and says so instead of pretending. */
-export function coldCopy(chain: FomoChainScope): string {
-  if (chain === "solana") return "No alert rules run on Solana: FOMO rules need the Robinhood 7702 population.";
-  return "No alerts fired yet on this server. Rules: first verified-FOMO buy this server recorded of a fresh launch, first fill in the book of a verified-FOMO 10k+ follower handle in a token, graduation of a token with FOMO fills.";
+/** Cold copy for a chain scope with no alerts yet. */
+export function coldCopy(_chain: SmartChainScope): string {
+  return "No alerts fired yet on this server. Rules: first smart-money buy this server recorded of a fresh nad.fun launch, first fill in the book of a Nansen-labelled or watched wallet in a token, nad.fun graduation of a token with smart-money fills.";
 }

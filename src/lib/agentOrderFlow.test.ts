@@ -4,7 +4,7 @@ import { AGENT_SIGNAL_MIN_USD, filterRecentOrderFlow, isLargeAgentSignal } from 
 
 const NOW = 1_800_000_000_000;
 const print = (overrides: Partial<TapePrint> = {}): TapePrint => ({
-  pair: "pair", dex: "jupiter", tx: "tx", time: NOW - 60_000,
+  pair: "pair", dex: "kuru", tx: "tx", time: NOW - 60_000,
   side: "buy", usd: 2_500, source: "own", ...overrides
 });
 

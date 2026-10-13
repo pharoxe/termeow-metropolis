@@ -1,5 +1,4 @@
 import { getAccessToken, usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
-import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -29,7 +28,7 @@ import "../components/agent-standalone.css";
 
 type View = AgentDockView;
 
-const promptSuggestions = ["Pull up the $ANSEM chart", "Set up an automated trade", "Teach me to trade better"];
+const promptSuggestions = ["Pull up the MON chart", "Set up an automated trade", "Teach me to trade better"];
 
 const statusCopy: Record<string, string> = {
   dormant: "CHANNEL CLOSED", connecting: "TUNING CHANNEL", idle: "ONLINE", listening: "I'M LISTENING",
@@ -131,7 +130,6 @@ function AutomationSurface({ data }: { data: AutomationData }) {
 function PrivyPortfolio() {
   const { authenticated } = usePrivy();
   const { wallets: evmWallets } = useEvmWallets();
-  const { wallets: solanaWallets } = useSolanaWallets();
   type Row = { chain: string; symbol: string; imageUrl?: string | null; amount: number; value: number | null };
   type Linked = NonNullable<UserAutomationPreferences["linkedWallets"]>[number];
   const [rows, setRows] = useState<Row[]>([]);
@@ -146,12 +144,11 @@ function PrivyPortfolio() {
     if (!authenticated) { setRows([]); return; }
     let live = true;
     const requests = [
-      solanaWallets[0]?.address ? api.portfolio(solanaWallets[0].address).then((portfolio) => ({ chain: "SOL", portfolio })) : null,
-      evmWallets[0]?.address ? api.robinhoodPortfolio(evmWallets[0].address).then((portfolio) => ({ chain: "RH", portfolio })) : null
-    ].filter(Boolean) as Array<Promise<{ chain: string; portfolio: Awaited<ReturnType<typeof api.portfolio>> }>>;
+      evmWallets[0]?.address ? api.monadPortfolio(evmWallets[0].address).then((portfolio) => ({ chain: "MON", portfolio })) : null
+    ].filter(Boolean) as Array<Promise<{ chain: string; portfolio: Awaited<ReturnType<typeof api.monadPortfolio>> }>>;
     Promise.allSettled(requests).then((results) => {
       if (!live) return;
-      const fulfilled = results.filter((item): item is PromiseFulfilledResult<{ chain: string; portfolio: Awaited<ReturnType<typeof api.portfolio>> }> => item.status === "fulfilled");
+      const fulfilled = results.filter((item): item is PromiseFulfilledResult<{ chain: string; portfolio: Awaited<ReturnType<typeof api.monadPortfolio>> }> => item.status === "fulfilled");
       setRows(fulfilled.flatMap(({ value }) => value.portfolio.assets.map((asset) => ({ chain: value.chain, symbol: asset.symbol, imageUrl: asset.imageUrl, amount: asset.amount, value: asset.valueUsd }))));
       setError(!fulfilled.length && requests.length ? "Portfolio data is temporarily unavailable." : "");
     });
@@ -162,29 +159,29 @@ function PrivyPortfolio() {
       const linked = preferences.linkedWallets || [];
       setLinkedWallets(linked);
       const results = await Promise.allSettled(linked.map(async (wallet) => {
-        const portfolio = wallet.chain === "solana" ? await api.portfolio(wallet.address) : await api.robinhoodPortfolio(wallet.address);
-        const walletRows = portfolio.assets.map((asset) => ({ chain: wallet.chain === "solana" ? "SOL" : "RH", symbol: asset.symbol, imageUrl: asset.imageUrl, amount: asset.amount, value: asset.valueUsd }));
+        const portfolio = await api.monadPortfolio(wallet.address);
+        const walletRows = portfolio.assets.map((asset) => ({ chain: "MON", symbol: asset.symbol, imageUrl: asset.imageUrl, amount: asset.amount, value: asset.valueUsd }));
         return { wallet, rows: walletRows, total: walletRows.reduce((sum, row) => sum + (row.value || 0), 0) };
       }));
       if (live) setLinkedRows(results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
     }).catch(() => undefined);
     return () => { live = false; };
-  }, [authenticated, evmWallets[0]?.address, solanaWallets[0]?.address]);
+  }, [authenticated, evmWallets[0]?.address]);
   const addLinkedWallet = async (event: React.FormEvent) => {
     event.preventDefault();
     const address = linkAddress.trim();
-    const chain: AutomationChain | null = /^0x[a-fA-F0-9]{40}$/.test(address) ? "robinhood" : /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) ? "solana" : null;
-    if (!chain) { setLinkMessage("ENTER A VALID SOLANA OR EVM ADDRESS"); return; }
+    const chain: AutomationChain | null = /^0x[a-fA-F0-9]{40}$/.test(address) ? "monad" : null;
+    if (!chain) { setLinkMessage("ENTER A VALID 0x MONAD ADDRESS"); return; }
     if (linkedWallets.some((wallet) => wallet.address.toLowerCase() === address.toLowerCase())) { setLinkMessage("WALLET ALREADY LINKED"); return; }
     setLinking(true); setLinkMessage("VERIFYING WALLET…");
     try {
-      const portfolio = chain === "solana" ? await api.portfolio(address) : await api.robinhoodPortfolio(address);
+      const portfolio = await api.monadPortfolio(address);
       const token = await getAccessToken();
       if (!token) throw new Error("Log in again to link a wallet.");
       const wallet: Linked = { address, chain, addedAt: Date.now() };
       const next = [...linkedWallets, wallet];
       await api.updateAutomationPreferences(token, { linkedWallets: next });
-      const walletRows = portfolio.assets.map((asset) => ({ chain: chain === "solana" ? "SOL" : "RH", symbol: asset.symbol, imageUrl: asset.imageUrl, amount: asset.amount, value: asset.valueUsd }));
+      const walletRows = portfolio.assets.map((asset) => ({ chain: "MON", symbol: asset.symbol, imageUrl: asset.imageUrl, amount: asset.amount, value: asset.valueUsd }));
       setLinkedWallets(next);
       setLinkedRows((current) => [...current, { wallet, rows: walletRows, total: walletRows.reduce((sum, row) => sum + (row.value || 0), 0) }]);
       setLinkAddress(""); setShowLink(false); setLinkMessage("");
@@ -200,7 +197,7 @@ function PrivyPortfolio() {
     {funded.slice(0, 5).map((row, index) => <article key={`${row.chain}:${row.symbol}:${index}`}><TokenLogo symbol={row.symbol} src={row.imageUrl} /><b>{row.symbol}</b><span>{row.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span><em>{row.value == null ? "—" : `$${row.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</em></article>)}
     {!funded.length ? <p className="agent-empty">Wallet connected · no funded assets yet.</p> : null}{funded.length > 5 ? <Link className="agent-portfolio-expand" to="/onchain?view=portfolio">VIEW ALL {funded.length} ASSETS →</Link> : null}
     <div className="linked-wallets"><div className="linked-wallet-heading"><span>ADDITIONAL WALLETS</span><button type="button" aria-label="Link another wallet" onClick={() => { setShowLink((value) => !value); setLinkMessage(""); }}>+</button></div>
-      <AnimatePresence>{showLink ? <motion.form className="wallet-link-popover" onSubmit={(event) => void addLinkedWallet(event)} initial={{ opacity: 0, y: -8, scale: .96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: .97 }}><input value={linkAddress} onChange={(event) => setLinkAddress(event.target.value)} placeholder="SOLANA OR EVM ADDRESS" autoFocus /><button type="submit" disabled={linking || !linkAddress.trim()}>{linking ? "LINKING…" : "LINK WALLET"}</button>{linkMessage ? <small>{linkMessage}</small> : null}</motion.form> : null}</AnimatePresence>
+      <AnimatePresence>{showLink ? <motion.form className="wallet-link-popover" onSubmit={(event) => void addLinkedWallet(event)} initial={{ opacity: 0, y: -8, scale: .96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: .97 }}><input value={linkAddress} onChange={(event) => setLinkAddress(event.target.value)} placeholder="0x MONAD ADDRESS" autoFocus /><button type="submit" disabled={linking || !linkAddress.trim()}>{linking ? "LINKING…" : "LINK WALLET"}</button>{linkMessage ? <small>{linkMessage}</small> : null}</motion.form> : null}</AnimatePresence>
       {linkedRows.map(({ wallet, rows: assets, total: linkedTotal }) => <section className="linked-wallet-card" key={`${wallet.chain}:${wallet.address}`}><header><b>{wallet.label || `${wallet.address.slice(0, 5)}…${wallet.address.slice(-4)}`}</b><em>${linkedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</em></header>{assets.filter((asset) => asset.amount > 0 || (asset.value || 0) > 0).slice(0, 3).map((asset, index) => <article key={`${asset.symbol}:${index}`}><TokenLogo symbol={asset.symbol} src={asset.imageUrl} /><b>{asset.symbol}</b><span>{asset.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span><em>{asset.value == null ? "—" : `$${asset.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</em></article>)}</section>)}
       {!linkedRows.length ? <small className="linked-wallet-empty">Link a read-only wallet to track its holdings separately.</small> : null}
     </div>
@@ -427,7 +424,7 @@ export function AgentPage({ config }: { config: PublicConfig }) {
         </motion.section> : null}</AnimatePresence>
         <AnimatePresence>{leftWidget && ["tokens", "handles"].includes(leftWidget.type) ? <motion.section data-agent-panel={leftWidget.type} className={`agent-left-widget agent-left-widget-${leftWidget.type}`} initial={{ opacity: 0, x: -28, scale: .86 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: -18, scale: .92 }} transition={{ type: "spring", stiffness: 290, damping: 28 }} drag dragControls={leftWidgetDrag} dragListener={false} dragConstraints={desktopRef} dragMomentum={false} dragElastic={0.04} whileDrag={{ scale: 1.01 }}>
           <header className="desktop-window-handle" onPointerDown={(event) => leftWidgetDrag.start(event)}><span>{leftWidget.type === "tokens" ? "CHOOSE AN INDEXED TOKEN" : "CHOOSE A TRACKED HANDLE"}</span><small>MOVE · RESIZE ↘</small><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setLeftWidget()}>×</button></header>
-          {leftWidget.type === "tokens" ? <TokenPicker query={leftWidget.query} onChoose={(token) => { if (conversationId) agent.send(`Use the verified indexed ${token.chain} token $${token.symbol} at ${token.address}.`); setLeftWidget(); }} /> : leftWidget.type === "handles" ? <HandlePicker initialQuery={leftWidget.query} onChoose={(handle) => { if (conversationId) agent.send(`Use the indexed trader @${handle}.`); setLeftWidget(); }} /> : null}
+          {leftWidget.type === "tokens" ? <TokenPicker query={leftWidget.query} onChoose={(token) => { if (conversationId) agent.send(`Use the verified indexed ${token.chain} token $${token.symbol} at ${token.address}.`); setLeftWidget(); }} /> : leftWidget.type === "handles" ? <HandlePicker initialQuery={leftWidget.query} onChoose={(choice) => { if (conversationId) agent.send(`Use the labelled wallet ${choice.wallet} (${choice.label}).`); setLeftWidget(); }} /> : null}
         </motion.section> : null}</AnimatePresence>
       </div>
 

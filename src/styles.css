@@ -7,16 +7,17 @@
   background: var(--bg);
   font-family: "Home Video", monospace;
   font-synthesis: none;
-  --bg:#050705; --bg2:#090d0a; --surface:#080b09; --surface2:#101611;
-  --panel:#0c110d; --panel-hi:#111812; --hover:#132019;
-  --line:#1a281e; --line2:#293c2e; --text:#dce8df; --text-strong:#f4fff6;
-  --muted:#829087; --meta:#7d8d83; --cyan:#27d9a0; --chart-bg:#080b09;
+  /* X Bit-style base: true black, violet-grey neutrals, one light-purple brand hue. */
+  --bg:#050407; --bg2:#09080d; --surface:#0b0a10; --surface2:#131119;
+  --panel:#0d0c13; --panel-hi:#13111b; --hover:#1b1726;
+  --line:#1f1c29; --line2:#2f2a3d; --text:#e2deea; --text-strong:#faf8ff;
+  --muted:#8c8799; --meta:#857f93; --cyan:#7dd3fc; --chart-bg:#09080d;
   /* One hue, one meaning. The brand hue is allowed to shout in exactly one place: the brand. */
-  --accent:#39ff88; --accent-soft:#0d2a18; --accent-ink:#06160c;
-  --up:#42c99a; --down:#ef7885;            /* direction — the same two hues the candles are drawn in */
-  --select:#69acff;                        /* selection — chart markers, drawings, picked rows, active rail tab */
-  --warning:#d7bd63; --warning-bg:#19180e; /* warning / partial or unknown coverage */
-  --label:#9fb3a6;                         /* panel and field labels: quiet, so the data reads first */
+  --accent:#b9a4ff; --accent-soft:#1f1833; --accent-ink:#120c22;
+  --up:#4fd1a5; --down:#f2788a;            /* direction — the same two hues the candles are drawn in */
+  --select:#7dd3fc;                        /* selection — chart markers, drawings, picked rows, active rail tab */
+  --warning:#e3c46b; --warning-bg:#1b170c; /* warning / partial or unknown coverage */
+  --label:#a8a2b6;                         /* panel and field labels: quiet, so the data reads first */
   /* Legacy names, kept as aliases so the ~140 existing call sites move with the roles above. */
   --green:var(--up); --red:var(--down); --blue:var(--select); --amber:var(--label); --amber2:var(--text-strong);
   /* Type scale: five steps, no fractional sizes. */
@@ -24,24 +25,24 @@
 }
 
 :root[data-theme="light"] {
-  --bg:#eef3ed; --bg2:#e4ece5; --surface:#f4f8f3; --surface2:#eaf1eb;
-  --panel:#f9fcf8; --panel-hi:#f0f6f0; --hover:#e3eee5;
-  --line:#cfdbd1; --line2:#b7c9ba; --text:#172019; --text-strong:#07110a;
-  --muted:#58665c; --meta:#65746b; --cyan:#00865d; --chart-bg:#f7faf5;
+  --bg:#f4f2f9; --bg2:#ebe8f3; --surface:#faf9fd; --surface2:#f0edf7;
+  --panel:#ffffff; --panel-hi:#f6f4fb; --hover:#ece7fa;
+  --line:#e0dbea; --line2:#cbc4da; --text:#1c1825; --text-strong:#0b0911;
+  --muted:#5f5970; --meta:#6b657c; --cyan:#0369a1; --chart-bg:#fdfcff;
   /* The light theme sets its own literals for every role: it never aliased --amber to --accent, so it needs its own values, not the dark ones. */
-  --accent:#00d86a; --accent-soft:#d7f8e3; --accent-ink:#042b16;
+  --accent:#8b6cf6; --accent-soft:#ede7ff; --accent-ink:#ffffff;
   --up:#0a7a4b; --down:#c02d43;
-  --select:#1257b8;
+  --select:#0369a1;
   --warning:#705b00; --warning-bg:#fff8d8;
-  --label:#3f4f45;
+  --label:#4a4459;
 }
 :root[data-accent="blue"] { --accent:#177cff; --accent-soft:#0b203b; --accent-ink:#f4f8ff; }
 :root[data-accent="yellow"] { --accent:#ffd52f; --accent-soft:#2b2507; --accent-ink:#171200; }
-:root[data-accent="white"] { --accent:#f4f7f5; --accent-soft:#252b27; --accent-ink:#080b09; }
+:root[data-accent="white"] { --accent:#f6f4fa; --accent-soft:#25222c; --accent-ink:#09080b; }
 :root[data-accent="red"] { --accent:#b80f2f; --accent-soft:#2b0b12; --accent-ink:#fff4f6; }
 :root[data-theme="light"][data-accent="blue"] { --accent-soft:#dceaff; }
 :root[data-theme="light"][data-accent="yellow"] { --accent-soft:#fff5bd; }
-:root[data-theme="light"][data-accent="white"] { --accent:#ffffff; --accent-soft:#e2e8e3; }
+:root[data-theme="light"][data-accent="white"] { --accent:#ffffff; --accent-soft:#e6e3ec; }
 :root[data-theme="light"][data-accent="red"] { --accent-soft:#ffe0e6; }
 
 * { box-sizing: border-box; }
@@ -97,7 +98,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .accent-menu button { display:flex; align-items:center; gap:7px; height:27px; border:0; background:transparent; color:var(--muted); font-size:8px; text-transform:uppercase; text-align:left; }
 .accent-menu button:hover,.accent-menu button[aria-checked="true"] { color:var(--text-strong); background:var(--hover); }
 .accent-menu i { width:10px; height:10px; background:var(--swatch); box-shadow:0 0 8px color-mix(in srgb,var(--swatch) 55%,transparent); }
-.accent-green { --swatch:#39ff88; }.accent-blue { --swatch:#177cff; }.accent-yellow { --swatch:#ffd52f; }.accent-white { --swatch:#f4f7f5; }.accent-red { --swatch:#b80f2f; }
+.accent-purple { --swatch:#b9a4ff; }.accent-blue { --swatch:#177cff; }.accent-yellow { --swatch:#ffd52f; }.accent-white { --swatch:#f5f4f7; }.accent-red { --swatch:#b80f2f; }
 .theme-pixels { display:grid; grid-template-columns:repeat(2,4px); gap:2px; }
 .theme-pixels i { width:4px; height:4px; background:var(--line2); }
 .theme-pixels i:first-child,.theme-pixels i:last-child { background:var(--accent); }
@@ -111,7 +112,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .panel-title { height: 33px; display: flex; align-items: center; justify-content: space-between; padding: 0 11px; border-bottom: 1px solid var(--line); color: var(--label); font-size: var(--fs-1); font-weight: 600; letter-spacing: .09em; }
 .tag { padding: 3px 6px; border: 1px solid #38414e; border-radius: 3px; color: #8692a3; font-size: 8px; }
 .tag.warning, .feed-state.warning { color: var(--warning); border-color: color-mix(in srgb,var(--warning) 45%,var(--line2)); }
-.tag.live-tag { color: var(--green); border-color: #36582f; }
+.tag.live-tag { color: var(--green); border-color: #3b2f58; }
 
 .instrument-header { min-height: 62px; display: flex; align-items: center; gap: 18px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 5px; background: #0b0f15; }
 .instrument-header > div:first-child { display: flex; align-items: center; gap: 11px; }
@@ -123,7 +124,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .headline-price strong { font: 600 20px "Space Grotesk", sans-serif; }
 .positive { color: var(--green) !important; }
 .negative { color: var(--red) !important; }
-.feed-state { border: 1px solid #34552c; border-radius: 3px; padding: 5px 7px; color: var(--green); font-size: 8px; letter-spacing: .08em; }
+.feed-state { border: 1px solid #382c55; border-radius: 3px; padding: 5px 7px; color: var(--green); font-size: 8px; letter-spacing: .08em; }
 
 
 .chart-panel { height: 520px; }
@@ -142,7 +143,7 @@ dd { margin: 0; overflow: hidden; color: #b5bfca; font-size: 9px; text-overflow:
 .trade-ticket { padding-bottom: 11px; }
 .trade-ticket > label { display: block; margin: 12px 11px 0; color: #707d8e; font-size: 9px; }
 .trade-ticket input[type="number"] { width: 100%; height: 38px; margin-top: 5px; border: 1px solid #29313e; border-radius: 3px; outline: 0; padding: 0 10px; background: #070a0f; color: #e1e7ee; }
-.trade-ticket input:focus { border-color: #657951; }
+.trade-ticket input:focus { border-color: #5d5179; }
 .trade-ticket select { width:100%; min-height:42px; margin-top:6px; padding:0 34px 0 11px; border:1px solid var(--line2); border-radius:0; color:var(--text-strong); background:var(--surface); font:inherit; text-transform:uppercase; cursor:pointer; }
 .trade-ticket select:focus { border-color:var(--accent); outline:0; }
 .router-field { display:flex!important; align-items:center; justify-content:space-between; gap:8px; margin-top:8px!important; }
@@ -154,7 +155,7 @@ dd { margin: 0; overflow: hidden; color: #b5bfca; font-size: 9px; text-overflow:
 .quote-route b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .side-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 10px 11px 0; }
 .side-tabs button { height: 35px; border: 1px solid #2b3340; border-radius: 3px; background: #0a0e14; color: #717d8c; font-size: 10px; font-weight: 600; }
-.side-tabs .buy.active { color: #0a1307; border-color: var(--green); background: var(--green); }
+.side-tabs .buy.active { color: #0b0713; border-color: var(--green); background: var(--green); }
 .side-tabs .sell.active { color: white; border-color: var(--red); background: #762d36; }
 .input-suffix { position: relative; }
 .input-suffix span { position: absolute; right: 10px; top: 17px; color: #657182; font-size: 9px; }
@@ -164,26 +165,26 @@ dd { margin: 0; overflow: hidden; color: #b5bfca; font-size: 9px; text-overflow:
 .amount-control:focus-within { border-color:var(--accent); }
 .wallet-line { display: flex; justify-content: space-between; margin: 12px 11px; padding: 8px; background: #080b10; border: 1px solid #1d232d; font-size: 9px; }
 .wallet-line span { color: #657182; }
-.primary, .danger { width: calc(100% - 22px); min-height: 38px; margin: 12px 11px 0; border: 0; border-radius: 3px; background: var(--green); color: #091006; font-size: 10px; font-weight: 600; letter-spacing: .06em; }
+.primary, .danger { width: calc(100% - 22px); min-height: 38px; margin: 12px 11px 0; border: 0; border-radius: 3px; background: var(--green); color: #090610; font-size: 10px; font-weight: 600; letter-spacing: .06em; }
 .danger { color: white; background: #7d3039; }
 .ghost { border: 1px solid currentColor; background: transparent; }
-.quote-box { margin: 12px 11px 0; border: 1px solid #35412e; background: #0c130a; }
-.quote-box > div { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #273022; font-size: 9px; }
-.quote-box span { color: #718067; }
+.quote-box { margin: 12px 11px 0; border: 1px solid #342e41; background: #0d0a13; }
+.quote-box > div { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #262230; font-size: 9px; }
+.quote-box span { color: #6e6780; }
 .quote-box .execute { width: calc(100% - 16px); margin: 0 8px 8px; }
 .trade-execute { margin-top:8px; }
 .social-bubble-top i { color:var(--meta); font-style:normal; }
 .social-bubble.alert.good { border-color:color-mix(in srgb,var(--accent) 70%,var(--line2)); }
 .social-bubble.alert.warn { border-color:color-mix(in srgb,var(--warning) 70%,var(--line2)); }
 .alert-bubble-flow { padding:10px; }
-.fomo-live-bubbles { flex-direction:column; flex-wrap:nowrap; }
-.fomo-live-bubbles .social-bubble { flex:none; width:100%; }
-.fomo-trader-identity { display:flex; align-items:center; gap:7px; }
-.fomo-trader-identity > img { width:28px; height:28px; border-radius:50%; object-fit:cover; }
-.fomo-trader-identity > span { display:flex; min-width:0; flex:1; flex-direction:column; }
-.fomo-trader-identity strong { overflow:hidden; color:var(--text-strong); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
-.fomo-trader-identity small { color:var(--muted); font-size:7px; }
-.fomo-trader-identity a { color:var(--accent); text-decoration:none; }
+.smart-live-bubbles { flex-direction:column; flex-wrap:nowrap; }
+.smart-live-bubbles .social-bubble { flex:none; width:100%; }
+.smart-trader-identity { display:flex; align-items:center; gap:7px; }
+.smart-trader-identity > img { width:28px; height:28px; border-radius:50%; object-fit:cover; }
+.smart-trader-identity > span { display:flex; min-width:0; flex:1; flex-direction:column; }
+.smart-trader-identity strong { overflow:hidden; color:var(--text-strong); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.smart-trader-identity small { color:var(--muted); font-size:7px; }
+.smart-trader-identity a { color:var(--accent); text-decoration:none; }
 .bubble-new-chart { align-self:flex-start; margin-top:6px; padding:3px 5px; border:1px solid var(--line2); background:transparent; color:var(--muted); font-size:7px; }
 .ticket-status { overflow-wrap: anywhere; margin: 10px 11px 0; color: var(--warning); font-size: var(--fs-1); line-height: 1.5; }
 .disclaimer { display: block; margin: 10px 11px 0; color: #596575; font-size: 8px; line-height: 1.45; }
@@ -328,7 +329,7 @@ footer { padding: 8px; border-top: 1px solid var(--line); color: #4f5968; text-a
 .audit-chips { display:inline-flex; flex-wrap:wrap; gap:3px; align-items:center; margin-top:3px; }
 .chart-head .audit-chips { margin-top:0; max-width:42%; }
 .chip { padding:1px 5px; border:1px solid var(--line2); color:var(--muted); font-size:var(--fs-1); letter-spacing:.6px; white-space:nowrap; }
-.chip.good { color:var(--green); border-color:#2a5a3a; }
+.chip.good { color:var(--green); border-color:#382a5a; }
 .chip.warn { color:var(--warning); border-color:color-mix(in srgb,var(--warning) 45%,var(--line2)); }
 .venue-bps { margin-left:3px; color:var(--amber); font-size:7px; font-style:normal; }
 .trench-sorts { padding:4px 8px; border-bottom:1px solid var(--line); }
@@ -505,7 +506,7 @@ body { min-width:360px; }
 /* Navigation and effect surfaces. Keep noise behind opaque market data. */
 :root,body,button,input,select,textarea,.auth-button,.asset-icon,.loading-state h1,.integration-empty h2,.brand strong { font-family:"Home Video",monospace!important; font-synthesis:none; }
 .brand strong { font-weight:600; letter-spacing:-.8px; }
-.desk-grainient { position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.9; background:linear-gradient(140deg,#080e0b,#12472c); }
+.desk-grainient { position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.9; background:linear-gradient(140deg,#0a080e,#221247); }
 .onchain-desk { position:relative; isolation:isolate; padding:0 10px 14px; gap:6px; }
 .onchain-desk > :not(.desk-grainient) { position:relative; z-index:1; }
 .app-header.desk-header { display:flex; align-items:center; flex-wrap:wrap; gap:16px; min-height:68px; padding:12px 8px; background:color-mix(in srgb,var(--surface) 85%,transparent); }
@@ -854,7 +855,7 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .onboarding-viewport { position:fixed; z-index:1490; inset:0; display:grid; place-items:center; overflow:auto; padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); background:#000b; backdrop-filter:blur(5px); }
 .onboarding-viewport .funding-onboarding { position:relative; inset:auto; max-height:calc(100dvh - 28px); overflow:auto; margin:0; transform:none; box-shadow:8px 8px 0 color-mix(in srgb,var(--accent) 22%,transparent); }
 .funding-onboarding::backdrop { background:#000b; }
-.deposit-address-backdrop { position:fixed; z-index:1500; inset:0; display:grid; place-items:center; padding:18px; background:#010302df; backdrop-filter:blur(6px); }
+.deposit-address-backdrop { position:fixed; z-index:1500; inset:0; display:grid; place-items:center; padding:18px; background:#020103df; backdrop-filter:blur(6px); }
 .deposit-address-sheet { width:min(560px,calc(100vw - 28px)); padding:22px; border:1px solid var(--accent); background:var(--panel); box-shadow:9px 9px 0 color-mix(in srgb,var(--accent) 20%,transparent),0 28px 90px #000; }
 .deposit-address-sheet h2 { margin:10px 0; color:var(--text-strong); }
 .deposit-address-sheet p { color:var(--muted); font-size:11px; line-height:1.6; }
@@ -873,7 +874,7 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .trading-onboarding { position:fixed; inset:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); z-index:1510; width:min(680px,calc(100vw - 28px)); max-height:calc(100dvh - 28px); overflow:auto; margin:auto; transform:none; padding:24px; color:var(--text); border:1px solid var(--accent); background:color-mix(in srgb,var(--panel) 95%,#000); box-shadow:0 0 0 9999px #000c,0 0 56px color-mix(in srgb,var(--accent) 18%,transparent); }
 .trading-onboarding::backdrop { background:#000c; backdrop-filter:blur(5px); }.trading-onboarding h2{margin:10px 0;color:var(--text-strong);font-size:24px}.trading-onboarding>p{margin:0 0 14px;color:var(--muted);font-size:11px;line-height:1.6}
 .trader-search{display:grid;grid-template-columns:34px 1fr;margin:14px 0 8px;border:1px solid var(--line2);background:var(--surface)}.trader-search span{display:grid;place-items:center;color:var(--accent)}.trader-search input{height:38px;border:0;border-left:1px solid var(--line);outline:0;padding:0 10px;background:transparent;color:var(--text);font:9px "Silkscreen",monospace}
-.onboarding-traders{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;max-height:220px;overflow:auto;padding:2px}.onboarding-traders>button{display:grid;grid-template-columns:28px 1fr 18px;align-items:center;gap:7px;min-width:0;padding:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);text-align:left}.onboarding-traders>button.active{border-color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}.onboarding-traders i{width:26px;height:26px;background:repeating-linear-gradient(45deg,#07150c 0 3px,var(--accent) 3px 4px);clip-path:polygon(50% 0,100% 25%,88% 80%,50% 100%,12% 80%,0 25%)}.onboarding-traders b,.onboarding-traders small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.onboarding-traders b{font-size:9px}.onboarding-traders small{margin-top:4px;color:var(--muted);font-size:7px}.onboarding-traders em{color:var(--accent);font-style:normal}
+.onboarding-traders{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;max-height:220px;overflow:auto;padding:2px}.onboarding-traders>button{display:grid;grid-template-columns:28px 1fr 18px;align-items:center;gap:7px;min-width:0;padding:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);text-align:left}.onboarding-traders>button.active{border-color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}.onboarding-traders i{width:26px;height:26px;background:repeating-linear-gradient(45deg,#0b0715 0 3px,var(--accent) 3px 4px);clip-path:polygon(50% 0,100% 25%,88% 80%,50% 100%,12% 80%,0 25%)}.onboarding-traders b,.onboarding-traders small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.onboarding-traders b{font-size:9px}.onboarding-traders small{margin-top:4px;color:var(--muted);font-size:7px}.onboarding-traders em{color:var(--accent);font-style:normal}
 .onboarding-preferences{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}.onboarding-preferences>label>span{display:block;margin-bottom:6px;color:var(--muted);font-size:8px}.onboarding-preferences select,.onboarding-preferences input{width:100%;height:40px;border:1px solid var(--line2);outline:0;padding:0 10px;background:var(--surface);color:var(--text);font:9px "Silkscreen",monospace}.onboarding-preferences label>div{display:grid;grid-template-columns:1fr auto}.onboarding-preferences label>div button{border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:8px}.onboarding-token-chips{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}.onboarding-token-chips button{border:1px solid var(--accent);background:transparent;color:var(--accent);padding:5px 7px;font-size:8px}.trading-onboarding .onboarding-error{margin:8px 0;color:#ff6685}.onboarding-save{width:100%;min-height:44px;margin-top:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:9px "Silkscreen",monospace}.onboarding-save:disabled{opacity:.45}
 @media(max-width:700px){.onboarding-traders{grid-template-columns:repeat(2,minmax(0,1fr))}.onboarding-preferences{grid-template-columns:1fr}.trading-onboarding{padding:16px}}
 .chart-head-left .analyze-trigger { min-height:32px; margin-left:auto; padding:5px 12px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent); font-size:11px; white-space:nowrap; }
@@ -899,7 +900,7 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .flow-large .tape-row em { margin-left:auto; white-space:nowrap; }
 .flow-side .empty-copy { padding:4px 0; }
 
-/* Robinhood execution rail: link-outs instead of a ticket (R1) */
+/* Monad execution rail: link-outs instead of a ticket (R1) */
 .trade-links > a { display:block; margin:10px 11px 0; padding:9px 10px; border:1px solid var(--line2); color:var(--amber2); font-size:11px; font-weight:600; letter-spacing:.06em; text-decoration:none; background:var(--surface); }
 .trade-links > a:hover { border-color:var(--accent); }
 .trade-links > a small { display:block; margin-top:3px; color:var(--muted); font-size:9px; font-weight:400; letter-spacing:0; }
@@ -915,18 +916,18 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .launch-table td small .chip { font-size:var(--fs-1); padding:0 3px; }
 .launch-table td b + .chip { margin-left:4px; }
 
-/* R3 FOMO: tape panel in the radar slot, board tab in the watch panel, FOMO windows under the flow side outputs. */
-.fomo-tape th:first-child,.fomo-board-table th:first-child { width:40%; }
-.fomo-tape a,.fomo-board-table a { color:var(--amber2); text-decoration:none; }
-.fomo-tape a:hover,.fomo-board-table a:hover { color:var(--accent); text-decoration:underline; }
-.fomo-board { display:flex; flex-direction:column; }
-.fomo-board-head { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:5px 7px; border-bottom:1px solid var(--line); }
-.fomo-board-head .tabs { flex:1 1 auto; }
-.fomo-board-head .pm { flex:1 0 100%; margin-left:0; }
-.fomo-board-table td small { display:inline; margin-left:5px; }
-.fomo-note { padding:3px 7px; }
-.flow-fomo { display:flex; flex-direction:column; gap:2px; }
-.flow-fomo-title { margin-left:0; }
+/* R3 SMART: tape panel in the radar slot, board tab in the watch panel, SMART windows under the flow side outputs. */
+.smart-tape th:first-child,.smart-board-table th:first-child { width:40%; }
+.smart-tape a,.smart-board-table a { color:var(--amber2); text-decoration:none; }
+.smart-tape a:hover,.smart-board-table a:hover { color:var(--accent); text-decoration:underline; }
+.smart-board { display:flex; flex-direction:column; }
+.smart-board-head { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:5px 7px; border-bottom:1px solid var(--line); }
+.smart-board-head .tabs { flex:1 1 auto; }
+.smart-board-head .pm { flex:1 0 100%; margin-left:0; }
+.smart-board-table td small { display:inline; margin-left:5px; }
+.smart-note { padding:3px 7px; }
+.flow-smart { display:flex; flex-direction:column; gap:2px; }
+.flow-smart-title { margin-left:0; }
 
 /* SMART MONEY watch tab: the rank/stat column wants the wider half back from the workspace's 38%, and the PAPER chip
    needs the same in-`small` sizing every other rail table declares for itself. */
@@ -963,10 +964,10 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .agent-head nav { display:flex; gap:4px; }
 .agent-head button { width:30px; height:30px; border:1px solid var(--line2); background:var(--surface); color:var(--muted); font-size:13px; }
 .agent-head button:hover { border-color:var(--accent); color:var(--accent); }
-.agent-visual-stage { position:relative; flex:0 0 238px; min-height:180px; overflow:hidden; background:radial-gradient(circle at 50% 54%,color-mix(in srgb,var(--accent) 15%,transparent),transparent 48%),linear-gradient(180deg,#020906,#06140d); }
+.agent-visual-stage { position:relative; flex:0 0 238px; min-height:180px; overflow:hidden; background:radial-gradient(circle at 50% 54%,color-mix(in srgb,var(--accent) 15%,transparent),transparent 48%),linear-gradient(180deg,#020906,#0a0614); }
 .expanded .agent-visual-stage { flex-basis:290px; }
 .agent-canvas { position:absolute!important; inset:0; width:100%!important; height:100%!important; }
-.agent-scanlines { position:absolute; z-index:2; inset:0; pointer-events:none; opacity:.18; background:repeating-linear-gradient(0deg,transparent 0 3px,#8effb015 3px 4px); mix-blend-mode:screen; }
+.agent-scanlines { position:absolute; z-index:2; inset:0; pointer-events:none; opacity:.18; background:repeating-linear-gradient(0deg,transparent 0 3px,#b69cf115 3px 4px); mix-blend-mode:screen; }
 .agent-state-label { position:absolute; z-index:3; left:10px; bottom:8px; display:flex; align-items:center; gap:5px; color:var(--accent); font-size:8px; letter-spacing:.08em; }
 .agent-state-label i { width:6px; height:6px; background:currentColor; box-shadow:0 0 9px currentColor; animation:agent-state 1s steps(2,end) infinite; }
 @keyframes agent-state { 50% { opacity:.25; } }
@@ -982,7 +983,7 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .agent-transcript b { color:var(--accent); font-family:"Silkscreen",monospace; font-size:7px; }
 .agent-transcript .user b { color:#35d9ff; }
 .agent-transcript .error { color:var(--red); }
-.automation-approval-backdrop { position:fixed; z-index:1400; inset:0; display:grid; place-items:center; padding:20px; background:#010302dc; backdrop-filter:blur(5px); }
+.automation-approval-backdrop { position:fixed; z-index:1400; inset:0; display:grid; place-items:center; padding:20px; background:#020103dc; backdrop-filter:blur(5px); }
 .automation-approval-backdrop .agent-approval { width:min(620px,calc(100vw - 28px)); max-height:calc(100dvh - 40px); overflow:auto; margin:0; padding:18px; border:1px solid var(--accent); background:color-mix(in srgb,var(--panel) 97%,var(--accent)); box-shadow:0 0 0 1px #000,10px 10px 0 color-mix(in srgb,var(--accent) 18%,transparent),0 28px 90px #000; }
 .agent-approval { padding:10px; border:1px solid var(--accent); background:color-mix(in srgb,var(--panel) 94%,var(--accent)); box-shadow:0 0 18px color-mix(in srgb,var(--accent) 18%,transparent); }
 .agent-approval-head { display:flex; justify-content:space-between; gap:10px; font:10px "Silkscreen",monospace; color:var(--accent); }
@@ -1002,7 +1003,7 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .agent-passkey-recovery:hover { border-style:solid; color:var(--accent); box-shadow:0 0 14px color-mix(in srgb,var(--accent) 16%,transparent); }
 .agent-approval-actions { display:grid; grid-template-columns:1fr 2fr; gap:6px; margin-top:9px; }
 .agent-approval-actions button { min-height:40px; border:1px solid var(--line); background:transparent; color:var(--text); font:10px "Silkscreen",monospace; }
-.agent-approval-actions .confirm { border-color:var(--accent); background:var(--accent); color:#031108; }
+.agent-approval-actions .confirm { border-color:var(--accent); background:var(--accent); color:#080410; }
 .agent-approval-actions button:disabled { opacity:.55; }
 .agent-approval-editor { margin-top:10px; border:1px solid var(--line); padding:12px; font:13px/1.35 "VCR JP",monospace; }
 .agent-approval-editor summary { cursor:pointer; color:var(--accent); font:10px "Silkscreen",monospace; }
@@ -1028,7 +1029,7 @@ button,.brand strong,.pt,.panel-title,.account-page h1,.account-page h2,.account
 .terminal-fatal b { color:var(--accent); font:12px "Silkscreen",monospace; }
 .terminal-fatal p { max-width:560px; margin:0; }
 .terminal-fatal small { max-width:560px; color:var(--red); overflow-wrap:anywhere; }
-.terminal-fatal button { border:1px solid var(--accent); background:var(--accent); color:#031108; padding:10px 16px; font:8px "Silkscreen",monospace; }
+.terminal-fatal button { border:1px solid var(--accent); background:var(--accent); color:#080410; padding:10px 16px; font:8px "Silkscreen",monospace; }
 .automation-policy { margin:12px 0; padding:10px; border:1px solid var(--line); font:11px/1.55 "VCR JP",monospace; color:var(--muted); }
 .automation-list { display:grid; gap:10px; }
 .automation-list>article { display:grid; grid-template-columns:minmax(320px,1.4fr) minmax(300px,1fr) auto; gap:14px; align-items:stretch; padding:14px; border:1px solid var(--line); border-left:3px solid var(--line2); background:linear-gradient(110deg,color-mix(in srgb,var(--panel) 94%,var(--accent) 6%),var(--panel)); }

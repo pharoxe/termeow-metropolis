@@ -6,9 +6,8 @@ import { money, shortAddress } from "../lib/format";
 import { instrumentLabel } from "../lib/instrument";
 import { mcapScale } from "../lib/mcap";
 import { FeatureSection } from "../features/WorkspaceFeatures";
-import { AuditChips, ResearchPanel } from "./DeskPanels";
-import { SpotTradeTicket } from "./SpotTradeTicket";
-import { RobinhoodTradeTicket } from "./RobinhoodTradeTicket";
+import { ResearchPanel } from "./DeskPanels";
+import { MonadTradeTicket } from "./MonadTradeTicket";
 
 function TokenIcon({ symbol, src }: { symbol: string; src: string | null }) {
   const [failed, setFailed] = useState(false);
@@ -24,13 +23,10 @@ type Props = {
   config: PublicConfig;
 };
 
-/** Instrument slab + execution + project information; the ticket follows the token's chain, not the wallet toggle. */
+/** Instrument slab + execution + project information for one Monad token. */
 export function ExecutionRail({ instrument, feed, legacy, iconUrl, config }: Props) {
-  const solana = instrument.chain === "solana";
   const label = instrumentLabel(instrument.chain);
-  const execution = solana
-    ? <SpotTradeTicket key={instrument.address} config={config} mint={instrument.address} symbol={feed?.instrument.symbol || "TOKEN"} />
-    : <RobinhoodTradeTicket key={instrument.address} config={config} token={instrument.address} symbol={(feed?.instrument.symbol || "TOKEN").toUpperCase()} />;
+  const execution = <MonadTradeTicket key={instrument.address} config={config} token={instrument.address} symbol={(feed?.instrument.symbol || "TOKEN").toUpperCase()} />;
   if (!feed) {
     return (
       <>
@@ -52,7 +48,6 @@ export function ExecutionRail({ instrument, feed, legacy, iconUrl, config }: Pro
           <span>
             <b className={scale.source ? "mcap-value" : ""}>{scale.source ? money(scale.mcap, true) : money(feed.priceUsd)}</b>
             <small>{symbol}/USD {scale.source ? money(feed.priceUsd) : ""} · {name} · {label}</small>
-            {solana && legacy ? <AuditChips market={legacy} /> : null}
           </span>
         </div>
       </div>

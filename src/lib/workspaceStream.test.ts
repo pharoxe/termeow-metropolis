@@ -10,7 +10,7 @@ it('multiplexes unique scopes and keeps shared subscribers alive',async()=>{
     addEventListener(name:string,fn:(event:{data:string})=>void){this.listeners.set(name,fn);}
   }
   vi.stubGlobal('EventSource',FakeSource);
-  const scope={chain:'solana' as const,address:'So11111111111111111111111111111111111111112'};
+  const scope={chain:'monad' as const,address:'0x3bd359c1119da7da1d913d1c4d2b7c461115433a'};
   const listener=vi.fn(),other=vi.fn();
   const offA=subscribeTerminal(scope,listener),offB=subscribeTerminal(scope,other);
   try{

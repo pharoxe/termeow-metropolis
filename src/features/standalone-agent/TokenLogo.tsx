@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
 const knownLogos: Record<string, string> = {
-  SOL: "/assets/tokens/sol.svg",
-  WSOL: "/assets/tokens/sol.svg",
+  MON: "/assets/tokens/mon.svg",
+  WMON: "/assets/tokens/mon.svg",
+  AUSD: "/assets/tokens/ausd.svg",
   ETH: "/assets/tokens/eth.svg",
   WETH: "/assets/tokens/eth.svg",
   USDC: "/assets/tokens/usdc.svg"

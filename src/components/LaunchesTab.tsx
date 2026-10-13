@@ -11,7 +11,7 @@ import {
   curveCounts,
   defaultChip,
   filterByChip,
-  fomoBuyer,
+  smartBuyer,
   isHoneypot,
   launchAge,
   launchMcap,
@@ -29,24 +29,24 @@ import {
 type OpenLaunch = (ref: InstrumentRef, symbol?: string) => void;
 
 function LaunchRowItem({ row, now, selected, onOpen }: { row: LaunchRow; now: number; selected?: string; onOpen?: OpenLaunch }) {
-  const buyer = fomoBuyer(row, now);
-  const selectedRow = row.chain === "robinhood" ? row.token.toLowerCase() === selected?.toLowerCase() : row.token === selected;
+  const buyer = smartBuyer(row, now);
+  const selectedRow = row.token.toLowerCase() === selected?.toLowerCase();
   return (
     <tr className={selectedRow ? "selected" : ""} title={row.token} onClick={() => onOpen?.({ chain: row.chain, address: row.token }, row.symbol ?? undefined)}>
       <td><b>{launchAge(row, now)}</b><small><span className="chip">{chainLabel(row.chain)}</span><span className="chip">{padLabel(row.launchpad)}</span>{row.graduatedAt ? <span className="chip good">GRAD</span> : null}</small></td>
-      <td><b>{symbolLabel(row)}</b>{isHoneypot(row) ? <span className="chip bad" title="honeypot flag · robinhoodtrenches">HONEYPOT</span> : null}<small title={row.sources.join(" · ")}>{rowSubtitle(row)}</small></td>
+      <td><b>{symbolLabel(row)}</b>{isHoneypot(row) ? <span className="chip bad" title="honeypot flag reported by the source">HONEYPOT</span> : null}<small title={row.sources.join(" · ")}>{rowSubtitle(row)}</small></td>
       <td className="r" title={priceAgeTitle(row, now)}><b className="mcap-value">{launchMcap(row)}</b><small>{launchPrice(row)}</small></td>
       <td className="r"><b>{curveCounts(row)}</b><small title={buyer?.title}>{buyer ? buyer.handle : "—"}</small></td>
     </tr>
   );
 }
 
-/** WatchPanel LAUNCHES tab: polls /api/launches every 15s; chips filter chain, STOCKS reveals tokenised stocks. */
+/** WatchPanel LAUNCHES tab: polls /api/launches every 15s; nad.fun curve launches and DexScreener discoveries on Monad. */
 export function LaunchesTab({ onOpen, selected }: { onOpen?: OpenLaunch; selected?: string }) {
   const { network } = useFundingNetwork();
   const [chip, setChip] = useState<ChainChip>(() => defaultChip(network));
   useEffect(() => { setChip(defaultChip(network)); }, [network]);
-  const [stocks, setStocks] = useState(false);
+  const stocks = true;
   const [feed, setFeed] = useState<LaunchesResponse | null>(null);
   const [failure, setFailure] = useState("");
 
@@ -74,15 +74,15 @@ export function LaunchesTab({ onOpen, selected }: { onOpen?: OpenLaunch; selecte
   return (
     <>
       <div className="launch-bar">
-        {CHAIN_CHIPS.map((item) => <button key={item} type="button" className={chip === item ? "on" : ""} onClick={() => setChip(item)}>{item}</button>)}
-        <button type="button" className={stocks ? "on" : ""} aria-pressed={stocks} title="Show tokenised stocks flagged by robinhoodtrenches" onClick={() => setStocks((value) => !value)}>STOCKS</button>
+        {CHAIN_CHIPS.length > 1 ? CHAIN_CHIPS.map((item) => <button key={item} type="button" className={chip === item ? "on" : ""} onClick={() => setChip(item)}>{item}</button>) : null}
+        <a className="launch-link" href="https://nad.fun" target="_blank" rel="noreferrer" title="Open nad.fun">NAD.FUN ↗</a>
         <span className="pm" title={sources.map((source) => `${source.name}${source.lastError ? ` · ${source.lastError}` : ""}`).join("\n")}>
           {sources.length ? `${sources.length - failing}/${sources.length} SRC` : "SRC —"}{feed?.stale ? " · STALE" : ""}{feed?.truncated ? " · CAPPED" : ""}
         </span>
       </div>
       {rows.length ? (
         <table className="terminal-table launch-table">
-          <thead><tr><th>AGE · PAD</th><th>TOKEN</th><th className="r">MCAP / PX</th><th className="r">CURVE · FOMO</th></tr></thead>
+          <thead><tr><th>AGE · PAD</th><th>TOKEN</th><th className="r">MCAP / PX</th><th className="r">CURVE · SMART</th></tr></thead>
           <tbody>{rows.map((row) => <LaunchRowItem key={rowKey(row)} row={row} now={now} selected={selected} onOpen={onOpen} />)}</tbody>
         </table>
       ) : (

@@ -1,7 +1,7 @@
 import type { WalletAsset } from "../../shared/portfolio";
 
-export const WRAPPED_SOL = "So11111111111111111111111111111111111111112";
-export const NATIVE_ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+/** Native MON as the desk names it in quotes (0x and wallet UIs use the 0xEeee… sentinel; the server maps it for Kuru). */
+export const NATIVE_MON = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 export type SwapAsset = {
   address: string;
@@ -11,15 +11,20 @@ export type SwapAsset = {
   balance?: number;
 };
 
-export const SOL_ASSET: SwapAsset = { address: WRAPPED_SOL, symbol: "SOL", name: "Solana", decimals: 9 };
-export const ETH_ASSET: SwapAsset = { address: NATIVE_ETH, symbol: "ETH", name: "Ether", decimals: 18 };
+export const MON_ASSET: SwapAsset = { address: NATIVE_MON, symbol: "MON", name: "Monad", decimals: 18 };
 
-export function solanaFundingAssets(assets: readonly WalletAsset[], targetMint: string): SwapAsset[] {
-  const byAddress = new Map<string, SwapAsset>([[WRAPPED_SOL, SOL_ASSET]]);
+export function isNativeAddress(address: string): boolean {
+  const value = address.toLowerCase();
+  return value === NATIVE_MON.toLowerCase() || value === "0x0000000000000000000000000000000000000000";
+}
+
+/** MON first, then every other positive wallet balance except the token being traded. */
+export function monadFundingAssets(assets: readonly WalletAsset[], target: string): SwapAsset[] {
+  const byAddress = new Map<string, SwapAsset>([[NATIVE_MON.toLowerCase(), MON_ASSET]]);
   for (const asset of assets) {
-    const address = asset.mint === "SOL" ? WRAPPED_SOL : asset.mint;
-    if (address === targetMint || !asset.symbol || asset.amount <= 0) continue;
-    byAddress.set(address, { address, symbol: asset.symbol.toUpperCase(), name: asset.name, decimals: asset.decimals, balance: asset.amount });
+    const address = asset.mint === "MON" ? NATIVE_MON : asset.mint;
+    if (address.toLowerCase() === target.toLowerCase() || !asset.symbol || asset.amount <= 0) continue;
+    byAddress.set(address.toLowerCase(), { address, symbol: asset.symbol.toUpperCase(), name: asset.name, decimals: asset.decimals, balance: asset.amount });
   }
   return [...byAddress.values()];
 }

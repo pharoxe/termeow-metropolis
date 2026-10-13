@@ -59,7 +59,7 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
         const seed = (col * 73 % 101) / 101;
         for (let row = 0; row < Math.ceil(streamTexture.height / spacingY); row += 1) {
           const alpha = .055 + (((col * 31 + row * 17) % 100) / 100) * .15;
-          ctx.fillStyle = `rgba(47,223,116,${alpha})`;
+          ctx.fillStyle = `rgba(182,158,240,${alpha})`;
           ctx.fillText(STREAM_GLYPHS[(col * 7 + row * 11) % STREAM_GLYPHS.length], col * spacingX, row * spacingY + seed * 5);
         }
       }
@@ -104,7 +104,7 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
       if (exitingRef.current && !exitAt) exitAt = now;
       const progress = exitAt ? Math.min(1, (now - exitAt) / (reduced ? 1 : 1900)) : 0;
       const eased = progress < .5 ? 2 * progress * progress : 1 - ((-2 * progress + 2) ** 2) / 2;
-      context.fillStyle = "#010503";
+      context.fillStyle = "#020105";
       context.fillRect(0, 0, width, height);
 
       const streamOffset = (now * .024) % height;

@@ -240,8 +240,8 @@ export function noCandlesReason(market: MarketResponse | null, error: string): s
   return market ? `No candles from ${market.source}.` : "No candle source has answered yet.";
 }
 
-export type FeedHealthChip = { key: keyof FeedHealth; label: "OWN" | "GECKO" | "PUMP"; tone: "good" | "warn" | "bad" | "off"; title: string };
-const FEED_LABELS: Record<keyof FeedHealth, FeedHealthChip["label"]> = { own: "OWN", gecko: "GECKO", pumpfun: "PUMP" };
+export type FeedHealthChip = { key: keyof FeedHealth; label: "OWN" | "GECKO"; tone: "good" | "warn" | "bad" | "off"; title: string };
+const FEED_LABELS: Record<keyof FeedHealth, FeedHealthChip["label"]> = { own: "OWN", gecko: "GECKO" };
 
 function feedTone(source: FeedSourceHealth): FeedHealthChip["tone"] {
   if (source.ok) return "good";
@@ -288,7 +288,7 @@ export function nextFlowState(previous: TokenFlowResponse | null, next: TokenFlo
 export type StatusLine = { text: string; title: string };
 
 /** "WS" / "HTTP" / "MIXED" for the status line plus one title line per poller naming its transport (IST for the socket's connect time). */
-export function transportStatusParts(transport: SystemHealth["robinhoodTransport"]): { text: string; lines: string[] } {
+export function transportStatusParts(transport: SystemHealth["monadTransport"]): { text: string; lines: string[] } {
   if (!transport) return { text: "", lines: [] };
   const lines = transport.pollers.map((poller) => {
     const ws = poller.ws;
@@ -302,7 +302,7 @@ export function transportStatusParts(transport: SystemHealth["robinhoodTransport
 /** One line for the toolbar: "RPC 4/6 UP · LOGS 2 · WS · SNAP 3m OLD"; the title lists every endpoint's and poller's health. */
 export function systemStatusLine(health: SystemHealth | null, now: number): StatusLine | null {
   if (!health) return null;
-  const pool = health.robinhoodRpc;
+  const pool = health.monadRpc;
   const parts: string[] = [];
   const lines: string[] = [];
   if (pool) {
@@ -316,7 +316,7 @@ export function systemStatusLine(health: SystemHealth | null, now: number): Stat
       lines.push(`${host} · ${state}${endpoint.logs ? " · logs" : ""} · p50 ${endpoint.p50Ms == null ? EM_DASH : `${Math.round(endpoint.p50Ms)}ms`} · ${endpoint.calls} calls · ${endpoint.rateLimited} 429${endpoint.lastError ? ` · ${endpoint.lastError}` : ""}`);
     }
   } else parts.push("RPC POOL —");
-  const transport = transportStatusParts(health.robinhoodTransport);
+  const transport = transportStatusParts(health.monadTransport);
   if (transport.text) {
     parts.push(transport.text);
     lines.push(...transport.lines);

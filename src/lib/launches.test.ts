@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { LaunchRow } from "../../shared/wire";
 import {
   CHAIN_CHIPS,
-  FOMO_POPULATION,
+  SMART_POPULATION,
   chainLabel,
   chipChain,
   coldCopy,
   curveCounts,
   defaultChip,
   filterByChip,
-  fomoBuyer,
+  smartBuyer,
   isHoneypot,
   launchAge,
   launchChange,
@@ -28,7 +28,7 @@ const NOW = 1_800_000_000_000;
 
 function row(overrides: Partial<LaunchRow> = {}): LaunchRow {
   return {
-    chain: "robinhood",
+    chain: "monad",
     launchpad: "pons",
     token: "0xaaaa000000000000000000000000000000000001",
     symbol: "MEAO",
@@ -50,7 +50,7 @@ function row(overrides: Partial<LaunchRow> = {}): LaunchRow {
     curveSells: 0,
     curveNetUsd: null,
     tracked: null,
-    sources: ["rpc:robinhood"],
+    sources: ["rpc:monad"],
     observedAt: NOW,
     ...overrides
   };
@@ -58,25 +58,21 @@ function row(overrides: Partial<LaunchRow> = {}): LaunchRow {
 
 describe("chips and labels", () => {
   it("maps chips to chains and chains to chip labels", () => {
-    expect(CHAIN_CHIPS).toEqual(["ALL", "SOL", "RH"]);
+    expect(CHAIN_CHIPS).toEqual(["MON"]);
     expect(chipChain("ALL")).toBe("all");
-    expect(chipChain("SOL")).toBe("solana");
-    expect(chipChain("RH")).toBe("robinhood");
-    expect(chainLabel("solana")).toBe("SOL");
-    expect(chainLabel("robinhood")).toBe("RH");
+    expect(chipChain("MON")).toBe("monad");
+    expect(chainLabel("monad")).toBe("MON");
   });
 
   it("labels known pads and uppercases unknown ones instead of hiding them", () => {
-    expect(padLabel("pons")).toBe("PONS");
-    expect(padLabel("pools-trade")).toBe("POOLS");
-    expect(padLabel("pump.fun")).toBe("PUMP");
+    expect(padLabel("nadfun")).toBe("NAD.FUN");
     expect(padLabel("dexscreener-profile")).toBe("DEX PROFILE");
     expect(padLabel("unknown")).toBe("PAD ?");
     expect(padLabel("hoodit")).toBe("HOODIT");
   });
 
   it("builds the query from chip and stocks toggle", () => {
-    expect(launchQuery("RH", false)).toEqual({ chain: "robinhood", stocks: false });
+    expect(launchQuery("MON", false)).toEqual({ chain: "monad", stocks: false });
     expect(launchQuery("ALL", true)).toEqual({ chain: "all", stocks: true });
   });
 });
@@ -90,9 +86,8 @@ describe("ordering and filtering", () => {
   });
 
   it("filters by chain chip and copies for ALL", () => {
-    const rows = [row({ token: "r" }), row({ token: "s", chain: "solana" })];
-    expect(filterByChip(rows, "SOL").map((item) => item.token)).toEqual(["s"]);
-    expect(filterByChip(rows, "RH").map((item) => item.token)).toEqual(["r"]);
+    const rows = [row({ token: "r" }), row({ token: "s" })];
+    expect(filterByChip(rows, "MON").map((item) => item.token)).toEqual(["r", "s"]);
     const all = filterByChip(rows, "ALL");
     expect(all).toEqual(rows);
     expect(all).not.toBe(rows);
@@ -128,16 +123,16 @@ describe("cell formatting", () => {
     expect(curveCounts(row({ curveSells: 2 }))).toBe("B0/S2");
   });
 
-  it("derives the FOMO buyer with followers and the population label in the title", () => {
-    expect(fomoBuyer(row(), NOW)).toBeNull();
+  it("derives the SMART buyer with followers and the population label in the title", () => {
+    expect(smartBuyer(row(), NOW)).toBeNull();
     const tracked = { buyers: 24, usdIn: 100, usdOut: 0, firstBuyer: { handle: "fmpumpguy", followers: 65_621, at: NOW - 3_600_000 }, honeypot: null };
-    const buyer = fomoBuyer(row({ tracked }), NOW);
+    const buyer = smartBuyer(row({ tracked }), NOW);
     expect(buyer?.handle).toBe("@fmpumpguy");
-    expect(buyer?.title).toBe(`@fmpumpguy · 65,621 followers · first buy 1h ago · FOMO first buyer · ${FOMO_POPULATION}`);
-    const unknownFollowers = fomoBuyer(row({ tracked: { ...tracked, firstBuyer: { handle: "@x", followers: null, at: NOW } } }), NOW);
+    expect(buyer?.title).toBe(`@fmpumpguy · 65,621 followers · first buy 1h ago · SMART first buyer · ${SMART_POPULATION}`);
+    const unknownFollowers = smartBuyer(row({ tracked: { ...tracked, firstBuyer: { handle: "@x", followers: null, at: NOW } } }), NOW);
     expect(unknownFollowers).toMatchObject({ handle: "@x" });
     expect(unknownFollowers?.title).toContain("followers unknown");
-    expect(fomoBuyer(row({ tracked: { ...tracked, firstBuyer: null } }), NOW)).toBeNull();
+    expect(smartBuyer(row({ tracked: { ...tracked, firstBuyer: null } }), NOW)).toBeNull();
   });
 
   it("flags honeypots only on an explicit true", () => {
@@ -149,20 +144,20 @@ describe("cell formatting", () => {
   });
 
   it("keys rows by chain and token and names sources in the cold copy", () => {
-    expect(rowKey(row())).toBe("robinhood:0xaaaa000000000000000000000000000000000001");
+    expect(rowKey(row())).toBe("monad:0xaaaa000000000000000000000000000000000001");
     expect(coldCopy([])).toBe("Waiting for launches · sources: none reported yet");
-    expect(coldCopy([{ name: "rpc:robinhood" }, { name: "pumpportal" }])).toBe("Waiting for launches · sources: rpc:robinhood, pumpportal");
+    expect(coldCopy([{ name: "rpc:monad" }, { name: "pumpportal" }])).toBe("Waiting for launches · sources: rpc:monad, pumpportal");
   });
 });
 
 describe("R6 row completeness", () => {
   it("never leaves the subtitle blank: name, else the vouching sources", () => {
     expect(rowSubtitle(row())).toBe("Make Everyone An Owner");
-    expect(rowSubtitle(row({ name: null }))).toBe("no name yet · rpc:robinhood");
+    expect(rowSubtitle(row({ name: null }))).toBe("no name yet · rpc:monad");
     expect(rowSubtitle(row({ name: " ", sources: [] }))).toBe("no name yet");
   });
-  it("starts on the RH chip when the Robinhood network is toggled", () => {
-    expect(defaultChip("robinhood")).toBe("RH");
-    expect(defaultChip("solana")).toBe("ALL");
+  it("starts on the MON chip", () => {
+    expect(defaultChip("monad")).toBe("MON");
+    expect(defaultChip()).toBe("MON");
   });
 });

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getAccessToken, usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
-import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useWorkspaceFeatures } from "../features/WorkspaceFeatures";
-import { networkLabel, networkNativeToken, type FundingNetwork, useFundingNetwork } from "../features/NetworkContext";
+import { MONAD_PROFILE, networkLabel, networkNativeToken, type FundingNetwork, useFundingNetwork } from "../features/NetworkContext";
 import { useNotifications } from "../components/NotificationSystem";
 import { shortAddress } from "../lib/format";
 import { hasPrivy } from "./WalletProviders";
@@ -19,32 +18,24 @@ async function copyWalletAddress(address: string) {
   if (!copied) throw new Error("Copy the wallet address shown above.");
 }
 
+/** Monad is the only network; the chip states it instead of offering a switch. */
 function NetworkPicker({ compact = false }: { compact?: boolean }) {
-  const { network, setNetwork } = useFundingNetwork();
-  const { notify } = useNotifications();
-  const choose = (next: FundingNetwork) => {
-    setNetwork(next);
-    notify({ title: `${networkLabel(next).toUpperCase()} WALLET`, message: `${networkNativeToken(next)} funding is selected.`, tone: "info" });
-  };
-  return <div className={`funding-network-picker ${compact ? "compact" : ""}`} role="group" aria-label="Funding network">
-    <button type="button" className={network === "robinhood" ? "active" : ""} aria-pressed={network === "robinhood"} onClick={() => choose("robinhood")}>ROBINHOOD</button>
-    <button type="button" className={network === "solana" ? "active" : ""} aria-pressed={network === "solana"} onClick={() => choose("solana")}>SOLANA</button>
+  return <div className={`funding-network-picker ${compact ? "compact" : ""}`} role="note" aria-label="Network">
+    <button type="button" className="active" aria-pressed="true" disabled>{MONAD_PROFILE.name.toUpperCase()} · {MONAD_PROFILE.chainId}</button>
   </div>;
 }
 
 function LivePrivyControl() {
   const { authenticated, login, logout, ready, user } = usePrivy();
   const { wallets: evmWallets } = useEvmWallets();
-  const { wallets: solanaWallets } = useSolanaWallets();
   const { notify } = useNotifications();
-  const { network, setNetwork } = useFundingNetwork();
+  const { network } = useFundingNetwork();
   const [profileOpen, setProfileOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [tradingOnboardingOpen, setTradingOnboardingOpen] = useState(false);
   const [depositTarget, setDepositTarget] = useState<FundingNetwork | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const evmWallet = useMemo(() => evmWallets.find(wallet => ["privy", "privy-v2"].includes(wallet.walletClientType)) ?? evmWallets[0], [evmWallets]);
-  const solanaWallet = solanaWallets[0];
 
   useEffect(() => {
     if (!authenticated || !user) return;
@@ -67,8 +58,7 @@ function LivePrivyControl() {
     setOnboardingOpen(false);
   };
   const fund = async (target: FundingNetwork) => {
-    setNetwork(target);
-    const address = target === "solana" ? solanaWallet?.address : evmWallet?.address;
+    const address = evmWallet?.address;
     if (!address) { notify({ title: "WALLET NOT READY", message: `${networkLabel(target)} wallet is still being created.`, tone: "warning" }); return; }
     setDepositTarget(target);
     try {
@@ -80,9 +70,9 @@ function LivePrivyControl() {
     const openFunding = () => { setProfileOpen(false); void fund(network); };
     window.addEventListener("termeow:add-funds", openFunding);
     return () => window.removeEventListener("termeow:add-funds", openFunding);
-  }, [network, evmWallet?.address, solanaWallet?.address]);
-  const activeAddress = network === "solana" ? solanaWallet?.address : evmWallet?.address;
-  const depositAddress = depositTarget === "solana" ? solanaWallet?.address : evmWallet?.address;
+  }, [network, evmWallet?.address]);
+  const activeAddress = evmWallet?.address;
+  const depositAddress = evmWallet?.address;
 
   return <div className="profile-control" ref={profileRef}>
     <button className="auth-button primary-auth" type="button" disabled={!ready} onClick={() => authenticated ? setProfileOpen(open => !open) : login()}>
@@ -92,8 +82,8 @@ function LivePrivyControl() {
       <div className="profile-heading"><div><span>PRIVY PROFILE</span><strong>{networkLabel(network)} funding</strong></div><button type="button" onClick={() => setProfileOpen(false)}>×</button></div>
       <NetworkPicker />
       <div className="profile-wallets">
-        <article className={network === "robinhood" ? "active" : ""}><small>ROBINHOOD CHAIN · ETH</small><strong>{shortAddress(evmWallet?.address)}</strong><button type="button" onClick={() => void fund("robinhood")}>ADD FUNDS</button></article>
-        <article className={network === "solana" ? "active" : ""}><small>SOLANA · SOL</small><strong>{shortAddress(solanaWallet?.address)}</strong><button type="button" onClick={() => void fund("solana")}>ADD FUNDS</button></article>
+        <article className="active"><small>MONAD · MON</small><strong>{shortAddress(evmWallet?.address)}</strong><button type="button" onClick={() => void fund("monad")}>ADD FUNDS</button></article>
+        <article><small>EXPLORER</small><strong>MonadVision</strong>{evmWallet?.address ? <a className="profile-link" href={`${MONAD_PROFILE.explorer}/address/${evmWallet.address}`} target="_blank" rel="noreferrer">OPEN ↗</a> : null}</article>
       </div>
       <div className="profile-foot"><span>{shortAddress(activeAddress)}</span><button type="button" onClick={() => { setProfileOpen(false); void logout(); }}>LOG OUT</button></div>
     </div>}
@@ -101,7 +91,7 @@ function LivePrivyControl() {
     {onboardingOpen && !tradingOnboardingOpen && createPortal(<div className="onboarding-viewport"><dialog className="funding-onboarding" open aria-modal="true">
       <div className="onboarding-kicker">NEW PRIVY WALLET</div>
       <h2>FUND YOUR WALLET</h2>
-      <p>Your embedded wallets are ready. Choose a network and deposit its native token before trading.</p>
+      <p>Your embedded Monad wallet is ready. Deposit MON for gas and trading before you place a swap or arm an automation.</p>
       <NetworkPicker />
       <div className="onboarding-address"><span>{networkLabel(network)} wallet</span><strong>{shortAddress(activeAddress)}</strong><small>Deposit {networkNativeToken(network)}</small></div>
       <button type="button" className="onboarding-deposit" onClick={() => void fund(network)}>DEPOSIT {networkNativeToken(network)}</button>
@@ -111,7 +101,7 @@ function LivePrivyControl() {
       <section className="deposit-address-sheet" role="dialog" aria-modal="true" aria-label={`Fund ${networkLabel(depositTarget)} wallet`}>
         <div className="onboarding-kicker">PRIVY EMBEDDED WALLET</div>
         <h2>ADD {networkNativeToken(depositTarget)}</h2>
-        <p>Send only <b>{networkNativeToken(depositTarget)}</b> on <b>{networkLabel(depositTarget)}</b>. Sending another token or using another network can lose funds.</p>
+        <p>Send <b>{networkNativeToken(depositTarget)}</b> (or USDC / AUSD) on <b>{networkLabel(depositTarget)}</b> only. Sending from another network directly to this address can lose funds.</p>
         <code>{depositAddress}</code>
         <div className="deposit-address-actions"><button type="button" onClick={() => void copyWalletAddress(depositAddress).then(() => notify({ title: "ADDRESS COPIED", message: `${networkLabel(depositTarget)} wallet copied.`, tone: "success" }))}>COPY ADDRESS</button><button type="button" className="confirm" onClick={() => { setDepositTarget(null); finishOnboarding(); }}>DONE</button></div>
       </section>

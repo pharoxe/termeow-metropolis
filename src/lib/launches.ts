@@ -4,31 +4,26 @@ import { money, pct, shortAddress } from "./format";
 
 /** Pure helpers for the LAUNCHES tab. No React, no Date.now(): callers pass `now`. */
 
-export type ChainChip = "ALL" | "SOL" | "RH";
-export const CHAIN_CHIPS: readonly ChainChip[] = ["ALL", "SOL", "RH"];
+export type ChainChip = "ALL" | "MON";
+export const CHAIN_CHIPS: readonly ChainChip[] = ["MON"];
 export const LAUNCH_POLL_MS = 15_000;
-/** The only tracked-trader population wired today; every FOMO label names it. */
-export const FOMO_POPULATION = "robinhoodtrenches";
+/** The tracked-trader population wired today; every SMART label names it. */
+export const SMART_POPULATION = "Nansen smart money";
 const EM_DASH = "—";
 
-const CHAIN_LABELS: Record<Chain, "SOL" | "RH"> = { solana: "SOL", robinhood: "RH" };
+const CHAIN_LABELS: Record<Chain, "MON"> = { monad: "MON" };
 
 const PAD_LABELS: Record<string, string> = {
-  pons: "PONS",
-  "pools-trade": "POOLS",
-  flap: "FLAP",
-  trench: "TRENCH",
-  bags: "BAGS",
-  "pump.fun": "PUMP",
+  nadfun: "NAD.FUN",
   "dexscreener-profile": "DEX PROFILE",
   unknown: "PAD ?"
 };
 
 export function chipChain(chip: ChainChip): "all" | Chain {
-  return chip === "SOL" ? "solana" : chip === "RH" ? "robinhood" : "all";
+  return chip === "MON" ? "monad" : "all";
 }
 
-export function chainLabel(chain: Chain): "SOL" | "RH" {
+export function chainLabel(chain: Chain): "MON" {
   return CHAIN_LABELS[chain];
 }
 
@@ -83,14 +78,14 @@ export function curveCounts(row: Pick<LaunchRow, "curveBuys" | "curveSells">): s
   return row.curveBuys + row.curveSells > 0 ? `B${row.curveBuys}/S${row.curveSells}` : EM_DASH;
 }
 
-export type FomoBuyer = { handle: string; title: string };
+export type SmartBuyer = { handle: string; title: string };
 
 /** First tracked buyer from the labelled population; the title carries followers and the population name. */
-export function fomoBuyer(row: Pick<LaunchRow, "tracked">, now: number): FomoBuyer | null {
+export function smartBuyer(row: Pick<LaunchRow, "tracked">, now: number): SmartBuyer | null {
   const buyer = row.tracked?.firstBuyer;
   if (!buyer) return null;
   const followers = buyer.followers == null ? "followers unknown" : `${buyer.followers.toLocaleString("en-US")} followers`;
-  return { handle: `@${buyer.handle.replace(/^@/, "")}`, title: `@${buyer.handle} · ${followers} · first buy ${printAgeLabel(buyer.at, now)} ago · FOMO first buyer · ${FOMO_POPULATION}` };
+  return { handle: `@${buyer.handle.replace(/^@/, "")}`, title: `@${buyer.handle} · ${followers} · first buy ${printAgeLabel(buyer.at, now)} ago · SMART first buyer · ${SMART_POPULATION}` };
 }
 
 /** Second line under the symbol: the name when a source gave one, else the sources that vouch for the row (never blank). */
@@ -100,9 +95,9 @@ export function rowSubtitle(row: Pick<LaunchRow, "name" | "sources">): string {
   return row.sources.length ? `no name yet · ${row.sources.join(" · ")}` : "no name yet";
 }
 
-/** Initial chain chip follows the ROBINHOOD/SOLANA toggle so the Robinhood rows are not buried under pump.fun ones. */
-export function defaultChip(network: "robinhood" | "solana"): ChainChip {
-  return network === "robinhood" ? "RH" : "ALL";
+/** Monad is the only chain, so the chip always starts on it. */
+export function defaultChip(_network: "monad" = "monad"): ChainChip {
+  return "MON";
 }
 
 export function isHoneypot(row: Pick<LaunchRow, "tracked">): boolean {

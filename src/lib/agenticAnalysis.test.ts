@@ -31,7 +31,7 @@ describe("agentic analysis", () => {
     expect(result.setups[0].conditions.map((condition) => condition.label)).toContain("Net flow (1H) turns positive");
   });
 
-  it("detects whale distribution in ClawPump intelligence", () => {
+  it("detects whale distribution in market intelligence", () => {
     const result = analyzeToken({ market, candles, flow: null, provider: { anomalies: [{ summary: "Whale sell distribution detected" }] } });
     expect(result.whaleSellRisk).toBe(true);
     expect(result.netFlowUsd).toBeNull();

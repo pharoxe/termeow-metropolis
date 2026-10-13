@@ -2,43 +2,43 @@ import type { Chain, MarketResponse, Side, TapePrint } from "../../shared/wire";
 import type { OnchainMarket } from "../types";
 import type { InstrumentRef } from "./address";
 import { isEvmAddress } from "./address";
-import { MINT_RE } from "./mint";
 
 /** Pure helpers for the desk's one-instrument model. No React, no Date.now(). */
 
 export const TAPE_ROW_LIMIT = 14;
 
-export function instrumentLabel(chain: Chain): "SOLANA SPOT" | "ROBINHOOD SPOT" {
-  return chain === "solana" ? "SOLANA SPOT" : "ROBINHOOD SPOT";
+export function instrumentLabel(_chain: Chain): "MONAD SPOT" {
+  return "MONAD SPOT";
 }
 
-export function brandSuffix(chain: Chain): "sol" | "rhc" {
-  return chain === "solana" ? "sol" : "rhc";
+export function brandSuffix(_chain: Chain): "mon" {
+  return "mon";
 }
 
 export function isValidInstrument(ref: InstrumentRef): boolean {
-  return ref.chain === "solana" ? MINT_RE.test(ref.address) : isEvmAddress(ref.address);
+  return ref.chain === "monad" && isEvmAddress(ref.address);
 }
 
-/** Robinhood addresses are hex and compared case-insensitively; Solana base58 is case-sensitive. */
+/** Monad addresses are hex and compared case-insensitively. */
 export function sameInstrument(a: InstrumentRef, b: InstrumentRef): boolean {
-  if (a.chain !== b.chain) return false;
-  return a.chain === "robinhood" ? a.address.toLowerCase() === b.address.toLowerCase() : a.address === b.address;
+  return a.chain === b.chain && a.address.toLowerCase() === b.address.toLowerCase();
 }
 
 export function instrumentKey(ref: InstrumentRef): string {
-  return `${ref.chain}:${ref.chain === "robinhood" ? ref.address.toLowerCase() : ref.address}`;
+  return `${ref.chain}:${ref.address.toLowerCase()}`;
 }
 
-/** Robinhood link-outs. Uniswap param names are kept as specified; DexScreener falls back to the token page without a pair. */
-export function tradeLinks(address: string, pairAddress: string | null): { uniswap: string; dexscreener: string } {
+/** Monad link-outs: Kuru (native venue), nad.fun, DexScreener (token page without a pair) and the explorer. */
+export function tradeLinks(address: string, pairAddress: string | null): { kuru: string; nadfun: string; dexscreener: string; explorer: string } {
   return {
-    uniswap: `https://app.uniswap.org/swap?chain=robinhood&outputCurrency=${address}`,
-    dexscreener: `https://dexscreener.com/robinhood/${pairAddress || address}`
+    kuru: `https://www.kuru.io/swap?to=${address}`,
+    nadfun: `https://nad.fun/tokens/${address}`,
+    dexscreener: `https://dexscreener.com/monad/${pairAddress || address}`,
+    explorer: `https://monadvision.com/token/${address}`
   };
 }
 
-/** The neutral market as the ClawPump panels still expect it. Numbers pass through; nothing is invented. */
+/** The neutral market as the legacy panels expect it. Numbers pass through; nothing is invented. */
 export function legacyMarket(m: MarketResponse): OnchainMarket {
   return {
     instrumentId: `${m.instrument.chain}:${m.instrument.address}`,

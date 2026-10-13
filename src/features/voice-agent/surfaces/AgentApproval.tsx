@@ -1,6 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { getAccessToken, useLinkWithPasskey, useMfa, useMfaEnrollment, usePrivy } from "@privy-io/react-auth";
-import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
+import { getAccessToken, useLinkWithPasskey, useMfa, useMfaEnrollment, usePrivy, useWallets as useEvmWallets } from "@privy-io/react-auth";
 import type { AutomationIntent, LinkedExitCondition } from "../../../../shared/automation";
 import { api } from "../../../api/client";
 import { hasPrivy } from "../../../auth/WalletProviders";
@@ -30,13 +29,13 @@ function numberOrUndefined(value: string) {
 
 function ApprovalDetails({ intent, editable = false }: { intent: AutomationIntent; editable?: boolean }) {
   if (intent.kind === "transfer") return <div className="agent-approval-copy transfer-approval-copy">
-    <span>ONE-TIME SOL TRANSFER · SOLANA MAINNET</span>
+    <span>ONE-TIME MON TRANSFER · MONAD MAINNET</span>
     <strong>{humanPrecision(intent.description)}</strong>
     <dl>
-      <div><dt>SEND EXACTLY</dt><dd>{intent.transferAmountSol} SOL</dd></div>
+      <div><dt>SEND EXACTLY</dt><dd>{intent.transferAmountMon} MON</dd></div>
       <div><dt>USD AT QUOTE</dt><dd>{intent.transferAmountUsd == null ? "—" : money(intent.transferAmountUsd)}</dd></div>
       <div className="wide"><dt>RECIPIENT WALLET</dt><dd className="full-address">{intent.recipientAddress}</dd></div>
-      <div><dt>SOL / USD</dt><dd>{intent.transferPriceUsd == null ? "—" : money(intent.transferPriceUsd)}</dd></div>
+      <div><dt>MON / USD</dt><dd>{intent.transferPriceUsd == null ? "—" : money(intent.transferPriceUsd)}</dd></div>
       <div><dt>NETWORK FEE</dt><dd>ADDED SEPARATELY</dd></div>
     </dl>
   </div>;
@@ -98,8 +97,9 @@ function LiveApproval() {
   const { linkWithPasskey } = useLinkWithPasskey();
   const { promptMfa, mfaMethods } = useMfa();
   const { initEnrollmentWithPasskey, submitEnrollmentWithPasskey } = useMfaEnrollment();
-  const { wallets: solanaWallets } = useSolanaWallets();
-  const { ensureDelegated } = useAutomationDelegation(solanaWallets[0]?.address);
+  const { wallets: evmWallets } = useEvmWallets();
+  const embedded = evmWallets.find((wallet) => ["privy", "privy-v2"].includes(wallet.walletClientType)) ?? evmWallets[0];
+  const { ensureDelegated } = useAutomationDelegation(embedded?.address);
   const [draft, setDraft] = useState(pending.intent);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
@@ -150,7 +150,7 @@ function LiveApproval() {
           throw reason;
         }
       }
-      if (pending.intent.chain === "solana" && !["swap", "transfer"].includes(pending.intent.kind)) await ensureDelegated();
+      if (pending.intent.chain === "monad" && !["swap", "transfer"].includes(pending.intent.kind)) await ensureDelegated();
       const token = await getAccessToken();
       if (!token) throw new Error("Privy session expired. Log in again.");
       const edited = await api.updateAutomation(token, pending.id, draft);

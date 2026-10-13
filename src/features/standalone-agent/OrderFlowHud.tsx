@@ -40,7 +40,7 @@ export function OrderFlowHud() {
     <div className="order-flow-list">
       {rows.length ? rows.map((row) => <article key={`${row.tx}:${row.side}`} className={row.side}>
         <b>{row.side === "buy" ? "▲ BUY" : "▼ SELL"}</b><strong>{money(row.usd, true)}</strong>
-        <small>{row.trader?.handle ? `@${row.trader.handle.replace(/^@/, "")} · ` : ""}{row.dex || row.source} · {age(row.time)}</small>
+        <small>{row.trader?.handle ? `${row.trader.handle.replace(/^@/, "")} · ` : ""}{row.dex || row.source} · {age(row.time)}</small>
       </article>) : <div className="market-hud-empty">{error || "NO MATCHING PRINTS YET"}</div>}
     </div>
     <footer><span>SOURCE <b>{flow?.source || "ACQUIRING"}</b></span><span>PAIRS <b>{flow?.pairs.length ?? 0}</b></span><span>UPDATED <b>{flow ? age(flow.observedAt) : "—"}</b></span></footer>

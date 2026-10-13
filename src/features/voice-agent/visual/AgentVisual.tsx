@@ -7,7 +7,7 @@ interface Props { status: AgentStatus; quality?: "low" | "normal" }
 function statusColor(status: AgentStatus) {
   if (status === "error" || status === "warning") return "#ff4669";
   if (status === "speaking") return "#35d9ff";
-  return "#39ff88";
+  return "#b293fb";
 }
 
 /** Lightweight Canvas2D pixel wave: capped DPR and an allocation-free 60 fps draw loop. */

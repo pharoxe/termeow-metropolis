@@ -1,40 +1,39 @@
-import type { Chain, FlowWindow, FomoBoardRow, FomoBoardWindow, FomoCoverage, FomoFill, TokenFlowFomo, TraderKind } from "../../shared/wire";
+import type { Chain, FlowWindow, SmartBoardRow, SmartBoardWindow, SmartCoverage, SmartFill, TokenFlowSmart, TraderKind } from "../../shared/wire";
 import type { InstrumentRef } from "./address";
 import { EM_DASH, printAgeLabel, windowRow, type WindowRow } from "./flowPanel";
 import { money, shortAddress, signedMoney } from "./format";
 
-/** Pure derivations for the FOMO tape panel, the FOMO watch tab and the FOMO side block. No React, no Date.now(). */
+/** Pure derivations for the SMART tape panel, the SMART watch tab and the SMART side block. No React, no Date.now(). */
 
-export const FOMO_TAPE_POLL_MS = 10_000;
-export const FOMO_BOARD_POLL_MS = 15_000;
-export const FOMO_TAPE_LIMIT = 60;
-/** fomo.family has no public API: profile pages are constructed link-outs, only when a handle is known. */
-export const FOMO_PROFILE_BASE = "https://fomo.family/profile/";
+export const SMART_TAPE_POLL_MS = 10_000;
+export const SMART_BOARD_POLL_MS = 15_000;
+export const SMART_TAPE_LIMIT = 60;
+/** Nansen profiler page for a Monad wallet: a constructed link-out keyed by address. */
+export const SMART_PROFILE_BASE = "https://app.nansen.ai/profiler?chain=monad&address=";
 /** Every population shown is this server's own; the label travels with the number. */
-export const FOMO_POPULATION_LABEL = "FOMO wallets seen by this server";
+export const SMART_POPULATION_LABEL = "smart-money wallets seen by this server";
 /** Below this many closed round trips the Wilson lower bound is meaningless and shown as an em-dash. */
 export const WILSON_MIN_CLOSED = 5;
-export const BOARD_WINDOWS: readonly FomoBoardWindow[] = ["1h", "24h", "7d"];
+export const BOARD_WINDOWS: readonly SmartBoardWindow[] = ["1h", "24h", "7d"];
 
 export type BoardChip = "1H" | "24H" | "7D";
 export const BOARD_CHIPS: readonly BoardChip[] = ["1H", "24H", "7D"];
-const BOARD_WINDOW: Record<BoardChip, FomoBoardWindow> = { "1H": "1h", "24H": "24h", "7D": "7d" };
+const BOARD_WINDOW: Record<BoardChip, SmartBoardWindow> = { "1H": "1h", "24H": "24h", "7D": "7d" };
 
-export function boardWindowParam(chip: BoardChip): FomoBoardWindow {
+export function boardWindowParam(chip: BoardChip): SmartBoardWindow {
   return BOARD_WINDOW[chip];
 }
 
-/** Handle when the robinhoodtrenches population names the wallet, else the short address. Never invents a name. */
+/** Handle when the Nansen population names the wallet, else the short address. Never invents a name. */
 export function walletLabel(address: string, handle: string | null | undefined): string {
   const name = handle?.trim();
   return name ? name : shortAddress(address);
 }
 
-/** A server-supplied profile url wins; else a constructed fomo.family link from the handle (leading @ dropped); else null. */
-export function profileHref(handle: string | null | undefined, serverUrl?: string | null): string | null {
+/** A server-supplied profile url wins; else the Nansen profiler page for the wallet address; else null. */
+export function profileHref(_handle: string | null | undefined, serverUrl?: string | null, address?: string | null): string | null {
   if (serverUrl) return serverUrl;
-  const name = handle?.trim().replace(/^@+/, "");
-  return name ? `${FOMO_PROFILE_BASE}${encodeURIComponent(name)}` : null;
+  return address ? `${SMART_PROFILE_BASE}${encodeURIComponent(address)}` : null;
 }
 
 export function followersLabel(followers: number | null | undefined): string {
@@ -43,30 +42,30 @@ export function followersLabel(followers: number | null | undefined): string {
 }
 
 export function chainTag(chain: Chain): string {
-  return chain === "solana" ? "SOL" : "RH";
+  return chain === "monad" ? "MON" : String(chain).toUpperCase();
 }
 
-/** Row tag for a wallet taken from the robinhoodtrenches traders list whose 7702 check has not answered here; null for verified FOMO (and anything else). */
+/** Row tag for a wallet taken from the Nansen smart-money list whose smart-money check has not answered here; null for verified SMART (and anything else). */
 export function provenanceTag(kind: TraderKind | null | undefined): "SEEDED" | null {
   return kind === "seeded" ? "SEEDED" : null;
 }
 
-const SEEDED_TITLE = " · seeded from robinhoodtrenches · 7702 check pending";
+const SEEDED_TITLE = " · seeded from Nansen / your watchlist · smart-money check pending";
 
 /** Symbol from the launch index when known, else the token's short address (never a guess). */
-export function tokenLabel(fill: Pick<FomoFill, "symbol" | "token">): string {
+export function tokenLabel(fill: Pick<SmartFill, "symbol" | "token">): string {
   const symbol = fill.symbol?.trim();
   return symbol ? symbol.toUpperCase() : shortAddress(fill.token);
 }
 
-export type FomoTapeRowView = {
+export type SmartTapeRowView = {
   key: string;
   label: string;
-  /** Constructed fomo.family link when a handle is known; null otherwise. `profileUrl` is the same value. */
+  /** Nansen profiler link for the wallet. `profileUrl` is the same value. */
   href: string | null;
   profileUrl: string | null;
   title: string;
-  /** "SEEDED" when the wallet awaits its 7702 check (provenance shown, never upgraded to FOMO); null otherwise. */
+  /** "SEEDED" when the wallet awaits its smart-money check (provenance shown, never upgraded to SMART); null otherwise. */
   tag: "SEEDED" | null;
   followers: string;
   side: "BUY" | "SELL";
@@ -78,9 +77,9 @@ export type FomoTapeRowView = {
   instrument: InstrumentRef;
 };
 
-export function fomoTapeRow(fill: FomoFill, now: number): FomoTapeRowView {
+export function smartTapeRow(fill: SmartFill, now: number): SmartTapeRowView {
   const side = fill.side === "buy" ? "BUY" : "SELL";
-  const href = profileHref(fill.trader.handle);
+  const href = profileHref(fill.trader.handle, null, fill.trader.address);
   const tag = provenanceTag(fill.trader.kind);
   return {
     key: `${fill.chain}:${fill.tx}:${fill.pair}:${fill.trader.address}`,
@@ -100,7 +99,7 @@ export function fomoTapeRow(fill: FomoFill, now: number): FomoTapeRowView {
   };
 }
 
-export type FomoBoardRowView = {
+export type SmartBoardRowView = {
   key: string;
   label: string;
   href: string | null;
@@ -126,8 +125,8 @@ export function wilsonLabel(wilsonLow: number | null, closed: number): string {
   return `${Math.round(wilsonLow * 100)}%`;
 }
 
-export function fomoBoardRowView(row: FomoBoardRow, now: number): FomoBoardRowView {
-  const href = profileHref(row.handle, row.profileUrl);
+export function smartBoardRowView(row: SmartBoardRow, now: number): SmartBoardRowView {
+  const href = profileHref(row.handle, row.profileUrl, row.wallet);
   const record = row.closed > 0 ? `${row.wins}/${row.closed}` : EM_DASH;
   // Every fill unpriced: the dollars are unknown, not zero.
   const unpricedOnly = row.fills > 0 && row.unpriced >= row.fills;
@@ -153,16 +152,16 @@ export function fomoBoardRowView(row: FomoBoardRow, now: number): FomoBoardRowVi
 }
 
 /** Alias kept for the board tab. */
-export const fomoBoardRow = fomoBoardRowView;
+export const smartBoardRow = smartBoardRowView;
 
 /** Shown when a response carries no coverage (old server, failed request): a count without coverage is never read as complete. */
-export const COVERAGE_UNKNOWN = "FOMO COVERAGE UNKNOWN";
+export const COVERAGE_UNKNOWN = "SMART COVERAGE UNKNOWN";
 
 /**
- * R5 header for every FOMO surface (tape, board, flow block): the server's own "watching N of M FOMO wallets · K named",
- * uppercased for the panel chrome. Fills can only come from the N watched wallets, so this label travels with every FOMO count.
+ * R5 header for every SMART surface (tape, board, flow block): the server's own "watching N of M SMART wallets · K named",
+ * uppercased for the panel chrome. Fills can only come from the N watched wallets, so this label travels with every SMART count.
  */
-export function fomoCoverageLabel(coverage: FomoCoverage | null | undefined): string {
+export function smartCoverageLabel(coverage: SmartCoverage | null | undefined): string {
   const label = coverage?.label?.trim();
   return label ? label.toUpperCase() : COVERAGE_UNKNOWN;
 }
@@ -178,23 +177,23 @@ export function truncationNote(truncatedAt: number | null, now: number): string 
   return `ring covers ${printAgeLabel(truncatedAt, now)} only · older fills not counted`;
 }
 
-export type FomoWindowRow = WindowRow & { fills: string };
+export type SmartWindowRow = WindowRow & { fills: string };
 
-/** One FOMO-cohort window row, formatted like the all-flow windows; `fills` mirrors `prints`. */
-export function fomoWindowRow(window: FlowWindow): FomoWindowRow {
+/** One SMART-cohort window row, formatted like the all-flow windows; `fills` mirrors `prints`. */
+export function smartWindowRow(window: FlowWindow): SmartWindowRow {
   const base = windowRow(window);
   return { ...base, fills: base.prints };
 }
 
-/** FOMO-cohort window rows, formatted exactly like the all-flow windows; [] when the block is absent. */
-export function fomoWindowRows(fomo: TokenFlowFomo | undefined): WindowRow[] {
-  return (fomo?.windows ?? []).map(windowRow);
+/** SMART-cohort window rows, formatted exactly like the all-flow windows; [] when the block is absent. */
+export function smartWindowRows(smart: TokenFlowSmart | undefined): WindowRow[] {
+  return (smart?.windows ?? []).map(windowRow);
 }
 
 /** Chart-meta suffix: marker count plus what was cut ("+N more") or lies before the first candle. */
 export function markerMetaLabel(shown: number, dropped: number, beforeRange: number): string | null {
   if (shown === 0 && dropped === 0 && beforeRange === 0) return null;
-  const parts = [`FOMO ${shown}`];
+  const parts = [`SMART ${shown}`];
   if (dropped > 0) parts.push(`+${dropped} more`);
   if (beforeRange > 0) parts.push(`${beforeRange} off-chart`);
   return parts.join(" ");

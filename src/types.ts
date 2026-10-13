@@ -31,11 +31,13 @@ export type OnchainMarket = {
 };
 
 export type PublicConfig = {
-  network: string;
+  network: "mainnet" | "testnet";
+  chain: { id: number; caip2: string; name: string; nativeSymbol: string; explorer: string; rpcUrl: string; blockMs: number };
   rpcEndpoint: string;
-  routers: Array<{ id: "0x" | "jupiter" | "clawpump"; label: string; available: boolean; chains: Array<"solana" | "robinhood"> }>;
-  ansemMint: string;
-  usdcMint: string;
+  routers: Array<{ id: "kuru" | "0x"; label: string; available: boolean; chains: Array<"monad"> }>;
+  tokens: { wmon: string; usdc: string; ausd: string | null };
+  /** Token the desk opens on first visit (WMON unless the server overrides it). */
+  featuredToken: string;
   privyEnabled: boolean;
-  integrations: Record<string, string | boolean>;
+  integrations: Record<string, string | number | boolean>;
 };

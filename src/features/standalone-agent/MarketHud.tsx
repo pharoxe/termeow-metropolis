@@ -18,12 +18,12 @@ function HudChart({ market }: { market: MarketResponse }) {
   useEffect(() => {
     if (!host.current) return;
     const root = getComputedStyle(document.querySelector(".agent-app") || document.documentElement);
-    const accent = root.getPropertyValue("--agent-lime").trim() || "#45ff88";
+    const accent = root.getPropertyValue("--agent-lime").trim() || "#b293fb";
     const chart = createChart(host.current, {
-      autoSize: true, layout: { background: { type: ColorType.Solid, color: "rgba(1,7,4,0)" }, textColor: "#769383", fontFamily: "Home Video, monospace", fontSize: 9 },
-      grid: { vertLines: { color: "rgba(69,255,136,.055)" }, horzLines: { color: "rgba(69,255,136,.07)" } },
-      rightPriceScale: { borderColor: "rgba(69,255,136,.18)", scaleMargins: { top: .12, bottom: .12 } },
-      timeScale: { borderColor: "rgba(69,255,136,.18)", rightOffset: 4, barSpacing: 5, timeVisible: true, secondsVisible: false },
+      autoSize: true, layout: { background: { type: ColorType.Solid, color: "rgba(3,2,6,0)" }, textColor: "#7f7693", fontFamily: "Home Video, monospace", fontSize: 9 },
+      grid: { vertLines: { color: "rgba(178,147,251,.055)" }, horzLines: { color: "rgba(178,147,251,.07)" } },
+      rightPriceScale: { borderColor: "rgba(178,147,251,.18)", scaleMargins: { top: .12, bottom: .12 } },
+      timeScale: { borderColor: "rgba(178,147,251,.18)", rightOffset: 4, barSpacing: 5, timeVisible: true, secondsVisible: false },
       crosshair: { vertLine: { color: "rgba(114,245,255,.35)" }, horzLine: { color: "rgba(114,245,255,.35)" } },
       handleScroll: true, handleScale: true
     });

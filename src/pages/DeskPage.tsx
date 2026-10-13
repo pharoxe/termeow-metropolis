@@ -17,7 +17,7 @@ export function DeskPage({config}:{config:PublicConfig}){
   const [panels,setPanels]=useState(()=>{try{const p=JSON.parse(localStorage.getItem('terminal-panels')??'{}');return {left:Math.max(170,Math.min(360,Number(p.left)||240)),right:Math.max(230,Math.min(420,Number(p.right)||280)),hideLeft:p.hideLeft===true,hideRight:p.hideRight===true};}catch{return {left:240,right:280,hideLeft:false,hideRight:false};}});
   useEffect(()=>{try{localStorage.setItem('terminal-panels',JSON.stringify(panels));}catch{}},[panels]);
   const [crosshairBus]=useState(createCrosshairBus);
-  const [workspace,setWorkspace]=useState<WorkspaceState>(()=>{const fallback={chain:'solana' as const,address:config.ansemMint};try{return restoreWorkspace(JSON.parse(localStorage.getItem(WORKSPACE_KEY)??'null'),fallback);}catch{return initialWorkspace(fallback);}});
+  const [workspace,setWorkspace]=useState<WorkspaceState>(()=>{const fallback={chain:'monad' as const,address:config.featuredToken};try{return restoreWorkspace(JSON.parse(localStorage.getItem(WORKSPACE_KEY)??'null'),fallback);}catch{return initialWorkspace(fallback);}});
   const [header,setHeader]=useState<HTMLDivElement|null>(null);
   const [discovery,setDiscovery]=useState<HTMLDivElement|null>(null);
   const [rail,setRail]=useState<HTMLDivElement|null>(null);
@@ -59,7 +59,7 @@ export function DeskPage({config}:{config:PublicConfig}){
       </div></details>
       <small>{workspace.tiles.length}/4 charts · Alt + 1–4 to focus</small>
     </div>
-    <div className="workspace-tabs" aria-label="Open charts">{workspace.tiles.map((tile,index)=><button key={tile.id} aria-pressed={tile.id===workspace.activeId} onClick={()=>setWorkspace(w=>({...w,activeId:tile.id}))}>{index+1} · {tile.instrument.chain==='solana'?'SOL':'RHC'} · {names[instrumentKey(tile.instrument)]??'TOKEN'} · {tile.instrument.address.slice(0,6)}… · {tile.interval}</button>)}</div>
+    <div className="workspace-tabs" aria-label="Open charts">{workspace.tiles.map((tile,index)=><button key={tile.id} aria-pressed={tile.id===workspace.activeId} onClick={()=>setWorkspace(w=>({...w,activeId:tile.id}))}>{index+1} · MON · {names[instrumentKey(tile.instrument)]??'TOKEN'} · {tile.instrument.address.slice(0,6)}… · {tile.interval}</button>)}</div>
     <div className="workspace-body">
       <div ref={setDiscovery} className="workspace-discovery"/>
       <div className="workspace-center"><div className="workspace-charts">

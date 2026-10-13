@@ -11,7 +11,7 @@ type ChartLegendProps = {
   /** True in mcap mode: values are USD market cap and use the compact axis formatter instead of micro-price. */
   compact: boolean;
   granularity: TimeGranularity;
-  /** Optional symbol prefix, e.g. "ANSEM/USD". */
+  /** Optional symbol prefix, e.g. "MON/USD". */
   label?: string | null;
 };
 

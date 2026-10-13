@@ -24,15 +24,15 @@ import type { TapePrint } from "../../shared/wire";
 import { bollinger, ema, macd, obv, rsi, vwap } from "../lib/indicators";
 import { axisUsd } from "../lib/format";
 import { buildFlowSeries, type FlowChartInput, type FlowChartSeries } from "../lib/flowChart";
-import { indexFomoMarkersByTime, type FomoMarker } from "../lib/fomoMarkers";
-import { fomoHoverView, type FomoHoverView } from "../lib/fomoHover";
+import { indexSmartMarkersByTime, type SmartMarker } from "../lib/smartMarkers";
+import { smartHoverView, type SmartHoverView } from "../lib/smartHover";
 import { mergeMarkers, type ChartMarker } from "../lib/chartMarkers";
 import { formatIst, granularityFor, istLocalization, istTimeScaleOptions, toSeconds, type TimeGranularity } from "../lib/chartTime";
 import { applyPrintsToCandles, barLegend, dedupeAscending, inferIntervalMs, planCandleUpdate, type CandlePlan, type LiveCandleStats } from "../lib/liveCandle";
 import { formatMicroPrice, priceMinMove, pricePriceFormat } from "../lib/priceFormat";
 import { applyFlowSeries, createFlowSeries, SIDE_PANE_STRETCH, type FlowSeriesRefs } from "./flowChartSeries";
 import { ChartLegend, type LegendState } from "./ChartLegend";
-import { FomoHover } from "./FomoHover";
+import { SmartHover } from "./SmartHover";
 import { attachDrawings, type DrawingsApi } from "../chart/drawings";
 import type { Theme } from "./ThemeToggle";
 import "./chart.css";
@@ -80,7 +80,7 @@ type Built = {
 /** Mutable bookkeeping per build: what the series currently hold, so data effects can diff instead of rebuild. */
 type Held = { candles: Candle[]; srLines: IPriceLine[]; minMove: number | null; flow: FlowChartSeries | null; markers: ChartMarker[] | null };
 
-const EMPTY_MARKERS: FomoMarker[] = [];
+const EMPTY_MARKERS: SmartMarker[] = [];
 const EMPTY_EVENTS: ChartMarker[] = [];
 const EMPTY_PRINTS: TapePrint[] = [];
 const INDICATOR_KEYS: Array<keyof IndicatorSet> = ["ema", "bollinger", "vwap", "sr", "volume", "cvd", "rsi", "macd", "obv"];
@@ -107,7 +107,7 @@ function linePoints(candles: Candle[], values: Array<number | null>, from = 0) {
   return points;
 }
 
-/** Only the library's marker fields cross over (FomoMarker carries its wallet breakdown too); `time` needs the branded type. */
+/** Only the library's marker fields cross over (SmartMarker carries its wallet breakdown too); `time` needs the branded type. */
 function toSeriesMarkers(markers: ChartMarker[]): SeriesMarker<Time>[] {
   return markers.map(({ time, position, shape, color, text, size }) => ({ time: time as UTCTimestamp, position, shape, color, text, size }));
 }
@@ -237,15 +237,15 @@ type MarketChartProps = {
   /** Reported after each live tick so the page can label how many prints moved the bar. */
   onLiveStats?: (stats: LiveCandleStats) => void;
   scaleMode?: ChartScaleMode;
-  /** Launch / graduation / large-print markers from buildEventMarkers; merged with fomoMarkers into the one markers plugin. */
+  /** Launch / graduation / large-print markers from buildEventMarkers; merged with smartMarkers into the one markers plugin. */
   eventMarkers?: ChartMarker[];
   /** F4 token flow (Δ/BAR, CVD, Tier A pair lines, BUY % ribbon); no side pane is drawn with fewer than 2 bars. */
   flow?: FlowChartInput;
-  /** R3 FOMO-wallet fills placed on the candle series (built by buildFomoMarkers); applied without rebuilding the chart. */
-  fomoMarkers?: FomoMarker[];
+  /** R3 SMART-wallet fills placed on the candle series (built by buildSmartMarkers); applied without rebuilding the chart. */
+  smartMarkers?: SmartMarker[];
   compactAxis?: boolean;
   theme?: Theme;
-  /** Legend prefix, e.g. "ANSEM/USD". */
+  /** Legend prefix, e.g. "MON/USD". */
   legendLabel?: string | null;
   /** Drawings persistence namespace (instrument key); drawings attach to the candle series while it is set. */
   drawingsKey?: string | null;
@@ -259,7 +259,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   const syncingCrosshair=useRef(false);
   const {
     candles, indicators, seriesKey = "", intervalMs = null, livePrints = EMPTY_PRINTS, mcapScale = null, onLiveStats,
-    scaleMode = "linear", eventMarkers = EMPTY_EVENTS, flow, fomoMarkers = EMPTY_MARKERS,
+    scaleMode = "linear", eventMarkers = EMPTY_EVENTS, flow, smartMarkers = EMPTY_MARKERS,
     compactAxis = false, theme = "dark", legendLabel = null, drawingsKey = null, onDrawings
   } = props;
   const host = useRef<HTMLDivElement>(null);
@@ -275,8 +275,8 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   const disposeDrawings = useRef<(()=>void)|null>(null);
   const paneHeights = useRef<number[]>([]);
   const [legend, setLegend] = useState<LegendState | null>(null);
-  const [fomoHover, setFomoHover] = useState<FomoHoverView | null>(null);
-  const [fomoBubbles, setFomoBubbles] = useState<Array<{ marker: FomoMarker; x: number; y: number }>>([]);
+  const [smartHover, setSmartHover] = useState<SmartHoverView | null>(null);
+  const [smartBubbles, setSmartBubbles] = useState<Array<{ marker: SmartMarker; x: number; y: number }>>([]);
 
   const interactionRef = useRef({onSelectTime:props.onSelectTime,onVisibleRange:props.onVisibleRange});
   interactionRef.current = {onSelectTime:props.onSelectTime,onVisibleRange:props.onVisibleRange};
@@ -291,19 +291,19 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
   // "no flow in this window" when the truth is "not loaded / not captured", which the coverage note states instead.
   const flowUsable = Boolean(flowSeries && !flowSeries.empty && flowSeries.buys.length >= MIN_FLOW_BARS);
   const paneMode: PaneMode = flowUsable ? "flow" : "none";
-  // Identity-rich FOMO activity is an HTML overlay; the series plugin keeps only launch/large-print events.
+  // Identity-rich SMART activity is an HTML overlay; the series plugin keeps only launch/large-print events.
   const merged = useMemo(() => mergeMarkers(eventMarkers), [eventMarkers]);
-  const fomoByTime = useMemo(() => indexFomoMarkersByTime(fomoMarkers), [fomoMarkers]);
-  const fomoByTimeRef = useRef(fomoByTime);
-  fomoByTimeRef.current = fomoByTime;
+  const smartByTime = useMemo(() => indexSmartMarkersByTime(smartMarkers), [smartMarkers]);
+  const smartByTimeRef = useRef(smartByTime);
+  smartByTimeRef.current = smartByTime;
   const hasCandles = displayCandles.length > 0;
   const mountKey = [theme, compactAxis, INDICATOR_KEYS.filter((key) => indicators[key]).join("+"), paneMode, hasCandles].join("|");
 
-  const refreshFomoBubbles = () => {
+  const refreshSmartBubbles = () => {
     const built = builtRef.current;
-    if (!built) { setFomoBubbles([]); return; }
+    if (!built) { setSmartBubbles([]); return; }
     const lanes = { buy: [] as number[], sell: [] as number[] };
-    const next = fomoMarkers.map((marker) => {
+    const next = smartMarkers.map((marker) => {
       const x = built.chart.timeScale().timeToCoordinate(marker.time as UTCTimestamp);
       const candle = heldRef.current.candles.find((bar) => Math.floor(bar.time / 1000) === marker.time);
       if (x == null || !candle) return null;
@@ -314,7 +314,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
       if (anchor == null) return null;
       return { marker, x, y: anchor + (marker.side === "buy" ? 20 + lane * 29 : -20 - lane * 29) };
     }).filter((item): item is NonNullable<typeof item> => Boolean(item));
-    setFomoBubbles(next);
+    setSmartBubbles(next);
   };
 
   // Latest props for the mount effect, which is keyed on structure only and must not close over stale data.
@@ -386,9 +386,9 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     const hovered = hoverIndexRef.current;
     const bar = barLegend(held, hovered ?? held.length - 1);
     // Hover-only: the wallet strip names who filled the bar under the crosshair, never the last bar by default.
-    const buckets = hovered != null && bar ? fomoByTimeRef.current.get(Math.floor(bar.time / 1000)) ?? [] : [];
-    setFomoHover((prev) => {
-      const next = fomoHoverView(buckets);
+    const buckets = hovered != null && bar ? smartByTimeRef.current.get(Math.floor(bar.time / 1000)) ?? [] : [];
+    setSmartHover((prev) => {
+      const next = smartHoverView(buckets);
       return prev && next && prev.title === next.title && prev.rows.length === next.rows.length && prev.more === next.more ? prev : next;
     });
     setLegend((prev) => {
@@ -468,7 +468,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
         const last = bars[Math.min(bars.length - 1, Math.ceil(next.to))];
         if(first && last) interactionRef.current.onVisibleRange?.({from:first.time,to:last.time+intervalRef.current});
       }
-      requestAnimationFrame(refreshFomoBubbles);
+      requestAnimationFrame(refreshSmartBubbles);
     };
     // One legend update per frame; a hidden tab gets no frames, so apply synchronously there to avoid a stale hover.
     const onCrosshair = (param: MouseEventParams<Time>) => {
@@ -491,7 +491,7 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     chart.subscribeClick(selectTime);
     rememberRange(chart.timeScale().getVisibleLogicalRange());
     refreshLegend();
-    refreshFomoBubbles();
+    refreshSmartBubbles();
     return () => {
       node.removeEventListener("wheel", onWheel);
       node.removeEventListener("pointerdown", unlockDrag, true);
@@ -584,13 +584,13 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [merged]);
 
-  useEffect(() => { requestAnimationFrame(refreshFomoBubbles); }, [fomoMarkers, displayCandles]);
+  useEffect(() => { requestAnimationFrame(refreshSmartBubbles); }, [smartMarkers, displayCandles]);
 
-  // A new FOMO poll can change the buckets under a resting crosshair; re-derive the strip without waiting for a move.
+  // A new SMART poll can change the buckets under a resting crosshair; re-derive the strip without waiting for a move.
   useEffect(() => {
     refreshLegend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fomoByTime]);
+  }, [smartByTime]);
 
   useEffect(() => {
     builtRef.current?.chart.priceScale("right").applyOptions({ mode: scaleModeOf(scaleMode) });
@@ -624,19 +624,19 @@ export const MarketChart = forwardRef<MarketChartHandle, MarketChartProps>(funct
         } else if (event.key === "End") { event.preventDefault(); chart.timeScale().scrollToRealTime(); }
       }}>
       <div className="chart-canvas" ref={host} />
-      <div className="chart-fomo-bubbles" aria-label="Top trader activity">
-        {fomoBubbles.map(({ marker, x, y }, index) => {
+      <div className="chart-smart-bubbles" aria-label="Top trader activity">
+        {smartBubbles.map(({ marker, x, y }, index) => {
           const wallet = marker.wallets[0];
           const address = wallet?.address || "unknown";
           const name = wallet?.twitter || wallet?.handle || `${address.slice(0, 5)}…${address.slice(-3)}`;
-          return <div key={`${marker.time}-${marker.side}-${index}`} className={`chart-fomo-bubble ${marker.side}`} style={{ left: x, top: y }} title={marker.text}>
+          return <div key={`${marker.time}-${marker.side}-${index}`} className={`chart-smart-bubble ${marker.side}`} style={{ left: x, top: y }} title={marker.text}>
             {wallet?.avatarUrl ? <img src={wallet.avatarUrl} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <i className="pixel-trader-avatar" aria-hidden="true"><b /><b /><b /><b /></i>}
             <span>{name}{marker.wallets.length > 1 ? ` +${marker.wallets.length - 1}` : ""}</span>
           </div>;
         })}
       </div>
       <ChartLegend state={legend} compact={compactAxis} granularity={granularity} label={legendLabel} />
-      <FomoHover view={fomoHover} />
+      <SmartHover view={smartHover} />
     </div>
   );
 });

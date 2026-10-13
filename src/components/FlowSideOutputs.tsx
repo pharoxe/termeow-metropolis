@@ -1,15 +1,15 @@
-import type { TokenFlowFomo, TokenFlowResponse } from "../../shared/wire";
+import type { TokenFlowSmart, TokenFlowResponse } from "../../shared/wire";
 import { largePrintRow, sinceAnchorLine, sourceChipState, windowRow } from "../lib/flowPanel";
-import { fomoCoverageLabel, fomoWindowRows } from "../lib/fomoPanel";
+import { smartCoverageLabel, smartWindowRows } from "../lib/smartPanel";
 
 const WINDOW_COLUMNS = ["WINDOW", "BUY", "SELL", "NET", "PRINTS", "AGGR"];
 
-/** FOMO-cohort window totals: the same table as the all-flow windows, summed over FOMO-wallet fills alone. */
-function FomoWindows({ fomo }: { fomo: TokenFlowFomo }) {
-  const rows = fomoWindowRows(fomo);
+/** SMART-cohort window totals: the same table as the all-flow windows, summed over SMART-wallet fills alone. */
+function SmartWindows({ smart }: { smart: TokenFlowSmart }) {
+  const rows = smartWindowRows(smart);
   return (
-    <div className="flow-fomo">
-      <span className="pm flow-fomo-title">{fomoCoverageLabel(fomo.coverage)}</span>
+    <div className="flow-smart">
+      <span className="pm flow-smart-title">{smartCoverageLabel(smart.coverage)}</span>
       {rows.length ? (
         <table className="terminal-table flow-windows">
           <tbody>
@@ -24,7 +24,7 @@ function FomoWindows({ fomo }: { fomo: TokenFlowFomo }) {
             ))}
           </tbody>
         </table>
-      ) : <p className="empty-copy">No FOMO fills for this token in the ledger.</p>}
+      ) : <p className="empty-copy">No SMART fills for this token in the ledger.</p>}
     </div>
   );
 }
@@ -66,7 +66,7 @@ export function FlowSideOutputs({ flow, now = Date.now() }: { flow: TokenFlowRes
         </table>
       ) : <p className="empty-copy">No window totals in the ledger.</p>}
       <p className="pm flow-since">{sinceAnchorLine(flow.anchor, flow.sinceAnchor)}</p>
-      {flow.fomo ? <FomoWindows fomo={flow.fomo} /> : null}
+      {flow.smart ? <SmartWindows smart={flow.smart} /> : null}
       <div className="flow-large">
         <span className="pm flow-large-title">LARGE PRINTS ≥ $1K</span>
         {prints.length

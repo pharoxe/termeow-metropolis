@@ -1,34 +1,30 @@
-import { createContext, useContext, useState, type PropsWithChildren } from "react";
+import { createContext, useContext, type PropsWithChildren } from "react";
 import { defineChain } from "viem";
+import { MONAD_NETWORKS } from "../../shared/chains";
 
-export type FundingNetwork = "robinhood" | "solana";
+export type FundingNetwork = "monad";
 
-export const ROBINHOOD_CHAIN = defineChain({
-  id: 4663,
-  name: "Robinhood Chain",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: ["https://rpc.mainnet.chain.robinhood.com"] } },
-  blockExplorers: { default: { name: "Robinhood Chain Explorer", url: "https://robinhoodchain.blockscout.com" } }
+/** Same profile the server reads (shared/chains.ts); VITE_MONAD_NETWORK=testnet points the wallet at Monad testnet. */
+export const MONAD_PROFILE = MONAD_NETWORKS[import.meta.env.VITE_MONAD_NETWORK === "testnet" ? "testnet" : "mainnet"];
+
+export const MONAD_CHAIN = defineChain({
+  id: MONAD_PROFILE.chainId,
+  name: MONAD_PROFILE.name,
+  nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
+  rpcUrls: { default: { http: [...MONAD_PROFILE.rpcUrls], webSocket: [...MONAD_PROFILE.wsUrls] } },
+  blockExplorers: { default: { name: "MonadVision", url: MONAD_PROFILE.explorer } },
+  contracts: { multicall3: { address: MONAD_PROFILE.multicall3 as `0x${string}` } }
 });
 
-const STORAGE_KEY = "termeow-funding-network";
+const NetworkContext = createContext<{ network: FundingNetwork; setNetwork(network: FundingNetwork): void }>({ network: "monad", setNetwork: () => undefined });
 
-function initialNetwork(): FundingNetwork {
-  try { return localStorage.getItem(STORAGE_KEY) === "robinhood" ? "robinhood" : "solana"; }
-  catch { return "solana"; }
-}
-
-const NetworkContext = createContext<{ network: FundingNetwork; setNetwork(network: FundingNetwork): void }>({ network: "solana", setNetwork: () => undefined });
-
+/** Monad is the only network; the provider stays so components written for a network switch keep one source of truth. */
 export function NetworkProvider({ children }: PropsWithChildren) {
-  const [network, setNetworkState] = useState<FundingNetwork>(initialNetwork);
-  const setNetwork = (next: FundingNetwork) => {
-    setNetworkState(next);
-    try { localStorage.setItem(STORAGE_KEY, next); } catch { /* keep the in-memory selection */ }
-  };
-  return <NetworkContext.Provider value={{ network, setNetwork }}>{children}</NetworkContext.Provider>;
+  return <NetworkContext.Provider value={{ network: "monad", setNetwork: () => undefined }}>{children}</NetworkContext.Provider>;
 }
 
 export const useFundingNetwork = () => useContext(NetworkContext);
-export const networkLabel = (network: FundingNetwork) => network === "solana" ? "Solana" : "Robinhood";
-export const networkNativeToken = (network: FundingNetwork) => network === "solana" ? "SOL" : "ETH";
+export const networkLabel = (_network: FundingNetwork = "monad") => "Monad";
+export const networkNativeToken = (_network: FundingNetwork = "monad") => "MON";
+export const explorerTxUrl = (hash: string) => `${MONAD_PROFILE.explorer}/tx/${hash}`;
+export const explorerAddressUrl = (address: string) => `${MONAD_PROFILE.explorer}/address/${address}`;

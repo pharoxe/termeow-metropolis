@@ -4,12 +4,12 @@ export type Theme = "dark" | "light";
 
 const THEME_KEY = "termeow-theme";
 const ACCENT_KEY = "termeow-accent";
-type Accent = "green" | "blue" | "yellow" | "white" | "red";
-const ACCENTS: Accent[] = ["green", "blue", "yellow", "white", "red"];
+type Accent = "purple" | "blue" | "yellow" | "white" | "red";
+const ACCENTS: Accent[] = ["purple", "blue", "yellow", "white", "red"];
 
 function preferredAccent(): Accent {
   try { const saved = localStorage.getItem(ACCENT_KEY) as Accent | null; if (saved && ACCENTS.includes(saved)) return saved; } catch { /* default */ }
-  return "green";
+  return "purple";
 }
 
 function preferredTheme(): Theme {
@@ -27,7 +27,7 @@ export function ThemeToggle({ theme, onChange }: { theme: Theme; onChange: (them
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#eef3ed" : "#080b09");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f4f2f9" : "#050407");
     try { localStorage.setItem(THEME_KEY, theme); } catch { /* private browsing */ }
   }, [theme]);
   useEffect(() => {
