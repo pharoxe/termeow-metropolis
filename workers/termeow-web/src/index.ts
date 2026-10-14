@@ -57,8 +57,10 @@ export class TermeowApp extends Container<Env> {
   override async fetch(request: Request): Promise<Response> {
     const digest = await crypto.subtle.digest("SHA-256", encoder.encode(JSON.stringify(this.envVars)));
     const fingerprint = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-    if ((await this.ctx.storage.get<string>(ENV_FINGERPRINT)) !== fingerprint) {
+    const stored = await this.ctx.storage.get<string>(ENV_FINGERPRINT);
+    if (stored !== fingerprint) {
       const { status } = await this.getState();
+      console.log(`[container] environment changed (${Object.keys(this.envVars ?? {}).sort().join(",")}); state ${status}, restarting`);
       if (status === "running" || status === "healthy") {
         await this.stop();
         for (let attempt = 0; attempt < 40 && !(await this.getState()).status.startsWith("stopped"); attempt += 1) {
