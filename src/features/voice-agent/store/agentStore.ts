@@ -5,6 +5,8 @@ interface AgentState {
   status: AgentStatus;
   overlayMode: OverlayMode;
   muted: boolean;
+  /** The voice session's published mic track has carried no signal for several seconds. */
+  micSilent: boolean;
   error?: string;
   conversationId?: string;
   sessionMode?: "voice" | "text";
@@ -17,6 +19,7 @@ interface AgentState {
   setStatus: (status: AgentStatus, error?: string) => void;
   setOverlayMode: (mode: OverlayMode) => void;
   setMuted: (muted: boolean) => void;
+  setMicSilent: (micSilent: boolean) => void;
   setConversationId: (id?: string) => void;
   setSessionMode: (mode?: "voice" | "text") => void;
   setContext: (context: TermeowAgentContext) => void;
@@ -33,12 +36,14 @@ export const useAgentStore = create<AgentState>((set) => ({
   status: "dormant",
   overlayMode: "hidden",
   muted: false,
+  micSilent: false,
   context: {},
   transcript: [],
   toolActivity: [],
   setStatus: (status, error) => set({ status, error }),
   setOverlayMode: (overlayMode) => set({ overlayMode }),
   setMuted: (muted) => set({ muted }),
+  setMicSilent: (micSilent) => set({ micSilent }),
   setConversationId: (conversationId) => set({ conversationId }),
   setSessionMode: (sessionMode) => set({ sessionMode }),
   setContext: (context) => set({ context }),
@@ -60,5 +65,5 @@ export const useAgentStore = create<AgentState>((set) => ({
   setPendingApproval: (pendingApproval) => set({ pendingApproval }),
   setHudWindow: (hudWindow) => set({ hudWindow }),
   setLeftWidget: (leftWidget) => set({ leftWidget }),
-  resetSession: () => set({ status: "dormant", conversationId: undefined, sessionMode: undefined, muted: false })
+  resetSession: () => set({ status: "dormant", conversationId: undefined, sessionMode: undefined, muted: false, micSilent: false })
 }));

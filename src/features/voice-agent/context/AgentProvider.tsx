@@ -16,6 +16,8 @@ interface AgentApi {
   stop(): void;
   setMuted(muted: boolean): void;
   setVolume(volume: number): void;
+  inputVolume(): number;
+  changeInputDevice(deviceId: string): Promise<void>;
   send(text: string): void;
   sendText(text: string): Promise<boolean>;
   updateContext(context: TermeowAgentContext): void;
@@ -116,6 +118,8 @@ export function TermeowAgentProvider({ children }: PropsWithChildren) {
     stop: () => runtime.current?.disconnect(),
     setMuted: (muted) => muted ? runtime.current?.mute() : runtime.current?.unmute(),
     setVolume,
+    inputVolume: () => runtime.current?.inputVolume() ?? 0,
+    changeInputDevice: async (deviceId) => { await runtime.current?.changeInputDevice(deviceId); },
     send: (text) => runtime.current?.sendMessage(text),
     sendText,
     updateContext,

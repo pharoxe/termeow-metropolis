@@ -18,6 +18,10 @@ const optionalNumber = (value: unknown) => {
   return value == null || value === "" || !Number.isFinite(number) ? undefined : number;
 };
 let activeBillableConversationId: string | null = null;
+const MIC_DEVICE_KEY = "termeow:mic-device";
+/** Exactly-zero input for this long means the browser handed us a dead track (muted device, OS privacy block). */
+const MIC_SILENCE_MS = 5_000;
+const storedMicDevice = () => { try { return localStorage.getItem(MIC_DEVICE_KEY) || undefined; } catch { return undefined; } };
 let pendingTransferDraft: { amount: number; denomination: "mon" | "usd" } | null = null;
 type TokenResolution = Awaited<ReturnType<typeof api.resolveToken>>;
 const tokenResolutionCache = new Map<string, { at: number; result: Promise<TokenResolution> }>();
@@ -166,6 +170,7 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
       await Promise.resolve(controls.startSession({
         ...session,
         textOnly: sessionMode === "text",
+        inputDeviceId: sessionMode === "voice" ? storedMicDevice() : undefined,
         overrides: { conversation: { textOnly: sessionMode === "text" } },
         userId: preferences?.userId,
         dynamicVariables: { termeow_greeting: greeting, termeow_user_memory: agentMemoryText(preferences) }
@@ -190,6 +195,15 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
         try { controls.setVolume({ volume }); }
         catch { /* Retain the desired level for the next live session. */ }
       }
+    },
+    inputVolume: () => {
+      if (useAgentStore.getState().sessionMode !== "voice") return 0;
+      try { return controls.getInputVolume(); } catch { return 0; }
+    },
+    changeInputDevice: async (deviceId) => {
+      try { localStorage.setItem(MIC_DEVICE_KEY, deviceId); } catch { /* Private mode: the switch still applies to this session. */ }
+      if (useAgentStore.getState().sessionMode === "voice") await controls.changeInputDevice({ inputDeviceId: deviceId });
+      useAgentStore.getState().setMicSilent(false);
     }
   }), [controls, input]);
 
@@ -204,13 +218,32 @@ function ControlsBridge({ onRuntime, initialContext }: Props) {
       try { controls.setVolume({ volume: desiredVolume.current }); }
       catch { /* The connected status may briefly precede the SDK conversation ref. */ }
       if (!textSession) audioReactiveEngine.start(() => useAgentStore.getState().status === "speaking");
-      if (conversationId) runtime.sendContext(initialContext);
     } else {
       audioReactiveEngine.stop();
       if (useAgentStore.getState().conversationId) useAgentStore.getState().resetSession();
     }
     return () => audioReactiveEngine.stop();
-  }, [connection.message, connection.status, conversationId, initialContext, mode.isSpeaking, runtime]);
+  }, [connection.message, connection.status, controls, mode.isSpeaking]);
+  // Context goes once per conversation; later changes are sent by AgentProvider.updateContext. Re-sending it on
+  // every status change flooded the conversation with contextual_update events.
+  useEffect(() => {
+    if (conversationId) runtime.sendContext(useAgentStore.getState().context ?? initialContext);
+  }, [conversationId, runtime]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (connection.status !== "connected" || useAgentStore.getState().sessionMode !== "voice") {
+      useAgentStore.getState().setMicSilent(false);
+      return;
+    }
+    let lastSignal = Date.now();
+    const timer = setInterval(() => {
+      const state = useAgentStore.getState();
+      if (state.muted || runtime.inputVolume() > 0) {
+        lastSignal = Date.now();
+        if (state.micSilent) state.setMicSilent(false);
+      } else if (!state.micSilent && Date.now() - lastSignal > MIC_SILENCE_MS) state.setMicSilent(true);
+    }, 250);
+    return () => clearInterval(timer);
+  }, [connection.status, runtime]);
   return null;
 }
 
