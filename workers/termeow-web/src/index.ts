@@ -4,6 +4,7 @@ import { lockPage } from "./lock";
 /** Server secrets forwarded into the container's environment (see server/config.ts); unset ones are left out. */
 const APP_SECRETS = [
   "DATABASE_URL",
+  "MONAD_RPC_URL",
   "PRIVY_APP_ID",
   "PRIVY_APP_SECRET",
   "PRIVY_AUTOMATION_SIGNER_ID",

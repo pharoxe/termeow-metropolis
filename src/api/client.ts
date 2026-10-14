@@ -53,6 +53,9 @@ export const api = {
     if (params.limit) search.set("limit", String(params.limit));
     return request<AlertsResponse>(`/api/alerts?${search.toString()}`);
   },
+  /** GeckoTerminal trending tokens; Monad is tradable, Solana and Robinhood are research only. */
+  trending: (chain: "monad" | "solana" | "robinhood", window = "1h", limit = 10) =>
+    request<{ chain: string; window: string; source: string; tradable: boolean; observedAt: number; tokens: Array<{ chain: string; address: string; symbol: string; name: string; imageUrl: string | null; priceUsd: number | null; change1hPct: number | null; change24hPct: number | null; volume24hUsd: number | null; liquidityUsd: number | null; marketCapUsd: number | null; pool: string; dex: string | null }> }>(`/api/trending/${chain}?window=${encodeURIComponent(window)}&limit=${limit}`),
   /** Discovery lists on Monad: trending / movers / new / holders. */
   discover: (chain: Chain, view: DiscoverView, window: DiscoverWindow = "24h") =>
     request<DiscoverResponse>(`/api/discover/${chain}?view=${view}&window=${window}`),

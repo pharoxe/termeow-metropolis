@@ -28,6 +28,7 @@ const intentSchema = z.object({
   maxSlippageBps: z.number().int().min(1).max(2500).optional(),
   marketCapMinUsd: z.number().nonnegative().optional(), marketCapMaxUsd: z.number().nonnegative().optional(),
   entryPriceTolerancePct: z.number().positive().max(100).optional(), slippageBps: z.number().int().min(1).max(500).optional(),
+  triggerPriceUsd: z.number().positive().optional(), triggerDirection: z.enum(["above", "below"]).optional(),
   condition: z.string().max(1000).optional(), description: z.string().min(3).max(1000),
   exitConditions: z.array(z.object({
     id: z.string().min(1).max(80), type: z.enum(["take_profit_pct", "stop_loss_pct", "trailing_stop_pct", "market_cap", "custom"]),
@@ -44,6 +45,8 @@ const intentSchema = z.object({
   }
   if (intent.kind === "transfer" && intent.transferAmountMon && Number(intent.transferAmountMon) > 1_000_000) context.addIssue({ code: "custom", message: "A transfer cannot exceed 1,000,000 MON" });
   if (intent.kind === "monitor_wallet" && !intent.trackedWallet) context.addIssue({ code: "custom", message: "A wallet monitor requires a resolved tracked wallet" });
+  if (intent.kind === "conditional_swap" && (!intent.tokenAddress || !intent.triggerPriceUsd || !intent.side))
+    context.addIssue({ code: "custom", message: "A price-triggered swap requires a token address, side and trigger price" });
   if (intent.kind === "monitor_x_launch" && !intent.trackedXAccount) context.addIssue({ code: "custom", message: "An X launch monitor requires an X account" });
   if (intent.amountMode === "fixed" && !intent.amount) context.addIssue({ code: "custom", message: "A fixed swap requires amount" });
   if (intent.amountMode === "wallet_percent" && !intent.allocationPercent) context.addIssue({ code: "custom", message: "A wallet-percent action requires allocationPercent" });

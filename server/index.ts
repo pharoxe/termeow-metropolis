@@ -23,12 +23,15 @@ import { internalAutomationsRouter } from "./routes/internalAutomations.js";
 import { automationRepository } from "./automation/runtime.js";
 import { startTwitterLaunchMonitor } from "./automation/twitterMonitor.js";
 import { startWalletAutomationMonitor } from "./automation/walletMonitor.js";
+import { startPriceAutomationMonitor } from "./automation/priceMonitor.js";
+import { trendingRouter } from "./routes/trending.js";
 import { errorMessage, UpstreamError } from "./lib/http.js";
 import { installSnapshots } from "./persist/live.js";
 
 const snapshots = installSnapshots();
 const stopTwitterLaunchMonitor = startTwitterLaunchMonitor();
 const stopWalletAutomationMonitor = startWalletAutomationMonitor();
+const stopPriceAutomationMonitor = startPriceAutomationMonitor();
 const creditReconciliationTimer = setInterval(() => { void reconcilePendingVoice().catch((error) => console.warn("Credit reconciliation deferred:", error)); }, 60_000);
 creditReconciliationTimer.unref();
 
@@ -49,6 +52,7 @@ app.use("/api/launches", launchesRouter);
 app.use("/api/smart", smartRouter);
 app.use("/api/alerts", liveAlertsRouter());
 app.use("/api/discover", discoverRouter);
+app.use("/api/trending", trendingRouter);
 app.use("/api/agent", agentRouter);
 app.use("/api/automations", automationsRouter);
 app.use("/api/tokens", tokensRouter);
@@ -93,7 +97,7 @@ server.on("error", (error) => {
 async function shutdown() {
   clearInterval(creditReconciliationTimer);
   stopTwitterLaunchMonitor();
-  stopWalletAutomationMonitor();
+  stopWalletAutomationMonitor(); stopPriceAutomationMonitor();
   snapshots.saveAll("shutdown");
   server.close();
   await automationRepository.close();

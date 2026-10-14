@@ -45,6 +45,7 @@ function ApprovalDetails({ intent, editable = false }: { intent: AutomationInten
     <dl>
       <div><dt>TARGET</dt><dd>{intent.tokenSymbol || (intent.tokenAddress ? intent.tokenAddress.slice(0, 10) : "ANY TOKEN BOUGHT")}</dd></div>
       {intent.side && <div><dt>ACTION</dt><dd>{intent.side.toUpperCase()} · {(intent.router || "AUTO").toUpperCase()}</dd></div>}
+      {intent.triggerPriceUsd != null && <div><dt>TRIGGER</dt><dd>PRICE {intent.triggerDirection === "below" ? "≤" : "≥"} ${intent.triggerPriceUsd.toLocaleString(undefined, { maximumSignificantDigits: 6 })} · CHECKED EVERY 15S</dd></div>}
       {!editable && <div><dt>SIZE</dt><dd>{intent.amountMode === "wallet_percent" ? `${intent.allocationPercent}% OF WALLET` : intent.amount || "—"}</dd></div>}
       {!editable && intent.kind !== "swap" && <div><dt>MARKET CAP</dt><dd>{marketCapRange(intent.marketCapMinUsd, intent.marketCapMaxUsd)}</dd></div>}
       {intent.trackedWallet && <div><dt>TRACKED</dt><dd>{intent.trackedWalletUsername ? `@${intent.trackedWalletUsername.replace(/^@/, "")} · ` : ""}{shortAddress(intent.trackedWallet)}</dd></div>}

@@ -41,6 +41,11 @@ const definitions = [
     parameters: objectParameters({ query: scalar("string", "Ticker, token name, or contract address"), chain: scalar("string", "Always monad"), token_address: scalar("string", "Exact contract when already known"), token_symbol: scalar("string", "Ticker when known"), timeframe: scalar("string", "1m, 5m, 15m, 1h, 4h, or 1d") })
   },
   {
+    name: "get_trending_tokens",
+    description: "List the tokens trending right now on Monad (tradable), Solana or Robinhood chain (research only), from GeckoTerminal: symbol, contract, price, 1h/24h change, 24h volume, liquidity and market cap. Use for questions like what is trending or hot. Only Monad tokens can be swapped or used in automations.",
+    parameters: objectParameters({ chain: scalar("string", "monad (default), solana, or robinhood"), window: scalar("string", "5m, 1h (default), 6h, or 24h"), limit: scalar("number", "How many tokens, 1-20; default 10") })
+  },
+  {
     name: "inspect_large_orders",
     description: "Fetch and display the filtered large-order tape for a token directly from Termeow's onchain flow gateway. Use for questions like big buys in the last 15 minutes. Opens a live widget with the same filters. Do not describe this DEX trade tape as a centralized limit order book.",
     parameters: objectParameters({ query: scalar("string", "Ticker, token name, or contract address"), chain: scalar("string", "Always monad"), token_address: scalar("string", "Exact contract when known"), token_symbol: scalar("string", "Ticker when known"), window_minutes: scalar("number", "Lookback from 1 to 240 minutes; default 15"), min_usd: scalar("number", "Minimum USD order size; minimum 1000"), side: scalar("string", "Optional buy or sell") })
@@ -99,7 +104,9 @@ const definitions = [
     name: "propose_automation",
     description: "Create a monitored or conditional trading-rule draft and immediately open its editable confirmation overlay. Reuse indexed identities, the selected token, and saved user defaults instead of asking redundant questions. Supply explicit user constraints; omitted allocation, duration, and slippage use the user's saved defaults. This tool cannot approve itself or claim the rule is armed.",
     parameters: objectParameters({
-      strategy: scalar("string", "monitor_wallet, monitor_deployer, monitor_x_launch, or conditional_swap"), chain: scalar("string", "Always monad"),
+      strategy: scalar("string", "monitor_wallet, monitor_deployer, monitor_x_launch, or conditional_swap. Use conditional_swap for price triggers such as breakouts: it needs token_address, side and trigger_price_usd"), chain: scalar("string", "Always monad"),
+      trigger_price_usd: scalar("number", "conditional_swap only: USD token price that fires the swap, e.g. the breakout level"),
+      trigger_direction: scalar("string", "conditional_swap only: above (breakout, the default) or below (dip buy)"),
       target_address: scalar("string", "Exact 0x wallet address to monitor. Omit when tracked_wallet_username is supplied; the client resolves it from the label book."),
       tracked_wallet_username: scalar("string", "Known Nansen label or watchlist name tied to the tracked wallet; omit when unknown"),
       tracked_x_account: scalar("string", "X username to monitor for newly posted contract addresses when strategy is monitor_x_launch"),

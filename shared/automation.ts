@@ -43,6 +43,9 @@ export interface AutomationIntent {
   /** Maximum fill drift from the tracked trader's observed entry. */
   entryPriceTolerancePct?: number;
   slippageBps?: number;
+  /** conditional_swap: fire when the token's USD price crosses this level in triggerDirection (server/automation/priceMonitor.ts). */
+  triggerPriceUsd?: number;
+  triggerDirection?: "above" | "below";
   condition?: string;
   /** Dormant until a successful entry transaction is reported. */
   exitConditions?: LinkedExitCondition[];
@@ -80,7 +83,7 @@ export interface AutomationRecord {
   transactionHash?: string;
   /** Linked exits become eligible only after the entry transaction has completed successfully. */
   activeExitConditions?: LinkedExitCondition[];
-  lastSignal?: { source: "wallet" | "x"; eventId: string; tokenAddress: string; observedAt: number; sourceUrl?: string; entryReferencePriceUsd?: number; observedMarketCapUsd?: number };
+  lastSignal?: { source: "wallet" | "x" | "price"; eventId: string; tokenAddress: string; observedAt: number; sourceUrl?: string; entryReferencePriceUsd?: number; observedMarketCapUsd?: number };
 }
 
 export interface TerminalAgentSnapshot {

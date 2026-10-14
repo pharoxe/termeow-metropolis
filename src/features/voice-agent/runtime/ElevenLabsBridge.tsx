@@ -311,6 +311,15 @@ function ClientToolsBridge() {
       const wallets = await Promise.all(targets.map(async (target) => ({ ...target, portfolio: await api.monadPortfolio(target.address).catch(() => null) })));
       return JSON.stringify({ ok: true, source: "connected_and_linked_wallet_chain_analysis", wallets });
     }),
+    get_trending_tokens: trackedTool("get_trending_tokens", async (parameters: Record<string, unknown>) => {
+      const chain = parameters.chain === "solana" || parameters.chain === "robinhood" ? parameters.chain : "monad";
+      const window = ["5m", "1h", "6h", "24h"].includes(String(parameters.window)) ? String(parameters.window) : "1h";
+      const limit = Math.min(20, Math.max(1, Math.round(optionalNumber(parameters.limit) ?? 10)));
+      try {
+        const result = await api.trending(chain, window, limit);
+        return JSON.stringify({ ok: true, ...result, message: result.tradable ? "Monad tokens can be analyzed, swapped or automated." : `${chain} is research only; trading and automations run on Monad.` });
+      } catch (reason) { return JSON.stringify({ ok: false, error: reason instanceof Error ? reason.message : String(reason) }); }
+    }),
     show_handle_picker: trackedTool("show_handle_picker", async (parameters: Record<string, unknown>) => {
       useAgentStore.getState().setLeftWidget({ type: "handles", query: String(parameters.query || "").replace(/^@/, "") });
       return JSON.stringify({ ok: true, surface: "tracked_handle_picker", status: "visible" });
@@ -445,6 +454,9 @@ function ClientToolsBridge() {
         router: parameters.router === "0x" ? "0x" : "kuru", amountMode: "wallet_percent", allocationPercent,
         durationHours, marketCapMinUsd: optionalNumber(parameters.market_cap_min_usd),
         marketCapMaxUsd: optionalNumber(parameters.market_cap_max_usd), entryPriceTolerancePct: optionalNumber(parameters.entry_price_tolerance_percent), slippageBps,
+        maxSlippageBps: slippageBps,
+        triggerPriceUsd: parameters.strategy === "conditional_swap" ? optionalNumber(parameters.trigger_price_usd) : undefined,
+        triggerDirection: parameters.strategy === "conditional_swap" ? (parameters.trigger_direction === "below" ? "below" : "above") : undefined,
         condition: String(parameters.condition || ""), exitConditions: exitConditions(parameters.exit_conditions, slippageBps),
         description: String(parameters.description || "Voice-created monitored trading strategy")
       };
@@ -504,6 +516,7 @@ function ClientToolsBridge() {
   useConversationClientTool("analyze_wallet", clientTools.analyze_wallet);
   useConversationClientTool("analyze_my_wallet", clientTools.analyze_my_wallet);
   useConversationClientTool("show_handle_picker", clientTools.show_handle_picker);
+  useConversationClientTool("get_trending_tokens", clientTools.get_trending_tokens);
   useConversationClientTool("read_automation_preferences", clientTools.read_automation_preferences);
   useConversationClientTool("read_user_memory", clientTools.read_user_memory);
   useConversationClientTool("update_automation_preferences", clientTools.update_automation_preferences);
