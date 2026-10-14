@@ -48,7 +48,29 @@ export class TermeowApp extends Container<Env> {
       SNAPSHOT_DIR: "/tmp/termeow/snapshots"
     };
   }
+
+  /**
+   * A running container keeps the environment it started with, and the keep-alive cron means it never sleeps, so a
+   * new secret would otherwise never arrive. Restart once whenever the environment's fingerprint changes.
+   */
+  override async fetch(request: Request): Promise<Response> {
+    const digest = await crypto.subtle.digest("SHA-256", encoder.encode(JSON.stringify(this.envVars)));
+    const fingerprint = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    if ((await this.ctx.storage.get<string>(ENV_FINGERPRINT)) !== fingerprint) {
+      const { status } = await this.getState();
+      if (status === "running" || status === "healthy") {
+        await this.stop();
+        for (let attempt = 0; attempt < 40 && !(await this.getState()).status.startsWith("stopped"); attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+      }
+      await this.ctx.storage.put(ENV_FINGERPRINT, fingerprint);
+    }
+    return super.fetch(request);
+  }
 }
+
+const ENV_FINGERPRINT = "env-fingerprint";
 
 const COOKIE = "termeow_gate";
 const SESSION_SECONDS = 30 * 24 * 60 * 60;

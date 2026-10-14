@@ -1,7 +1,7 @@
 /*
- * X Bit Studio layer for the standalone agent (/agent). Colours come from xbit-tokens.css; agent-standalone.css
- * already resolves to those tokens, so this file carries the X Bit structure: ticker, centre nav, flat outlined
- * panels with hard shadows, Michroma display type, uppercase mono labels and the dashed-horizon backdrop.
+ * X Bit Studio layout for the standalone agent (/agent). Colours come from the light/dark tokens in xbit-tokens.css
+ * (agent-standalone.css already resolves to them), so this file carries the X Bit structure: ticker, centre nav, flat
+ * outlined panels with hard shadows, Michroma display type, uppercase mono labels and the dashed-horizon backdrop.
  */
 /* Defined on the body as well so portalled overlays (automation detail, approvals, credits) resolve the accent. */
 .standalone-agent-body { --agent-lime: rgb(var(--xb-hi)); --agent-cyan: rgb(var(--xb-mint)); background: rgb(var(--xb-bg)); }
@@ -62,6 +62,12 @@
 .xb-nav a:hover { background: rgb(var(--xb-ink)); color: rgb(var(--xb-bg)); }
 .agent-head-actions>a, .agent-credit-button { border-color: rgb(var(--xb-line2)); background: transparent; color: rgb(var(--xb-ink)); font: 500 10px var(--xb-mono); letter-spacing: .14em; }
 .agent-credit-button:hover, .agent-head-actions>a:hover { background: rgb(var(--xb-ink)); color: rgb(var(--xb-bg)); box-shadow: none; }
+.xb-theme-toggle {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px solid rgb(var(--xb-line2));
+  background: transparent; color: rgb(var(--xb-ink)); font: 500 10px var(--xb-mono); letter-spacing: .14em; cursor: pointer;
+}
+.xb-theme-toggle i { width: 10px; height: 10px; border: 1px solid currentColor; background: linear-gradient(90deg, currentColor 50%, transparent 50%); }
+.xb-theme-toggle:hover { background: rgb(var(--xb-ink)); color: rgb(var(--xb-bg)); }
 
 /* Layout offsets for the ticker. */
 .agent-command-deck { height: calc(100dvh - 64px - var(--xb-top)); }

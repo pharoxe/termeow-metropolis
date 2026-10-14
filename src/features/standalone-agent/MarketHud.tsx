@@ -7,7 +7,7 @@ import { money, pct } from "../../lib/format";
 import { useAgent } from "../voice-agent/context/AgentProvider";
 import { useAgentStore } from "../voice-agent/store/agentStore";
 import { TokenLogo } from "./TokenLogo";
-import { XB, rgba } from "./xbitPalette";
+import { palette, rgba, useThemeKey } from "./xbitPalette";
 
 const toSeconds = (time: number) => Math.floor(time > 10_000_000_000 ? time / 1000 : time) as UTCTimestamp;
 const bar = (candle: MarketCandle) => ({ time: toSeconds(candle.time), open: candle.open, high: candle.high, low: candle.low, close: candle.close });
@@ -16,9 +16,12 @@ function HudChart({ market }: { market: MarketResponse }) {
   const host = useRef<HTMLDivElement>(null);
   const series = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const candles = useRef<MarketCandle[]>([]);
+  const themeKey = useThemeKey();
   useEffect(() => {
     if (!host.current) return;
-    const up = rgba(XB.mint);
+    const XB = palette();
+    // Up candles take whichever accent is greener: mint on the dark theme, green on the light one.
+    const up = rgba(XB.hi[1] >= XB.mint[1] ? XB.hi : XB.mint);
     const down = rgba(XB.down);
     const chart = createChart(host.current, {
       autoSize: true, layout: { background: { type: ColorType.Solid, color: "rgba(0,0,0,0)" }, textColor: rgba(XB.mut, .85), fontFamily: "JetBrains Mono, monospace", fontSize: 10 },
@@ -34,7 +37,7 @@ function HudChart({ market }: { market: MarketResponse }) {
     series.current.setData(data);
     chart.timeScale().fitContent();
     return () => { series.current = null; chart.remove(); };
-  }, []);
+  }, [themeKey]); // eslint-disable-line react-hooks/exhaustive-deps -- rebuilt only for a theme change; candles update below
   useEffect(() => {
     const active = series.current;
     if (!active || !market.candles.length) return;

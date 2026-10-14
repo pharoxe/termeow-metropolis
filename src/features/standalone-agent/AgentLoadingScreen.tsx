@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { XB, rgba } from "./xbitPalette";
+import { palette, rgba } from "./xbitPalette";
 import "../../components/xbit-tokens.css";
 
 // X Bit line-art glyphs (xbit.studio hero) instead of the earlier katakana rain.
@@ -49,6 +49,7 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
     };
 
     const buildStreams = () => {
+      const XB = palette();
       streamTexture = document.createElement("canvas");
       streamTexture.width = Math.max(1, Math.ceil(width));
       streamTexture.height = Math.max(1, Math.ceil(height * 2));
@@ -80,6 +81,7 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
     };
 
     const catFrame = (blinkStep: number, size: number) => {
+      const XB = palette();
       const key = `${size}:${blinkStep}`;
       const cached = catFrames.get(key);
       if (cached) return cached;
@@ -103,6 +105,7 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
     };
 
     const draw = (now: number) => {
+      const XB = palette();
       animation = requestAnimationFrame(draw);
       if (exitingRef.current && !exitAt) exitAt = now;
       const progress = exitAt ? Math.min(1, (now - exitAt) / (reduced ? 1 : 1900)) : 0;

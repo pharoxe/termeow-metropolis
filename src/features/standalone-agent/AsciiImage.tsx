@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { AgentStatus } from "../voice-agent/runtime/agentTypes";
 import { audioReactiveEngine } from "../voice-agent/audio/AudioReactiveEngine";
-import { XB, mix, rgba } from "./xbitPalette";
+import { palette, mix, rgba } from "./xbitPalette";
 
 const GLYPHS = "  .,:;-+=*#%@";
 const TRANSITION_MS = 900;
@@ -64,6 +64,7 @@ export function AsciiImage({ src, alt, status, className = "" }: { src: string; 
     let live = true;
 
     const render = (now: number) => {
+      const XB = palette();
       context.fillStyle = rgba(XB.bg);
       context.fillRect(0, 0, width, height);
       const grid = currentRef.current;

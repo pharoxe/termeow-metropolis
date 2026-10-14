@@ -20,16 +20,19 @@ function preferredTheme(): Theme {
   return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
+/** Shared by the terminal and the agent page, so both read and write the same theme. */
+export function applyTheme(theme: Theme) {
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f4f2f9" : "#050407");
+  try { localStorage.setItem(THEME_KEY, theme); } catch { /* private browsing */ }
+}
+
 export function ThemeToggle({ theme, onChange }: { theme: Theme; onChange: (theme: Theme) => void }) {
   const [accent, setAccent] = useState<Accent>(preferredAccent);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f4f2f9" : "#050407");
-    try { localStorage.setItem(THEME_KEY, theme); } catch { /* private browsing */ }
-  }, [theme]);
+  useEffect(() => applyTheme(theme), [theme]);
   useEffect(() => {
     document.documentElement.dataset.accent = accent;
     try { localStorage.setItem(ACCENT_KEY, accent); } catch { /* private browsing */ }

@@ -4,26 +4,73 @@
 @import "@fontsource/michroma/400.css";
 
 /*
- * X Bit Studio "signal" palette (xbit.studio): electric blue field, cream line work, yellow highlights.
- * Space-separated RGB so stylesheets can write rgb(var(--xb-ink) / .5). Canvas code mirrors these in
- * features/standalone-agent/xbitPalette.ts.
+ * Agent palettes on the X Bit Studio layout. Dark: steel grey with pastel mint. Light: off-white paper with pastel
+ * lavender (the accent sits a step deeper so labels stay legible). Space-separated RGB so stylesheets can write
+ * rgb(var(--xb-ink) / .5); canvas code reads the same variables through features/standalone-agent/xbitPalette.ts.
+ * --xb-deep is the field colour and doubles as text on accent fills; --xb-mint is the secondary accent.
  */
+:root, :root[data-theme="dark"] {
+  --xb-bg: 34 39 43;
+  --xb-deep: 34 39 43;
+  --xb-panel: 42 48 53;
+  --xb-shadow: 13 15 17;
+  --xb-line: 58 66 72;
+  --xb-line2: 92 104 110;
+  --xb-mut: 156 168 166;
+  --xb-ink: 226 232 229;
+  --xb-hi: 168 230 207;
+  --xb-mint: 196 181 253;
+  --xb-warn: 240 210 140;
+  --xb-down: 242 160 168;
+  --xb-grain-blend: overlay;
+  --xb-grain-opacity: .6;
+}
+:root[data-theme="light"] {
+  --xb-bg: 245 242 234;
+  --xb-deep: 245 242 234;
+  --xb-panel: 238 233 245;
+  --xb-shadow: 168 154 204;
+  --xb-line: 221 214 232;
+  --xb-line2: 190 176 222;
+  --xb-mut: 108 102 122;
+  --xb-ink: 42 38 51;
+  --xb-hi: 132 106 210;
+  --xb-mint: 64 150 118;
+  --xb-warn: 168 118 12;
+  --xb-down: 190 60 88;
+  --xb-grain-blend: multiply;
+  --xb-grain-opacity: .46;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --xb-bg: 245 242 234;
+    --xb-deep: 245 242 234;
+    --xb-panel: 238 233 245;
+    --xb-shadow: 168 154 204;
+    --xb-line: 221 214 232;
+    --xb-line2: 190 176 222;
+    --xb-mut: 108 102 122;
+    --xb-ink: 42 38 51;
+    --xb-hi: 132 106 210;
+    --xb-mint: 64 150 118;
+    --xb-warn: 168 118 12;
+    --xb-down: 190 60 88;
+    --xb-grain-blend: multiply;
+    --xb-grain-opacity: .46;
+  }
+}
 :root {
-  --xb-bg: 21 54 255;
-  --xb-deep: 21 54 255;
-  --xb-panel: 18 46 226;
-  --xb-shadow: 6 18 120;
-  --xb-line: 74 99 255;
-  --xb-line2: 128 149 255;
-  --xb-mut: 201 210 255;
-  --xb-ink: 242 237 225;
-  --xb-hi: 255 214 10;
-  --xb-mint: 118 253 195;
-  --xb-warn: 255 214 10;
-  --xb-down: 255 143 163;
   --xb-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --xb-display: "Michroma", "JetBrains Mono", sans-serif;
+  /* Paper grain: fractal noise, greyscale, tiled. */
+  --xb-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 .agent-loading-screen { background: rgb(var(--xb-bg)); }
-.agent-loading-screen p { color: rgb(var(--xb-ink)); font: 500 11px var(--xb-mono); letter-spacing: .3em; }
+.agent-loading-screen::after, .agent-grain {
+  content: ""; position: fixed; inset: 0; z-index: 40; pointer-events: none;
+  background-image: var(--xb-grain); background-size: 180px 180px;
+  mix-blend-mode: var(--xb-grain-blend); opacity: var(--xb-grain-opacity);
+}
+.agent-loading-screen p { z-index: 41; color: rgb(var(--xb-ink)); font: 500 11px var(--xb-mono); letter-spacing: .3em; }
+@media print { .agent-grain { display: none; } }

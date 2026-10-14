@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import type { AutomationChain, AutomationIntent, AutomationRecord, UserAutomationPreferences } from "../../shared/automation";
 import { api } from "../api/client";
 import { AuthControls } from "../auth/AuthControls";
+import { applyTheme, useTheme } from "../components/ThemeToggle";
 import { hasPrivy } from "../auth/WalletProviders";
 import { AsciiPersona } from "../features/standalone-agent/AsciiPersona";
 import { AgentConnectionCat } from "../features/standalone-agent/AgentConnectionCat";
@@ -347,6 +348,8 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   const setLeftWidget = useAgentStore((state) => state.setLeftWidget);
   const sessionMode = useAgentStore((state) => state.sessionMode);
   const [view, setView] = useState<View>("ask");
+  const [theme, setTheme] = useTheme();
+  useEffect(() => applyTheme(theme), [theme]);
   const desktopRef = useRef<HTMLElement>(null);
   const leftWidgetDrag = useDragControls();
   const portfolioDrag = useDragControls();
@@ -433,6 +436,7 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   return <main className={`agent-app status-${agent.status}`} ref={desktopRef}>
     {hasPrivy ? <><AutomationDataBridge onData={receiveAutomationData} /><PrivyTextWarmup /><PrivyWelcomeTutorial /></> : null}
     <div className="agent-crt" aria-hidden="true" />
+    <div className="agent-grain" aria-hidden="true" />
     <div className="xb-ticker" role="note"><span>NOW LIVE: TERMEOW AGENT ON MONAD {config.network.toUpperCase()}</span><span aria-hidden="true">·</span><Link to="/onchain">OPEN THE TERMINAL -&gt;</Link></div>
     <header className="standalone-head">
       <Link className="standalone-brand" to="/agent"><span>TERMEOW</span><small>AGENT OS / 0.2</small></Link>
@@ -441,7 +445,10 @@ export function AgentPage({ config }: { config: PublicConfig }) {
         <span className="xb-nav-dots" role="img" aria-label={statusCopy[agent.status]}>{[0, 1, 2, 3, 4].map((index) => <i key={index} className={index <= (statusLevel[agent.status] ?? 0) ? "on" : ""} />)}</span>
         <Link to="/onchain">TERMINAL</Link>
       </nav>
-      <div className="agent-head-actions"><AgentCredits /><AuthControls /></div>
+      <div className="agent-head-actions">
+        <button className="xb-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><i aria-hidden="true" />{theme === "dark" ? "LIGHT" : "DARK"}</button>
+        <AgentCredits /><AuthControls />
+      </div>
     </header>
     <div className="xb-corner" aria-hidden="true"><span>CH 0{view === "activity" ? 3 : showAutomations ? 2 : 1} / 04</span><b>{statusCopy[agent.status]}</b></div>
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { XB, rgba } from "./xbitPalette";
+import { palette, rgba } from "./xbitPalette";
 
 const GLYPHS = "/\\|#=";
 type Point = { x: number; y: number; eye: boolean; darkness: number; glyph: string };
@@ -38,6 +38,7 @@ export function AgentConnectionCat() {
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
     };
     const draw = (now: number) => {
+      const XB = palette();
       frame = requestAnimationFrame(draw);
       const { width, height } = canvas.getBoundingClientRect();
       context.clearRect(0, 0, width, height);
