@@ -1,7 +1,10 @@
 import { useEffect, useRef } from "react";
+import { XB, rgba } from "./xbitPalette";
+import "../../components/xbit-tokens.css";
 
-const STREAM_GLYPHS = "01#アカサタナハマヤラワヲンシツネホミリヰ";
-const CAT_GLYPHS = "01#アネミ";
+// X Bit line-art glyphs (xbit.studio hero) instead of the earlier katakana rain.
+const STREAM_GLYPHS = "/\\|-_=+#:.";
+const CAT_GLYPHS = "/\\|#=";
 type CatPoint = { x: number; y: number; darkness: number; eye: boolean; glyph: string };
 
 /** Full-viewport ASCII boot scene. Expensive glyph layout is cached; animation is one requestAnimationFrame per display frame. */
@@ -52,14 +55,14 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
       const ctx = streamTexture.getContext("2d");
       if (!ctx) return;
       ctx.textBaseline = "top";
-      ctx.font = '9px "Cascadia Mono", monospace';
+      ctx.font = '9px "JetBrains Mono", monospace';
       const spacingX = 10;
       const spacingY = 15;
       for (let col = 0; col < Math.ceil(width / spacingX); col += 1) {
         const seed = (col * 73 % 101) / 101;
         for (let row = 0; row < Math.ceil(streamTexture.height / spacingY); row += 1) {
           const alpha = .055 + (((col * 31 + row * 17) % 100) / 100) * .15;
-          ctx.fillStyle = `rgba(182,158,240,${alpha})`;
+          ctx.fillStyle = rgba(XB.ink, alpha);
           ctx.fillText(STREAM_GLYPHS[(col * 7 + row * 11) % STREAM_GLYPHS.length], col * spacingX, row * spacingY + seed * 5);
         }
       }
@@ -88,11 +91,11 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
       const step = size / 66;
       const blink = blinkStep / 6;
       ctx.textBaseline = "top";
-      ctx.font = `${Math.ceil(step * 1.32)}px "Cascadia Mono", monospace`;
+      ctx.font = `${Math.ceil(step * 1.32)}px "JetBrains Mono", monospace`;
       for (const point of points) {
         if (point.eye && Math.abs(point.y - 36) > 7 * blink) continue;
-        const intensity = point.eye ? .85 : .32 + point.darkness * .27;
-        ctx.fillStyle = `rgba(${point.eye ? 92 : 37},${point.eye ? 255 : 181},${point.eye ? 135 : 85},${intensity})`;
+        const intensity = point.eye ? .95 : .5 + point.darkness * .4;
+        ctx.fillStyle = rgba(point.eye ? XB.hi : XB.ink, intensity);
         ctx.fillText(point.glyph, 4 + point.x * step, 4 + point.y * step);
       }
       catFrames.set(key, frame);
@@ -104,7 +107,7 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
       if (exitingRef.current && !exitAt) exitAt = now;
       const progress = exitAt ? Math.min(1, (now - exitAt) / (reduced ? 1 : 1900)) : 0;
       const eased = progress < .5 ? 2 * progress * progress : 1 - ((-2 * progress + 2) ** 2) / 2;
-      context.fillStyle = "#020105";
+      context.fillStyle = rgba(XB.bg);
       context.fillRect(0, 0, width, height);
 
       const streamOffset = (now * .024) % height;
@@ -127,7 +130,7 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
       }
 
       context.textBaseline = "top";
-      context.font = `${Math.ceil(step * 1.32)}px "Cascadia Mono", monospace`;
+      context.font = `${Math.ceil(step * 1.32)}px "JetBrains Mono", monospace`;
       for (const point of points) {
         if (point.eye && Math.abs(point.y - 36) > 7 * blink) continue;
         const radialX = point.x - 32.5;
@@ -135,8 +138,8 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
         const radialLength = Math.max(1, Math.hypot(radialX, radialY));
         const scatter = ((point.x * 37 + point.y * 71) % 29) / 29;
         const burst = eased * Math.max(width, height) * (.42 + scatter * .28);
-        const intensity = (point.eye ? .85 : .32 + point.darkness * .27) * (1 - eased);
-        context.fillStyle = `rgba(${point.eye ? 92 : 37},${point.eye ? 255 : 181},${point.eye ? 135 : 85},${intensity})`;
+        const intensity = (point.eye ? .95 : .5 + point.darkness * .4) * (1 - eased);
+        context.fillStyle = rgba(point.eye ? XB.hi : XB.ink, intensity);
         context.fillText(point.glyph, x0 + point.x * step + radialX / radialLength * burst, y0 + point.y * step + radialY / radialLength * burst);
       }
     };
@@ -151,6 +154,6 @@ export function AgentLoadingScreen({ exiting = false, error }: { exiting?: boole
 
   return <main className={`agent-loading-screen ${exiting ? "exiting" : ""}`} aria-label={error ? "Agent unavailable" : "Loading Termeow"}>
     <canvas ref={canvasRef} aria-hidden="true" />
-    <p>{error || "TUNING THE SIGNAL"}</p>
+    <p>{error || "BOOT SEQUENCE_"}</p>
   </main>;
 }

@@ -25,6 +25,7 @@ import { AgentApproval, ApprovalEditor } from "../features/voice-agent/surfaces/
 import type { PublicConfig } from "../types";
 import { AGENT_GREETINGS } from "../lib/agentMemory";
 import "../components/agent-standalone.css";
+import "../components/agent-xbit.css";
 
 type View = AgentDockView;
 
@@ -35,6 +36,36 @@ const statusCopy: Record<string, string> = {
   thinking: "READING THE TAPE", speaking: "TERMEOW LIVE", executing: "EXECUTING", success: "DONE",
   warning: "CHECK THIS", error: "SIGNAL LOST"
 };
+
+/** How many of the five X Bit nav squares are lit for each agent state. */
+const statusLevel: Record<string, number> = {
+  dormant: 0, connecting: 1, idle: 2, listening: 3, thinking: 3, executing: 4, speaking: 4, success: 4, warning: 2, error: 0
+};
+
+function MicCheck() {
+  const agent = useAgent();
+  const silent = useAgentStore((state) => state.micSilent);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [level, setLevel] = useState(0);
+  const [selected, setSelected] = useState(() => { try { return localStorage.getItem("termeow:mic-device") || ""; } catch { return ""; } });
+  useEffect(() => {
+    if (!silent) return;
+    let live = true;
+    void navigator.mediaDevices.enumerateDevices().then((all) => { if (live) setDevices(all.filter((device) => device.kind === "audioinput")); });
+    const timer = setInterval(() => setLevel(agent.inputVolume()), 150);
+    return () => { live = false; clearInterval(timer); };
+  }, [silent, agent]);
+  if (!silent) return null;
+  return <div className="agent-mic-check" role="alert">
+    <b>NO MIC SIGNAL</b>
+    <span>Termeow is receiving silence. Pick the microphone you are speaking into. On Windows, also check Settings → Privacy &amp; security → Microphone → “Let desktop apps access your microphone”.</span>
+    <div className="agent-mic-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, level * 250)}%` }} /></div>
+    <select aria-label="Microphone" value={selected} onChange={(event) => { setSelected(event.target.value); void agent.changeInputDevice(event.target.value); }}>
+      <option value="" disabled>CHOOSE INPUT DEVICE</option>
+      {devices.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Microphone ${index + 1}`}</option>)}
+    </select>
+  </div>;
+}
 
 type AutomationData = { records: AutomationRecord[]; error: string; loading: boolean };
 
@@ -402,11 +433,17 @@ export function AgentPage({ config }: { config: PublicConfig }) {
   return <main className={`agent-app status-${agent.status}`} ref={desktopRef}>
     {hasPrivy ? <><AutomationDataBridge onData={receiveAutomationData} /><PrivyTextWarmup /><PrivyWelcomeTutorial /></> : null}
     <div className="agent-crt" aria-hidden="true" />
+    <div className="xb-ticker" role="note"><span>NOW LIVE: TERMEOW AGENT ON MONAD {config.network.toUpperCase()}</span><span aria-hidden="true">·</span><Link to="/onchain">OPEN THE TERMINAL -&gt;</Link></div>
     <header className="standalone-head">
-      <Link className="standalone-brand" to="/agent"><span>TERMEOW</span><small>VOICE OS / 0.1</small></Link>
-      <div className="agent-network"><i /> {config.network.toUpperCase()} INTELLIGENCE ONLINE</div>
-      <div className="agent-head-actions"><AgentCredits /><Link to="/onchain">OPEN TERMINAL ↗</Link><AuthControls /></div>
+      <Link className="standalone-brand" to="/agent"><span>TERMEOW</span><small>AGENT OS / 0.2</small></Link>
+      <nav className="xb-nav" aria-label="Termeow">
+        <span className="xb-nav-mark">AGENT</span>
+        <span className="xb-nav-dots" role="img" aria-label={statusCopy[agent.status]}>{[0, 1, 2, 3, 4].map((index) => <i key={index} className={index <= (statusLevel[agent.status] ?? 0) ? "on" : ""} />)}</span>
+        <Link to="/onchain">TERMINAL</Link>
+      </nav>
+      <div className="agent-head-actions"><AgentCredits /><AuthControls /></div>
     </header>
+    <div className="xb-corner" aria-hidden="true"><span>CH 0{view === "activity" ? 3 : showAutomations ? 2 : 1} / 04</span><b>{statusCopy[agent.status]}</b></div>
 
     <AgentSignalRail />
     <MarketHud />
@@ -459,6 +496,7 @@ export function AgentPage({ config }: { config: PublicConfig }) {
         <div className="voice-console">
           <div className="voice-status"><span>{["connecting", "thinking", "executing", "speaking"].includes(agent.status) ? <MatrixActivityIcon /> : <i />}<b>{statusCopy[agent.status]}</b></span><small>{conversationId ? "ENCRYPTED VOICE SESSION" : "MIC ACCESS ON START"}</small></div>
           {agent.status === "error" && voiceError && <p className="agent-voice-error" role="alert">VOICE LINK FAILED · {voiceError}</p>}
+          <MicCheck />
           <div className="agent-chat-preview">
             <div className="standalone-transcript" ref={transcriptRef} aria-live="polite">
               {latest.length ? latest.map((message, index) => <p key={message.id} className={message.role}><b>{message.role === "agent" ? "TM // OUT" : message.role === "user" ? "YOU" : "SYSTEM"}</b><TypewriterText text={message.text} animate={message.role === "agent" && index === latest.length - 1} /></p>) : <p className="system"><b>TM // OUT</b><span>{idleGreeting}</span></p>}

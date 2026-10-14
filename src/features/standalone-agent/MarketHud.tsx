@@ -7,6 +7,7 @@ import { money, pct } from "../../lib/format";
 import { useAgent } from "../voice-agent/context/AgentProvider";
 import { useAgentStore } from "../voice-agent/store/agentStore";
 import { TokenLogo } from "./TokenLogo";
+import { XB, rgba } from "./xbitPalette";
 
 const toSeconds = (time: number) => Math.floor(time > 10_000_000_000 ? time / 1000 : time) as UTCTimestamp;
 const bar = (candle: MarketCandle) => ({ time: toSeconds(candle.time), open: candle.open, high: candle.high, low: candle.low, close: candle.close });
@@ -17,17 +18,17 @@ function HudChart({ market }: { market: MarketResponse }) {
   const candles = useRef<MarketCandle[]>([]);
   useEffect(() => {
     if (!host.current) return;
-    const root = getComputedStyle(document.querySelector(".agent-app") || document.documentElement);
-    const accent = root.getPropertyValue("--agent-lime").trim() || "#b293fb";
+    const up = rgba(XB.mint);
+    const down = rgba(XB.down);
     const chart = createChart(host.current, {
-      autoSize: true, layout: { background: { type: ColorType.Solid, color: "rgba(3,2,6,0)" }, textColor: "#7f7693", fontFamily: "Home Video, monospace", fontSize: 9 },
-      grid: { vertLines: { color: "rgba(178,147,251,.055)" }, horzLines: { color: "rgba(178,147,251,.07)" } },
-      rightPriceScale: { borderColor: "rgba(178,147,251,.18)", scaleMargins: { top: .12, bottom: .12 } },
-      timeScale: { borderColor: "rgba(178,147,251,.18)", rightOffset: 4, barSpacing: 5, timeVisible: true, secondsVisible: false },
-      crosshair: { vertLine: { color: "rgba(114,245,255,.35)" }, horzLine: { color: "rgba(114,245,255,.35)" } },
+      autoSize: true, layout: { background: { type: ColorType.Solid, color: "rgba(0,0,0,0)" }, textColor: rgba(XB.mut, .85), fontFamily: "JetBrains Mono, monospace", fontSize: 10 },
+      grid: { vertLines: { color: rgba(XB.line2, .16) }, horzLines: { color: rgba(XB.line2, .2) } },
+      rightPriceScale: { borderColor: rgba(XB.line2, .45), scaleMargins: { top: .12, bottom: .12 } },
+      timeScale: { borderColor: rgba(XB.line2, .45), rightOffset: 4, barSpacing: 5, timeVisible: true, secondsVisible: false },
+      crosshair: { vertLine: { color: rgba(XB.hi, .55) }, horzLine: { color: rgba(XB.hi, .55) } },
       handleScroll: true, handleScale: true
     });
-    series.current = chart.addSeries(CandlestickSeries, { upColor: accent, downColor: "#ff6685", borderVisible: false, wickUpColor: accent, wickDownColor: "#ff6685", priceLineColor: accent, priceLineWidth: 1 });
+    series.current = chart.addSeries(CandlestickSeries, { upColor: up, downColor: down, borderVisible: false, wickUpColor: up, wickDownColor: down, priceLineColor: rgba(XB.hi), priceLineWidth: 1 });
     const data = market.candles.map(bar);
     candles.current = market.candles;
     series.current.setData(data);

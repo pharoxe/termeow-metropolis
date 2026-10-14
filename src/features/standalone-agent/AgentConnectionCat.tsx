@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
+import { XB, rgba } from "./xbitPalette";
 
-const GLYPHS = "01#アネミ";
+const GLYPHS = "/\\|#=";
 type Point = { x: number; y: number; eye: boolean; darkness: number; glyph: string };
 
 /** The boot-screen cat, redrawn as a compact blinking signal while ElevenLabs connects. */
@@ -48,12 +49,12 @@ export function AgentConnectionCat() {
       const blink = phase > 2050 && phase < 2310 ? Math.max(.06, Math.abs(phase - 2180) / 130) : 1;
       const pulse = .83 + Math.sin(now / 310) * .1;
       context.textBaseline = "top";
-      context.font = `${Math.max(2, Math.ceil(step * 1.32))}px "Cascadia Mono",monospace`;
-      context.shadowColor = "#b293fb";
+      context.font = `${Math.max(2, Math.ceil(step * 1.32))}px "JetBrains Mono",monospace`;
+      context.shadowColor = rgba(XB.deep, .55);
       context.shadowBlur = 7 + pulse * 6;
       for (const point of points) {
         if (point.eye && Math.abs(point.y - 36) > 7 * blink) continue;
-        context.fillStyle = point.eye ? `rgba(178,147,251,${pulse})` : `rgba(182,157,241,${(.36 + point.darkness * .38) * pulse})`;
+        context.fillStyle = point.eye ? rgba(XB.hi, pulse) : rgba(XB.ink, (.42 + point.darkness * .4) * pulse);
         context.fillText(point.glyph, x0 + point.x * step, y0 + point.y * step);
       }
       context.shadowBlur = 0;

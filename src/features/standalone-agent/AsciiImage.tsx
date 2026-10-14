@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { AgentStatus } from "../voice-agent/runtime/agentTypes";
 import { audioReactiveEngine } from "../voice-agent/audio/AudioReactiveEngine";
+import { XB, mix, rgba } from "./xbitPalette";
 
 const GLYPHS = "  .,:;-+=*#%@";
 const TRANSITION_MS = 900;
@@ -63,7 +64,7 @@ export function AsciiImage({ src, alt, status, className = "" }: { src: string; 
     let live = true;
 
     const render = (now: number) => {
-      context.fillStyle = "#020104";
+      context.fillStyle = rgba(XB.bg);
       context.fillRect(0, 0, width, height);
       const grid = currentRef.current;
       if (!grid) { if (!reduced) animation = requestAnimationFrame(render); return; }
@@ -94,15 +95,15 @@ export function AsciiImage({ src, alt, status, className = "" }: { src: string; 
         const glyphIndex = Math.min(GLYPHS.length - 1, Math.floor(light * (GLYPHS.length - 1)));
         const glyph = progress < 1 && target.seed > progress ? GLYPHS[(glyphIndex + Math.floor(now / 48) + index) % GLYPHS.length] : GLYPHS[glyphIndex];
         const alpha = Math.min(.95, (.23 + light * .9) * (progress < 1 ? .55 + progress * .45 : 1));
-        const red = mode === "error" ? 255 : speaking ? 104 : Math.round(56 + target.red * 70);
-        const green = mode === "error" ? 68 : speaking ? 246 : Math.round(160 + target.green * 95);
-        const blue = mode === "error" ? 92 : speaking ? 245 : Math.round(102 + target.blue * 80);
-        context.fillStyle = `rgba(${red},${green},${blue},${alpha})`;
+        // Shadows read as X Bit lavender-blue and highlights as cream; speech pulls the bright cells toward yellow.
+        const base = mix(XB.line2, XB.ink, Math.min(1, light * 1.25));
+        const tint = mode === "error" ? XB.down : speaking ? XB.hi : mode === "listening" ? XB.mint : null;
+        context.fillStyle = rgba(tint ? mix(base, tint, .35 + light * .55) : base, alpha);
         context.fillText(glyph, x, y);
         if (light > .48 && (index + Math.floor(now / 230)) % 19 === 0) {
-          context.fillStyle = `rgba(255,50,88,${alpha * .28})`;
+          context.fillStyle = rgba(XB.hi, alpha * .34);
           context.fillText(glyph, x - 1.4, y);
-          context.fillStyle = `rgba(56,235,255,${alpha * .32})`;
+          context.fillStyle = rgba(XB.mint, alpha * .3);
           context.fillText(glyph, x + 1.4, y);
         }
       }

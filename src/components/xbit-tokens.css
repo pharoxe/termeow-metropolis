@@ -1,0 +1,29 @@
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/700.css";
+@import "@fontsource/michroma/400.css";
+
+/*
+ * X Bit Studio "signal" palette (xbit.studio): electric blue field, cream line work, yellow highlights.
+ * Space-separated RGB so stylesheets can write rgb(var(--xb-ink) / .5). Canvas code mirrors these in
+ * features/standalone-agent/xbitPalette.ts.
+ */
+:root {
+  --xb-bg: 21 54 255;
+  --xb-deep: 21 54 255;
+  --xb-panel: 18 46 226;
+  --xb-shadow: 6 18 120;
+  --xb-line: 74 99 255;
+  --xb-line2: 128 149 255;
+  --xb-mut: 201 210 255;
+  --xb-ink: 242 237 225;
+  --xb-hi: 255 214 10;
+  --xb-mint: 118 253 195;
+  --xb-warn: 255 214 10;
+  --xb-down: 255 143 163;
+  --xb-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --xb-display: "Michroma", "JetBrains Mono", sans-serif;
+}
+
+.agent-loading-screen { background: rgb(var(--xb-bg)); }
+.agent-loading-screen p { color: rgb(var(--xb-ink)); font: 500 11px var(--xb-mono); letter-spacing: .3em; }

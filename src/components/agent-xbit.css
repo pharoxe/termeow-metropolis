@@ -1,0 +1,188 @@
+/*
+ * X Bit Studio layer for the standalone agent (/agent). Colours come from xbit-tokens.css; agent-standalone.css
+ * already resolves to those tokens, so this file carries the X Bit structure: ticker, centre nav, flat outlined
+ * panels with hard shadows, Michroma display type, uppercase mono labels and the dashed-horizon backdrop.
+ */
+/* Defined on the body as well so portalled overlays (automation detail, approvals, credits) resolve the accent. */
+.standalone-agent-body { --agent-lime: rgb(var(--xb-hi)); --agent-cyan: rgb(var(--xb-mint)); background: rgb(var(--xb-bg)); }
+.agent-app {
+  --agent-lime: rgb(var(--xb-hi));
+  --agent-cyan: rgb(var(--xb-mint));
+  --xb-top: 24px;
+  padding-top: var(--xb-top);
+  background: rgb(var(--xb-bg));
+  font-family: var(--xb-mono);
+}
+.agent-app ::selection { background: rgb(var(--xb-hi)); color: rgb(var(--xb-bg)); }
+/* styles.css pins Silkscreen on every button with !important; on the agent page the X Bit stack wins. */
+.standalone-agent-body button, .standalone-agent-body input, .standalone-agent-body select, .standalone-agent-body .auth-button { font-family: var(--xb-mono) !important; }
+.agent-app .auth-button {
+  height: 34px !important; padding: 0 14px !important; border: 1px solid rgb(var(--xb-ink)) !important; border-radius: 0 !important;
+  background: rgb(var(--xb-ink)) !important; color: rgb(var(--xb-bg)) !important; font: 700 10px/1.2 var(--xb-mono) !important;
+  letter-spacing: .16em; box-shadow: 4px 4px 0 rgb(var(--xb-shadow) / .5) !important;
+}
+.agent-app .auth-button:hover { background: rgb(var(--xb-hi)) !important; border-color: rgb(var(--xb-hi)) !important; }
+
+/* Backdrop: faint dot lattice plus the dashed horizon and perspective rules from the X Bit hero. */
+.agent-app::before {
+  content: ""; position: fixed; inset: var(--xb-top) 0 0; z-index: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgb(var(--xb-ink) / .55) 0 7px, transparent 7px 16px) 0 64% / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, rgb(var(--xb-ink) / .28) 0 4px, transparent 4px 12px) 0 78% / 100% 1px no-repeat,
+    linear-gradient(to top right, transparent calc(50% - .5px), rgb(var(--xb-ink) / .12) 50%, transparent calc(50% + .5px)) 0 64% / 50% 36% no-repeat,
+    linear-gradient(to top left, transparent calc(50% - .5px), rgb(var(--xb-ink) / .12) 50%, transparent calc(50% + .5px)) 100% 64% / 50% 36% no-repeat,
+    radial-gradient(rgb(var(--xb-ink) / .16) 1px, transparent 1.3px) 0 0 / 24px 24px;
+}
+.agent-crt { opacity: .12; }
+.agent-crt::after { opacity: .5; }
+
+/* Ticker: the cream announcement bar that tops xbit.studio. */
+.xb-ticker {
+  position: fixed; z-index: 30; top: 0; right: 0; left: 0; display: flex; justify-content: center; align-items: center; gap: 10px;
+  height: var(--xb-top); padding: 0 12px; overflow: hidden; background: rgb(var(--xb-ink)); color: rgb(var(--xb-bg));
+  font: 700 10px/1 var(--xb-mono); letter-spacing: .16em; text-transform: uppercase; white-space: nowrap;
+}
+.xb-ticker a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.xb-ticker a:hover { color: rgb(var(--xb-shadow)); }
+
+/* Header: brand left, the X Bit pill nav in the middle, account actions right. */
+.standalone-head { min-height: 64px; border-bottom: 0; background: transparent; backdrop-filter: none; }
+.standalone-brand>span { font: 400 15px var(--xb-display); letter-spacing: .16em; color: rgb(var(--xb-ink)); }
+.standalone-brand small { color: rgb(var(--xb-mut)); font: 500 9px var(--xb-mono); letter-spacing: .18em; }
+.xb-nav {
+  display: flex; align-items: stretch; height: 40px; border: 1px solid rgb(var(--xb-line2) / .9); background: rgb(var(--xb-bg));
+  box-shadow: 5px 5px 0 rgb(var(--xb-shadow) / .45);
+}
+.xb-nav>* { display: flex; align-items: center; gap: 9px; padding: 0 14px; color: rgb(var(--xb-ink)); font: 500 10px var(--xb-mono); letter-spacing: .2em; text-decoration: none; text-transform: uppercase; }
+.xb-nav>*+* { border-left: 1px solid rgb(var(--xb-line2) / .9); }
+.xb-nav-mark { font: 400 12px var(--xb-display); letter-spacing: .12em; }
+.xb-nav-dots { display: inline-flex; gap: 4px; }
+.xb-nav-dots i { width: 7px; height: 7px; background: rgb(var(--xb-line2) / .55); }
+.xb-nav-dots i.on { background: rgb(var(--xb-hi)); }
+.xb-nav a:hover { background: rgb(var(--xb-ink)); color: rgb(var(--xb-bg)); }
+.agent-head-actions>a, .agent-credit-button { border-color: rgb(var(--xb-line2)); background: transparent; color: rgb(var(--xb-ink)); font: 500 10px var(--xb-mono); letter-spacing: .14em; }
+.agent-credit-button:hover, .agent-head-actions>a:hover { background: rgb(var(--xb-ink)); color: rgb(var(--xb-bg)); box-shadow: none; }
+
+/* Layout offsets for the ticker. */
+.agent-command-deck { height: calc(100dvh - 64px - var(--xb-top)); }
+.agent-signal-rail, .market-hud, .agent-left-widget, .agent-left-widget-portfolio { top: calc(78px + var(--xb-top)); }
+.agent-left-widget-automations { top: calc(404px + var(--xb-top)); }
+.market-hud, .agent-left-widget { max-height: calc(100dvh - 92px - var(--xb-top)); }
+
+/* Panels: flat X Bit cards. Same blue as the field, light-blue outline, hard offset shadow, no glow. */
+.persona-console, .market-hud, .agent-left-widget, .agent-drawer, .agent-bottom-nav, .agent-volume, .standalone-approval-modal, .automation-detail, .agent-credit-modal, .agent-tutorial-card {
+  border: 1px solid rgb(var(--xb-line2) / .9); background: rgb(var(--xb-bg)); box-shadow: 8px 8px 0 rgb(var(--xb-shadow) / .5); backdrop-filter: none;
+}
+.persona-console { box-shadow: 10px 10px 0 rgb(var(--xb-shadow) / .55); }
+.agent-signal-rail article { background: rgb(var(--xb-bg)); box-shadow: 5px 5px 0 rgb(var(--xb-shadow) / .45), inset 2px 0 0 var(--agent-lime); backdrop-filter: none; }
+.agent-signal-rail article.sell, .agent-signal-rail article.notable.sell { box-shadow: 5px 5px 0 rgb(var(--xb-shadow) / .45), inset 2px 0 0 rgb(var(--xb-down)); }
+.market-hud::after { display: none; }
+
+/* Window headers read like the X Bit section labels: "01 / THE SHIFT". */
+.agent-left-widget>header, .market-hud>header, .agent-drawer>header, .approval-modal-label {
+  border-bottom: 1px solid rgb(var(--xb-line2) / .7); background: rgb(var(--xb-bg)); color: rgb(var(--xb-hi)); font: 500 10px var(--xb-mono); letter-spacing: .18em;
+}
+.agent-left-widget>header small, .market-hud>header small, .agent-drawer>header small { color: rgb(var(--xb-mut) / .8); font-size: 9px; }
+.agent-left-widget>header button, .market-hud>header button, .agent-drawer>header button { color: rgb(var(--xb-ink)); }
+.agent-left-widget-portfolio>header>span::before { content: "01 / "; }
+.agent-left-widget-automations>header>span::before { content: "02 / "; }
+.market-hud>header>span::before { content: "03 / "; }
+.agent-drawer>header>span::before { content: "04 / "; }
+
+/* Persona: a square monitor on the blue field. Cream ASCII, no CRT bulge or vignette. */
+.persona-stage {
+  margin: 0; border: 0; border-bottom: 1px solid rgb(var(--xb-line2) / .9); border-radius: 0; background: rgb(var(--xb-bg)); box-shadow: none; transform: none;
+}
+.persona-stage::before { background: repeating-linear-gradient(0deg, transparent 0 3px, rgb(var(--xb-shadow) / .12) 3px 4px); mix-blend-mode: normal; }
+.persona-stage::after { background: none; box-shadow: none; }
+.persona-minimized .persona-stage { border-radius: 0; box-shadow: none; }
+.agent-ascii-layer, .status-speaking .agent-ascii-layer { filter: none; }
+.persona-noise { opacity: .05; }
+.persona-minimize, .persona-drag-handle, .persona-mode-toggle { border-color: rgb(var(--xb-line2) / .9); background: rgb(var(--xb-bg)); color: rgb(var(--xb-ink)); box-shadow: none; }
+.persona-mode-toggle button { color: rgb(var(--xb-mut)); }
+.persona-mode-toggle button.active { background: rgb(var(--xb-ink)); color: rgb(var(--xb-bg)); box-shadow: none; }
+.persona-workspace { background: rgb(var(--xb-bg)); }
+.persona-workspace>header { color: rgb(var(--xb-hi)); font: 500 10px var(--xb-mono); letter-spacing: .18em; }
+.persona-workspace-grid button { border-color: rgb(var(--xb-line2) / .8); background: transparent; }
+.persona-workspace-grid button:hover { border-color: rgb(var(--xb-ink)); background: rgb(var(--xb-panel)); }
+.persona-workspace-grid small { color: rgb(var(--xb-hi)); font: 500 9px var(--xb-mono); letter-spacing: .16em; }
+.persona-workspace-grid strong { color: rgb(var(--xb-ink)); font: 400 13px var(--xb-display); letter-spacing: .06em; }
+
+/* Voice console. */
+.voice-console { border-top: 0; background: rgb(var(--xb-bg)); }
+.voice-status { border-bottom: 1px solid rgb(var(--xb-line2) / .6); color: rgb(var(--xb-hi)); }
+.voice-status b { font: 700 11px var(--xb-mono); letter-spacing: .18em; }
+.voice-status small { color: rgb(var(--xb-mut)); font: 500 9px var(--xb-mono); letter-spacing: .16em; }
+.standalone-transcript p { color: rgb(var(--xb-ink)); font: 400 13px/1.55 var(--xb-mono); }
+.standalone-transcript b { color: rgb(var(--xb-hi)); font: 700 10px var(--xb-mono); letter-spacing: .12em; }
+.standalone-transcript .user, .standalone-transcript .system { color: rgb(var(--xb-mut)); }
+.standalone-transcript .user b { color: rgb(var(--xb-mint)); }
+.agent-chat-activity { border-color: rgb(var(--xb-line2) / .6); background: transparent; box-shadow: none; }
+.agent-prompt-chips button { border-color: rgb(var(--xb-line2) / .9); background: transparent; color: rgb(var(--xb-ink)); font: 500 10px var(--xb-mono); letter-spacing: .14em; text-transform: uppercase; }
+.agent-prompt-chips button:hover { border-color: rgb(var(--xb-ink)); background: rgb(var(--xb-ink)); color: rgb(var(--xb-bg)); }
+.voice-console form { border-color: rgb(var(--xb-line2) / .9); }
+.voice-console input { background: rgb(var(--xb-panel)); color: rgb(var(--xb-ink)); font: 500 12px var(--xb-mono); letter-spacing: .1em; }
+.voice-console input::placeholder { color: rgb(var(--xb-mut) / .75); }
+.voice-console form button { border-left-color: rgb(var(--xb-line2) / .9); background: transparent; color: rgb(var(--xb-hi)); font: 700 11px var(--xb-mono); letter-spacing: .14em; }
+.standalone-voice-controls button { border-color: rgb(var(--xb-line2) / .9); background: transparent; color: rgb(var(--xb-ink)); font: 700 11px var(--xb-mono); letter-spacing: .16em; }
+.standalone-voice-controls .voice-main { border-color: rgb(var(--xb-hi)); background: rgb(var(--xb-hi)); color: rgb(var(--xb-bg)); box-shadow: 5px 5px 0 rgb(var(--xb-shadow) / .5); }
+.standalone-voice-controls .voice-main:hover { background: rgb(var(--xb-ink)); border-color: rgb(var(--xb-ink)); }
+.standalone-voice-controls .voice-stop { border-color: rgb(var(--xb-down)); color: rgb(var(--xb-down)); }
+
+/* Microphone check: shown when the published mic track carries no signal. */
+.agent-mic-check { display: grid; gap: 8px; margin: 8px 13px; padding: 10px; border: 1px dashed rgb(var(--xb-hi)); color: rgb(var(--xb-ink)); font: 500 11px/1.5 var(--xb-mono); }
+.agent-mic-check b { color: rgb(var(--xb-hi)); font-weight: 700; letter-spacing: .14em; }
+.agent-mic-check select { height: 34px; border: 1px solid rgb(var(--xb-line2)); border-radius: 0; background: rgb(var(--xb-panel)); color: rgb(var(--xb-ink)); font: 500 11px var(--xb-mono); }
+.agent-mic-meter { height: 4px; background: rgb(var(--xb-line2) / .35); }
+.agent-mic-meter i { display: block; height: 100%; background: rgb(var(--xb-mint)); transition: width .12s linear; }
+
+/* Dock and volume. */
+.agent-bottom-nav { border-radius: 0; }
+.agent-dock-slot button, .agent-dock-slot a { border-color: rgb(var(--xb-line2) / .7); border-radius: 0; background: transparent; color: rgb(var(--xb-ink)); font: 500 8.5px var(--xb-mono); letter-spacing: .04em; }
+.agent-dock-slot:hover button, .agent-dock-slot:hover a { border-color: rgb(var(--xb-ink)); color: rgb(var(--xb-ink)); box-shadow: none; }
+.agent-dock-slot.active button { border-color: rgb(var(--xb-hi)); background: rgb(var(--xb-hi)); color: rgb(var(--xb-bg)); box-shadow: none; }
+.agent-dock-slot b { border-radius: 0; border-color: rgb(var(--xb-bg)); }
+.agent-volume { color: rgb(var(--xb-mut)); }
+.agent-volume-label { font: 500 9px var(--xb-mono); letter-spacing: .16em; }
+
+/* Display type: numbers and names in Michroma, like the X Bit headlines. */
+.agent-portfolio>strong, .automation-detail>strong, .order-flow-title strong, .agent-credit-modal strong, .agent-tutorial-card strong, .market-hud-meta strong, .standalone-rule-list strong {
+  font-family: var(--xb-display); font-weight: 400; letter-spacing: .06em; color: rgb(var(--xb-ink));
+}
+.agent-portfolio>small, .agent-portfolio-actions a, .agent-portfolio-actions button, .linked-wallet-heading, .rule-state, .automation-detail-actions button, .automation-detail-meta span {
+  font-family: var(--xb-mono); letter-spacing: .14em; text-transform: uppercase;
+}
+.agent-portfolio-actions a, .agent-portfolio-actions button { border-radius: 0; background: transparent; }
+.agent-portfolio-actions a:hover, .agent-portfolio-actions button:hover { background: rgb(var(--xb-ink)); color: rgb(var(--xb-bg)); }
+.standalone-rule-card { background: transparent; border-color: rgb(var(--xb-line2) / .7); }
+.standalone-rule-card:hover { border-color: rgb(var(--xb-ink)); box-shadow: inset 3px 0 0 rgb(var(--xb-hi)); }
+
+/* Corner HUD labels, after the X Bit "CH 00 / 04 · BOOT SEQUENCE_" marks. */
+.xb-corner { position: fixed; z-index: 12; left: 18px; bottom: 16px; display: grid; gap: 3px; color: rgb(var(--xb-ink)); font: 500 10px var(--xb-mono); letter-spacing: .2em; text-transform: uppercase; pointer-events: none; }
+.xb-corner b { color: rgb(var(--xb-hi)); font-weight: 700; }
+.xb-corner b::after { content: "_"; animation: agent-blink 1.1s steps(2, end) infinite; }
+
+/* The approval card and exit editor (styles.css) read the terminal theme variables; remap them to X Bit here. */
+.standalone-approval-modal, .automation-detail {
+  --accent: rgb(var(--xb-hi)); --muted: rgb(var(--xb-mut)); --line: rgb(var(--xb-line2) / .8); --line2: rgb(var(--xb-line2));
+  --text: rgb(var(--xb-ink)); --panel: rgb(var(--xb-panel)); --bg: rgb(var(--xb-bg)); --red: rgb(var(--xb-down)); --amber: rgb(var(--xb-hi));
+  color: rgb(var(--xb-ink));
+}
+
+/* Overlays rendered in portals outside .agent-app. */
+.agent-credit-backdrop, .automation-detail-backdrop, .standalone-approval-backdrop { background: rgb(var(--xb-shadow) / .72); backdrop-filter: none; }
+
+@media (max-width: 900px) {
+  .xb-nav>.xb-nav-dots, .xb-corner { display: none; }
+  .agent-signal-rail { top: calc(69px + var(--xb-top)); }
+  .market-hud, .agent-left-widget-portfolio { top: calc(70px + var(--xb-top)); }
+  .agent-left-widget-anchor { top: calc(74px + var(--xb-top)); }
+  .agent-left-widget-automations { top: calc(396px + var(--xb-top)); height: min(340px, calc(100dvh - 408px - var(--xb-top))); }
+}
+@media (max-width: 560px) {
+  .xb-ticker { justify-content: flex-start; font-size: 9px; letter-spacing: .1em; }
+  .xb-nav { display: none; }
+  .agent-signal-rail { top: calc(60px + var(--xb-top)); }
+  .persona-stage { margin: 0; border-radius: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .xb-corner b::after { animation: none; } }
