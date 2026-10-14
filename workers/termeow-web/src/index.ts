@@ -5,6 +5,8 @@ import { lockPage } from "./lock";
 const APP_SECRETS = [
   "DATABASE_URL",
   "MONAD_RPC_URL",
+  "COINGECKO_API_KEY",
+  "COINGECKO_API_PLAN",
   "PRIVY_APP_ID",
   "PRIVY_APP_SECRET",
   "PRIVY_AUTOMATION_SIGNER_ID",

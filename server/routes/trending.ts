@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { fetchJson } from "../lib/http.js";
+import { geckoGet } from "../sources/gecko.js";
 
 /**
  * Trending tokens per chain from GeckoTerminal's keyless trending-pools feed (30 requests/min, so each chain is cached
@@ -82,7 +82,8 @@ export async function trendingTokens(chain: TrendingToken["chain"], window: stri
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TRENDING_TTL_MS) return { rows: hit.rows, cachedAt: hit.at, source: "geckoterminal trending_pools" };
   try {
-    const body = await fetchJson<GeckoTrending>(`https://api.geckoterminal.com/api/v2/networks/${chain}/trending_pools?include=base_token&duration=${window}`, { headers: { Accept: "application/json" } });
+    // Through the shared GeckoTerminal budget so trending never starves the charts of their requests.
+    const body = await geckoGet<GeckoTrending>(`/networks/${chain}/trending_pools?include=base_token&duration=${window}`, { priority: "discovery" });
     const rows = normalizeTrending(chain, body);
     cache.set(key, { at: Date.now(), rows });
     return { rows, cachedAt: Date.now(), source: "geckoterminal trending_pools" };

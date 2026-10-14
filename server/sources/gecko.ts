@@ -3,17 +3,27 @@ import type { Chain, FlowPrint, Side } from "../../shared/wire.js";
 import { perTokenPrice } from "../flow/printPrice.js";
 import type { Candle } from "../types.js";
 
-export const GECKO_BASE_URL = "https://api.geckoterminal.com/api/v2";
-export const GECKO_HEADERS = {
+/**
+ * Keyless GeckoTerminal by default (30 calls/min per IP, shared with everything else on that IP). COINGECKO_API_KEY moves
+ * the same paths to CoinGecko's on-chain API with a per-key budget: COINGECKO_API_PLAN=demo for the free Demo key,
+ * anything else for a paid plan (pro-api, ~500 calls/min).
+ */
+const COINGECKO_KEY = process.env.COINGECKO_API_KEY?.trim() || undefined;
+const COINGECKO_DEMO = process.env.COINGECKO_API_PLAN?.trim().toLowerCase() === "demo";
+export const GECKO_BASE_URL = !COINGECKO_KEY ? "https://api.geckoterminal.com/api/v2"
+  : COINGECKO_DEMO ? "https://api.coingecko.com/api/v3/onchain" : "https://pro-api.coingecko.com/api/v3/onchain";
+export const GECKO_HEADERS: Record<string, string> = {
   Accept: "application/json",
-  "User-Agent": "termeow-monad/0.3"
+  "User-Agent": "termeow-monad/0.3",
+  ...(COINGECKO_KEY ? { [COINGECKO_DEMO ? "x-cg-demo-api-key" : "x-cg-pro-api-key"]: COINGECKO_KEY } : {})
 };
-export const GECKO_BUCKET_LIMIT = 25;
+/** Keyless traffic draws 429s well under the documented 30/min, and each 429 blocks every class for GECKO_BLOCK_MS. */
+export const GECKO_BUCKET_LIMIT = !COINGECKO_KEY ? 10 : COINGECKO_DEMO ? 28 : 400;
 export const GECKO_BUCKET_WINDOW_MS = 60_000;
 export const GECKO_MAX_WAIT_MS = 20_000;
 export const GECKO_BLOCK_MS = 20_000;
 /** Slots of the bucket only the focused class may take; discovery and background see a bucket of LIMIT - RESERVE. */
-export const GECKO_RESERVE_FOCUSED = 5;
+export const GECKO_RESERVE_FOCUSED = COINGECKO_KEY ? 5 : 4;
 
 /**
  * Budget classes, served strictly in this order: `focused` (candles/pools of the instrument on screen), `discovery`
@@ -306,10 +316,28 @@ function ohlcvQuery(opts: GeckoOhlcvOptions, aggregate: number): URLSearchParams
   return params;
 }
 
-/** One page of pool candles on any GeckoTerminal network through the shared bucket. */
+/** How long a page of candles is reused before asking GeckoTerminal again: about one bar, never under 30 s. */
+const OHLCV_FRESH_MS: Record<GeckoOhlcvInterval, number> = { "1m": 30_000, "5m": 60_000, "15m": 120_000, "1h": 300_000, "4h": 900_000, "1d": 1_800_000 };
+/** A page this old is still served when GeckoTerminal is rate limited, so a chart degrades to stale rather than empty. */
+const OHLCV_STALE_MS = 6 * 3_600_000;
+const OHLCV_CACHE_MAX = 400;
+const ohlcvCache = new Map<string, { at: number; candles: Candle[] }>();
+
+/** One page of pool candles on any GeckoTerminal network through the shared bucket, cached per page. */
 export async function geckoPoolOhlcv(network: Chain, pool: string, interval: GeckoOhlcvInterval, opts: GeckoOhlcvOptions = {}): Promise<Candle[]> {
   const { unit, aggregate } = OHLCV_UNITS[interval];
   const path = `/networks/${network}/pools/${pool}/ohlcv/${unit}?${ohlcvQuery(opts, aggregate)}`;
-  const result = await geckoGet<GeckoOhlcvBody>(path, { priority: opts.priority });
-  return mapGeckoOhlcv(result.data?.attributes?.ohlcv_list);
+  const cached = ohlcvCache.get(path);
+  if (cached && Date.now() - cached.at < OHLCV_FRESH_MS[interval]) return cached.candles;
+  try {
+    const result = await geckoGet<GeckoOhlcvBody>(path, { priority: opts.priority });
+    const candles = mapGeckoOhlcv(result.data?.attributes?.ohlcv_list);
+    ohlcvCache.delete(path);
+    ohlcvCache.set(path, { at: Date.now(), candles });
+    if (ohlcvCache.size > OHLCV_CACHE_MAX) ohlcvCache.delete(ohlcvCache.keys().next().value!);
+    return candles;
+  } catch (error) {
+    if (cached && Date.now() - cached.at < OHLCV_STALE_MS) return cached.candles;
+    throw error;
+  }
 }

@@ -69,6 +69,9 @@ async function loadRaw(address: string, deps: MonadMarketDeps): Promise<Loaded<D
   }
 }
 
+/** Fewer chain bars than this and the series is topped up with older GeckoTerminal bars. */
+const MIN_HISTORY_BARS = 300;
+
 /** Newest page first; walks back with before_timestamp only while pages come back full. Newer rows win on a time clash. */
 async function walkBackCandles(deps: MonadMarketDeps, pool: string, interval: GeckoOhlcvInterval): Promise<Candle[]> {
   let collected: Candle[] = [];
@@ -102,7 +105,14 @@ async function loadCandles(deps: MonadMarketDeps, primary: PairRow | null, inter
   if (!deps.chainCandles) return loadGeckoCandles(deps, primary, interval, MONAD_MARKET_SOURCE, []);
   try {
     const chain = await firstPaintBudget(deps.chainCandles(primary, interval), CHAIN_CANDLE_FIRST_PAINT_MS);
-    return { value: chain.candles, notes: chain.notes, source: chain.candleSource.kind, candleSource: chain.candleSource, stale: chain.stale };
+    if (chain.candles.length >= MIN_HISTORY_BARS) return { value: chain.candles, notes: chain.notes, source: chain.candleSource.kind, candleSource: chain.candleSource, stale: chain.stale };
+    // A chain backfill still warming (or capped) can cover only minutes; older bars come from GeckoTerminal so analysis
+    // always has real history. Chain bars win from their first bar onwards.
+    const older = await walkBackCandles(deps, primary.pairAddress, interval).catch(() => [] as Candle[]);
+    const firstChain = chain.candles[0]?.time ?? Number.POSITIVE_INFINITY;
+    const spliced = [...older.filter((candle) => candle.time < firstChain), ...chain.candles];
+    const notes = spliced.length > chain.candles.length ? [...chain.notes, `bars before ${new Date(firstChain).toISOString()} are GeckoTerminal pool OHLCV`] : chain.notes;
+    return { value: spliced, notes, source: chain.candleSource.kind, candleSource: chain.candleSource, stale: chain.stale };
   } catch (error) {
     return loadGeckoCandles(deps, primary, interval, CANDLE_SOURCE_GECKO, [`chain swaps unavailable: ${errorMessage(error)}; candles are GeckoTerminal pool OHLCV`]);
   }

@@ -150,14 +150,14 @@ function chainResult(kind: "chain swaps", candles: Candle[], notes: string[] = [
 }
 
 describe("assembleMonadMarket R6 chain-swap candles", () => {
-  it("serves the pool's own swaps under source 'chain swaps' with candleSource, never calling GeckoTerminal", async () => {
+  it("serves the pool's own swaps under source 'chain swaps' with candleSource; a short series asks GeckoTerminal only for older bars", async () => {
     const chainCandles = vi.fn(async (_primary: PairRow, _interval: string) => chainResult("chain swaps", page(4, 1_788_699_900), ["candles from v4 Swap logs of 0xpool (4 swaps, 1 chunks, 2 block anchors; times interpolated between anchors)"]));
-    const d = deps({ chainCandles });
+    const d = deps({ chainCandles, geckoPoolOhlcv: vi.fn(async () => []) });
     const market = await assembleMonadMarket(FATCOIN, "1m", d);
     expect(chainCandles).toHaveBeenCalledTimes(1);
     expect(chainCandles.mock.calls[0][0]).toMatchObject({ pairAddress: PRIMARY });
     expect(chainCandles.mock.calls[0][1]).toBe("1m");
-    expect(d.geckoPoolOhlcv).not.toHaveBeenCalled();
+    expect(d.geckoPoolOhlcv).toHaveBeenCalled();
     expect(market.source).toBe("chain swaps");
     expect(market.candles).toHaveLength(4);
     expect(market.candleSource).toMatchObject({ kind: "chain swaps", backfilledFrom: { block: 56_800_228 }, coverage: { bars: 4, complete: true } });
@@ -210,9 +210,9 @@ describe("assembleMonadMarket R6 chain-swap candles", () => {
   it("marks a still-backfilling empty chain series as degraded-but-chain rather than falling back", async () => {
     const running = chainResult("chain swaps", [], ["backfill in progress: older bars arrive on the next read"]);
     running.candleSource.coverage = { ...running.candleSource.coverage, complete: false, backfilling: true };
-    const d = deps({ chainCandles: vi.fn(async () => running) });
+    const d = deps({ chainCandles: vi.fn(async () => running), geckoPoolOhlcv: vi.fn(async () => []) });
     const market = await assembleMonadMarket(FATCOIN, "1m", d);
-    expect(d.geckoPoolOhlcv).not.toHaveBeenCalled();
+    expect(d.geckoPoolOhlcv).toHaveBeenCalled(); // asked for older bars; none came back
     expect(market.source).toBe("chain swaps");
     expect(market.candles).toEqual([]);
     expect(market.degraded).toBe(true);

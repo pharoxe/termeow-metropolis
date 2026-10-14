@@ -21,7 +21,13 @@ const seed = (registry: TokenRegistry) => {
     chain: "monad", address: tokens.ausd, symbol: "AUSD", name: "Agora Dollar",
     aliases: ["ausd", "agora dollar"], source: "seeded", priority: 100, verified: true, verificationSource: "agora"
   });
+  // Monad community tokens people ask for by name; mainnet contracts, checked against their DexScreener listings.
+  if (config.network.chainId === 143) for (const token of MAINNET_COMMUNITY_TOKENS) registry.upsert({ chain: "monad", ...token, source: "seeded", priority: 90, verified: true, verificationSource: "dexscreener" });
 };
+
+const MAINNET_COMMUNITY_TOKENS = [
+  { address: "0x350035555e10d9afaf1566aaebfced5ba6c27777", symbol: "CHOG", name: "Chog", aliases: ["chog", "$chog"] }
+];
 
 let activeRegistry = new TokenRegistry(path.join(directory, "token-index.db"));
 try {
